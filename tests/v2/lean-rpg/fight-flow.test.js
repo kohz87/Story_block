@@ -11,7 +11,7 @@ import { FIGHT, FIGHT_XP, FIGHT_XP_HELD, FLOW_VERSION, LEAN_RPG_FEATURE, LIMITS,
 import { fightLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
-import { character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
+import { cueOf, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -220,7 +220,7 @@ test('a fight won by the dice pays every party member who has not Left, once; th
     assert.deepEqual(step.data.v2.result.fight.awards.map(award => [award.who, award.xp]), [['Ren', 6], ['Wessel', 6]]);
     assert.ok(step.replan && step.afterCapture === true);
     assert.deepEqual(fightLines(host.ctx.chat[2].extra.storySuite).map(line => line.text), ['Ren +6 XP (fight won)', 'Wessel +6 XP (fight won)']);
-    assert.match(rollReceipt(host, 2).summary, /Code gives the party its XP for it: write no XP line for this fight/);
+    assert.match(cueOf(rollReceipt(host, 2)), /Code gives the party its XP for it: write no XP line for this fight/);
     assert.ok(JSON.stringify(request.chat).includes('write no XP line for this fight'), 'the cue told is the cue stored');
     same(host);
     await reloads(host);

@@ -6,12 +6,12 @@ import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
 import { CUSTOM_SETTING, DIFFICULTY_SETTING, PRESETS, RESOLVE, ROLLS_QUERY, STANDARD, claimKey, leanRpgGuard, prepare, readSheet, rollsOf } from '../../../src/v2/lean-rpg/index.js';
 import { hashJson as hashOf } from '../../../src/v2/replay.js';
-import { OWNER, PLAN_ANSWER, rollReceipt, setup, tailOf } from './helpers.js';
+import { cueOf, OWNER, PLAN_ANSWER, rollReceipt, setup, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
 const ONE = 'act Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats';
-const lines = receipt => receipt.summary.split('\n').filter(line => line.startsWith('Round'));
+const lines = receipt => cueOf(receipt).split('\n').filter(line => line.startsWith('Round'));
 
 function same(host, label = 'a rebuild') {
     const live = JSON.stringify(host.head());
@@ -33,7 +33,7 @@ test('the preview is the stored roll: the seed in the prompt is the seed on the 
     assert.equal(receipt.cause, 'system');
     assert.equal(receipt.guarded, true);
     assert.ok(receipt.replan, 'planned again when the story before it changes');
-    assert.ok(tailOf(request).includes(receipt.summary), 'the cue told is the cue stored');
+    assert.ok(tailOf(request).includes(cueOf(receipt)), 'the cue told is the cue stored');
     const span = record.spans.find(entry => entry.guard?.predicate?.kind === RESOLVE);
     assert.ok(span, 'a guarded span');
     assert.equal(span.guard.owner, 'story-block');
@@ -59,7 +59,7 @@ test('a Re-read keeps the dice; a swipe and a regenerate draw new ones with a ne
     assert.equal(reread.ok, true);
     const again = rollReceipt(host, 2);
     assert.equal(again.seed, first.seed, 'same seed');
-    assert.equal(again.summary, first.summary, 'same dice');
+    assert.equal(cueOf(again), cueOf(first), 'same dice');
     assert.deepEqual(again.data.v2.result, first.data.v2.result);
     assert.equal(callModel.calls.length, 1, 'a Re-read never calls the model');
     assert.equal(JSON.stringify(host.head()), before);
@@ -175,7 +175,7 @@ test('a Re-read of a reply whose rolls were made keeps them when the feature is 
     host.features.set('story-block.rpg', false);
     assert.equal((await host.turn.reread(2)).ok, true);
     assert.equal(rollReceipt(host, 2).seed, first.seed);
-    assert.equal(rollReceipt(host, 2).summary, first.summary);
+    assert.equal(cueOf(rollReceipt(host, 2)), cueOf(first));
     host.close();
 });
 
@@ -197,14 +197,14 @@ test('REPLAY RULE: a roll records the numbers in force, and a Re-read, a rebuild
     assert.deepEqual(span.recorded.rules, PRESETS.harsh, 'and in the replay inputs');
     assert.equal(span.guard.predicate.rules, hashOf(PRESETS.harsh));
     assert.deepEqual(rollReceipt(host, 2).replan.payload.rules, PRESETS.harsh, 'and in what a Re-read runs again');
-    const kept = JSON.stringify(first.data.v2.result), summary = first.summary;
+    const kept = JSON.stringify(first.data.v2.result), summary = cueOf(first);
 
     // The reader changes the settings: Gentle, then Custom numbers nothing like Harsh.
     setDifficulty(host, 'gentle');
     const reread = await host.turn.reread(2);
     assert.equal(reread.ok, true);
     assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'a Re-read keeps the harsh numbers (the same dice, the same totals)');
-    assert.equal(rollReceipt(host, 2).summary, summary);
+    assert.equal(cueOf(rollReceipt(host, 2)), summary);
     setDifficulty(host, 'custom', { foeBase: 0, classWeight: 3, statDivisor: 3, costMargin: 5, decisiveMargin: 4, roundCap: 1 });
     await host.turn.reread(2);
     assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'and again under Custom');
@@ -279,7 +279,7 @@ test('the numbers are in the prompt\'s cue: a harsher fight tells harsher totals
     const { host } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
     const { request } = await host.send('I hit the lead rat.', 'The rats scatter.');
     const receipt = rollReceipt(host, 2);
-    assert.ok(tailOf(request).includes(receipt.summary));
+    assert.ok(tailOf(request).includes(cueOf(receipt)));
     const line = receipt.data.v2.result.rounds[0].lines[0];
     assert.equal(line.foe.total, line.foe.die + 7 + 2);
     host.close();

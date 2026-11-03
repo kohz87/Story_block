@@ -6,7 +6,7 @@ import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { CUSTOM_SETTING, DIFFICULTY_SETTING, LIMITS } from '../../../src/v2/lean-rpg/index.js';
 import { cueText, cueTokens, shortNames } from '../../../src/v2/lean-rpg/cue.js';
-import { character, foeBlock, rollReceipt, setup } from './helpers.js';
+import { cueOf, character, foeBlock, rollReceipt, setup } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -47,7 +47,7 @@ test('B1: a foe whose name is prompt: false is "Foe 1" to the planner, the plan,
     const receipt = host.ctx.chat.at(-1).extra.storySuite.receipts.find(entry => entry.type === 'rpg.resolve');
     assert.ok(receipt, 'the slot rolls');
     assert.ok(!JSON.stringify(receipt).includes(SECRET), 'the saved roll has no name');
-    assert.match(receipt.summary, /Wessel → Foe 1/);
+    assert.match(cueOf(receipt), /Wessel → Foe 1/);
     assert.ok(!JSON.stringify(sent.request).includes(SECRET), 'nor the narrator\'s request');
     assert.ok(!asked.some(prompt => prompt.includes(SECRET)));
 });
@@ -129,7 +129,7 @@ test('review 163 a: a skill whose stat is hidden rolls with that stat and the cu
     const request = JSON.stringify(sent.request);
     assert.match(request, /Wessel — Silent Trick, normal: /, 'the cue names the skill');
     assert.ok(!/\(DEX\)|Silent Trick \([^)]*dex/i.test(request), 'and not its hidden stat');
-    assert.ok(!/\(DEX\)/.test(roll.summary ?? ''), 'nor does the saved summary');
+    assert.ok(!/\(DEX\)/.test(cueOf(roll)), 'nor does the saved summary');
     assert.ok(asked.some(prompt => prompt.includes('Silent Trick (Novice, mana)')), 'the planner sees the skill without its stat');
 });
 
@@ -197,7 +197,7 @@ test('review 164 c: a check whose hidden skill stat is missing from the sheet is
     success(await host.sdk.command('dm.define', { definition: skills }));
     const sent = await host.send('I attempt both.', 'A reply.');
     const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
-    assert.match(roll.summary, /Silent Trick: not rolled \(Wessel lacks the skill's stat\)/);
+    assert.match(cueOf(roll), /Silent Trick: not rolled \(Wessel lacks the skill's stat\)/);
     assert.ok(!/DEX/.test(JSON.stringify(sent.request)), 'DEX is not named anywhere the narrator reads');
 });
 
@@ -289,10 +289,10 @@ test('B5: cut names stay different: six characters and four foes each keep what 
     const { host } = await longGame({});
     const receipt = rollReceipt(host, 2);
     assert.ok(receipt, 'rolled');
-    assert.ok(cueTokens(receipt.summary) <= LIMITS.cueTokens, 'and it fits');
-    const told = receipt.summary.split('\n').filter(line => line.startsWith('Round') || line.includes('check'));
+    assert.ok(cueTokens(cueOf(receipt)) <= LIMITS.cueTokens, 'and it fits');
+    const told = cueOf(receipt).split('\n').filter(line => line.startsWith('Round') || line.includes('check'));
     for (const tag of ['pc0', 'pc1', 'pc2', 'pc3', 'foe0', 'foe1', 'foe2', 'foe3']) assert.ok(told.some(line => line.includes(tag)), `${tag} can be told apart in the cue`);
-    assert.ok(!/Captain Rare Long C…\s/.test(receipt.summary), 'not the same cut for everyone');
+    assert.ok(!/Captain Rare Long C…\s/.test(cueOf(receipt)), 'not the same cut for everyone');
     host.close();
 });
 
@@ -318,7 +318,7 @@ test('B4: a roll with no dice version is fitted as it was, so a Re-read tells th
     assert.ok(!('dice' in payload), 'no dice version in the payload');
     assert.equal(result.stop, 'budget');
     assert.equal(result.rounds.length, 1, 'the one round the earlier rule kept');
-    assert.equal(receipt.summary, cueText(partsOf(result), 0), 'told as written, not shortened');
+    assert.equal(cueOf(receipt), cueText(partsOf(result), 0), 'told as written, not shortened');
     const before = JSON.stringify(result);
     success(await earlier.host.sdk.reread(2));
     assert.equal(JSON.stringify(rollReceipt(earlier.host, 2).data.v2.result), before, 'a Re-read changes nothing');
@@ -326,8 +326,8 @@ test('B4: a roll with no dice version is fitted as it was, so a Re-read tells th
     // the same fight rolled now is shortened to fit, and tells more
     const now = await longGame({});
     const fresh = rollReceipt(now.host, 2);
-    assert.ok(cueTokens(fresh.summary) <= LIMITS.cueTokens);
+    assert.ok(cueTokens(cueOf(fresh)) <= LIMITS.cueTokens);
     assert.ok(fresh.data.v2.result.rounds.length >= 1);
-    assert.notEqual(fresh.summary, cueText(partsOf(fresh.data.v2.result), 0), 'shortened');
+    assert.notEqual(cueOf(fresh), cueText(partsOf(fresh.data.v2.result), 0), 'shortened');
     now.host.close();
 });

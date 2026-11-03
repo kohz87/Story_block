@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
 import { RESOLVE, ROLLS_QUERY, STANDARD_FORMULA, STANDARD_PRESETS, PRESETS, FORMULA_SETTING, DIFFICULTY_SETTING } from '../../../src/v2/lean-rpg/index.js';
-import { OWNER, character, foeBlock, rollReceipt, setup, skillBlock, tailOf } from './helpers.js';
+import { cueOf, OWNER, character, foeBlock, rollReceipt, setup, skillBlock, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -39,8 +39,8 @@ test('a Standard roll: the payload carries the formula and numbers, the narrator
     assert.deepEqual(result.rules, STANDARD_FORMULA);
     assert.equal(receipt.replan.payload.rules.formula, 'standard');
     assert.equal(receipt.replan.payload.plan.formula, 'standard');
-    assert.ok(tailOf(request).includes(receipt.summary), 'the cue told is the cue stored');
-    assert.match(receipt.summary, /already moved the bars they hit, heal or spend/);
+    assert.ok(tailOf(request).includes(cueOf(receipt)), 'the cue told is the cue stored');
+    assert.match(cueOf(receipt), /already moved the bars they hit, heal or spend/);
     // The sheet holds exactly what the told lines did.
     const lines = [...result.opening, ...result.rounds.flatMap(round => round.lines)];
     const took = (id) => lines.filter(line => line.damage?.id === id);

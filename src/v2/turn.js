@@ -34,7 +34,7 @@ import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 import { cutAt } from '../text.js';
 import { CORE_FEATURE } from './features.js';
 import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
-import { NO_ROLLS_LINE } from './lean-rpg/cue.js';
+import { NO_ROLLS_LINE, receiptCue } from './lean-rpg/cue.js';
 
 export const STATIC_KEY = 'story_suite_static';
 export const TAIL_KEY = 'story_suite_tail_1';
@@ -437,7 +437,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 // The RPG's rolls move bars (hits, heals, skill costs): the tail's block lines are read from the state they leave, so they say what the cue says.
                 if (preludeType === RPG_RESOLVE && result.state) previewState = result.state;
                 prechecks.push({ type: preludeType, payload, seed: result.receipt.seed });
-                const told = `[Happened]\n${result.receipt.summary}`;
+                const told = `[Happened]\n${receiptCue(result.receipt)}`;
                 cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true } : told];
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
         }
