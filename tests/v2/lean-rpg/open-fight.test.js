@@ -42,8 +42,8 @@ async function reloads(host) {
 
 test('the heads list the new-foe line and its rule, Classic and Standard', () => {
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.split('\n').includes('foe <name> | new | count: <1-12> | class: <I-V>?'));
-        assert.ok(head.includes('- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual.'));
+        assert.ok(head.split('\n').includes('foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?'));
+        assert.ok(head.includes('- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual. Give a new foe a level, or a rank, only when the story says how strong it is; otherwise leave both out and code picks one near the party.'));
     }
 });
 
@@ -53,12 +53,12 @@ test('an empty Foes block and a reader message naming crawlers: the slot is fill
     assert.match(callModel.calls[0].prompt, /Foes: none/);
     assert.deepEqual(problems, []);
     const fields = fieldsOf(host);
-    assert.deepEqual([fields.foe1, fields.count1, fields.class1, fields.hurt1], ['Mud-Scale Crawlers', 6, 1, 5]);
+    assert.deepEqual([fields.foe1, fields.count1, fields.level1, fields.hurt1], ['Mud-Scale Crawlers', 6, 5, 5]);
     const receipt = rollReceipt(host, 2);
     assert.ok(receipt, 'rolled');
     assert.equal(receipt.beforeGenerate, true);
     const result = receipt.data.v2.result;
-    assert.deepEqual(result.opened, [{ slot: 1, module: 'pack.chat/foes', name: 'Mud-Scale Crawlers', count: 6, class: 1 }]);
+    assert.deepEqual(result.opened, [{ slot: 1, module: 'pack.chat/foes', name: 'Mud-Scale Crawlers', count: 6, level: 5 }]);
     assert.ok(result.rounds.length >= 1 && result.rounds[0].lines.some(line => line.kind === 'act' && line.foe.name === 'Mud-Scale Crawlers'));
     assert.equal(result.rounds[0].lines[0].pc.edge === 2 || result.rounds[0].lines.some(line => line.pc.edge === 2), true, 'the ambush edge');
     const model = readResolve(result);
@@ -91,31 +91,31 @@ test('the shown text of the reply before also counts as naming a foe, and a foe 
     assert.equal(vetOpen(crawlers, sheet, ['I advance.', 'Nothing stirs.']).open.length, 0);
 });
 
-test('the checks: whole words, plurals, small words, count 1-12, class from I to the party\'s highest + 1, a name already on the sheet is not new', () => {
+test('the checks: whole words, plurals, small words, count 1-12, the level as written (an old class stands for its level), a name already on the sheet is not new', () => {
     assert.equal(isNamedIn('the Crawlers', ['A crawler bites.']), true, 'plural ignored, "the" does not count');
     assert.equal(isNamedIn('the Crawlers', ['The end of the road.']), false, '"the" alone is not a name');
     assert.equal(isNamedIn('Rats', ['pirates and crates']), false, 'whole words only');
     assert.equal(isNamedIn('Mud-Scale Crawlers', ['mud everywhere']), true, 'one distinctive word is enough');
     const sheet = readSheet({ domains: { dataModules: sheetDomain(PARTY()) } });
-    const top = Math.max(...sheet.characters.map(entry => entry.soul));
     const text = ['goblins and rats and wolves and ogres'];
     const vetted = vetOpen([
-        { name: 'Goblins', count: '40', class: 'IX' }, { name: 'Wolves', count: '0', class: '' }, { name: 'Ogres', count: 'many', class: 'II' },
+        { name: 'Goblins', count: '40', level: '120' }, { name: 'Wolves', count: '0', class: '' }, { name: 'Ogres', count: 'many', class: 'II' },
         { name: 'Sluice Rats', count: '3', class: 'I' }, { name: 'Dragons', count: '1', class: 'I' },
     ], sheet, text);
-    assert.deepEqual(vetted.open, [{ name: 'Goblins', count: 12, class: top + 1 }, { name: 'Wolves', count: 1, class: 1 }, { name: 'Ogres', count: 1, class: 2 }], 'Sluice Rats is on the sheet already');
+    assert.deepEqual(vetted.open, [{ name: 'Goblins', count: 12, level: 25 }, { name: 'Wolves', count: 1 }, { name: 'Ogres', count: 1, level: 15 }], 'level held to the party\'s highest (15) + 10, none left to be drawn, class II is level 15; Sluice Rats is on the sheet already');
     assert.deepEqual(vetted.refused.map(entry => entry.name), ['Dragons']);
     assert.deepEqual(openLinesOf('pace: normal\nfoe Goblins | new | count: 3 | class: II\nfoe Rats | target: Wessel'), [{ name: 'Goblins', count: '3', class: 'II' }]);
+    assert.deepEqual(openLinesOf('foe Goblins | new | count: 3 | level: 14 | rank: E'), [{ name: 'Goblins', count: '3', level: '14', rank: 'E' }]);
     assert.equal(validatePlan({ pace: 'normal', open: [{ name: 'A', count: 13, class: 1 }] }).ok, false);
     assert.equal(validatePlan({ pace: 'normal', open: [{ name: 'A', count: 2, class: 1 }] }).ok, true);
 });
 
-test('count and class are held when the plan is rolled', { skip }, async () => {
-    const answer = ['foe Mud-Scale Crawlers | new | count: 40 | class: IX', 'act Wessel | skill: Iron Breath | target: Mud-Scale Crawlers'].join('\n');
+test('count and level are held when the plan is rolled', { skip }, async () => {
+    const answer = ['foe Mud-Scale Crawlers | new | count: 40 | level: 150', 'act Wessel | skill: Iron Breath | target: Mud-Scale Crawlers'].join('\n');
     const { host } = await setup({ blocks: empty(), answers: [answer] });
     await host.send(MESSAGE, 'The silt churns.');
     const fields = fieldsOf(host);
-    assert.deepEqual([fields.count1, fields.class1], [12, 3], 'at most 12, and class III: the party\'s highest is II');
+    assert.deepEqual([fields.count1, fields.level1], [12, 25], 'at most 12, and level 25: the party\'s highest is 15, plus 10');
     host.close();
 });
 
@@ -214,7 +214,7 @@ async function realWorld(t, answers, templates = LEAN_RPG_TEMPLATES) {
 
 test('the narrator\'s own set-slot line for the same foes updates the opened group: one group, never two', { skip }, async t => {
     const { host, model } = await realWorld(t, [OPEN.replace('skill: Iron Breath | ', 'stat: STR | ')]);
-    const slot = reply('+ dm foes — why | kind: set-slot-2 | name: Mud-Scale Crawlers | count: 5 | class: 1');
+    const slot = reply('+ dm foes — why | kind: set-slot-2 | name: Mud-Scale Crawlers | count: 5 | level: 5');
     await host.send(MESSAGE, slot);
     assert.equal(model.calls.length, 1);
     const fields = host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
@@ -228,7 +228,7 @@ test('the narrator\'s own set-slot line for the same foes updates the opened gro
 
 test('the narrator\'s line for the same slot number is the same group too (not refused as taken)', { skip }, async t => {
     const { host } = await realWorld(t, [OPEN.replace('skill: Iron Breath | ', 'stat: STR | ')]);
-    await host.send(MESSAGE, reply('+ dm foes — why | kind: set-slot-1 | name: mud-scale crawlers | count: 4 | class: 1'));
+    await host.send(MESSAGE, reply('+ dm foes — why | kind: set-slot-1 | name: mud-scale crawlers | count: 4 | level: 5'));
     const fields = host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
     assert.deepEqual([fields.count1, fields.count2], [4, 0]);
     same(host);
@@ -236,23 +236,23 @@ test('the narrator\'s line for the same slot number is the same group too (not r
 
 test('a different name in the narrator\'s line is a second group as before', { skip }, async t => {
     const { host } = await realWorld(t, [OPEN.replace('skill: Iron Breath | ', 'stat: STR | ')]);
-    await host.send(MESSAGE, reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | class: 2'));
+    await host.send(MESSAGE, reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | level: 15'));
     const fields = host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
     assert.deepEqual([fields.foe1, fields.foe2], ['Mud-Scale Crawlers', 'Silt Hound']);
 });
 
-test('the Standard formula: the opened group arrives through the Standard Foes block\'s own kind (health follows its class) and is rolled', { skip }, async t => {
-    const answer = ['foe Mud-Scale Crawlers | new | count: 6 | class: II', 'act Wessel | type: physical | target: Mud-Scale Crawlers', 'foe Mud-Scale Crawlers | target: Wessel'].join('\n');
+test('the Standard formula: the opened group arrives through the Standard Foes block\'s own kind (health follows its level) and is rolled', { skip }, async t => {
+    const answer = ['foe Mud-Scale Crawlers | new | count: 6 | level: 15', 'act Wessel | type: physical | target: Mud-Scale Crawlers', 'foe Mud-Scale Crawlers | target: Wessel'].join('\n');
     const { host } = await realWorld(t, [answer], STANDARD_TEMPLATES);
     await host.send(MESSAGE, 'The silt churns.');
     const fields = host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
-    assert.deepEqual([fields.foe1, fields.count1, fields.class1], ['Mud-Scale Crawlers', 6, 2]);
+    assert.deepEqual([fields.foe1, fields.count1, fields.level1], ['Mud-Scale Crawlers', 6, 15]);
     assert.ok(fields.hurt1 <= 4, 'the told hits may have hurt it');
-    // The slot as the block's kind fills it, before any dice: 4 + floor(class/3) blocks.
+    // The slot as the block's kind fills it, before any dice: 4 + floor(level/30) blocks.
     const domain = structuredClone(host.head().domains.dataModules);
     Object.assign(domain.instances['pack.chat/foes'].chat.fields, { foe1: '', count1: 0, hurt1: 4 });
-    assert.equal(openFoes(domain, [{ name: 'Wolves', count: 2, class: 6 }]).length, 1);
-    assert.equal(domain.instances['pack.chat/foes'].chat.fields.hurt1, 6, '4 + floor(6/3)');
+    assert.equal(openFoes(domain, [{ name: 'Wolves', count: 2, level: 65 }]).length, 1);
+    assert.equal(domain.instances['pack.chat/foes'].chat.fields.hurt1, 6, '4 + floor(65/30)');
     assert.equal(rolled(host).length, 1);
     assert.deepEqual(rolled(host)[0].data.v2.result.opened.map(entry => entry.slot), [1]);
     same(host);

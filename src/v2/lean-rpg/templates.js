@@ -109,19 +109,19 @@ const standardSkills = {
 
 const foes = {
     slug: 'foes', name: 'Foes', role: 'foes', schema: 1, stateVersion: 1, scope: 'chat',
-    prompt: 'Up to four foe groups in the current fight. A group is one slot: its name, how many it has (count 0 means the slot is empty), its Soul Class from I to IX and its health. The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or has yielded.',
+    prompt: 'Up to four foe groups in the current fight. A group is one slot: its name, how many it has (count 0 means the slot is empty), its level from 1 to 99 and its health. The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or has yielded.',
     show: { tab: true, card: false, tabName: 'Foes', icon: 'ph-skull' },
     state: Object.fromEntries(SLOTS.flatMap(n => [
         [`foe${n}`, text(`Foe ${n}`)],
         [`count${n}`, int(`Count ${n}`, 0, 99, 0)],
-        [`class${n}`, int(`Class ${n}`, 1, 9, 1, { names: SOUL })],
+        [`level${n}`, int(`Level ${n}`, 1, 99, 1)],
         [`hurt${n}`, int(`Health ${n}`, 0, 5, 5, { names: HEALTH })],
     ])),
     kinds: Object.fromEntries(SLOTS.flatMap(n => [
-        [`set-slot-${n}`, { op: '+', labels: { name: { type: 'text', max: 40 }, count: range(1, 99), class: range(1, 9) },
+        [`set-slot-${n}`, { op: '+', labels: { name: { type: 'text', max: 40 }, count: range(1, 99), level: range(1, 99) },
             when: ['eq', get(`count${n}`), 0], refusal: 'That slot is taken; clear it first.',
             effects: [{ op: 'set', path: [`foe${n}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${n}`], value: ['arg', 'count'] },
-                { op: 'set', path: [`class${n}`], value: ['arg', 'class'] }, { op: 'set', path: [`hurt${n}`], value: 5 }] }],
+                { op: 'set', path: [`level${n}`], value: ['arg', 'level'] }, { op: 'set', path: [`hurt${n}`], value: 5 }] }],
         [`hurt-${n}`, { op: '~', labels: { to: range(0, 5) }, when: ['gt', get(`count${n}`), 0], refusal: 'That slot is empty.',
             effects: [{ op: 'set', path: [`hurt${n}`], value: ['arg', 'to'] }] }],
         [`clear-${n}`, { op: '-', labels: { why: { type: 'enum', values: ['down', 'fled', 'yielded', 'captured', 'gone'] } },
@@ -158,7 +158,7 @@ const SIZE = {
     stamina: ['add', 3, ['floorDiv', get('agi'), 5]],
     mana: ['add', 3, ['floorDiv', get('int'), 5]],
 };
-const FOE_SIZE = n => ['add', 4, ['floorDiv', get(`class${n}`), 3]];
+const FOE_SIZE = n => ['add', 4, ['floorDiv', get(`level${n}`), 30]];
 // Blocks for a stage word, in a bar of `size` blocks: round(word index × size / (words − 1)), half up; the first word is 0 and the last the full bar.
 const blocksOf = (word, size, count) => ['floorDiv', ['add', ['mul', word, size], Math.floor((count - 1) / 2)], count - 1];
 const stageLabel = words => ({ type: 'int', min: 0, max: words.length - 1, names: names(words) });
@@ -212,19 +212,19 @@ const standardCharacter = {
 
 const standardFoes = {
     slug: 'foes', name: 'Foes', role: 'foes', schema: 1, stateVersion: 2, scope: 'chat',
-    prompt: 'Up to four foe groups in the current fight. A group is one slot: its name, how many it has (count 0 means the slot is empty), its Soul Class from I to IX and its health (words: a group of a higher class has more blocks of health). The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or has yielded.',
+    prompt: 'Up to four foe groups in the current fight. A group is one slot: its name, how many it has (count 0 means the slot is empty), its level from 1 to 99 and its health (words: a group of a higher level has more blocks of health). The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or has yielded.',
     show: foes.show,
     state: Object.fromEntries(SLOTS.flatMap(n => [
         [`foe${n}`, text(`Foe ${n}`)],
         [`count${n}`, int(`Count ${n}`, 0, 99, 0)],
-        [`class${n}`, int(`Class ${n}`, 1, 9, 1, { names: SOUL })],
+        [`level${n}`, int(`Level ${n}`, 1, 99, 1)],
         [`hurt${n}`, bar(`Health ${n}`, 8, 'foe', 4)],
     ])),
     kinds: Object.fromEntries(SLOTS.flatMap(n => [
-        [`set-slot-${n}`, { op: '+', labels: { name: { type: 'text', max: 40 }, count: range(1, 99), class: range(1, 9) },
+        [`set-slot-${n}`, { op: '+', labels: { name: { type: 'text', max: 40 }, count: range(1, 99), level: range(1, 99) },
             when: ['eq', get(`count${n}`), 0], refusal: 'That slot is taken; clear it first.',
             effects: [{ op: 'set', path: [`foe${n}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${n}`], value: ['arg', 'count'] },
-                { op: 'set', path: [`class${n}`], value: ['arg', 'class'] }, { op: 'set', path: [`hurt${n}`], value: ['add', 4, ['floorDiv', ['arg', 'class'], 3]] }] }],
+                { op: 'set', path: [`level${n}`], value: ['arg', 'level'] }, { op: 'set', path: [`hurt${n}`], value: ['add', 4, ['floorDiv', ['arg', 'level'], 30]] }] }],
         [`hurt-${n}`, { op: '~', labels: { to: stageLabel(STAGES.health) }, when: ['gt', get(`count${n}`), 0], refusal: 'That slot is empty.',
             effects: [{ op: 'set', path: [`hurt${n}`], value: blocksOf(['arg', 'to'], FOE_SIZE(n), STAGES.health.length) }] }],
         [`clear-${n}`, { op: '-', labels: { why: { type: 'enum', values: ['down', 'fled', 'yielded', 'captured', 'gone'] } },

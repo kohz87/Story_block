@@ -94,13 +94,13 @@ test('the Skills block has five slots of name, description, stat, resource, rank
     }
 });
 
-test('the Foes block has four slots of name, count, class and health stage', () => {
+test('the Foes block has four slots of name, count, level (1 to 99) and health stage', () => {
     const { state, kinds } = template('Foes');
     for (let n = 1; n <= 4; n++) {
         assert.equal(state[`foe${n}`].type, 'text');
         assert.deepEqual([state[`count${n}`].min, state[`count${n}`].max], [0, 99]);
-        assert.deepEqual([state[`class${n}`].min, state[`class${n}`].max], [1, 9]);
-        assert.deepEqual(Object.values(state[`class${n}`].names), ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX']);
+        assert.deepEqual([state[`level${n}`].min, state[`level${n}`].max, state[`level${n}`].default], [1, 99, 1]);
+        assert.equal(state[`class${n}`], undefined, 'no Soul Class on a foe');
         assert.deepEqual([state[`hurt${n}`].min, state[`hurt${n}`].max], [0, 5]);
         assert.deepEqual(Object.values(state[`hurt${n}`].names), STAGES.health);
         for (const kind of [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]) assert.ok(kinds[kind], kind);

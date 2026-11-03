@@ -14,8 +14,8 @@ const skip = available.ok ? false : available.reason;
 
 const standard = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
 
-// A whole host on the Standard formula with Wessel, his skills and a foe group of class IV, and a planner that keeps asking for a fight.
-async function game(t, { answers, settings = { rpgFormula: 'standard' }, foes = [['Weir-drake', 1, 4]] } = {}) {
+// A whole host on the Standard formula with Wessel, his skills and a foe group of level 35, and a planner that keeps asking for a fight.
+async function game(t, { answers, settings = { rpgFormula: 'standard' }, foes = [['Weir-drake', 1, 35]] } = {}) {
     const callModel = async () => (answers.length > 1 ? answers.shift() : answers[0]);
     const host = await createHost({ callModel, settings: { modules: { 'story-block': settings } } });
     t.after(() => host.close());
@@ -28,7 +28,7 @@ async function game(t, { answers, settings = { rpgFormula: 'standard' }, foes = 
     for (const [key, value] of Object.entries(barFields(stats))) character.state[key].default = value;
     const skills = standard('Skills'); skills.slug = 'wessel-skills'; skills.state.who.default = 'Wessel'; skills.state.skill1.default = 'Iron Breath'; skills.state.stat1.default = 'str';
     const block = standard('Foes');
-    foes.forEach(([name, count, level], n) => { block.state[`foe${n + 1}`].default = name; block.state[`count${n + 1}`].default = count; block.state[`class${n + 1}`].default = level; });
+    foes.forEach(([name, count, level], n) => { block.state[`foe${n + 1}`].default = name; block.state[`count${n + 1}`].default = count; block.state[`level${n + 1}`].default = level; });
     for (const definition of [character, skills, block]) success(await host.sdk.command('dm.define', { definition }));
     return host;
 }
@@ -43,7 +43,7 @@ test('1: the tail\'s block lines are the sheet after this reply\'s roll, the sam
         const after = readSheet(host.head()), foe = after.foes[0], hero = after.characters[0];
         const changed = foe.hurt !== before.foes[0].hurt || hero.health !== before.characters[0].health;
         const tail = tailOf(request);
-        if (foe.hurt < foe.size) assert.match(tail, new RegExp(`Weir-drake \\(Class IV, ${stageText('foe', foe.hurt, foe.size)}\\)`), `the foe's word after the roll (${foe.hurt} of ${foe.size})`);
+        if (foe.hurt < foe.size) assert.match(tail, new RegExp(`Weir-drake \\(Lv 35, ${stageText('foe', foe.hurt, foe.size)}\\)`), `the foe's word after the roll (${foe.hurt} of ${foe.size})`);
         if (hero.health < hero.size.health) assert.match(tail, new RegExp(`Wessel — health ${stageText('health', hero.health, hero.size.health)};`), 'his word after the roll');
         if (changed) checked += 1;
     }

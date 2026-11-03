@@ -6,7 +6,7 @@
 //              xp, down (the death latch, hidden), alive
 //   skills:    who, then per slot 1…5: skillN (name), aboutN (what it does), statN (one of the seven stats), usesN (stamina |
 //              mana), rankN (0–3), practiceN (0–100)
-//   foes:      foe1…foe4 (text), count1…count4, class1…class4 (1–9), hurt1…hurt4 (0–5)
+//   foes:      foe1…foe4 (text), count1…count4, level1…level4 (1–99; a block of the earlier rules has class1…class4, 1–9), hurt1…hurt4 (0–5)
 // Pure and read-only: it takes a state (or anything shaped `{ domains: { dataModules } }`) and answers plain data. It
 // never validates the definitions (the data-module checker did when they were pinned); a block it cannot read is left
 // out, with a plain `problems` line.
@@ -14,6 +14,7 @@ import { FOE_SLOTS, SKILL_SLOTS, STAGES, STATS, USES } from './names.js';
 import { dmHidden } from '../data-modules/schema.js';
 import { barOf, characterBars, sizeOf } from './blocks.js';
 import { soulReading } from './soul.js';
+import { classOfLevel, levelOfClass } from './foes.js';
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const int = value => (Number.isSafeInteger(value) ? value : null);
@@ -128,8 +129,11 @@ function foesOf(id, fields, offset = 0, hidden = new Set(), state = null) {
         const size = barOf(state?.[`hurt${n}`]) ? sizeOf(state[`hurt${n}`], fields, `hurt${n}`) : null;
         const name = hidden.has(`foe${n}`) ? (text(fields[`foe${n}`]) ? `Foe ${offset + n}` : '') : text(fields[`foe${n}`]);
         const count = int(fields[`count${n}`]) ?? 0;
-        out.push({ slot: offset + n, module: id, name, count, class: int(fields[`class${n}`]) ?? 1, hurt: int(fields[`hurt${n}`]) ?? 0, ...(size ? { size } : {}), filled: Boolean(name) && count > 0,
-            hidden: ['count', 'class', 'hurt'].filter(part => hidden.has(`${part}${n}`)) });
+        // A block of the Levels rules has `level{n}`; one of the earlier rules has `class{n}` (kept as it was), whose level is worked out from it.
+        const levelled = Object.hasOwn(fields, `level${n}`), soulClass = int(fields[`class${n}`]) ?? 1;
+        const level = levelled ? Math.max(1, Math.min(99, int(fields[`level${n}`]) ?? 1)) : levelOfClass(soulClass) ?? 1;
+        out.push({ slot: offset + n, module: id, name, count, class: levelled ? classOfLevel(level) : soulClass, level, ...(levelled ? { levelled } : {}), hurt: int(fields[`hurt${n}`]) ?? 0, ...(size ? { size } : {}), filled: Boolean(name) && count > 0,
+            hidden: ['count', 'class', 'level', 'hurt'].filter(part => hidden.has(`${part}${n}`)) });
     }
     return out;
 }
@@ -140,7 +144,7 @@ function foesOf(id, fields, offset = 0, hidden = new Set(), state = null) {
  *                  skills: [{ slot, name, about, rank, practice, stat, uses }] }]   (a Skills block joins the character its `who` names;
  *                  stat is one of STATS and uses 'stamina' | 'mana', or null for a block that has neither)
  *                  `size`: { health, stamina, mana } only for a Standard Character block, where those three are the blocks left)
- *   foes: the four slots of every Foes block in block order, [{ slot, module, name, count, class, hurt, size?, filled }] ([] without one); `size`: the
+ *   foes: the four slots of every Foes block in block order, [{ slot, module, name, count, level, class, hurt, size?, filled }] ([] without one; `level` 1–99, worked out from `class` for a block of the earlier rules, which has no `levelled`; `class` of a levelled group is the Soul Class its level stands for, which the fight XP table of the earlier rules still reads); `size`: the
  *         blocks a Standard group's Health has (`hurt` is the blocks left); `slot`
  *         counts on across blocks (1–4, then 5–8, …), `filled` = a name and a count above 0
  *   problems: plain sentences for blocks left out (no `who`, two characters of one name)

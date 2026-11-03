@@ -121,7 +121,7 @@ export function skillsOf(block) {
     return out;
 }
 
-/** The foes a Foes block holds: `[{ slot, name, count, class, hurt, word, max?, text?, blocks? }]` (a Standard group has its size `max`, the `text` "Hurt · 4 of 6"), empty slots left out (a slot is filled with a name and a count above 0, as the roll planner reads it). */
+/** The foes a Foes block holds: `[{ slot, name, count, class, level?, levelled?, hurt, word, max?, text?, blocks? }]` (a Standard group has its size `max`, the `text` "Hurt · 4 of 6"), empty slots left out (a slot is filled with a name and a count above 0, as the roll planner reads it). */
 export function foesOf(block) {
     const out = [];
     for (let slot = 1; slot <= FOE_SLOTS; slot += 1) {
@@ -130,7 +130,9 @@ export function foesOf(block) {
         if (!name || count <= 0) continue;
         const schema = block.definition.state?.[`hurt${slot}`], blocks = blockBar('health', schema, block.fields, `hurt${slot}`);
         const hurt = blocks ? blocks.value : whole(block.fields[`hurt${slot}`], stageMax('health', schema));
-        out.push({ slot, name, count, class: whole(block.fields[`class${slot}`], 1), hurt,
+        // A group of the Levels rules has `levelN` (1–99); one of the earlier rules has `classN`.
+        const levelled = Object.hasOwn(block.fields, `level${slot}`);
+        out.push({ slot, name, count, class: whole(block.fields[`class${slot}`], 1), ...(levelled ? { level: Math.max(1, Math.min(99, whole(block.fields[`level${slot}`], 1))), levelled } : {}), hurt,
             word: blocks ? blocks.word : stageWord('health', schema ?? block.definition.state?.health, hurt), ...(blocks ? { max: blocks.max, text: blocks.text, blocks: true } : {}) });
     }
     return out;

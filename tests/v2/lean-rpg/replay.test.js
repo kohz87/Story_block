@@ -281,7 +281,8 @@ test('the numbers are in the prompt\'s cue: a harsher fight tells harsher totals
     const receipt = rollReceipt(host, 2);
     assert.ok(tailOf(request).includes(receipt.summary));
     const line = receipt.data.v2.result.rounds[0].lines[0];
-    assert.equal(line.foe.total, line.foe.die + 7 + 2);
+    // (From the Levels rules a foe adds floor(level / 5): the rats' class I stands for level 5, so +1.)
+    assert.equal(line.foe.total, line.foe.die + 7 + 1);
     host.close();
 });
 
@@ -294,9 +295,9 @@ test('a roll recorded before the numbers were kept stands as it was made, with S
     assert.deepEqual(ask(span.guard, span.recorded), { ok: true });
     assert.deepEqual(span.recorded.rules, STANDARD, 'Standard is what the settings said');
     // A roll from before the numbers were kept: no `rules` in the inputs or in the guard's predicate, its input hash made on Standard's.
-    // (and made before the flow of stage 49, so without its `flow` either)
-    const { rules: _a, flow: _c, ...plain } = span.recorded;
-    const { rules: _b, flow: _d, ...predicate } = span.guard.predicate;
+    // (and made before the flow of stage 49 and the Levels rules, so without its `flow` or `lv` either)
+    const { rules: _a, flow: _c, lv: _e, ...plain } = span.recorded;
+    const { rules: _b, flow: _d, lv: _f, ...predicate } = span.guard.predicate;
     const witness = prepare(plain.plan, readSheet(before), STANDARD).witness;
     const oldOne = { ...span.guard, predicate, inputHash: hashOf({ source: span.source, predicate, witness }) };
     assert.deepEqual(ask(oldOne, plain), { ok: true }, 'it stands, on Standard\'s numbers');

@@ -22,7 +22,7 @@ test('a message in a fight: one call, the plan is rolled before the reply and to
     assert.ok(call.prompt.startsWith(PRECALL_HEAD), 'the same head for every message, first');
     assert.ok(call.prompt.endsWith(`The reader's message:\n"""\n${MESSAGE}\n"""`));
     assert.match(call.prompt, /Wessel \(class II\): STR 14 VIT 12 AGI 12 DEX 10 INT 8 LUK 9 CHA 10; Health Unhurt, Mana Fresh, Stamina Fresh; skills: Iron Breath \(Adept, STR\), Spark \(Novice, INT, mana\)/);
-    assert.match(call.prompt, /Foes: \n1\. Sluice Rats x6 \(class I, Unhurt\)/);
+    assert.match(call.prompt, /Foes: \n1\. Sluice Rats x6 \(Lv 5, Unhurt\)/);
     const [receipt] = rolled(host);
     assert.ok(receipt);
     assert.equal(receipt.narrate, true);

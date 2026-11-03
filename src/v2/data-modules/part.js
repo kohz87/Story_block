@@ -16,7 +16,8 @@ import { LEAN_RPG_FEATURE } from '../lean-rpg/names.js';
 import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blocks.js';
 import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, soulNaming } from '../lean-rpg/join.js';
 import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
-import { fold } from '../lean-rpg/read.js';
+import { fold, readSheet } from '../lean-rpg/read.js';
+import { averageLevel, bandOfRank, foeRandom, levelCap, levelOf, partyLevels, pickLevel } from '../lean-rpg/foes.js';
 import { isStandard, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
 import { XP_RATE, scaleXp, xpRateFrom } from '../lean-rpg/levels.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
@@ -648,14 +649,29 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const slot = named ? named.n : Number(practice[1]);
         return { kind: `practice-${slot}`, slot, name: slots[slot - 1].name };
     }
+    // A Foes block of the Levels rules (its set-slot kind has a `level` label): a line that gives a level keeps it; one that gives a rank gets a level drawn inside that
+    // rank's band (the `rpg.rank` query names the ranks); one that gives neither gets a level within ±2 of the party's average. The draw is from the reply's seed, so a
+    // swipe draws anew and a Re-read keeps it. `rank` is not a label of the kind: it is taken out of the line here.
+    function foeLevelLabels(labels, kind, prefix, ctx) {
+        if (!kind.labels?.level || !/^set-slot-\d$/u.test(labels.kind)) return labels;
+        const { rank, ...rest } = labels;
+        // A level or rank above one band (10 levels) over the party's highest level is held down to it.
+        const levels = partyLevels(readSheet({ domains: { dataModules: prefix.domains?.dataModules } })), cap = levelCap(levels);
+        if (dmOwn(rest, 'level')) { const given = levelOf(rest.level); return given === null ? rest : { ...rest, level: String(Math.min(given, cap)) }; }
+        const band = typeof rank === 'string' && rank.trim() ? bandOfRank(rank, level => ctx.query('rpg.rank', { level })) : null;
+        const ask = band ? { from: Math.min(band.from, cap), to: Math.min(band.to, cap) } : {};
+        return { ...rest, level: String(Math.min(cap, pickLevel(ask, averageLevel(levels), foeRandom(Math.floor(ctx.rng() * 4294967296) >>> 0, 0)))) };
+    }
     function act(ctx, payload, line = null, call = {}) {
         if (ctx.caller !== null) refuse('REFUSED', '', 'A data action cannot be called by another module.');
         const prefix = stateOf(ctx), module = resolveModule(prefix, line?.name ?? payload.module), definition = activeDefinition(prefix, module);
         call.label = definition?.name ?? module;
         if (!definition) refuse('DM_SCHEMA', '', 'Unsupported or damaged pin.');
         dependency(definition, prefix);
-        const labels = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
-        const kind = dmOwn(definition.kinds, labels.kind) && definition.kinds[labels.kind];
+        const given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
+        const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
+        // A foe group the narrator sets may give `level: N` or `rank: <name>`, or neither: then its level is drawn from the reply's seed (see foeLevelLabels).
+        const labels = kind && line && definition.role === 'foes' ? foeLevelLabels(given, kind, prefix, ctx) : given;
         if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(definition.kinds))}`);
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
@@ -683,7 +699,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (route?.refuse) refuse('DM_CONDITION', '', route.refuse);
         const same = definition.role === 'foes' && /^set-slot-\d$/u.test(labels.kind) && typeof args.name === 'string'
             ? [1, 2, 3, 4].find(n => typeof instance.fields[`foe${n}`] === 'string' && instance.fields[`count${n}`] > 0 && fold(instance.fields[`foe${n}`]) === fold(args.name)) : undefined;
-        if (same !== undefined) evaluation.effects([{ op: 'set', path: [`foe${same}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${same}`], value: ['arg', 'count'] }, { op: 'set', path: [`class${same}`], value: ['arg', 'class'] }], { arg: args });
+        if (same !== undefined) evaluation.effects([{ op: 'set', path: [`foe${same}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${same}`], value: ['arg', 'count'] }, { op: 'set', path: [kind.labels.level ? `level${same}` : `class${same}`], value: ['arg', kind.labels.level ? 'level' : 'class'] }], { arg: args });
         else if (route?.update) evaluation.effects(['about', 'stat', 'uses'].map(key => ({ op: 'set', path: [`${key}${route.slot}`], value: ['arg', key] })), { arg: args });
         else {
             const run = route ? definition.kinds[route.kind] : kind;

@@ -11,7 +11,7 @@ import { FIGHT, FIGHT_XP, FIGHT_XP_HELD, FLOW_VERSION, LEAN_RPG_FEATURE, LIMITS,
 import { fightLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
-import { character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
+import { character, foeBlock, levelFoeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -206,6 +206,7 @@ const fightReceipts = (host, index) => host.ctx.chat[index].extra.storySuite.rec
 test('a fight won by the dice pays every party member who has not Left, once; the cue tells the narrator; swipe, Re-read, delete, rebuild and reload agree', { skip }, async () => {
     // One group of a single block against Wessel alone in the plan; nobody attacks, so the first hit that lands wins it (eight exchanges to land one).
     const weak = party({ foes: [['Sluice Rats', 6, 1, 1]], ren: {} });
+    weak.foes.fields = levelFoeBlock([['Sluice Rats', 6, 1, 1]]);
     weak.ren.fields.health = 0;                      // Ren is Down: paid all the same
     weak.left = { role: 'character', fields: character('Orsolya', { left: true }) };
     const { host } = await setup({ blocks: weak, answers: [ONE_SIDED], settings: { [FORMULA_SETTING]: 'standard' } });
@@ -271,7 +272,7 @@ test('each member\'s XP: count × max(1, ceil(foe level / 10)) × 2, times 100 %
     assert.equal(memberXp([group(1, 99), group(20, 99)], 99), 60, 'at most 60');
     // two members of different levels get different amounts from the same fight
     assert.deepEqual([memberXp(six, 1), memberXp(six, 2)], [12, 10]);
-    const sheet = counts => readSheet({ domains: { dataModules: sheetDomain({ c: party().wessel, foes: { role: 'foes', fields: foeBlock(counts.map(([count, level]) => ['Group', count, level, 0])) } }) } });
+    const sheet = counts => readSheet({ domains: { dataModules: sheetDomain({ c: party().wessel, foes: { role: 'foes', fields: levelFoeBlock(counts.map(([count, level]) => ['Group', count, level, 0])) } }) } });
     assert.equal(fightOf(sheet([[3, 2]]), [1]).won, true);
     assert.equal(fightOf(sheet([[3, 2]]), []).won, false, 'a fight that began with no standing group is not won now');
 });
@@ -295,7 +296,7 @@ async function world(t, { answers = ['none'], party = ['Astra'], xp = 0, rate } 
     return { host, model };
 }
 const slugOf = who => (who === 'Astra' ? 'character' : who.toLowerCase());
-const SLOT = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | class: 1';
+const SLOT = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | level: 1';
 const DOWN = '~ dm foes — why | kind: hurt-1 | to: 0';
 const XP = amount => `+ dm character — why | kind: add-xp | amount: ${amount}`;
 const fields = (host, who) => host.head().domains.dataModules.instances[`pack.chat/${slugOf(who)}`].chat.fields;
@@ -312,8 +313,8 @@ test('a fight won by the narrator\'s own foe lines pays the party once; Astra (l
     // The beaten group stays on the block: the next reply pays nothing.
     await host.send('We rest.', reply('+ dm character — why | kind: add-xp | amount: 0'));
     assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [10, 10]);
-    // A new group in another slot is a new fight, paid for its own groups only (1 × 1 × 2 = 2, the same level as Astra: no cut).
-    await host.send('A hound.', reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | class: 2'));
+    // A new group in another slot is a new fight, paid for its own groups only.
+    await host.send('A hound.', reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | level: 2'));
     assert.equal(fields(host, 'Astra').xp, 10);
     await host.send('I kill it.', reply('~ dm foes — why | kind: hurt-2 | to: 0'));
     assert.equal(fields(host, 'Astra').xp, 12);
@@ -383,7 +384,7 @@ test('the step is not tied to the feature: a reply that has it keeps it when the
     host.features.set(LEAN_RPG_FEATURE, false);
     assert.equal((await host.turn.reread(4)).ok, true);
     assert.equal(fields(host, 'Astra').xp, 10, 'the step kept on the reply stands');
-    await host.send('A second swarm.', reply('+ dm foes — why | kind: set-slot-2 | name: Others | count: 2 | class: 1'));
+    await host.send('A second swarm.', reply('+ dm foes — why | kind: set-slot-2 | name: Others | count: 2 | level: 5'));
     await host.send('Done.', reply('~ dm foes — why | kind: hurt-2 | to: 0'));
     assert.equal(fields(host, 'Astra').xp, 10, 'off means off: nothing new is paid');
 });
@@ -419,7 +420,7 @@ test('a member whose XP comes to 0 gets none and no receipt line; another member
 // ---- a fight opened and won in the same reply -------------------------------------------------------------------------------
 
 const AMBUSH = 'Mud-scale crawlers boil out of the silt. I ambush them.';
-const OPENING = ['pace: normal', 'foe Mud-Scale Crawlers | new | count: 6 | class: I', 'act Astra | stat: STR | target: Mud-Scale Crawlers', 'foe Mud-Scale Crawlers | target: Astra | defend: AGI'].join('\n');
+const OPENING = ['pace: normal', 'foe Mud-Scale Crawlers | new | count: 6 | level: 1', 'act Astra | stat: STR | target: Mud-Scale Crawlers', 'foe Mud-Scale Crawlers | target: Astra | defend: AGI'].join('\n');
 
 test('a fight opened by the pre-call and won in the same reply is paid once; a swipe that opens it and does not win pays nothing; Re-read, rebuild and reload agree', { skip }, async t => {
     const { host } = await world(t, { answers: [OPENING, OPENING, 'none'] });
@@ -453,7 +454,7 @@ test('a fight the narrator opens with its own set-slot line and wins in the same
 });
 
 test('Standard dice: a fight opened by the pre-call and won by the dice in the same reply is paid', { skip }, async t => {
-    const answer = ['foe Mud-Scale Crawlers | new | count: 2 | class: I', 'act Astra | type: physical | target: Mud-Scale Crawlers'].join('\n');
+    const answer = ['foe Mud-Scale Crawlers | new | count: 2 | level: 1', 'act Astra | type: physical | target: Mud-Scale Crawlers'].join('\n');
     const model = createFakeModel([answer]);
     const host = await createHost({ callModel: model });
     t.after(() => host.close());
