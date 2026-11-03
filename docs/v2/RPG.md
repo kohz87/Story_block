@@ -290,6 +290,17 @@ bonus everywhere: checks, attacks and defence.
   by an older build, whose record has no dice version, is shortened the way it was then, so a Re-read tells what it told.
 - **Foes.** A foe slot counts as filled with a name and a count above 0, in the Fight tab and for the planning step alike, and
   every Foes block in the story is read.
+- **A fight that starts in this reply.** The planning step may list foes that are not on the Foes block yet, when your message
+  starts a fight against them (`foe <name> | new | count | class`). Story Block checks each one before anything is rolled: a
+  distinctive word of its name (not "the" or "a", a plural -s ignored) must appear as a whole word in your message or in the
+  reply before it, so a foe nobody named is never added; the count is held to 1-12 and the Soul Class to at most your party's
+  highest + 1 (none given: I). An accepted foe fills a free slot through the Foes block's own set-slot kind, as part of the
+  reply's roll, and the dice are rolled against it as for any fight (an ambush edge included). A swipe plans it again, Re-read
+  keeps it, deleting the reply takes the foes back with it, and a rebuild or a reload gives the same. A refused foe adds
+  nothing, and a plan that names only refused foes is treated like a plan that could not be read. If the narrator also writes
+  `set-slot` for a group of the same name in the same Foes block, that slot is updated (count and class), not doubled. When no
+  foe is filled in and nothing is rolled for a reply, the narrator is told that if a fight starts now it should set the Foes line
+  and stop at the first clash, and the dice decide from the next reply.
 
 - A **swipe** rolls again: the reply and its dice are new, and made with the numbers the settings say then.
 - **Re-read** keeps the same dice, and the same numbers (see below).

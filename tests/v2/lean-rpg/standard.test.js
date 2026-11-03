@@ -132,7 +132,7 @@ test('Classic output is byte-identical to the build before the Standard formula:
         prompt: sha(prompt), head: sha(PRECALL_HEAD), sheet: sha(sheetText(sheet)), cue: sha(rolled.text), rounds: sha(JSON.stringify(rolled.rounds)), witness: sha(JSON.stringify(prepared.witness)),
         parsed: sha(JSON.stringify(parsePlanAnswer(answer, sheet))), rules: sha(JSON.stringify(rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' }))), presets: sha(JSON.stringify(PRESETS)),
     }, {
-        prompt: '7a7e03371be22c46', head: '863ad8c46ed239f8', sheet: '0d382a6e9c87a18d', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        prompt: '9c2f43c8312a725c', head: '2ff341dbdc89949c', sheet: '0d382a6e9c87a18d', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
         parsed: 'b0eedb0e4d7e0c16', rules: '0816289d883327a2', presets: '0a416a8d4dfe24d2',
     });
 });

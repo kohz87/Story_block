@@ -58,6 +58,7 @@ import { prepareStandard, rollStandard } from './standard.js';
 import { fitCue } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from './read.js';
 import { validatePlan } from './plan.js';
+import { openFoes } from './open.js';
 import { rng as seededRandom } from '../rng.js';
 
 export const RESULT_VERSION = 1;
@@ -305,9 +306,14 @@ export function resolve(ctx, payload = {}) {
     // The numbers this roll is made with are the ones the payload carries (chosen when it was planned, from the settings of that
     // moment); a Re-read, a rebuild and a reload run the same payload, so they roll with them again. The settings are never read here.
     const rules = normalizeRules(payload.rules);
-    const domain = ctx.read('dataModules');
+    // A fight the pre-call opened (open.js): its foes are put in free slots of the Foes block first, through the block's own set-slot kind, and the
+    // roll is made on the sheet that leaves. A plan with no `open` reads the block as it stands, as ever.
+    const opening = Array.isArray(plan.open) && plan.open.length > 0;
+    const domain = opening ? ctx.draft('dataModules') : ctx.read('dataModules');
+    const opened = opening ? openFoes(domain, plan.open) : null;
     const sheet = readSheet({ domains: { dataModules: domain } });
     const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain) });
+    if (opening) prepared.witness = { ...prepared.witness, opened };
     if (!prepared.acts.length && !prepared.foes.length && !prepared.checks.length) ctx.fail('NO_LONGER_DONE', 'Nothing is left to roll on this sheet.');
     if (!ctx.claim(claimKey(key))) ctx.fail('CLAIMED', 'This message has already been rolled for.');
     // A roll that asks for the dice version draws one number from the seed, and each action's dice come from that and its place in
@@ -319,7 +325,7 @@ export function resolve(ctx, payload = {}) {
     ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}) });
     const result = {
         v: RESULT_VERSION, key, pace: plan.pace, rules, stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
-        refused: prepared.refused, summary: dice.summary,
+        refused: prepared.refused, summary: dice.summary, ...(opening ? { opened } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
     if (std) writeBars(ctx, dice.hurts);
@@ -345,7 +351,12 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         if (predicate.order !== undefined || recorded.order !== undefined) {
             if (orderOf(recorded.order) === null || hash(recorded.order) !== predicate.order) return bad('The roll\'s turn order was damaged.');
         }
-        const witness = prepare(recorded.plan, readSheet(state), rules, { maxOf: fieldMax(state.domains?.dataModules) }).witness;
+        // A roll that opened a fight is asked again on the block with those foes put in, as it was rolled.
+        const opening = Array.isArray(recorded.plan.open) && recorded.plan.open.length > 0;
+        const domain = opening ? structuredClone(state.domains?.dataModules) : state.domains?.dataModules;
+        const opened = opening ? openFoes(domain, recorded.plan.open) : null;
+        const witness = prepare(recorded.plan, readSheet(opening ? { domains: { dataModules: domain } } : state), rules, { maxOf: fieldMax(domain) }).witness;
+        if (opening) witness.opened = opened;
         if (hash({ source, predicate, witness }) !== guard.inputHash) return bad('The sheet before this roll changed; Re-read this reply.');
         return { ok: true };
     } catch { return bad('Damaged roll record.'); }

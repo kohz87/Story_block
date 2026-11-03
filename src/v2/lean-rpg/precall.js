@@ -12,8 +12,9 @@ import { SETTING, TIMEOUT_MS, clip, estimateTokens, hashText, normalizeType, wit
 import { stripBlock } from '../capture.js';
 import { CLASS_NAMES, LEAN_RPG_FEATURE, RANK_NAMES, RESOLVE, ROLLS_SETTING, STAGES, STATS, stageWord } from './names.js';
 import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rules.js';
-import { NO_ROLLS_LINE } from './cue.js';
-import { parsePlanAnswer } from './plan.js';
+import { NO_ROLLS_LINE, OPEN_FIGHT_LINE } from './cue.js';
+import { openLinesOf, parsePlanAnswer } from './plan.js';
+import { openFoes, vetOpen } from './open.js';
 import { DICE_VERSION, claimKey, prepare } from './resolve.js';
 import { readSheet } from './read.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
@@ -35,12 +36,14 @@ export const PRECALL_HEAD = [
     `act <who> | stat: ${STATS.map(stat => stat.toUpperCase()).join('|')} | target: <foe> | edge: <-3 to +3 and a short reason>?`,
     'foe <foe> | target: <who> | defend: <stat> | skill: <skill>?',
     'foe <foe> | hold',
+    'foe <name> | new | count: <1-12> | class: <I-V>?',
     'check <who> | skill: <skill> | stat: <stat>? | difficulty: easy|normal|hard|very hard',
     'check <who> | stat: <stat> | difficulty: easy|normal|hard|very hard',
     'none',
     'Rules:',
     '- Roll only what is uncertain. Talk, questions, plans and safe actions: answer none.',
     '- In a fight, give every party member who is not Down an act (companions act on their own) and every foe a target or hold.',
+    '- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual.',
     '- Use only the names listed. A skill brings its own stat and what it uses, so write no stat for a skill the character has; for a skill they lack, or with no skill, write the stat.',
     '- A foe line may name a skill of the defender, only when one plausibly fits defending (a parry, a dodge, a shield, a counter-draw); otherwise write no skill. It brings its own stat.',
     '- pace: careful when the reader moves slowly or carefully, all when they fight it out, else normal.',
@@ -56,11 +59,13 @@ export const PRECALL_HEAD_STANDARD = [
     'act <who> | skill: <skill>? | type: physical|magic|social|check | target: <foe, or an ally> | edge: <-3 to +3 and a short reason>? | area? | support: easy|normal|hard?',
     'foe <foe> | target: <who> | skill: <skill>? | magic?',
     'foe <foe> | hold',
+    'foe <name> | new | count: <1-12> | class: <I-V>?',
     `check <who> | skill: <skill>? | type: social|check | fit: ${STATS.map(stat => stat.toUpperCase()).join('|')}? | difficulty: easy|normal|hard|very hard`,
     'none',
     'Rules:',
     '- Roll only what is uncertain. Talk, questions, plans and safe actions: answer none.',
     '- In a fight, give every party member who is not Down an act (companions act on their own) and every foe a target or hold.',
+    '- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual.',
     '- Use only the names listed. A skill brings its own stat and what it uses: write no stat.',
     '- type: physical (blades, force), magic (spells, a skill that uses Mana), social (talk, bluff), check (the rest). area: hits every foe. support: heals or helps an ally. magic on a foe line: a spell.',
     '- fit: the stat a check leans on (STR climb, AGI sneak, DEX locks, INT lore, VIT endure).',
@@ -148,8 +153,11 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
     const skip = (sheet, message) => {
         try { problem?.({ module: moduleId, code: 'ROLLS_SKIPPED', quiet: true, message: `Rolls skipped for this reply: ${message} Swipe to try again.` }); } catch { /* the Problems list is optional */ }
         // While a fight is on the narrator is told to keep it undecided; outside one there is nothing to hold back.
-        return sheet.foes.some(foe => foe.filled) ? { lines: [NO_ROLLS_LINE] } : null;
+        if (sheet.foes.some(foe => foe.filled)) return { lines: [NO_ROLLS_LINE] };
+        return noFight(sheet);
     };
+    // No foe is filled in and nothing was rolled: if a fight starts in this reply, the narrator sets the Foes line and stops at the first clash.
+    const noFight = sheet => (sheet.foes.length && !sheet.foes.some(foe => foe.filled) ? { lines: [OPEN_FIGHT_LINE] } : null);
 
     async function plan(view, sheet, message, excerpt, rules) {
         const values = readSettings(view, moduleId);
@@ -161,13 +169,26 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         } catch (error) {
             return { failed: error?.code === 'TIMEOUT' ? 'the planning call timed out.' : `the planning call failed (${String(error?.message ?? error).slice(0, 120)}).` };
         }
-        const parsed = parsePlanAnswer(answer, sheet, { formula: standard ? 'standard' : 'classic' });
+        // Foes the planner lists as new (open.js): the ones the reader's message or the reply before names are put on a copy of the Foes block, and the
+        // plan is read against that copy, so its lines may target them. They are added for real only when the plan is rolled (resolve.js).
+        const wanted = openLinesOf(answer);
+        let open = [], looked = sheet;
+        if (wanted.length && view.state?.domains?.dataModules) {
+            const vetted = vetOpen(wanted, sheet, [message, excerpt]).open;
+            const domain = structuredClone(view.state.domains.dataModules);
+            const placed = openFoes(domain, vetted);
+            if (placed.length) {
+                open = placed.map(({ name, count, class: soul }) => ({ name, count, class: soul }));
+                looked = readSheet({ domains: { dataModules: domain } });
+            }
+        }
+        const parsed = parsePlanAnswer(answer, looked, { formula: standard ? 'standard' : 'classic' });
         if (parsed.error) return { failed: `the answer could not be read (${parsed.error}).` };
         if (parsed.none) return { plan: null, tokens: estimateTokens(prompt) };
         // A plan that names nothing this sheet can roll is the same as no plan.
-        const ready = prepare(parsed.plan, sheet, rules);
+        const ready = prepare(parsed.plan, looked, rules);
         if (!ready.acts.length && !ready.foes.length && !ready.checks.length) return { plan: null, tokens: estimateTokens(prompt) };
-        return { plan: parsed.plan, tokens: estimateTokens(prompt) };
+        return { plan: open.length ? { ...parsed.plan, open } : parsed.plan, tokens: estimateTokens(prompt) };
     }
 
     async function beforeGenerate(view, info = {}) {
@@ -211,7 +232,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         // A Standard fight keeps its turn order across replies: the nearest earlier reply's order goes on in the payload (resolve.js), so a swipe of
         // this reply rolls this reply's dice again and keeps the order the fight began with.
         const order = isStandard(rules) && planned.plan ? carriedOrder(view, index) : null;
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, ...(order ? { order } : {}) } }] } : null;
+        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, ...(order ? { order } : {}) } }] } : noFight(sheet);
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether
