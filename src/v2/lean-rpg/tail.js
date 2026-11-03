@@ -60,7 +60,8 @@ function foesBody(definition, fields, { hidden, named }) {
         if (!name) continue;
         const count = hidden(`count${slot}`) ? null : fields[`count${slot}`], hurt = fields[`hurt${slot}`];
         const bits = [];
-        if (!hidden(`class${slot}`)) bits.push(`Class ${named(`class${slot}`, fields[`class${slot}`])}`);
+        if (Object.hasOwn(fields, `level${slot}`)) { if (!hidden(`level${slot}`)) bits.push(`Lv ${fields[`level${slot}`]}`); }
+        else if (!hidden(`class${slot}`)) bits.push(`Class ${named(`class${slot}`, fields[`class${slot}`])}`);
         const schema = definition.state[`hurt${slot}`], size = barOf(schema) ? sizeOf(schema, fields, `hurt${slot}`) : null;
         if (size) { if (!hidden(`hurt${slot}`) && Number.isSafeInteger(hurt) && hurt < size) bits.push(spreadWord(wordsOf('foe'), Math.max(0, hurt), size)); }
         else if (!hidden(`hurt${slot}`) && hurt !== schema?.default) bits.push(named(`hurt${slot}`, hurt));

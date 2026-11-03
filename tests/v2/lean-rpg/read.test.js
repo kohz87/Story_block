@@ -14,7 +14,7 @@ test('characters come from the blocks whose role is character, skills join the c
     assert.deepEqual(wessel.skills, [{ slot: 1, name: 'Iron Breath', about: '', rank: 1, practice: 0, stat: 'str', uses: 'stamina', hidden: [] }, { slot: 2, name: 'Spark', about: '', rank: 0, practice: 0, stat: 'int', uses: 'mana', hidden: [] }]);
     assert.deepEqual(sheet.characters[0].skills.map(skill => skill.name), ['Spark']);
     assert.equal(sheet.foes.length, 4);
-    assert.deepEqual(sheet.foes[0], { slot: 1, module: 'pack.chat/foes', name: 'Sluice Rats', count: 6, class: 1, hurt: 5, filled: true, hidden: [] });
+    assert.deepEqual(sheet.foes[0], { slot: 1, module: 'pack.chat/foes', name: 'Sluice Rats', count: 6, class: 1, level: 5, hurt: 5, filled: true, hidden: [] });
     assert.deepEqual(sheet.foes.map(foe => foe.filled), [true, false, false, false]);
     assert.deepEqual(sheet.problems, []);
 });

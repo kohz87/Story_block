@@ -190,19 +190,19 @@
             "fields": {
                 "foe1": "Sluice rat",
                 "count1": 2,
-                "class1": 1,
+                "level1": 1,
                 "hurt1": 2,
                 "foe2": "",
                 "count2": 0,
-                "class2": 1,
+                "level2": 1,
                 "hurt2": 5,
                 "foe3": "",
                 "count3": 0,
-                "class3": 1,
+                "level3": 1,
                 "hurt3": 5,
                 "foe4": "",
                 "count4": 0,
-                "class4": 1,
+                "level4": 1,
                 "hurt4": 5
             }
         }

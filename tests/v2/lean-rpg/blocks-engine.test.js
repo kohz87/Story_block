@@ -33,7 +33,8 @@ const bars = host => { const c = sheet(host, 'character'); return [c.health, c.s
 const CLASSIC_HASHES = {
     Character: '60b845ebb1c2f41bb631bd84894c467b222c43804ae8de87ac4da76cc511b112',
     Skills: '87692b232c660a4b13a45f81571c6d5e69002037f920c77c786b9fe6c6eba5c5',
-    Foes: 'd6e980f381748e3bc43cc0522bc29f6c264f01ab185076673018102d560269e8',
+    // (Foes changed on purpose in the Levels release: level1…level4, 1 to 99, replace class1…class4; the other three are as they were.)
+    Foes: 'd9e0260b748561a22ebbc9424aeb5c1efe18ed6ba643fb7c398790671b67103e',
     'Combat rules': 'c421180a6fb5a732391e1386911e2f6a8f4fff9ce17161a634c21f001b83ee29',
 };
 
@@ -173,7 +174,7 @@ test('Rest fills stamina and mana to the size their stats give', async t => {
 
 test('a Foes group\'s Health is blocks left out of 4 + class/3: it arrives full, the story hurts it by words, and Down means 0', async t => {
     const host = await story(t, 'Foes');
-    await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | class: 4', '+ dm foes — why | kind: set-slot-2 | name: Sluice Rat | count: 2 | class: 1'));
+    await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35', '+ dm foes — why | kind: set-slot-2 | name: Sluice Rat | count: 2 | level: 5'));
     assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [foeHealthBlocks(4), foeHealthBlocks(1)]);
     assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [5, 4]);
     await host.send('Hit.', reply(say('foes', 'hurt-1', ' | to: Scratched'), say('foes', 'hurt-2', ' | to: Wounded')));
@@ -194,17 +195,17 @@ test('the tail says the bars in words spread over the size (never block counts),
     assert.match(line, /^Wessel — health Hurt; stamina Tired; STR 5 /, '4 of 6 is Hurt, 2 of 5 is Tired');
     assert.doesNotMatch(line, /\b(of 6|blocks|health 4|stamina 2)\b/);
     assert.doesNotMatch(line, /health-blocks|stamina-blocks|mana-blocks/, 'the sizes are the rules\' own');
-    await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | class: 4'));
-    assert.equal(summaryOf(host.head(), 'pack.chat/foes'), 'Foes: Weir-drake (Class IV).');
+    await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35'));
+    assert.equal(summaryOf(host.head(), 'pack.chat/foes'), 'Foes: Weir-drake (Lv 35).');
     await host.send('Hit.', reply(say('foes', 'hurt-1', ' | to: Scratched')));
-    assert.equal(summaryOf(host.head(), 'pack.chat/foes'), 'Foes: Weir-drake (Class IV, Scratched).');
+    assert.equal(summaryOf(host.head(), 'pack.chat/foes'), 'Foes: Weir-drake (Lv 35, Scratched).');
 });
 
 test('the sheet reader gives the blocks left and each bar\'s size for a Standard block, and a Classic block\'s record is exactly what it was', async t => {
     const host = await story(t, 'Character', 'Skills', 'Foes');
     await set(host, 'character', { who: 'Wessel', vit: 10, agi: 15, int: 10 });
     await set(host, 'character', { health: 4 });
-    await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | class: 4'));
+    await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35'));
     const read = readSheet(host.head());
     const wessel = read.characters[0];
     assert.deepEqual([wessel.health, wessel.stamina, wessel.mana], [4, 6, 5], 'blocks left');
@@ -218,7 +219,7 @@ test('the sheet reader gives the blocks left and each bar\'s size for a Standard
     await classic.send('Begin.', 'Opening.');
     for (const entry of LEAN_RPG_TEMPLATES.slice(0, 3)) success(await classic.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
     await set(classic, 'character', { who: 'Wessel' });
-    await classic.send('A rat.', reply('+ dm foes — why | kind: set-slot-1 | name: Rat | count: 1 | class: 1'));
+    await classic.send('A rat.', reply('+ dm foes — why | kind: set-slot-1 | name: Rat | count: 1 | level: 5'));
     const old = readSheet(classic.head());
     assert.equal('size' in old.characters[0], false);
     assert.equal('size' in old.foes[0], false);

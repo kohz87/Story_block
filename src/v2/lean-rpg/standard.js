@@ -22,6 +22,7 @@ import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus,
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
 import { fitCue, hurtsOf } from './cue.js';
+import { divisorOf, foeBlocksByLevel, levelBonus } from './foes.js';
 
 const DIE = FORMULA.die;
 const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
@@ -106,9 +107,14 @@ function sideStd(character, type, skill, { fit = null, edge = 0, againstMagic = 
  * The plan against the sheet under Standard `rules`: what can be rolled, what is refused, the witness (every sheet number the roll
  * depends on, which the replay guard asks again) and the roster (the bars). → { acts, foes, checks, refused, plainRefused, witness, roster }
  */
-export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } = {}) {
+export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false } = {}) {
     const out = { acts: [], foes: [], checks: [], refused: [], plainRefused: [] };
     const roster = rosterOf(sheet, maxOf);
+    // A foe's side of the roll: from a roll of the Levels rules (`lv`) the foe adds floor(level / divisor), else foeClassWeight × class, as it did.
+    const foeSide = foe => (lv
+        ? { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.level, classBonus: levelBonus(foe.level, divisorOf(rules)) }
+        : { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.foeClassWeight * foe.class });
+    if (lv) for (const bar of roster.foes) bar.initiative = levelBonus(bar.foe.level, divisorOf(rules));
     const refuse = (who, text, plain = text) => { out.refused.push({ who, text }); out.plainRefused.push(plain); };
     const ready = who => {
         const character = matchCharacter(sheet, who);
@@ -148,7 +154,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
         if (support) {
             out.acts.push({ ...entry, support: true, difficulty: act.difficulty, dc: LIMITS.dc[act.difficulty], target: { id: charId(mate), name: mate.who } });
         } else {
-            out.acts.push({ ...entry, ...(act.area === true ? { area: true } : {}), foe: { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.foeClassWeight * foe.class } });
+            out.acts.push({ ...entry, ...(act.area === true ? { area: true } : {}), foe: foeSide(foe) });
         }
     }
     for (const [at, entry] of (plan.foes ?? []).entries()) {
@@ -162,7 +168,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
         const { side, check } = skillSide(defender.character, skill, 'defence', { againstMagic: entry.againstMagic === true });
         if (check.refusal) { refuse(entry.target, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(entry.target, skill.refused, skill.refusedPlain);
-        out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.foeClassWeight * foe.class } });
+        out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: foeSide(foe) });
     }
     for (const [at, entry] of (plan.checks ?? []).entries()) {
         const actor = ready(entry.who);
@@ -183,7 +189,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
     out.witness = {
         formula: 'standard', acts: bare(out.acts), foes: bare(out.foes), checks: bare(out.checks), refused: out.refused,
         roster: { characters: roster.characters.map(bar => ({ ...standing(bar), agi: bar.character.stats.agi, soul: bar.character.soul, alive: bar.character.alive })),
-            foes: roster.foes.map(bar => ({ ...standing(bar), class: bar.foe.class })), resources: roster.resources.map(standing) },
+            foes: roster.foes.map(bar => ({ ...standing(bar), class: bar.foe.class, ...(lv ? { level: bar.foe.level } : {}) })), resources: roster.resources.map(standing) },
     };
     return out;
 }
@@ -268,7 +274,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const party = bar.kind === 'char', agi = party ? bar.character.stats.agi ?? 0 : 0;
         if (kept) return { id: bar.id, name: bar.name, total: kept.total, die: kept.die ?? null, bonus: kept.bonus ?? null, agi, party, fresh: false };
         const die = source('init', party ? bar.at : 16 + bar.at)();
-        const bonus = party ? initiativeBonus(bar.character.stats, rules.classWeight * bar.character.soul) : foeInitiativeBonus(bar.foe.class);
+        const bonus = party ? initiativeBonus(bar.character.stats, rules.classWeight * bar.character.soul) : bar.initiative ?? foeInitiativeBonus(bar.foe.class);
         return { id: bar.id, name: bar.name, total: die + bonus, die, bonus, agi, party, fresh: true };
     });
     const order = turnOrder(entries).map(id => entries.find(entry => entry.id === id));

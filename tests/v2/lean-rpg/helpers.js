@@ -71,7 +71,7 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, queries = {} } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
@@ -90,12 +90,13 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
                 return { summary: `${slug}.${field} = ${value}`, narrate: false };
             },
         },
-        queries: part.queries,
+        queries: { ...part.queries, ...queries },
         // `earlier`: the rolls are asked for as they were before the dice version, a payload with no `dice` (a chat made on an older build).
+        // `levelless`: the rolls are asked for as they were before the Levels rules (a payload with no `lv`: a chat made on an older build); `flowless` and `earlier` drop it too.
         // `flowless`: the rolls are asked for as they were before stage 49's flow (a payload with no `flow`: a chat made on an older build); `earlier` strips the dice version too.
-        hooks: { ...part.hooks, ...(earlier || flowless ? { beforeGenerate: Object.assign(async (view, info) => {
+        hooks: { ...part.hooks, ...(earlier || flowless || levelless ? { beforeGenerate: Object.assign(async (view, info) => {
             const out = await part.hooks.beforeGenerate(view, info);
-            return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow: _, ...payload }, ...command }) => ({ ...command, payload: earlier ? payload : { ...payload, dice } })) } : out;
+            return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow, lv: _lv, ...payload }, ...command }) => ({ ...command, payload: earlier ? payload : levelless ? { ...payload, dice, flow } : { ...payload, dice } })) } : out;
         }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },
     };

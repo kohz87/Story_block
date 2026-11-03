@@ -25,7 +25,7 @@ export function readFight(state, { roleOf } = {}) {
     return rpgBlocks(state, { roleOf }).filter(block => block.role === 'foes').flatMap(block => foesOf(block).map(foe => {
         const schema = block.definition.state?.[`hurt${foe.slot}`], max = foe.blocks ? foe.max : stageMax('health', schema);
         return { ...foe, module: block.module, subject: block.subject, max, tone: stageTone(Math.min(foe.hurt, max), max), down: foe.hurt <= 0,
-            className: soulName(block.definition.state?.[`class${foe.slot}`], foe.class) || CLASS_NAMES[foe.class - 1] || String(foe.class),
+            className: foe.levelled ? String(foe.level) : soulName(block.definition.state?.[`class${foe.slot}`], foe.class) || CLASS_NAMES[foe.class - 1] || String(foe.class),
             stages: barOptions('health', schema, { max, blocks: foe.blocks }), locked: schema?.edit === false };
     }));
 }
@@ -73,7 +73,7 @@ export function createFightWidget({ headState = () => null, readerName = () => '
                 const top = h(doc, 'div', 'rpg-foe-top');
                 top.appendChild(h(doc, 'p', 'rpg-name', foe.count > 1 ? `${foe.name} ${fill(RPG_STRINGS.battle.count, { n: foe.count })}` : foe.name));
                 const side = h(doc, 'span', 'rpg-foe-side');
-                side.appendChild(h(doc, 'span', 'ss-pill', fill(F.class, { name: foe.className })));
+                side.appendChild(h(doc, 'span', 'ss-pill', fill(foe.levelled ? F.level : F.class, { name: foe.className })));
                 top.appendChild(side);
                 node.appendChild(top);
                 // The health bar is the edit: a tap on it (or its pencil) opens the choice of stage words for this slot's `hurtN`.
@@ -96,7 +96,7 @@ export function createFightWidget({ headState = () => null, readerName = () => '
                 const head = h(doc, 'div', 'rpg-head');
                 const title = h(doc, 'div', 'rpg-fight-title');
                 title.appendChild(h(doc, 'h3', '', place ? fill(F.titleAt, { place }) : F.title));
-                title.appendChild(h(doc, 'p', 'rpg-fight-note', foes.some(foe => foe.blocks) ? RPG_STRINGS.blocks.foeNote : F.note));
+                title.appendChild(h(doc, 'p', 'rpg-fight-note', foes.some(foe => foe.blocks) ? (foes.some(foe => foe.levelled) ? RPG_STRINGS.blocks.foeNoteLevel : RPG_STRINGS.blocks.foeNote) : F.note));
                 const pills = h(doc, 'div', 'rpg-pills');
                 const rounds = shown?.model?.rounds ?? [];
                 if (rounds.length) pills.appendChild(h(doc, 'span', 'ss-pill rpg-exchange', fill(F.exchange, { n: rounds.at(-1).n })));

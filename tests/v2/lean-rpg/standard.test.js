@@ -133,7 +133,8 @@ test('Classic output is byte-identical to the build before the Standard formula:
         prompt: sha(prompt), head: sha(PRECALL_HEAD), sheet: sha(sheetText(sheet)), cue: sha(rolled.text), rounds: sha(JSON.stringify(rolled.rounds)), witness: sha(JSON.stringify(prepared.witness)),
         parsed: sha(JSON.stringify(parsePlanAnswer(answer, sheet))), rules: sha(JSON.stringify(rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' }))), presets: sha(JSON.stringify(PRESETS)),
     }, {
-        prompt: 'd944a0cace85c57d', head: '6ca0ad3a5d132864', sheet: '0d382a6e9c87a18d', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
+        prompt: '89a5a959f1b3f79a', head: '734be2d7f3eb82a9', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
         parsed: 'b0eedb0e4d7e0c16', rules: '458d12337585e339', presets: '1a96e56e9499540c',
     });
 });
@@ -210,7 +211,7 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
     const sized = sheet => ({ ...sheet, characters: sheet.characters.map(item => ({ ...item, size: blocksFor(item.stats) })), foes: sheet.foes.map(item => ({ ...item, size: foeHealthBlocks(item.class) })) });
     const hurt = sized(sheetOf(party({ wessel: { health: 3 }, foes: [['Sluice Rats', 6, 2, 3]] })));
     assert.match(sheetText(hurt, { standard: true }), /Wessel \(class II\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 9 CHA 5; Health Hurt/);
-    assert.match(sheetText(hurt, { standard: true }), /1\. Sluice Rats x6 \(class II, Scratched\)/);
+    assert.match(sheetText(hurt, { standard: true }), /1\. Sluice Rats x6 \(Lv 15, Scratched\)/);
     assert.match(sheetText(sized(sheetOf(party())), { standard: true }), /Health Unhurt/);
 });
 

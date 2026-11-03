@@ -289,7 +289,7 @@ async function world(t, { answers = ['none'], party = ['Astra'], xp = 0 } = {}) 
     return { host, model };
 }
 const slugOf = who => (who === 'Astra' ? 'character' : who.toLowerCase());
-const SLOT = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | class: 1';
+const SLOT = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | level: 5';
 const DOWN = '~ dm foes — why | kind: hurt-1 | to: 0';
 const XP = amount => `+ dm character — why | kind: add-xp | amount: ${amount}`;
 const fields = (host, who) => host.head().domains.dataModules.instances[`pack.chat/${slugOf(who)}`].chat.fields;
@@ -307,7 +307,7 @@ test('a fight won by the narrator\'s own foe lines pays the party once; Astra (S
     await host.send('We rest.', reply('+ dm character — why | kind: add-xp | amount: 0'));
     assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [6, 6]);
     // A new group in another slot is a new fight, paid for its own groups only (1 × class 2 × 2 = 4, the same class as Astra: no cut).
-    await host.send('A hound.', reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | class: 2'));
+    await host.send('A hound.', reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | level: 15'));
     assert.equal(fields(host, 'Astra').xp, 6);
     await host.send('I kill it.', reply('~ dm foes — why | kind: hurt-2 | to: 0'));
     assert.equal(fields(host, 'Astra').xp, 10);
@@ -377,7 +377,7 @@ test('the step is not tied to the feature: a reply that has it keeps it when the
     host.features.set(LEAN_RPG_FEATURE, false);
     assert.equal((await host.turn.reread(4)).ok, true);
     assert.equal(fields(host, 'Astra').xp, 6, 'the step kept on the reply stands');
-    await host.send('A second swarm.', reply('+ dm foes — why | kind: set-slot-2 | name: Others | count: 2 | class: 1'));
+    await host.send('A second swarm.', reply('+ dm foes — why | kind: set-slot-2 | name: Others | count: 2 | level: 5'));
     await host.send('Done.', reply('~ dm foes — why | kind: hurt-2 | to: 0'));
     assert.equal(fields(host, 'Astra').xp, 6, 'off means off: nothing new is paid');
 });
