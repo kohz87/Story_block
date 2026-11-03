@@ -1,6 +1,6 @@
 // Your look fills itself early (src/v2/domains/scene.js youNote): while Wearing or Condition is empty and `story-block.you` is on, the tail
 // (never the static part) carries one line asking the narrator to write the empty parts with a `~ you` line on this reply; once both are
-// set the line is gone and the tail is as it was; the Rank is asked only when a pack gives a rank word and it is empty; off changes nothing.
+// set the line is gone and the tail is as it was (prompt diet, stage 59: it is asked once per chat, on the reply to the reader's first message, not on every reply until set); the Rank is asked only when a pack gives a rank word and it is empty; off changes nothing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
@@ -45,7 +45,7 @@ test('a real flow: a new chat asks on its first reply, the reply fills the look,
     assert.doesNotMatch(staticText(host), /Your look is not set/, 'the note is in the tail, not the static part');
     const staticBefore = staticText(host);
     await host.send('We walk.', block('Rain.', ['~ you wearing: oilskin coat | condition: cold and wet']));
-    assert.match(tailText(host), /^Your look is not set yet/m, 'that prompt was built before the reply filled the look');
+    assert.doesNotMatch(tailText(host), /^Your look is not set yet/m, 'asked once per chat: the second message no longer carries it');
     await host.send('On.', 'On.');
     assert.deepEqual(host.sdk.query('scene.you'), { wearing: 'oilskin coat', condition: 'cold and wet' });
     assert.doesNotMatch(tailText(host), /Your look is not set/);
@@ -57,10 +57,10 @@ test('a part the reader set is never asked again or overwritten by the note; a r
     t.mock.method(console, 'warn', () => {});
     const host = await createHost();
     t.after(() => host.close());
-    await host.send('Hello.', 'The road.');
     assert.equal((await host.sdk.command('scene.you', { wearing: 'a grey cloak' })).ok, true);
-    await host.send('On.', 'On.');
+    await host.send('Hello.', 'The road.');
     assert.equal(tailText(host).match(NOTE)[1], 'condition: …', 'only the empty part is asked');
+    await host.send('On.', 'On.');
     assert.match(tailText(host), /^You: wears a grey cloak$/m);
     await host.send('On.', block('Mud.', ['~ you condition: muddy']));
     await host.send('On.', 'On.');
@@ -77,7 +77,7 @@ test('with a pack that gives a Rank: it is asked too while empty; with the featu
     assert.equal(tailText(host).match(NOTE)[1], 'rank: … | wearing: … | condition: …');
     await host.send('On.', block('Rain.', ['~ you rank: F-rank | wearing: a coat']));
     await host.send('On.', 'On.');
-    assert.equal(tailText(host).match(NOTE)[1], 'condition: …');
+    assert.doesNotMatch(tailText(host), /Your look is not set/, 'asked once per chat, even with a part still empty');
     host.features.set(YOU_FEATURE, false);
     await host.send('On.', 'On.');
     assert.doesNotMatch(tailText(host), /Your look is not set|~ you/);
@@ -101,4 +101,18 @@ test('the note stays inside the core tail budget: with a long inventory the requ
     assert.ok(tail.optional.length > 0, 'the long inventory does overflow');
     assert.ok(size(tail.lines) <= CORE_BUDGET * 2, `required part ${size(tail.lines)} chars`);
     assert.ok(size(tail.optional) <= CORE_BUDGET * 2 + 40);
+});
+
+test('the ask is made once per chat: a swipe of the first reply asks again, a later message and a swipe of it never do', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Hello.', 'The road to the harbour.');
+    assert.match(tailText(host), NOTE);
+    await host.swipe('The road, again.');
+    assert.match(tailText(host), NOTE, 'a swipe of the first reply is the same prompt');
+    await host.send('We walk.', 'Rain.');
+    assert.doesNotMatch(tailText(host), /Your look is not set/);
+    await host.swipe('Rain, again.');
+    assert.doesNotMatch(tailText(host), /Your look is not set/);
 });

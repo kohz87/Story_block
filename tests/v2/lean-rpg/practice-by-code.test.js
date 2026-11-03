@@ -25,7 +25,7 @@ const LEARN = (n, name) => `~ dm skills — learned | kind: learn-${n} | name: $
 const sheetFields = (host, slug) => host.head().domains.dataModules.instances[`pack.chat/${slug}`].chat.fields;
 
 async function world(t, { perUse, answers = [PLAN] } = {}) {
-    const model = createFakeModel(['none', ...answers]);
+    const model = createFakeModel([...answers]);
     const host = await createHost({ callModel: model, settings: { modules: { 'story-block': { rpgFormula: 'classic', ...(perUse === undefined ? {} : { [PRACTICE_SETTING]: perUse }) } } } });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
@@ -51,8 +51,8 @@ async function reloads(host) {
 const told = host => host.turn.problems().filter(problem => problem.message === PRACTICE_HELD);
 
 test('the planner heads ask for a defending skill whenever one fits (Classic and Standard)', () => {
-    assert.match(PRECALL_HEAD, /When a defender has a skill that fits defending \(a dodge, a step, a parry, a shield, an evasion, a ward\), name it on the foe line\./);
-    assert.match(PRECALL_HEAD_STANDARD, /Name a defender's fitting skill on the foe line \(a dodge, a step, a parry, a shield, an evasion, a ward\)\./);
+    assert.match(PRECALL_HEAD, /A defender's fitting skill \(dodge, parry, ward\) goes on the foe line\./);
+    assert.match(PRECALL_HEAD_STANDARD, /A defender's fitting skill \(dodge, parry, ward\) goes on the foe line\./);
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.doesNotMatch(head, /plausibly fits/);
 });
 

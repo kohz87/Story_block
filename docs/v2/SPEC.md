@@ -682,7 +682,7 @@ sdk.registerModule({
 });
 ```
 
-* `view` = `{ state (frozen head), query, settings, feature(id), chat: { length, lastUser } }`.
+* `view` = `{ state (frozen head), query, settings, feature(id), chat: { length, lastUser, readers } }` (`readers`: how many messages are the reader's).
 * **Hooks** let a module shape another's work without writing its domain: `item.define` (a module can
   supply details of an item the story introduced), `canGenerate` (any `false` or
   `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you

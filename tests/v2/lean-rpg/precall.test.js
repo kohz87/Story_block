@@ -49,14 +49,13 @@ test('the prompt holds only the end of the last reply (without its change block)
 test('the grammar asks for a stat only for a skill the character lacks or no skill, and the sheet shows each skill\'s stat and resource', () => {
     const lines = PRECALL_HEAD.split('\n');
     const acts = lines.filter(line => line.startsWith('act <who>')), checks = lines.filter(line => line.startsWith('check <who>'));
-    assert.equal(acts.length, 2);
-    assert.equal(checks.length, 2);
-    assert.ok(acts[0].includes('skill: <skill>') && /stat: STR\|VIT\|AGI\|DEX\|INT\|LUK\|CHA\?/.test(acts[0]) && !/uses/i.test(acts[0]), `a skill act may carry a stat (B5): ${acts[0]}`);
-    assert.ok(acts[1].includes('stat: STR|VIT|AGI|DEX|INT|LUK|CHA') && !acts[1].includes('skill:'), acts[1]);
-    assert.ok(checks[0].includes('skill: <skill>') && checks[0].includes('stat: <stat>?') && !/uses/i.test(checks[0]), checks[0]);
-    assert.ok(checks[1].includes('stat: <stat>') && !checks[1].includes('skill:'), checks[1]);
+    // (Prompt diet: one act line and one check line, each with the skill and the stat optional, instead of two of each.)
+    assert.equal(acts.length, 1);
+    assert.equal(checks.length, 1);
+    assert.ok(acts[0].includes('skill: <skill>?') && /stat: STR\|VIT\|AGI\|DEX\|INT\|LUK\|CHA\?/.test(acts[0]) && !/uses/i.test(acts[0]), `a skill act may carry a stat (B5): ${acts[0]}`);
+    assert.ok(checks[0].includes('skill: <skill>?') && checks[0].includes('stat: <stat>?') && !/uses/i.test(checks[0]), checks[0]);
     assert.ok(!PRECALL_HEAD.includes('uses:'), 'the pre-call is not asked for what a skill uses');
-    assert.match(PRECALL_HEAD, /A skill brings its own stat and what it uses, so write no stat for a skill the character has; for a skill they lack, or with no skill, write the stat\./);
+    assert.match(PRECALL_HEAD, /A skill brings its stat: give a stat only for a skill the character lacks, or none\./);
     const text = precallPrompt({ sheet: readSheet({ domains: { dataModules: sheetDomain(PARTY()) } }), message: 'hi' });
     assert.match(text, /Ren \(class II\)[^\n]*skills: Spark \(Novice, INT, mana\)/);
 });
@@ -327,4 +326,75 @@ test('the no-dice flag is only for a normal send, and a chat that never used it 
     await host.swipe('Swiped.');
     assert.equal(callModel.calls.length, calls + 1, 'a swipe plans');
     host.close();
+});
+
+// --- the planner gate (gate.js): the pre-call asks only in a fight, on a risky message, or after a reply that opened foes ---------------------------------------
+
+const { foes: _foes, ...NO_FOES } = PARTY();
+const QUIET = { blocks: NO_FOES };
+
+test('gate: a quiet message with no fight open asks nothing, and the reply goes on as one the planner answered "none" to', { skip }, async () => {
+    const { host, callModel, problems } = await setup(QUIET);
+    const { request } = await host.send('We walk to the market and talk about the weather.', 'They talk.');
+    assert.equal(callModel.calls.length, 0);
+    assert.deepEqual(rolled(host), []);
+    assert.ok(!tailOf(request).includes('[Rolls]') && !tailOf(request).includes(NO_ROLLS_LINE));
+    assert.deepEqual(problems, []);
+    host.close();
+});
+
+test('gate: a risky word in the message asks (attack, sneaking, hits, picks the lock, a skill of the party), a quiet one does not', { skip }, async () => {
+    for (const message of ['I attack the guard.', 'I am sneaking past.', 'He hits me hard.', 'She picks the old lock.', 'Wessel threw a stone.', 'I try Iron Breath.', 'I TRY TO CLIMB.']) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, 1, message);
+        host.close();
+    }
+    for (const message of ['I sit down.', 'Tell me about the town.', 'What is her name?']) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, 0, message);
+        host.close();
+    }
+});
+
+test('gate: an open fight asks whatever the message says; a fight whose groups are all Down does not', { skip }, async () => {
+    const open = await setup({ answers: ['none'] });
+    await open.host.send('Hello.', 'Told.');
+    assert.equal(open.callModel.calls.length, 1, 'a foe group not Down');
+    open.host.close();
+    const down = await setup({ blocks: { ...NO_FOES, foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 1, 0]]) } }, answers: ['none'] });
+    await down.host.send('Hello.', 'Told.');
+    assert.equal(down.callModel.calls.length, 0, 'every group Down');
+    down.host.close();
+});
+
+test('gate: a reply that opened foes makes the next message plan (the Foes line is on the sheet)', { skip }, async () => {
+    const { host, callModel } = await setup({ blocks: { ...NO_FOES, foes: { role: 'foes', fields: foeBlock([]) } }, answers: ['none'] });
+    await host.send('Hello.', 'Told.');
+    assert.equal(callModel.calls.length, 0, 'no foes yet');
+    for (const [field, value] of [['foe1', 'Sluice Rats'], ['count1', 4], ['hurt1', 5]]) assert.equal((await host.bus.command('test.set', { slug: 'foes', field, value }, { cause: 'system' })).ok, true);
+    await host.send('Hmm.', 'The rats come.');
+    assert.equal(callModel.calls.length, 1, 'the foes are on the sheet');
+    host.close();
+});
+
+test('gate: the decision is the same on a swipe, a regenerate, a Re-read and a rebuild: a quiet message never asks, a risky one asks once per generation', { skip }, async () => {
+    const quiet = await setup(QUIET);
+    await quiet.host.send('We rest by the fire.', 'They rest.');
+    const live = JSON.stringify(quiet.host.head());
+    await quiet.host.swipe('They rest, again.');
+    assert.equal((await quiet.host.turn.reread(2)).ok, true);
+    quiet.host.store.rebuild();
+    assert.equal(quiet.callModel.calls.length, 0, 'no call on any replay');
+    assert.equal(JSON.stringify(quiet.host.head()), live, 'the story is the same');
+    quiet.host.close();
+    const risky = await setup({ ...QUIET, answers: ['none'] });
+    await risky.host.send('I sneak up on the camp.', 'They creep.');
+    assert.equal(risky.callModel.calls.length, 1);
+    await risky.host.swipe('They creep, again.');
+    assert.equal(risky.callModel.calls.length, 2, 'a swipe of a risky message plans again, as before');
+    risky.host.store.rebuild();
+    assert.equal(risky.callModel.calls.length, 2, 'a rebuild asks nothing');
+    risky.host.close();
 });

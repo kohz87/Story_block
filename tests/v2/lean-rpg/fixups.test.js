@@ -89,7 +89,7 @@ test('5: the planner\'s words for bars come from the block\'s own size and value
         host.features.set('story-block.rpg', true);
         await host.send('Begin.', 'Opening.');
         for (const definition of makeBlock()) success(await host.sdk.command('dm.define', { definition }));
-        await host.send('I look around.', 'Told.');
+        await host.send('I sneak around.', 'Told.');
         return asked.at(-1);
     };
     const hero = (templates, over) => () => {

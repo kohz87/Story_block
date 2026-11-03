@@ -19,6 +19,7 @@ import { openFoes, vetOpen } from './open.js';
 import { averageLevel, foeLabel, foeRandom, partyLevels, pickLevel } from './foes.js';
 import { DICE_VERSION, FLOW_VERSION, claimKey, prepare } from './resolve.js';
 import { readSheet } from './read.js';
+import { plannerWanted } from './gate.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
 
 // The query that names a level's rank (LV-C: `rpg.rank { level }` → `{ name } | null`); without it a level has no rank.
@@ -34,51 +35,55 @@ export const ANSWER_TOKENS = 250;
 export const MESSAGE_LIMIT = 800;
 export const EXCERPT_LIMIT = 600;
 
+const STAT_LIST = STATS.map(stat => stat.toUpperCase()).join('|');
+const DIFFICULTY = 'difficulty: easy|normal|hard|very hard';
+const EDGE = 'edge: <-3 to +3, reason>?';
+// (Prompt diet: one line shape per kind and one short line per rule. The shapes are what plan.js reads; the words around them only tell the model when to use them.)
+const OPENING = 'Plan dice for one message of an interactive story. Reply with these lines only:';
+const SHARED_RULES = [
+    '- Roll only what is uncertain; talk and safe actions: none.',
+    '- In a fight each party member not Down acts (companions alone), each foe targets or holds.',
+    '- A foe the message or scene names but the list lacks: new (never invent); level or rank only if the story says.',
+];
+const TAIL_RULES = [
+    '- A defender\'s fitting skill (dodge, parry, ward) goes on the foe line.',
+    '- pace: careful if the reader is careful, all if they fight it out. edge: ambush +2, trap -2.',
+    '- Outside a fight a risky attempt (sneak, persuade, climb) is a check.',
+];
+const FOE_NEW = 'foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?';
+
 // The same text for every message of every chat, first in the prompt, so a provider's prompt cache can keep it.
 export const PRECALL_HEAD = [
-    'You plan the dice for one message in an interactive story. Answer with these fixed lines only, no other words:',
-    'pace: careful | normal | all',
-    `act <who> | skill: <skill> | stat: ${STATS.map(stat => stat.toUpperCase()).join('|')}? | target: <foe> | edge: <-3 to +3 and a short reason>?`,
-    `act <who> | stat: ${STATS.map(stat => stat.toUpperCase()).join('|')} | target: <foe> | edge: <-3 to +3 and a short reason>?`,
+    OPENING,
+    'pace: careful|normal|all',
+    `act <who> | skill: <skill>? | stat: ${STAT_LIST}? | target: <foe> | ${EDGE}`,
     'foe <foe> | target: <who> | defend: <stat> | skill: <skill>?',
     'foe <foe> | hold',
-    'foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?',
-    'check <who> | skill: <skill> | stat: <stat>? | difficulty: easy|normal|hard|very hard',
-    'check <who> | stat: <stat> | difficulty: easy|normal|hard|very hard',
+    FOE_NEW,
+    `check <who> | skill: <skill>? | stat: <stat>? | ${DIFFICULTY}`,
     'none',
     'Rules:',
-    '- Roll only what is uncertain. Talk, questions, plans and safe actions: answer none.',
-    '- In a fight, give every party member who is not Down an act (companions act on their own) and every foe a target or hold.',
-    '- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual. Give a new foe a level, or a rank, only when the story says how strong it is; otherwise leave both out and code picks one near the party.',
-    '- Use only the names listed. A skill brings its own stat and what it uses, so write no stat for a skill the character has; for a skill they lack, or with no skill, write the stat.',
-    '- When a defender has a skill that fits defending (a dodge, a step, a parry, a shield, an evasion, a ward), name it on the foe line. It brings its own stat.',
-    '- pace: careful when the reader moves slowly or carefully, all when they fight it out, else normal.',
-    '- An edge is a small bonus or penalty the situation earns (an ambush +2, a trap -2).',
-    '- Outside a fight a risky attempt (sneaking, persuading, climbing, lying) is a check with a difficulty.',
+    ...SHARED_RULES,
+    '- Use listed names only. A skill brings its stat: give a stat only for a skill the character lacks, or none.',
+    ...TAIL_RULES,
 ].join('\n');
 
-// The same for the Standard formula (formula.js): the roll type decides the stat, so a line asks for a type, not a stat; the planner is told only
-// what it must write. Classic keeps PRECALL_HEAD above, word for word.
+// The same for the Standard formula (formula.js): the roll type decides the stat, so a line asks for a type, not a stat. Classic keeps PRECALL_HEAD above.
 export const PRECALL_HEAD_STANDARD = [
-    'You plan the dice for one message in an interactive story. Answer with these fixed lines only, no other words:',
-    'pace: careful | normal | all',
-    'act <who> | skill: <skill>? | type: physical|magic|social|check | target: <foe, or an ally> | edge: <-3 to +3 and a short reason>? | area? | support: easy|normal|hard?',
+    OPENING,
+    'pace: careful|normal|all',
+    `act <who> | skill: <skill>? | type: physical|magic|social|check | target: <foe or ally> | ${EDGE} | area? | support: easy|normal|hard?`,
     'foe <foe> | target: <who> | skill: <skill>? | magic?',
     'foe <foe> | hold',
-    'foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?',
-    `check <who> | skill: <skill>? | type: social|check | fit: ${STATS.map(stat => stat.toUpperCase()).join('|')}? | difficulty: easy|normal|hard|very hard`,
+    FOE_NEW,
+    `check <who> | skill: <skill>? | type: social|check | fit: ${STAT_LIST}? | ${DIFFICULTY}`,
     'none',
     'Rules:',
-    '- Roll only what is uncertain. Talk, questions, plans and safe actions: answer none.',
-    '- In a fight, give every party member who is not Down an act (companions act on their own) and every foe a target or hold.',
-    '- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual. Give a new foe a level, or a rank, only when the story says how strong it is; otherwise leave both out and code picks one near the party.',
-    '- Use only the names listed. A skill brings its own stat and what it uses: write no stat.',
-    '- type: physical (blades, force), magic (spells, a skill that uses Mana), social (talk, bluff), check (the rest). area: hits every foe. support: heals or helps an ally. magic on a foe line: a spell.',
-    '- fit: the stat a check leans on (STR climb, AGI sneak, DEX locks, INT lore, VIT endure).',
-    '- Name a defender\'s fitting skill on the foe line (a dodge, a step, a parry, a shield, an evasion, a ward).',
-    '- pace: careful when the reader moves slowly or carefully, all when they fight it out, else normal.',
-    '- An edge is a small bonus or penalty the situation earns (an ambush +2, a trap -2).',
-    '- Outside a fight a risky attempt (sneaking, persuading, climbing, lying) is a check with a difficulty.',
+    ...SHARED_RULES,
+    '- Use listed names only. A skill brings its stat: write none.',
+    '- type: physical (blades), magic (spells, mana), social (talk, bluff), check (rest). area: all foes. support: heals or helps. magic on a foe: a spell.',
+    '- fit: the stat a check leans on (STR climb, AGI sneak, INT lore).',
+    ...TAIL_RULES,
 ].join('\n');
 
 const word = (list, at) => (Number.isInteger(at) && at >= 0 && at < list.length ? list[at] : '?');
@@ -232,7 +237,13 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         const held = info?.again === true ? hold.peek(where, key) : null;
         let planned;
         if (held) planned = { plan: held.plan };
-        else {
+        else if (!plannerWanted(sheet, text)) {
+            // (The planner gate, gate.js: a quiet message with no fight open asks nothing. The decision depends only on the sheet and the message, so a
+            // swipe or a retry reaches the same one; it is held like an answer of "none".)
+            hold.clear();
+            hold.put(where, key, null);
+            planned = { plan: null };
+        } else {
             hold.clear();
             const before = messages[index - 1];
             const excerpt = before && !before.is_user ? stripBlock(String(before.mes ?? '')) : '';

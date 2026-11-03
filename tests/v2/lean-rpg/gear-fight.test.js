@@ -371,12 +371,12 @@ test('the legendary mark: the narrator\'s legendary line is held to epic, unless
     const group = level => `+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 1 | level: ${level}`;
     const fresh = '~ dm foes — why | kind: hurt-1 | to: 4';
     // (each reply fights the group the reply before set; level 10 is 9 above the party's level 1, level 11 is 10 above)
-    await host.send('Set.', reply(group(10)));
-    await host.send('Nine above.', reply(group(11), fresh, '+ item Blade 1 | kind: weapon | rarity: legendary'));
+    await host.send('Set, I strike.', reply(group(10)));
+    await host.send('Nine above, I strike.', reply(group(11), fresh, '+ item Blade 1 | kind: weapon | rarity: legendary'));
     assert.deepEqual([resultOf(host).stop, resultOf(host).legend, rarity(1)], ['won', undefined, 'epic'], 'a won fight 9 levels above: not enough');
-    await host.send('Ten above.', reply(group(11), fresh, '+ item Blade 2 | kind: weapon | rarity: legendary'));
+    await host.send('Ten above, I strike.', reply(group(11), fresh, '+ item Blade 2 | kind: weapon | rarity: legendary'));
     assert.deepEqual([resultOf(host).stop, resultOf(host).legend, rarity(2)], ['won', 1, 'legendary'], 'won 10 levels above: the line stands');
-    await host.send('Quiet.', reply('+ item Blade 3 | kind: weapon | rarity: legendary'));
+    await host.send('Quiet, I strike.', reply('+ item Blade 3 | kind: weapon | rarity: legendary'));
     assert.equal(rarity(3), 'legendary', 'this reply still fought the group the one before set');
     await host.send('Quiet.', reply('+ item Blade 4 | kind: weapon | rarity: legendary'));
     // (pinned change, G4: once earned it lasts, so a later reply with no fight keeps the legendary line; it used to be held again)
