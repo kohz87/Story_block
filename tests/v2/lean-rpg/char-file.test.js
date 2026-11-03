@@ -224,7 +224,7 @@ test('Create writes the file\'s ranks into the Skills block, its points and Soul
     const { draft } = withImport({ ...typed(), name: 'Ren' }, good(sample()));
     const { character, skills } = buildDefinitions(readDraft(draft), { used: [] });
     const c = character.state, s = skills.state;
-    assert.deepEqual([c.who.default, c.about.default, c.soul.default, c.points.default, c.xp.default, c.health.default, c.str.default, c.int.default], ['Ren', 'A ferry hand from Low Quay.', 2, 3, 0, 5, 14, 8]);
+    assert.deepEqual([c.who.default, c.about.default, c.level.default, c.points.default, c.xp.default, c.health.default, c.str.default, c.int.default], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 5, 14, 8], 'the file\'s Soul Class II is the level it stands for (15)');
     assert.deepEqual([s.skill1.default, s.rank1.default, s.stat1.default, s.skill2.default, s.rank2.default, s.uses2.default, s.practice1.default, s.skill3.default, s.rank3.default], ['Iron Breath', 2, 'vit', 'Spark', 0, 'mana', 0, '', 0]);
     assert.equal(s.rank1.edit, false, 'rank is still a field only play moves');
     // Unspent points are what is left of the pool after the reader's changes.

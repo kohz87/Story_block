@@ -9,7 +9,7 @@ import { meter } from '../../view/widgets/meter.js';
 import { refusalText } from '../../strings.js';
 import { FORMULA, RANK_NAMES, SKILL_SLOTS } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
-import { isStandard, statShare } from '../rules.js';
+import { classTerm, isStandard, statShare } from '../rules.js';
 import { statPart } from '../formula.js';
 
 const K = RPG_STRINGS.skills;
@@ -29,12 +29,12 @@ export function masteryOf(skill) {
 }
 
 /**
- * The roll a skill makes from the live sheet: d20 + floor(stat / 2) + rank + 2 × Soul Class (Standard: the pair of the stat and half of DEX, halved, in place of floor(stat / 2)). → { total, stat, value, half, rank, bonus } with
+ * The roll a skill makes from the live sheet: d20 + floor(stat / 2) + rank + floor(level / 5) (before levels, 2 × Soul Class; Standard: the pair of the stat and half of DEX, halved, in place of floor(stat / 2)). → { total, stat, value, half, rank, bonus } with
  * `stat` the stat's label (null for a skill that names none: the story then picks the stat, so only the rank and class are known).
  */
 export function rollOf(skill, character, rules = FORMULA) {
     const entry = character.stats.find(stat => stat.key === skill.stat) ?? null;
-    const bonus = rules.classWeight * character.soul;
+    const bonus = classTerm(rules, character).classBonus;
     if (isStandard(rules) && entry) {
         // The Standard formula: the skill's stat in the main slot with half of DEX (a Mana skill is magic, a Stamina skill physical), halved once.
         const stats = Object.fromEntries(character.stats.map(stat => [stat.key, stat.value]));

@@ -2,7 +2,7 @@
 //
 // An RPG block is a pinned chat block whose definition has a `role` (names.js ROLES). Field keys are fixed
 // (suite-notes/rpg-briefs/COMMON.md):
-//   character: who, health, mana, stamina (stage indexes, 0 = empty), str vit agi dex int luk cha, points, soul (1–9),
+//   character: who, health, mana, stamina (stage indexes, 0 = empty), str vit agi dex int luk cha, points, level (1–99; a block made before levels has soul 1–9 instead), cap,
 //              xp, down (the death latch, hidden), alive
 //   skills:    who, then per slot 1…5: skillN (name), aboutN (what it does), statN (one of the seven stats), usesN (stamina |
 //              mana), rankN (0–3), practiceN (0–100)
@@ -10,10 +10,11 @@
 // Pure and read-only: it takes a state (or anything shaped `{ domains: { dataModules } }`) and answers plain data. It
 // never validates the definitions (the data-module checker did when they were pinned); a block it cannot read is left
 // out, with a plain `problems` line.
-import { FOE_SLOTS, SKILL_SLOTS, STAGES, STATS, USES } from './names.js';
+import { FOE_SLOTS, LEVEL, SKILL_SLOTS, STAGES, STATS, USES } from './names.js';
 import { dmHidden } from '../data-modules/schema.js';
 import { barOf, characterBars, sizeOf } from './blocks.js';
 import { soulReading } from './soul.js';
+import { levelOfClass } from './formula.js';
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const int = value => (Number.isSafeInteger(value) ? value : null);
@@ -84,18 +85,23 @@ const shownFields = (fields, hidden) => (hidden.size ? Object.fromEntries(Object
 // the Standard formula's blocks (blocks.js): then the record also has `size` (how many blocks each bar has now), and health, mana and stamina
 // are the blocks left. A Classic block's record is exactly what it was.
 function character(id, fields, own = '', hidden = new Set(), definition = null) {
-    const schema = isObject(definition?.state) ? definition.state.soul : null;
+    const levelled = isObject(definition?.state) && isObject(definition.state.level);
+    const schema = isObject(definition?.state) ? (levelled ? definition.state.level : definition.state.soul) : null;
     const who = text(fields.who) || text(own);
     if (!who) return null;
     const stats = Object.fromEntries(STATS.map(stat => [stat, int(fields[stat])]));
     // What the pack calls the Soul Class field and its current value (soul.js), for the planner's lines and the odds.
+    // (A block made before levels has the Soul Class and no level: its level reads as the class stands for, levelOfClass. `soul` stays what the field says,
+    // which is what a roll recorded before levels used.)
     const soul = int(fields.soul) ?? 1, reading = soulReading(schema);
+    const level = Math.max(1, Math.min(LEVEL.max, int(fields.level) ?? (Object.hasOwn(fields, 'soul') ? levelOfClass(soul) : 1)));
+    const cap = Math.max(1, Math.min(LEVEL.max, int(fields.cap) ?? LEVEL.max));
     const bars = characterBars(definition, fields);
     return {
         module: id, who, key: fold(who),
         health: int(fields.health), mana: int(fields.mana), stamina: int(fields.stamina),
         ...(bars ? { size: { health: bars.health.size, stamina: bars.stamina.size, mana: bars.mana.size } } : {}),
-        stats, soul, soulLabel: reading.label, soulWord: reading.word(soul), xp: int(fields.xp), points: int(fields.points),
+        stats, soul, level, cap, ...(levelled ? { levelled: true } : {}), soulLabel: reading.label, soulWord: levelled ? String(level) : reading.word(soul), xp: int(fields.xp), points: int(fields.points),
         alive: fields.alive !== false,
         skills: [],
         hidden: [...hidden].filter(key => !TEXT_KEY.test(key)),

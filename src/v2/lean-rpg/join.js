@@ -14,7 +14,7 @@ import { CLASS_NAMES, CREATION, JOINS, JOIN_SETTING, PARTY_MAX, STATS } from './
 import { fold } from './read.js';
 import { RPG_STRINGS, fill } from './strings.js';
 import { buildDefinitions, creationOf, hasRoom, newDraft, newSoul, readDraft } from './view/wizard-data.js';
-import { companionStats } from './formula.js';
+import { classOfLevel, companionStats } from './formula.js';
 import { isStandard } from './rules.js';
 import { soulReading } from './soul.js';
 
@@ -86,7 +86,7 @@ export function soulNaming(state) {
     return newSoul();
 }
 
-/** The characters of the story's party, from a state: `[{ module, name, soul, left, canLeave }]` in block order (the ones who left too). */
+/** The characters of the story's party, from a state: `[{ module, name, soul, left, canLeave }]` in block order (the ones who left too). `soul` is the Soul Class of an earlier block, else the class the level stands for (formula.js classOfLevel). */
 export function partyOf(state) {
     const domain = state?.domains?.dataModules;
     const out = [];
@@ -97,7 +97,7 @@ export function partyOf(state) {
         if (!isRecord(fields)) continue;
         const name = oneLine(fields.who) || oneLine(definition.name);
         if (!name) continue;
-        out.push({ module, name, soul: Number.isSafeInteger(fields.soul) ? fields.soul : 1, left: fields.left === true, canLeave: Object.hasOwn(definition.state ?? {}, 'left') });
+        out.push({ module, name, soul: Number.isSafeInteger(fields.soul) ? fields.soul : Number.isSafeInteger(fields.level) ? classOfLevel(fields.level) : 1, left: fields.left === true, canLeave: Object.hasOwn(definition.state ?? {}, 'left') });
     }
     return out;
 }
@@ -139,8 +139,8 @@ export function joinDraft({ name = '', about = '', soul = 1, best = '' } = {}, r
  * The two definitions a joining companion is made of (`used`: the ids of the story's blocks, so the slugs are free). The Character
  * starts with no unspent points: the named stat is raised and the rest left as it was, as the line said.
  */
-export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null } = {}) =>
-    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0 });
+export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null, cap = null } = {}) =>
+    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap });
 
 /**
  * The offers on a reply: the `+ party` lines that asked (Ask), read from the reply's receipts (`entries`: store.receipts() as a

@@ -11,6 +11,7 @@ import { STANDARD_NUMBERS } from '../formula.js';
 import { barOf, characterBars, growthOf, sizeOf, spreadWord, statsOfFields, wordsOf } from '../blocks.js';
 import { activeDefinition, actorsOf, instanceOf } from '../../data-modules/adapters.js';
 import { soulLabelOf } from '../soul.js';
+import { levelOfClass } from '../formula.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 
 export const SKILL_SLOTS = 5;
@@ -162,10 +163,14 @@ export function readParty(state, { own = '', roleOf } = {}) {
             return { key, label, value: whole(fields[key], schema.min ?? 1), min: whole(schema.min, 1), max: whole(schema.max, 20) };
         });
         const soul = whole(fields.soul, 1);
+        // A block with a Level field (2.17.0): the level stands where the Soul Class stood (label "Level", the number as its word), so every view prints it as it did.
+        const levelled = Boolean(definition.state?.level) && typeof definition.state.level === 'object';
+        const level = Math.max(1, Math.min(99, whole(fields.level, 1)));
         const mine = skillBlocks.find(item => textOf(item.fields.who) && fold(item.fields.who) === fold(name))
             ?? (skillBlocks.length === 1 && !textOf(skillBlocks[0].fields.who) ? skillBlocks[0] : null);
         return { module: block.module, subject: block.subject, name, own: false, alive: fields.alive !== false, left: fields.left === true, points: Math.max(0, whole(fields.points)),
-            soul, soulName: soulName(definition.state?.soul, soul), soulLabel: soulLabelOf(definition.state?.soul), xp: Math.min(100, Math.max(0, whole(fields.xp))), bars, stats,
+            soul, level: levelled ? level : levelOfClass(soul), ...(levelled ? { levelled: true } : {}),
+            soulName: levelled ? String(level) : soulName(definition.state?.soul, soul), soulLabel: soulLabelOf(levelled ? definition.state.level : definition.state?.soul), xp: Math.min(100, Math.max(0, whole(fields.xp))), bars, stats,
             skills: mine ? skillsOf(mine) : [], skillsBlock: mine ? { module: mine.module, definition: mine.definition } : null, definition, fields, order: block.order,
             growth: characterBars(definition, fields) ? growthOf(statsOfFields(fields), { statMax: whole(definition.state?.vit?.max, STANDARD_NUMBERS.statMax) }) : null };
     });

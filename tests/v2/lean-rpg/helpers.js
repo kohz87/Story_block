@@ -71,7 +71,7 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false, lvless = false } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
@@ -93,8 +93,10 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         queries: part.queries,
         // `earlier`: the rolls are asked for as they were before the dice version, a payload with no `dice` (a chat made on an older build).
         // `flowless`: the rolls are asked for as they were before stage 49's flow (a payload with no `flow`: a chat made on an older build); `earlier` strips the dice version too.
-        hooks: { ...part.hooks, ...(earlier || flowless ? { beforeGenerate: Object.assign(async (view, info) => {
+        // `lvless`: the rolls are asked for as they were before levels (2.17.0): a payload with no `lv` and numbers with no `levelDivisor`.
+        hooks: { ...part.hooks, ...(earlier || flowless || lvless ? { beforeGenerate: Object.assign(async (view, info) => {
             const out = await part.hooks.beforeGenerate(view, info);
+            if (lvless) return out?.commands ? { ...out, commands: out.commands.map(({ payload: { lv: _, rules: { levelDivisor: __, ...rules }, ...payload }, ...command }) => ({ ...command, payload: { ...payload, rules } })) } : out;
             return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow: _, ...payload }, ...command }) => ({ ...command, payload: earlier ? payload : { ...payload, dice } })) } : out;
         }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },

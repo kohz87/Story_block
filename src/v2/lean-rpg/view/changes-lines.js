@@ -6,6 +6,7 @@
 
 import { FIGHT, FORMULA, RESOLVE } from '../index.js';
 import { STANDARD, normalizeRules } from '../rules.js';
+import { levelBonus } from '../formula.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { rpgBlocks, readParty, skillsOf } from './party-data.js';
 
@@ -114,14 +115,17 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
     const then = new Map(readParty(before, { roleOf }).map(character => [`${character.module}|${character.subject}`, character]));
     for (const character of readParty(state, { roleOf })) {
         const old = then.get(`${character.module}|${character.subject}`);
-        if (!old || !(character.soul > old.soul)) continue;
-        const bonus = (rules?.classWeight ?? FORMULA.classWeight) * (character.soul - old.soul);
+        if (!old) continue;
+        const levelled = character.levelled === true && old.levelled === true;
+        if (!(levelled ? character.level > old.level : character.soul > old.soul)) continue;
+        // (Levels: what the rise adds to every roll is the change in floor(level / divisor), often none; a Soul Class rise adds weight × the rise.)
+        const bonus = levelled ? levelBonus(character.level, rules?.levelDivisor) - levelBonus(old.level, rules?.levelDivisor) : (rules?.classWeight ?? FORMULA.classWeight) * (character.soul - old.soul);
         // A character made from 2.9.1 on gets 3 points to spend with each rise (the template's class-up rule): said when the points went up.
         const gained = character.points - old.points;
-        const base = character.xp === 0 ? fill(C.classNote, { xp: character.xp, bonus }) : fill(C.classNoteShort, { bonus });
+        const base = character.xp === 0 ? fill(bonus > 0 ? C.classNote : C.levelNote, { xp: character.xp, bonus }) : (bonus > 0 ? fill(C.classNoteShort, { bonus }) : '');
         out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(C.classUp, { who: character.name, label: character.soulLabel, from: old.soulName, to: character.soulName }),
             summary: fill(gained > 0 ? C.classSummaryPoints : C.classSummary, { label: character.soulLabel, to: character.soulName, n: gained }),
-            note: gained > 0 ? `${base} · ${fill(C.classPoints, { n: gained })}` : base }));
+            note: gained > 0 ? [base, fill(C.classPoints, { n: gained })].filter(Boolean).join(' · ') : base }));
     }
     const skillsThen = new Map(rpgBlocks(before, { roleOf }).filter(block => block.role === 'skills').map(block => [`${block.module}|${block.subject}`, block]));
     const skillBlocks = rpgBlocks(state, { roleOf }).filter(block => block.role === 'skills');

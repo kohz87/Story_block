@@ -9,7 +9,8 @@ import { PRECALL_HEAD_STANDARD } from '../../../src/v2/lean-rpg/precall.js';
 import { openLinesOf } from '../../../src/v2/lean-rpg/plan.js';
 import { openFoes, vetOpen, isNamedIn } from '../../../src/v2/lean-rpg/open.js';
 import { readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+// (The fight's XP is by Soul Class until the ranks and XP piece of 2.17.0 moves it to levels: these tests play it on blocks made before levels, the 2.16.10 templates.)
+import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from './fixtures/templates-2.16.js';
 import { hashJson as hashOf } from '../../../src/v2/replay.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { reply, success } from '../data-modules/helpers.js';

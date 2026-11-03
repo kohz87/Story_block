@@ -9,7 +9,8 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { FIGHT, FIGHT_XP, FIGHT_XP_HELD, FLOW_VERSION, LEAN_RPG_FEATURE, LIMITS, PRESETS, RESOLVE, STANDARD_FORMULA, FORMULA_SETTING, fightOf, memberXp, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { fightLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+// (The fight's XP is by Soul Class until the ranks and XP piece of 2.17.0 moves it to levels: these tests play it on blocks made before levels, the 2.16.10 templates.)
+import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from './fixtures/templates-2.16.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 

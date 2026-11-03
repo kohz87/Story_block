@@ -1,10 +1,10 @@
 // The RPG block templates (Character, Skills, Foes, Combat rules): data-module definitions that the block
 // chooser offers while the RPG feature is on (Settings → Blocks → From a template). Each carries a `role`
 // (see ROLES in index.js) and keeps the field keys the RPG reads. Stage fields are indexes (0 = empty) with
-// `names` from STAGES; Soul Class and ranks are numbers with names. The block engine adds three things these
+// `names` from STAGES; the level is a number 1–99 (stage 51; the Soul Class I–IX of earlier blocks is not in new templates) and ranks are numbers with names. The block engine adds three things these
 // use: `names` and `prompt: false` on fields, and the `replyEnd` and `cards` lists. The Skills block's rank and practice
 // are `edit: false` (they only move through play); SKILL_SETS are the New character wizard's built-in skill sets.
-import { CREATION, STATS, STAGES, USES } from './names.js';
+import { CREATION, LEVEL, STATS, STAGES, USES } from './names.js';
 import { STANDARD_NUMBERS } from './formula.js';
 
 const names = (words, first = 0) => Object.fromEntries(words.map((word, index) => [String(index + first), word]));
@@ -23,16 +23,23 @@ const get = field => ['get', [field]];
 
 export const COMBAT_PROMPT = [
     '[COMBAT SYSTEM]',
-    'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Soul Class all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',
+    'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Level all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',
     'Exchanges: a fight is told exchange by exchange, each with clear cause, cost and consequence, in the order things happen. Most fights are short; one exchange may be the whole fight. Never skip the moment that decides it.',
     'Weight & Risk: every strike, miss, wound and hesitation carries impact. Injury, fatigue, fear and pain carry into the next exchange and the next scene.',
     'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. NPCs take those exits when the fight turns against them. Victory must be earned; survival must be justified.',
     'XP guide: code gives XP for a won fight; write none for it. Other deeds 5 to 40. Practice a skill 5 to 20 per use.',
 ].join('\n');
 
+// The level rise: at 100 XP and below the character's own cap the level goes up by one and the XP carries (it is held at 100, so the carry is 0); the new
+// level is a multiple of LEVEL.pointEvery (3) exactly when floor((level + 1) / 3) − floor(level / 3) is 1, which then gives one point to spend. At the cap
+// the rule does not fire and the XP holds at 100.
+const levelUp = () => ({ id: 'level-up', when: ['and', ['ge', get('xp'), LEVEL.xpPerLevel], ['lt', get('level'), get('cap')]],
+    then: [{ op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', get('level'), 1], LEVEL.pointEvery], ['floorDiv', get('level'), LEVEL.pointEvery]], bounds: 'clamp' },
+        { op: 'add', path: ['level'], value: 1, bounds: 'clamp' }, { op: 'add', path: ['xp'], value: -LEVEL.xpPerLevel, bounds: 'clamp' }] });
+
 const character = {
     slug: 'character', name: 'Character', role: 'character', schema: 1, stateVersion: 1, scope: 'chat',
-    prompt: 'One character: who they are, health, mana and stamina (words, shown as bars), seven stats from 1 to 20, unspent points, Soul Class I to IX and XP to 100. The narrator sets health, mana, stamina and XP; the story cannot kill a character outright: they die only when they were already Down before a reply and are still Down at its end. The reader sets stats and points. XP at 100 raises the Soul Class by one, up to IX, and gives 3 points to spend on stats.',
+    prompt: 'One character: who they are, health, mana and stamina (words, shown as bars), seven stats from 1 to 20, unspent points, Level 1 to 99 and XP to 100. The narrator sets health, mana, stamina and XP; the story cannot kill a character outright: they die only when they were already Down before a reply and are still Down at its end. The reader sets stats and points. XP at 100 raises the Level by one, up to the Level cap, and every third Level gives a point to spend on stats.',
     show: { tab: true, card: false, tabName: 'Character', icon: 'ph-user' },
     state: {
         who: text('Name'),
@@ -42,8 +49,9 @@ const character = {
         stamina: int('Stamina', 0, 4, 4, { names: STAMINA }),
         ...Object.fromEntries(STATS.map(stat => [stat, int(stat.toUpperCase(), 1, 20, 10)])),
         points: int('Points', 0, 60, 0),
-        soul: int('Soul Class', 1, 9, 1, { names: SOUL }),
-        xp: int('XP', 0, 100, 0),
+        level: int('Level', LEVEL.min, LEVEL.max, 1),
+        xp: int('XP', 0, LEVEL.xpPerLevel, 0),
+        cap: int('Level cap', LEVEL.min, LEVEL.max, LEVEL.max, { prompt: false }),
         down: { type: 'bool', default: false, label: 'Down', prompt: false },
         alive: { type: 'bool', default: true, label: 'Alive' },
         // A companion who left the party (a `- party Name` line, join.js): kept on the Party tab, greyed, and no longer rolled for.
@@ -56,8 +64,7 @@ const character = {
         'add-xp': { op: '+', labels: { amount: range(0, 100) }, effects: [{ op: 'add', path: ['xp'], value: ['arg', 'amount'], bounds: 'clamp' }] },
         'button-rest': { op: '!', ui: true, title: 'Rest', labels: {}, effects: [{ op: 'set', path: ['stamina'], value: 4 }, { op: 'set', path: ['mana'], value: 4 }] },
     },
-    rules: [{ id: 'class-up', when: ['and', ['ge', get('xp'), 100], ['lt', get('soul'), 9]],
-        then: [{ op: 'add', path: ['soul'], value: 1, bounds: 'clamp' }, { op: 'set', path: ['xp'], value: 0 }, { op: 'add', path: ['points'], value: 3, bounds: 'clamp' }] }],
+    rules: [levelUp()],
     // The story has no kind that sets `alive`: death comes only through this latch. (The reader may still fix `alive` with the pencil.)
     // Death is a latch over two reply-end functions, run in this order: the first ends the story only when the
     // character was already Down when the reply started; the second then records whether they are Down now.
@@ -174,7 +181,7 @@ const sizeRule = (id, key, sizeKey, size) => ({ id, when: ['ne', get(sizeKey), s
 
 const standardCharacter = {
     slug: 'character', name: 'Character', role: 'character', schema: 1, stateVersion: 2, scope: 'chat',
-    prompt: 'One character: who they are, health, stamina and mana (words, shown as bars of blocks that grow with VIT, AGI and INT), seven stats from 1 to 20, unspent points, Soul Class I to IX and XP to 100. The narrator sets health, mana, stamina and XP by words; the story cannot kill a character outright: they die only when they were already Down before a reply and are still Down at its end. The reader sets stats and points. XP at 100 raises the Soul Class by one, up to IX, and gives 4 points to spend on stats.',
+    prompt: 'One character: who they are, health, stamina and mana (words, shown as bars of blocks that grow with VIT, AGI and INT), seven stats from 1 to 20, unspent points, Level 1 to 99 and XP to 100. The narrator sets health, mana, stamina and XP by words; the story cannot kill a character outright: they die only when they were already Down before a reply and are still Down at its end. The reader sets stats and points. XP at 100 raises the Level by one, up to the Level cap, and every third Level gives a point to spend on stats.',
     show: character.show,
     state: {
         who: text('Name'),
@@ -184,8 +191,9 @@ const standardCharacter = {
         stamina: bar('Stamina', 7, 'stamina', 4),
         ...Object.fromEntries(STATS.map(stat => [stat, int(stat.toUpperCase(), 1, STANDARD_NUMBERS.statMax, STANDARD_STAT)])),
         points: int('Points', 0, 60, 0),
-        soul: int('Soul Class', 1, 9, 1, { names: SOUL }),
-        xp: int('XP', 0, 100, 0),
+        level: int('Level', LEVEL.min, LEVEL.max, 1),
+        xp: int('XP', 0, LEVEL.xpPerLevel, 0),
+        cap: int('Level cap', LEVEL.min, LEVEL.max, LEVEL.max, { prompt: false }),
         down: { type: 'bool', default: false, label: 'Down', prompt: false },
         alive: { type: 'bool', default: true, label: 'Alive' },
         left: { type: 'bool', default: false, label: 'Left' },
@@ -200,12 +208,10 @@ const standardCharacter = {
         'add-xp': character.kinds['add-xp'],
         'button-rest': { op: '!', ui: true, title: 'Rest', labels: {}, effects: [{ op: 'set', path: ['stamina'], value: SIZE.stamina }, { op: 'set', path: ['mana'], value: SIZE.mana }] },
     },
-    // The bars first (they read the stats as they stand), then the class rise (4 points to spend with each).
+    // The bars first (they read the stats as they stand), then the level rise (a point to spend with every third level).
     rules: [sizeRule('health-bar', 'health', 'health-blocks', SIZE.health), sizeRule('stamina-bar', 'stamina', 'stamina-blocks', SIZE.stamina),
         sizeRule('mana-bar', 'mana', 'mana-blocks', SIZE.mana),
-        { id: 'class-up', when: ['and', ['ge', get('xp'), 100], ['lt', get('soul'), 9]],
-            then: [{ op: 'add', path: ['soul'], value: 1, bounds: 'clamp' }, { op: 'set', path: ['xp'], value: 0 },
-                { op: 'add', path: ['points'], value: STANDARD_NUMBERS.pointsPerSoul, bounds: 'clamp' }] }],
+        levelUp()],
     replyEnd: character.replyEnd,
     cards: character.cards,
 };
@@ -238,11 +244,11 @@ const standardFoes = {
  */
 export const COMBAT_PROMPT_STANDARD = [
     '[COMBAT SYSTEM]',
-    'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Soul Class all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',
+    'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Level all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',
     'Exchanges: a fight is told exchange by exchange, each with clear cause, cost and consequence, in the order things happen. Most fights are short; never skip the moment that decides it.',
     'Weight & Risk: every strike, miss, wound and hesitation carries impact. Injury, fatigue, fear and pain carry into the next exchange and the next scene.',
     'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned; survival must be justified.',
-    'Rolls: attacks, spells, defence, talk and checks each pair a main stat with half of a second one. Health, stamina and mana are rows of blocks: a hit takes one, a Decisive hit two, and a foe of a higher Soul Class has more. Tell the rolled result; code moves the bars for hits, heals, skill costs: never set those.',
+    'Rolls: attacks, spells, defence, talk and checks each pair a main stat with half of a second one. Health, stamina and mana are rows of blocks: a hit takes one, a Decisive hit two, and a foe of a higher Level has more. Tell the rolled result; code moves the bars for hits, heals, skill costs: never set those.',
     'XP guide: code gives XP for a won fight; write none for it. Other deeds 5 to 40. Code practises rolled skills.',
 ].join('\n');
 

@@ -311,13 +311,13 @@ test('a good file fills the stats, the unspent points, the Soul Class and the sk
     assert.deepEqual(who.querySelectorAll('.rpg-wiz-seg button').map(node => node.getAttribute('aria-pressed')), ['false', 'true'], 'still a companion');
     assert.equal(who.querySelector('.rpg-import'), null, 'the row gives way to the note');
     const done = who.querySelector('[data-wiz="import-done"]');
-    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills. When you press Create it also adds 3 things to the party\'s bag and 50 gold to the purse. Give the character a name and who they are below.Undo import');
+    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Level 15 and 2 skills. When you press Create it also adds 3 things to the party\'s bag and 50 gold to the purse. Give the character a name and who they are below.Undo import');
     assert.equal(done.getAttribute('role'), 'status');
-    assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-sub').textContent, 'Companion · Soul Class II');
+    assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-sub').textContent, 'Companion · Level 15');
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 3');
     assert.match(who.querySelector('.rpg-wiz-sum').textContent, /STR 14 · VIT 12 · AGI 11 · DEX 10 · INT 8 · LUK 9 · CHA 10/);
     assert.match(who.querySelector('.rpg-wiz-sum').textContent, /Iron Breath \(Expert\), Short blade \(Novice\)/);
-    assert.match(who.textContent, /Starts at Soul Class II \(imported\) with 0 XP\. Health, Mana and Stamina start full\./);
+    assert.match(who.textContent, /Starts at Level 15 \(imported\) with 0 XP\. Health, Mana and Stamina start full\./);
 
     // The Stats step: the file's stats, the file's points to spend, the usual limits.
     const stats = await goTo(dialog, 'stats');
@@ -383,7 +383,7 @@ test('Undo import puts the wizard back as it was before, and Import file is offe
     assert.equal(who.querySelector('[data-wiz="import-done"]'), null);
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 4', 'the two points spent before the import are back as they were');
     assert.match(who.querySelector('.rpg-wiz-sum').textContent, /STR 12 · VIT 10/);
-    assert.equal(who.querySelector('.rpg-wiz-sub').textContent, 'Companion · Soul Class I');
+    assert.equal(who.querySelector('.rpg-wiz-sub').textContent, 'Companion · Level 1');
     assert.equal(who.querySelector('[data-wiz="name"]').value, 'Ren');
     const skills = await goTo(dialog, 'skills');
     assert.equal(skills.querySelectorAll('.rpg-wiz-row[data-skill]').length, 0, 'the imported skills are gone');
@@ -448,10 +448,10 @@ test('a file with no things or money says nothing about them; one with them says
     let dialog = await wizardWith(ctx);
     await companion(dialog);
     await importInto(dialog, without('items', 'money'));
-    assert.equal(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills. Give the character a name and who they are below.Undo import');
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Level 15 and 2 skills. Give the character a name and who they are below.Undo import');
     let review = await goTo(dialog, 'review');
     assert.equal(review.querySelector('[data-review="import-also"]'), null);
-    assert.match(review.textContent, /Starts at Soul Class II \(imported\), 0 XP, full Health, Mana and Stamina\./);
+    assert.match(review.textContent, /Starts at Level 15 \(imported\), 0 XP, full Health, Mana and Stamina\./);
     assert.match(review.textContent, /Iron Breath · VIT · Stamina · starts at Expert/);
     assert.match(review.textContent, /3 unspent points go to Spend points on the Party tab\./);
     dialog.close();
@@ -530,8 +530,8 @@ test('Create makes the Character and Skills blocks from the file, adds the thing
     assert.deepEqual(names(ctx.host), [...blocksBefore, 'pack.chat/combat-rules', 'pack.chat/foes', 'pack.chat/ren', 'pack.chat/ren-skills'].sort());
 
     const ren = fieldsOf(ctx.host, 'pack.chat/ren'), skills = fieldsOf(ctx.host, 'pack.chat/ren-skills');
-    assert.deepEqual([ren.who, ren.about, ren.soul, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 2, 3, 0, 5, 4, 4, true],
-        'the file\'s Soul Class and points; the reader\'s name and who they are; XP 0 and full bars');
+    assert.deepEqual([ren.who, ren.about, ren.level, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 5, 4, 4, true],
+        'the file\'s Soul Class II as the level it stands for (15), and points; the reader\'s name and who they are; XP 0 and full bars');
     assert.deepEqual(STATS.map(stat => ren[stat]), [14, 12, 11, 10, 8, 9, 10]);
     assert.deepEqual([skills.who, skills.skill1, skills.about1, skills.stat1, skills.uses1, skills.rank1, skills.practice1, skills.skill2, skills.rank2, skills.skill3], ['Ren', 'Iron Breath', 'Steadies the lungs in a long fight.', 'vit', 'stamina', 2, 0, 'Short blade', 0, '']);
     assert.deepEqual(carried(ctx.host), ['Bedroll', 'Oilskin Coat', 'Torch ×2']);
@@ -585,7 +585,7 @@ test('a You takes the things to the bag, a companion with a party actor to that 
     wizardOf(dialog).querySelector('.rpg-wiz-create').click();
     await settle();
     assert.deepEqual([...new Set(ctx.host.sdk.query('inventory.items', {}).map(item => item.owner))], ['party'], 'a You: the party\'s bag');
-    assert.equal(fieldsOf(ctx.host, 'pack.chat/wessel').soul, 2);
+    assert.equal(fieldsOf(ctx.host, 'pack.chat/wessel').level, 15, 'the file\'s Soul Class II: the level it stands for');
     dialog = await wizardWith(ctx);
     await companion(dialog, 'Ren');
     await importInto(dialog, without('money'));

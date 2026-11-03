@@ -57,6 +57,9 @@ export function memberXp(groups, soul) {
     return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.max, xp)) : 0;
 }
 
+// The numbers a character's rise moves, and the reply's scratch keeps (`level` is the Level field of a block made from 2.17.0 on, `soul` the Soul Class of an earlier one).
+const RISE_KEYS = ['xp', 'level', 'soul', 'points'];
+
 // The party members the fight pays: not Left (readSheet leaves those out), not dead.
 const paidOf = sheet => sheet.characters.filter(character => character.alive !== false);
 
@@ -68,7 +71,7 @@ function fromOf(domain, source) {
     const kept = domain?.perReply?.[pairKey(source)]?.xpFrom;
     if (!isObject(kept)) return out;
     for (const [module, rises] of Object.entries(kept)) {
-        if (isObject(rises) && whole(rises.xp) && whole(rises.soul)) out[module] = { xp: rises.xp, soul: rises.soul, ...(whole(rises.points) ? { points: rises.points } : {}) };
+        if (isObject(rises) && whole(rises.xp) && (whole(rises.soul) || whole(rises.level))) out[module] = { xp: rises.xp, ...(whole(rises.level) ? { level: rises.level } : {}), ...(whole(rises.soul) ? { soul: rises.soul } : {}), ...(whole(rises.points) ? { points: rises.points } : {}) };
     }
     return out;
 }
@@ -77,7 +80,7 @@ function fromOf(domain, source) {
 export function fightWitness(sheet, domain, source, decision) {
     const foes = sheet.foes.filter(foe => foe.filled).map(({ slot, name, count, class: soul, hurt }) => ({ slot, name, count, class: soul, hurt }));
     return { foes, was: slotsOf(decision?.was), from: fromOf(domain, source),
-        members: paidOf(sheet).map(character => ({ module: character.module, who: character.who, xp: character.xp, soul: character.soul, points: character.points })) };
+        members: paidOf(sheet).map(character => ({ module: character.module, who: character.who, xp: character.xp, soul: character.soul, ...(character.levelled ? { level: character.level } : {}), points: character.points })) };
 }
 
 /**
@@ -126,18 +129,18 @@ export function fightXp(ctx, payload = {}) {
         if (!isObject(fields) || !whole(fields.xp)) continue;
         // What the story added to this member's xp, soul and points in this reply (the narrator's XP line and its rise) is not used.
         const kept = from[character.module];
-        const held = Boolean(kept) && ['xp', 'soul', 'points'].some(key => whole(kept[key]) && fields[key] !== kept[key]);
+        const held = Boolean(kept) && RISE_KEYS.some(key => whole(kept[key]) && fields[key] !== kept[key]);
         const instance = draft.instances[character.module].chat;
         const xp = memberXp(fight.groups, character.soul);
         if (isObject(definition?.state) && Array.isArray(definition.rules)) {
             const evaluation = createEvaluation(definition, instance, { inputs: {}, source: {}, cursor: null, subject: 'chat' });
-            if (held) evaluation.effects(['xp', 'soul', 'points'].filter(key => whole(kept[key]) && key in fields).map(key => ({ op: 'set', path: [key], value: kept[key] })));
+            if (held) evaluation.effects(RISE_KEYS.filter(key => whole(kept[key]) && key in fields).map(key => ({ op: 'set', path: [key], value: kept[key] })));
             if (xp > 0) evaluation.effects([{ op: 'add', path: ['xp'], value: xp, bounds: 'clamp' }]);
             evaluation.rules();
             evaluation.finish();
         } else {
             // A bare block (no pinned rules to run): XP only, held to 0–100.
-            if (held) Object.assign(fields, Object.fromEntries(['xp', 'soul', 'points'].filter(key => whole(kept[key]) && key in fields).map(key => [key, kept[key]])));
+            if (held) Object.assign(fields, Object.fromEntries(RISE_KEYS.filter(key => whole(kept[key]) && key in fields).map(key => [key, kept[key]])));
             fields.xp = Math.max(0, Math.min(100, fields.xp + xp));
         }
         if (xp > 0 || held) awards.push({ who: character.who, module: character.module, xp, ...(held ? { held: true } : {}) });

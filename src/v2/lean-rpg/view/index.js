@@ -12,7 +12,7 @@ import { createBattleLog } from './battle-log.js';
 import { FIGHT_WIDGET, createFightScreen, createFightWidget } from './fight.js';
 import { rpgReplyLines } from './changes-lines.js';
 import { PARTY_WIDGET, createPartyScreen, createPartyWidget } from './party.js';
-import { packInForce, packRulesOf, rulesFromSettings } from '../rules.js';
+import { levelCapFor, packInForce, packRulesOf, rulesFromSettings } from '../rules.js';
 import { rpgSection } from './settings.js';
 import { heroLead } from './hero-data.js';
 import { HOLD_WIDGET, createStart } from './start.js';
@@ -70,6 +70,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         } catch { return null; }
     };
     const rules = () => rulesFromSettings(values(), pack());
+    const levelCap = () => levelCapFor(values(), pack()?.levelCap);
     // "From the pack: Ersveil" under the wizard's Stats, when the pack decides the numbers.
     const packNote = () => { const given = pack(); return given && packInForce(values(), given).numbers ? given.name || given.pack || '' : ''; };
     // The head reply's key in the blocks' per-reply action count (data-modules/part.js pairKey): the wizard asks it for room before Create.
@@ -77,7 +78,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         const source = readRecord(ctx?.chat?.[store?.headIndex?.()])?.source;
         return source?.logical && source?.swipeKey ? `${source.logical}/${source.swipeKey}` : '';
     };
-    const wizard = createWizard({ headState, readerName, readerAbout, roleOf, openDialog, replyKey, rules, packNote });
+    const wizard = createWizard({ headState, readerName, readerAbout, roleOf, openDialog, replyKey, rules, packNote, levelCap });
     const exporter = createExporter({ headState, readerName, roleOf, openDialog });
     const start = createStart({ doc, headState, readerName, featureOn, roleOf, openDialog, wizard, meta, save, redraw: () => refresh() });
     widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null, exportCharacter: openDialog ? exporter.open : null, rules });

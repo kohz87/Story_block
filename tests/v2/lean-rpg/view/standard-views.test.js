@@ -193,7 +193,7 @@ test('a companion the story adds on the Standard scale: every stat 5, the best 9
     const made = joinDefinitions(request, { used: [], soul: 3, rules: STANDARD_FORMULA });
     assert.deepEqual(STATS.map(stat => made.character.state[stat].default), STATS.map(stat => draft.stats[stat]));
     assert.equal(made.character.state.points.default, 0);
-    assert.equal(made.character.state.soul.default, 3);
+    assert.equal(made.character.state.level.default, 25, 'class III stands for level 25 (2.17.0)');
     const classic = joinDefinitions(request, { used: [], soul: 3 });
     assert.deepEqual(STATS.map(stat => classic.character.state[stat].default), [10, 10, 10, 10, 14, 10, 10]);
     assert.deepEqual(joinDraft(request).stats, joinDraft(request, { foeBase: 5 }).stats, 'rules with no formula are Classic');
@@ -215,7 +215,7 @@ test('Stats under Standard: steppers from 5, 10 points to spend, 3 to 10, and th
     const step = (stat, dir) => root().querySelector(`.rpg-stat-step[data-stat="${stat}"] .ss-w-stepper-${dir}`);
     assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 10');
     assert.match(root().querySelector('.rpg-wiz-sum').textContent, /STR 5 · VIT 5 · AGI 5 · DEX 5 · INT 5 · LUK 5 · CHA 5/);
-    assert.match(root().textContent, /Every stat starts at 5\. Spend 10 points; a stat can go down to 3 to free a point and up to 10 now\. Each Soul Class rise gives 4 more, and XP rises on its own\./);
+    assert.match(root().textContent, /Every stat starts at 5\. Spend 10 points; a stat can go down to 3 to free a point and up to 10 now\. Every third Level gives a point more, and XP rises on its own\./);
     const line = () => root().querySelector('[data-wiz="growth"]').textContent;
     assert.equal(line(), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
     for (let n = 0; n < 5; n += 1) step('vit', 'inc').click();

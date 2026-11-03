@@ -17,6 +17,7 @@ import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
 import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { isStandard } from '../rules.js';
+import { levelOfClass } from '../formula.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS, templatesFor } from '../templates.js';
 import { barFields } from '../blocks.js';
 import { soulReading } from '../soul.js';
@@ -267,6 +268,12 @@ const template = (role, formula = 'classic') => structuredClone(templatesFor(for
 /** What a character the wizard makes calls its Soul Class (soul.js): the Character template's own label and names. */
 export const newSoul = () => soulReading(template('character').state.soul);
 
+/**
+ * What the New character window calls the starting level (2.17.0): the Character template's Level field label, and for a draft's class (1 = a new character,
+ * 2 to 9 = a companion or an imported file) the level it starts at: 1, or the level the class stands for (formula.js levelOfClass). → { label, word(n) }
+ */
+export const newLevelWords = () => ({ label: template('character').state.level?.label ?? 'Level', word: n => String(n > 1 ? levelOfClass(n) : 1) });
+
 /** The block each extra role is made from, by its name: "Combat rules" and "Foes" (the stock templates, as Settings → Blocks offers them). */
 export const extraName = role => LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role)?.name ?? role;
 
@@ -288,9 +295,9 @@ export const blockNames = name => ({ character: name, skills: `${name}'s skills`
  * The two definitions Create makes, from the templates with the wizard's values written as the fields' defaults (so one `dm.define`
  * each makes the whole block, and the Skills block's `rankN` stays a field only play can move). `used` is the ids of the blocks
  * the chat has, so the slugs are free; `points` sets the Character's unspent points (a companion who joins starts with none, the
- * wizard's the budget left). → { character, skills } (definitions, the Character first)
+ * wizard's the budget left); `cap` is the story's level cap (rules.js levelCapFor, 99 unset). → { character, skills } (definitions, the Character first)
  */
-export function buildDefinitions(draft, { used = [], points = null } = {}) {
+export function buildDefinitions(draft, { used = [], points = null, cap = null } = {}) {
     const names = blockNames(draft.name);
     const formula = draftCreation(draft).standard ? 'standard' : 'classic';
     const character = template('character', formula);
@@ -304,7 +311,11 @@ export function buildDefinitions(draft, { used = [], points = null } = {}) {
     // The Standard formula's bars are rows of blocks that grow with VIT, AGI and INT: a new character starts with them full, and the hidden fields
     // that remember each bar's size start there too (blocks.js barFields), so the block's size rules find nothing to change.
     if (formula === 'standard') for (const [key, value] of Object.entries(barFields(draft.stats))) if (state[key]) state[key].default = Math.min(value, Number.isSafeInteger(state[key].max) ? state[key].max : value);
-    if (draft.soul > 1) state.soul.default = draft.soul;
+    // A companion who arrives with a Soul Class (a `+ party` line, a saved file) starts at the level it stands for (formula.js levelOfClass); anyone else at level 1.
+    // The cap is the story's (levelCapFor), 99 unset; a level never starts above it.
+    const top = Number.isSafeInteger(cap) ? Math.max(1, Math.min(99, cap)) : 99;
+    if (state.level) { state.level.default = draft.soul > 1 ? Math.min(top, levelOfClass(draft.soul)) : 1; state.cap.default = top; }
+    else if (draft.soul > 1) state.soul.default = draft.soul;
     const skills = template('skills', formula);
     skills.slug = uniqueBlockSlug(`${draft.name} skills`, [...used, character.slug]);
     skills.name = names.skills;

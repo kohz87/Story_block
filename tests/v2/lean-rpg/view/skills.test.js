@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setupDom } from '../../view/mounts/helpers.js';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { LEAN_RPG_TEMPLATES as EARLIER_TEMPLATES } from '../fixtures/templates-2.16.js';
 import { readParty } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { createPartyWidget } from '../../../../src/v2/lean-rpg/view/party.js';
 import { RANK_TONES, masteryOf, renderSkills, rollOf } from '../../../../src/v2/lean-rpg/view/skills.js';
@@ -12,7 +12,8 @@ import { reply, rebuilt } from '../../data-modules/helpers.js';
 import { fakeState } from './helpers.js';
 import { begin, fieldsOf, makeBlocks, page, party, settle } from './page.js';
 
-const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
+// (The block here is one made before levels, 2.17.0: a Soul Class; the Level block's roll line is in levels-character.test.js.)
+const template = role => structuredClone(EARLIER_TEMPLATES.find(entry => entry.definition.role === role).definition);
 const character = (fields = {}) => ({ definition: template('character'), fields: { who: 'Wessel', str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, soul: 2, ...fields } });
 const SKILLS = {
     who: 'Wessel',

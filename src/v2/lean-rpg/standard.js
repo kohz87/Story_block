@@ -2,7 +2,7 @@
 //
 // What is different from Classic (resolve.js):
 // - a roll is typed: physical, magic, defence, social or check (plan.js). The stat part is formula.js statPart: a skill's stat takes the
-//   main slot, half of the type's second stat is added, the sum is halved once. Class = classWeight × Soul Class, then the skill's rank,
+//   main slot, half of the type's second stat is added, the sum is halved once. Class = the level bonus (floor(level / divisor); before levels classWeight × Soul Class), then the skill's rank,
 //   then the situation's edge held inside LUK's window (formula.js luckWindow, edgeWithLuck).
 // - a foe adds foeBonus(class, rules) = foeBase + foeClassWeight × class.
 // - a fight has a turn order (rolled once, kept across replies, carried in the payload), an opening action for a character who leads a
@@ -22,6 +22,7 @@ import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus,
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
 import { fitCue, hurtsOf } from './cue.js';
+import { classTerm, hasLevels } from './rules.js';
 
 const DIE = FORMULA.die;
 const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
@@ -96,7 +97,7 @@ function sideStd(character, type, skill, { fit = null, edge = 0, againstMagic = 
     const window = luckWindow(character.stats.luk);
     return {
         who: character.who, type, stat: part.main, second: part.second, mainValue: character.stats[part.main] ?? null, secondValue: character.stats[part.second] ?? null,
-        statBonus: part.value, ...(part.style ? { style: part.style } : {}), classValue: character.soul, classBonus: rules.classWeight * character.soul,
+        statBonus: part.value, ...(part.style ? { style: part.style } : {}), ...classTerm(rules, character),
         rank: skill.rank, window, situation, edge: edgeWithLuck(situation, character.stats.luk),
         ...(skill.statHidden || (character.hidden ?? []).includes(part.main) ? { statHidden: true } : {}),
     };
@@ -182,7 +183,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
     // what order). Whether a stat is hidden changes what the cue says, never the dice.
     out.witness = {
         formula: 'standard', acts: bare(out.acts), foes: bare(out.foes), checks: bare(out.checks), refused: out.refused,
-        roster: { characters: roster.characters.map(bar => ({ ...standing(bar), agi: bar.character.stats.agi, soul: bar.character.soul, alive: bar.character.alive })),
+        roster: { characters: roster.characters.map(bar => ({ ...standing(bar), agi: bar.character.stats.agi, soul: bar.character.soul, ...(hasLevels(rules) ? { level: bar.character.level } : {}), alive: bar.character.alive })),
             foes: roster.foes.map(bar => ({ ...standing(bar), class: bar.foe.class })), resources: roster.resources.map(standing) },
     };
     return out;
@@ -268,7 +269,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const party = bar.kind === 'char', agi = party ? bar.character.stats.agi ?? 0 : 0;
         if (kept) return { id: bar.id, name: bar.name, total: kept.total, die: kept.die ?? null, bonus: kept.bonus ?? null, agi, party, fresh: false };
         const die = source('init', party ? bar.at : 16 + bar.at)();
-        const bonus = party ? initiativeBonus(bar.character.stats, rules.classWeight * bar.character.soul) : foeInitiativeBonus(bar.foe.class);
+        const bonus = party ? initiativeBonus(bar.character.stats, classTerm(rules, bar.character).classBonus) : foeInitiativeBonus(bar.foe.class);
         return { id: bar.id, name: bar.name, total: die + bonus, die, bonus, agi, party, fresh: true };
     });
     const order = turnOrder(entries).map(id => entries.find(entry => entry.id === id));

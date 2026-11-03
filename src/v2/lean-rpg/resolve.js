@@ -62,10 +62,10 @@
 // stat (or the defending skill's), `skill` the defending skill (null: none; a roll made before there were any has none) and `pc` the
 // defender (outcome 'fail' means the defender failed). `summary.exchanges` = rounds.length is the
 // number B shows as "Rolled for you: N exchanges". The told count is not recorded: the narrator is not asked to count.
-import { FIGHT, FORMULA, LIMITS, PACE, PRACTICE_STEP, RESOLVE, STAGES, practiceOf } from './names.js';
+import { FIGHT, FORMULA, LEVEL, LIMITS, LV_VERSION, PACE, PRACTICE_STEP, RESOLVE, STAGES, practiceOf } from './names.js';
 import { fightGuard } from './fight.js';
 import { practiceGuard } from './practice.js';
-import { EARLIER_RULES, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
+import { classTerm, EARLIER_RULES, hasLevels, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
 import { prepareStandard, rollStandard, summaryStd } from './standard.js';
 import { fitCue } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from './read.js';
@@ -98,7 +98,7 @@ function side(character, stat, rank, edge, rules, hidden = false) {
     const value = character.stats[stat];
     return {
         who: character.who, stat, statBonus: statShare(value, rules),
-        classValue: character.soul, classBonus: rules.classWeight * character.soul, rank, edge,
+        ...classTerm(rules, character), rank, edge,
         ...(hidden || (character.hidden ?? []).includes(stat) ? { statHidden: true } : {}),
     };
 }
@@ -377,6 +377,8 @@ function writeBars(ctx, hurts) {
 
 // The numbers a payload rolls with: the ones it carries, or, for a roll recorded before the numbers were kept, those it was made with (the cap of 5 included).
 const rulesOfPayload = value => (value === undefined ? EARLIER_RULES : normalizeRules(value));
+// A payload that says `lv: 1` rolls with levels (rules.levelDivisor, 5 if the numbers carry none); one that does not rolls with the Soul Class, as before.
+const levelledRules = (rules, lv) => (lv === LV_VERSION && !hasLevels(rules) ? { ...rules, levelDivisor: LEVEL.divisor } : rules);
 // The flow a payload asks for: FLOW_VERSION only when it says so and the dice are by position (a roll of the earlier dice scheme stops as it did).
 const flowOf = (asked, positional) => (asked === FLOW_VERSION && positional ? FLOW_VERSION : 1);
 
@@ -396,7 +398,8 @@ export function resolve(ctx, payload = {}) {
     const order = orderOf(payload.order);
     // The numbers this roll is made with are the ones the payload carries (chosen when it was planned, from the settings of that
     // moment); a Re-read, a rebuild and a reload run the same payload, so they roll with them again. The settings are never read here.
-    const rules = rulesOfPayload(payload.rules);
+    const rules = levelledRules(rulesOfPayload(payload.rules), payload.lv);
+    const lv = hasLevels(rules) ? LV_VERSION : undefined;
     // The flow of stage 49 is asked for by the payload (precall.js) and needs the dice by position; a roll made before has none and stops as it did.
     const std = isStandard(rules);
     const flow = flowOf(payload.flow, payload.dice === DICE_VERSION || std);
@@ -416,10 +419,10 @@ export function resolve(ctx, payload = {}) {
     const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, flow });
     // From stage 50 a payload may carry the practice per skill use (practice.js); a roll made before has none and gives none.
     const practice = practiceOf(payload.practice) ?? undefined;
-    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}) };
-    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}) });
+    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(lv ? { lv } : {}), ...(practice ? { practice } : {}) };
+    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(lv ? { lv } : {}), ...(practice ? { practice } : {}) });
     const result = {
-        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
+        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(lv ? { lv } : {}), ...(practice ? { practice } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
         refused: prepared.refused, summary: dice.summary, ...(opening ? { opened } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
@@ -442,6 +445,8 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         // The numbers are the ones recorded with the roll, not today's settings; damaged numbers are not guessed at.
         // A roll recorded before the numbers were kept has none: it was made with Standard's.
         const rules = rulesOfPayload(recorded.rules);
+        // The level mark is hashed with the roll: the numbers carry a divisor exactly when the roll says `lv: 1`; a roll made before has neither.
+        if (recorded.lv !== predicate.lv || (recorded.lv !== undefined && recorded.lv !== LV_VERSION) || hasLevels(rules) !== (recorded.lv === LV_VERSION)) return bad('The roll\'s level mark was damaged.');
         const kept = recorded.rules !== undefined || predicate.rules !== undefined;
         if (kept && (hash(recorded.rules ?? null) !== hash(rules) || hash(rules) !== predicate.rules)) return bad('The roll\'s numbers were damaged.');
         // The flow it stopped by is hashed with it; a roll of the earlier flow has none.

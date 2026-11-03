@@ -96,6 +96,20 @@ export const FIGHT_XP = Object.freeze({ perClass: 2, min: 1, max: 60, lowerPerce
 /** The line the narrator writes where the fight is told (the battle log is drawn there). */
 export const BATTLE_MARKER = '[battle]';
 
+/**
+ * Levels (2.17.0, replaces the Soul Class I–IX): a character has a level 1..`max`, `xpPerLevel` XP raise it by one (up to the character's own `cap`, the
+ * setting `rpgLevelCap` / the pack's `rpg.levelCap`, 99 unset), every `pointEvery`-th level gives a point to spend. A roll adds `levelBonus(level, divisor)`
+ * = floor(level / divisor) in place of the old weight × Soul Class (formula.js; `divisor` 5 by default, Custom `minDivisor`..`maxDivisor`). A roll made
+ * with it carries `lv: 1` (LV_VERSION) and the divisor in its rules (`levelDivisor`); a roll without them replays with the Soul Class exactly as before.
+ */
+export const LEVEL = Object.freeze({ min: 1, max: 99, xpPerLevel: 100, pointEvery: 3, divisor: 5, minDivisor: 3, maxDivisor: 8 });
+/** The version of the roll term a payload asks for (`lv` in the payload of `rpg.resolve`): 1 = level bonus. */
+export const LV_VERSION = 1;
+/** The setting (Story Block's own bucket, Settings → RPG): the highest level a character can reach, 1 to 99 (99 unset). The pack's `rpg.levelCap` is the default when the reader has not set one. */
+export const LEVEL_CAP_SETTING = 'rpgLevelCap';
+/** `value` as a level cap: a whole number from 1 to 99, else null. */
+export const levelCapOf = value => (Number.isInteger(value) && value >= LEVEL.min && value <= LEVEL.max ? value : null);
+
 /** What a skill's rank (0–3) and a Soul Class (1–9) are called. */
 export const RANK_NAMES = Object.freeze(['Novice', 'Adept', 'Expert', 'Master']);
 export const CLASS_NAMES = Object.freeze(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX']);

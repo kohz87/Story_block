@@ -35,12 +35,12 @@ import { readParty } from './party-data.js';
 import { joinDraft } from '../join.js';
 import { growthOf } from '../blocks.js';
 import { growthText } from './party-data.js';
-import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, draftCreation, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, newSoul, pointsLeft, problemsOf, rankOf, readDraft, setLine, skillSetsOf,
+import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, draftCreation, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, newLevelWords, pointsLeft, problemsOf, rankOf, readDraft, setLine, skillSetsOf,
     START_RANKS, startStats, statBounds, statsLine, withImport, withoutImport, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
 const W = RPG_STRINGS.wizard;
-// What the characters the wizard makes call their Soul Class (the Character template's own label and names).
-const soulWords = newSoul();
+// What the characters the wizard makes start at: "Level 1", or the level a companion's or a file's Soul Class stands for.
+const soulWords = newLevelWords();
 export const WIZARD_SCREEN_ID = 'story-block/new-character';
 export const WIZARD_WIDGET = 'rpg.wizard';
 
@@ -74,7 +74,7 @@ const safe = (fn, fallback) => { try { return fn() ?? fallback; } catch { return
  * `open()` opens the dialog on a fresh draft; the session is dropped when the dialog closes. `prefill` is { name, about, soul, best }: a companion
  * the story brought in (join.js joinDraft); `onEnd(created)` is told once when the dialog closes, `created` true when Create made the character.
  */
-export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '', rules = () => null, packNote = () => '' } = {}) {
+export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '', rules = () => null, packNote = () => '', levelCap = () => null } = {}) {
     let session = null;
     const world = () => worldOf(headState(), String(readerName() ?? '').replace(/\s+/g, ' ').trim(), roleOf, safe(replyKey, ''));
     // The persona's description as Who they are starts: one line, the first 240 characters (whole characters), '' when there is none.
@@ -549,7 +549,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const call = async (type, payload) => {
                     try { return (await api.command(type, payload)) ?? { ok: false }; } catch (error) { return { ok: false, message: String(error?.message ?? error) }; }
                 };
-                const definitions = buildDefinitions(now, { used: where.used });
+                const definitions = buildDefinitions(now, { used: where.used, cap: safe(levelCap, null) });
                 let failure = '';
                 const first = await call('dm.define', { definition: definitions.character });
                 // Still no state after the host tried to start one (sdk.command): the chat has no message to hold it, said in one plain sentence.

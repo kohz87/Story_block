@@ -36,7 +36,7 @@ test('a Standard roll: the payload carries the formula and numbers, the narrator
     const { host } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard' } });
     const { request } = await host.send('I hit the lead rat.', 'The rats scatter.');
     const receipt = rollReceipt(host, 2), result = resultOf(host, 2);
-    assert.deepEqual(result.rules, STANDARD_FORMULA);
+    assert.deepEqual(result.rules, { ...STANDARD_FORMULA, levelDivisor: 5 });
     assert.equal(receipt.replan.payload.rules.formula, 'standard');
     assert.equal(receipt.replan.payload.plan.formula, 'standard');
     assert.ok(tailOf(request).includes(receipt.summary), 'the cue told is the cue stored');
@@ -122,7 +122,7 @@ test('REPLAY RULE: a Standard roll keeps its formula and numbers when the settin
     const { host } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard', [DIFFICULTY_SETTING]: 'harsh' } });
     await host.send('First.', 'One.');
     const kept = JSON.stringify(resultOf(host, 2));
-    assert.deepEqual(resultOf(host, 2).rules, STANDARD_PRESETS.harsh);
+    assert.deepEqual(resultOf(host, 2).rules, { ...STANDARD_PRESETS.harsh, levelDivisor: 5 });
     host.settings.set(OWNER, FORMULA_SETTING, 'classic');
     host.settings.set(OWNER, DIFFICULTY_SETTING, 'gentle');
     assert.equal((await host.turn.reread(2)).ok, true);
@@ -135,7 +135,7 @@ test('REPLAY RULE: a Standard roll keeps its formula and numbers when the settin
     const { host: second, callModel } = await setup({ blocks: blocks(), answers: [classic], settings: { [FORMULA_SETTING]: 'classic' } });
     await second.send('First.', 'One.');
     const result = resultOf(second, 2);
-    assert.deepEqual(result.rules, PRESETS.standard);
+    assert.deepEqual(result.rules, { ...PRESETS.standard, levelDivisor: 5 });
     assert.equal('formula' in result.rules, false);
     for (const key of ['order', 'quickStart', 'opening', 'idle', 'hurts']) assert.equal(key in result, false, key);
     assert.equal(fieldsOf(second, 'foes').hurt1, 4, 'Classic leaves the bars to the narrator');

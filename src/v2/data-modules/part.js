@@ -17,7 +17,7 @@ import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blo
 import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, soulNaming } from '../lean-rpg/join.js';
 import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
 import { fold } from '../lean-rpg/read.js';
-import { isStandard, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
+import { isStandard, levelCapFor, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { RPG_STRINGS } from '../lean-rpg/strings.js';
 
@@ -505,7 +505,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         let pack = null;
         try { pack = packRulesOf((packs?.packs?.() ?? []).flatMap(entry => entry?.content?.rpg ?? [])); } catch { pack = null; }
         const rules = rulesFromSettings(settings(), pack);
-        const made = joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul, rules });
+        const made = joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: levelCapFor(settings(), pack?.levelCap) });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
         const first = partyOf(prefix).length === 0, plan = first ? extrasPlan(prefix) : { add: [], skipped: [] };
         const extras = extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug], formula: isStandard(rules) ? 'standard' : 'classic' });
@@ -691,7 +691,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is
         // given by code, can put back what the narrator added in that reply.
         const xpFrom = ctx.cause === 'story' && definition.role === 'character' && kind.effects.some(effect => Array.isArray(effect?.path) && effect.path[0] === 'xp')
-            ? { [module]: Object.fromEntries(['xp', 'soul', 'points'].filter(key => Number.isSafeInteger(fieldsBefore[key])).map(key => [key, fieldsBefore[key]])) } : null;
+            ? { [module]: Object.fromEntries(['xp', 'level', 'soul', 'points'].filter(key => Number.isSafeInteger(fieldsBefore[key])).map(key => [key, fieldsBefore[key]])) } : null;
         // A story line that practises a skill (`practice-N`, after skillRoute): what the slot held before it is kept for the reply, so that the practice the
         // reply's rolls give by code can put back what the narrator added for the same skill.
         const practiceFrom = ctx.cause === 'story' && route && route.kind.startsWith('practice-')

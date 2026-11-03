@@ -29,7 +29,7 @@ import { RESOLVE } from '../index.js';
 import { CLASS_NAMES, RANK_NAMES } from '../names.js';
 import { readRecord } from '../../persist.js';
 import { fold } from '../read.js';
-import { soulReading, soulShortOf } from '../soul.js';
+import { characterReading, soulShortOf } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { BARS, readFoes, readParty } from './party-data.js';
 
@@ -535,7 +535,7 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
         // What each party member calls the Soul Class comes from the reply's own state, read once and only when a line is drawn.
         let souls = null;
         const soulOf = who => {
-            souls ??= new Map((stateAt(index) ? readParty(stateAt(index), { roleOf }) : []).map(character => [fold(character.name), soulReading(character.definition.state?.soul)]));
+            souls ??= new Map((stateAt(index) ? readParty(stateAt(index), { roleOf }) : []).map(character => [fold(character.name), characterReading(character.definition)]));
             return souls.get(fold(who)) ?? null;
         };
         const resolve = resolveOf(record, problems().filter(problem => problem?.index === index), { soulOf });
