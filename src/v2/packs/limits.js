@@ -119,7 +119,14 @@ export const METER_LIMITS = Object.freeze({ presets: 4, meters: 6, min: -1000, m
 // Skill sets for the RPG's New character wizard, `content.rpg.skillSets` (normalized to a list of sets):
 // `[{ name, slug?, about?, skills: [{ name, about, stat, uses? }] }]`. The limits follow the Skills block's fields; `stats` and `uses`
 // are the words the block's `statN` and `usesN` take (src/v2/lean-rpg/names.js STATS and USES, kept apart so packs need nothing of it).
-export const LEAN_RPG_FIELDS = Object.freeze(['skillSets', 'formula', 'numbers']);
+export const LEAN_RPG_FIELDS = Object.freeze(['skillSets', 'formula', 'numbers', 'ranks', 'levelCap', 'playerRank']);
+// Ranks (`content.rpg.ranks`): names for bands of levels, `[{ name, from, to }]`, contiguous and ascending from 1, up to 99; `content.rpg.levelCap`: 1..99.
+// Kept as one more record of the list, `{ id, slug: 'ranks', pack, ranks?, levelCap? }`, which the skill-set readers pass over.
+export const RPG_RANK_FIELDS = Object.freeze(['name', 'from', 'to']);
+export const RPG_RANK_LIMITS = Object.freeze({ entries: 20, name: 12, maxLevel: 99 });
+// `content.rpg.playerRank`: { module, field, label } names a data-module field as the party's rank (shown "Lv 14 · Guild F"); module and field are text of 1 to `ref`, the label 1 to `label`.
+export const RPG_PLAYER_RANK_FIELDS = Object.freeze(['module', 'field', 'label']);
+export const RPG_PLAYER_RANK_LIMITS = Object.freeze({ ref: 40, label: 12 });
 // A pack may also say which stat formula its story plays on and the numbers of it (`content.rpg.formula`: 'standard' | 'classic'; `content.rpg.numbers`:
 // whole numbers by name, the names of src/v2/lean-rpg/rules.js STANDARD_RULE_KEYS and RULE_KEYS, kept apart so packs need nothing of it). They are
 // kept as one more record of the list, `{ id, slug: 'formula', pack, formula?, numbers? }`, which the skill-set readers pass over.

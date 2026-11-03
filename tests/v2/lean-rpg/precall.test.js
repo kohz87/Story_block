@@ -75,7 +75,7 @@ test('no call at all with the feature off, with Rolls off, or with no Character 
 
 test('Rolls is automatic until the reader turns it off', () => {
     const part = createLeanRpgPart();
-    assert.deepEqual(part.settings.defaults, { [ROLLS_SETTING]: 'automatic', rpgPracticePerUse: 3 });
+    assert.deepEqual(part.settings.defaults, { [ROLLS_SETTING]: 'automatic', rpgPracticePerUse: 3, rpgXpRate: 100 });
 });
 
 test('a Continue, a quiet prompt and an empty message never call', { skip }, async () => {

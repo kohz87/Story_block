@@ -85,13 +85,12 @@ export const ROLLS_SETTING = 'rpgRolls';
 export const ROLLS = Object.freeze(['automatic', 'off']);
 
 /**
- * XP for a won fight (stage 49, fight.js), worked out for each party member who has not Left, group by group from the member's Soul Class against the
- * group's: base = count × the group's class × `perClass`; a group of the same class gives the base, a LOWER class gives it times `lowerPercent[difference - 1]`
- * per cent (1 lower 50, 2 lower 25, 3 lower 12; 4 or more lower nothing), a HIGHER class times (100 + `higherPercent` × difference) per cent. The groups are
- * added (whole per cents, so no rounding error) and rounded down; a total above 0 is held to `min` .. `max`, a total of 0 gives nothing.
- * Astra (Soul Class II) against six Class I crawlers: 12 × 50% = 6.
+ * XP for a won fight (fight.js), worked out for each party member who has not Left, group by group from the member's level against the group's:
+ * base = count × max(1, ceil(foeLevel / `perLevels`)) × `perBand`, times clamp(100 + `gapPercent` × (foeLevel − memberLevel), 0, `maxPercent`) per cent. The groups
+ * are added (whole per cents, so no rounding error) and rounded down; a total above 0 is held to `min` .. `max`, a total of 0 gives nothing.
+ * Level 5 against six level 5 crawlers: 6 × 1 × 2 = 12.
  */
-export const FIGHT_XP = Object.freeze({ perClass: 2, min: 1, max: 60, lowerPercent: Object.freeze([50, 25, 12]), higherPercent: 50 });
+export const FIGHT_XP = Object.freeze({ perBand: 2, perLevels: 10, gapPercent: 10, maxPercent: 200, min: 1, max: 60 });
 
 /** The line the narrator writes where the fight is told (the battle log is drawn there). */
 export const BATTLE_MARKER = '[battle]';
