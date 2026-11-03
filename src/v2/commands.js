@@ -51,6 +51,7 @@ import { CLOCK_COMMANDS, markerHash } from './timeline/boundary.js';
 import { capture as captureSnapshot } from './timeline/manifest.js';
 import { stateHash } from './timeline/host-block.js';
 import { newRoot, occurrenceOf, operationKey, receiptEvidence, submitProof } from './evidence.js';
+import { rpgLib } from './rpg-lazy.js';
 
 export const MAX_DEPTH = 8;
 const CAUSES = ['ui', 'story', 'system'];
@@ -232,8 +233,10 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     // A checkpoint over guarded blocks keeps the mark it was made under (store.js chain): a different owner set, or a new
     // version of an owner (its guard code may answer otherwise), makes it fail and the prefix replays with the guards asked.
     // (the host's own hook, `hostOwned`, answers from the story alone, whoever is ready: it is no owner whose readiness changes an answer)
-    const guardMark = () => (registry.modules?.() ?? [])
-        .filter(def => typeof def?.hooks?.replayGuard === 'function' && def.hooks.replayGuard.hostOwned !== true && registry.held?.(def.id) !== true).map(def => `${def.id}@${def.version ?? ''}`).join(',');
+    // (The RPG's code is loaded on demand, rpg-lazy.js: while it is missing the stand-in's guard answers for none of its blocks, so a checkpoint made then must not be trusted
+    // once the code is there, nor the other way round: the mark says which.)
+    const guardMark = () => `${(registry.modules?.() ?? [])
+        .filter(def => typeof def?.hooks?.replayGuard === 'function' && def.hooks.replayGuard.hostOwned !== true && registry.held?.(def.id) !== true).map(def => `${def.id}@${def.version ?? ''}`).join(',')};rpg:${rpgLib() ? 'loaded' : 'missing'}`;
     if (typeof store.attachGuard === 'function') store.attachGuard(replayGuardCheck, guardMark);
 
     // The Source this transaction's block will carry: its reply's canonical pair and ordinal (store.sourceAt).

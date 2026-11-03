@@ -200,3 +200,30 @@ test('the feature on at the page start loads it with the first chat, before it i
     assert.ok(rpgLib());
     assert.equal(LEAN_RPG_FEATURE, CORE_FEATURE.leanRpg);
 });
+
+test('B9 and B11: a stalled import never holds a chat open, the chat shows what it can without the RPG, and the late load gives rebuild == live (the guard mark says the code was missing)', { skip, timeout: 20000 }, async t => {
+    const first = await createHost({ settings: { modules: { 'story-block': { rpgJoin: 'auto', rpgFormula: 'classic' } } } });
+    t.after(() => first.close());
+    first.features.set(CORE_FEATURE.leanRpg, true);
+    await first.send('Begin.', 'Opening.');
+    await make(first, 'Wessel', 3);
+    await first.send('We go on.', reply(MARA));
+    const live = JSON.stringify(first.head());
+    const chat = JSON.parse(JSON.stringify(first.ctx.chat));
+
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const second = await createHost({ lazyRpg: true, rpgLoad: () => gate.then(() => import('../../../src/v2/lean-rpg/index.js')) });
+    t.after(() => second.close());
+    const started = Date.now();
+    await second.st.loadChat(chat);          // returns although the import has not: the wait is bounded
+    assert.ok(Date.now() - started < 10000, 'the chat was not held for the stalled import');
+    assert.equal(rpgLib(), null, 'the code is still missing');
+    release();
+    await second.rpgLoader.ensure({ scan: false });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.ok(rpgLib(), 'the code came in late');
+    second.store.rebuild();
+    assert.equal(JSON.stringify(second.head()), live, 'after the late load the story is what it was recorded as');
+    assert.deepEqual(second.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), []);
+});

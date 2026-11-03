@@ -64,6 +64,8 @@ export const REPLY_BUSY_MAX_MS = 5 * 60_000;
 // How long a send waits for the Assist safety net still reading the last reply (MODULES §F123): briefly.
 // Lines that come later are kept on that reply and applied on the next one, right after its own lines.
 export const ASSIST_WAIT_MS = 1500;
+// How long the RPG's code (rpg-lazy.js) may take to load before a reply or a chat goes on without it: a stalled import never holds a generation or a chat open.
+export const RPG_LOAD_WAIT_MS = 4000;
 const TIMED_OUT = Symbol('timed out');
 
 // `value`, or TIMED_OUT when it is a promise that has not settled within `ms`.
@@ -594,7 +596,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         }
         if (!ctx?.chat) return;
         // The feature switched on a moment ago: its code is waited for (no pass over the chat; onChatChanged did that).
-        if (typeof prepare === 'function') { try { const waiting = prepare({ scan: false }); if (waiting) await waiting; } catch { /* the loader reports its own failure */ } }
+        if (typeof prepare === 'function') { try { const waiting = prepare({ scan: false }); if (waiting) await within(waiting, RPG_LOAD_WAIT_MS); } catch { /* the loader reports its own failure */ } }
         // The safety net still reading the last reply: waited for briefly, so its lines are in this prompt.
         if (assistPending) await within(assistPending, ASSIST_WAIT_MS);
         markBusy();
@@ -1423,11 +1425,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
 
     /** CHAT_CHANGED: a new chat (or the same one reloaded). */
     async function onChatChanged() {
-        // The RPG's code, when this chat needs it (the feature is on, or it holds the RPG's records), before anything is replayed (rpg-lazy.js).
-        if (typeof prepare === 'function') { try { await prepare(); } catch { /* the loader reports its own failure */ } }
+        // The old chat's session and prompts go at once, before anything is awaited: a generation started while the RPG's code loads is the new chat's.
         session = null;
         markIdle();
         clearPrompts();
+        // The RPG's code, when this chat needs it (the feature is on, or it holds the RPG's records), before anything is replayed (rpg-lazy.js); a stalled
+        // import is waited for only RPG_LOAD_WAIT_MS (the guard mark then says the code is missing, so a later load makes the chat look again).
+        if (typeof prepare === 'function') { try { await within(prepare(), RPG_LOAD_WAIT_MS); } catch { /* the loader reports its own failure */ } }
         rebuild({ publish: false });
         timeline?.settle();
         // A1-2: read-backs of a write that timed out before a reload of the page go on.
