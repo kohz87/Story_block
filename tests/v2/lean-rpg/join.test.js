@@ -129,11 +129,11 @@ test('Automatically: a + party line makes the Character and an empty Skills bloc
     await rebuilt(host, 'after a join');
 });
 
-test('a joining class never goes above the party\'s highest, and class I is the default', { skip }, async t => {
+test('a joining class never goes above the party\'s highest, and class I is the default (it stands for level 5, as an old class-I block reads)', { skip }, async t => {
     const host = await world();
     t.after(() => host.close());
     await host.send('Two arrive.', reply('+ party Pip', '+ party Dov | class: IX | best: str', '+ party Ilse | class: II | best: dex'));
-    assert.deepEqual(['pip', 'dov', 'ilse'].map(slug => fields(host, slug)?.level), [1, 25, 15]);
+    assert.deepEqual(['pip', 'dov', 'ilse'].map(slug => fields(host, slug)?.level), [5, 25, 15]);
     assert.equal(fields(host, 'dov').str, 14);
     assert.equal(fields(host, 'pip').int, 10, 'no best named: nothing raised');
     await rebuilt(host, 'three joins');

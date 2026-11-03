@@ -66,11 +66,11 @@ test('foes add 3 + 3 × class; turn order adds class + AGI/2 (foes 2 × class); 
     ]), ['wessel', 'ren', 'drake', 'rat']);
 });
 
-test('a companion the story adds: 5s, the best stat 9, then 4 points per Soul Class above I on the best and DEX', () => {
+test('a companion the story adds: 5s, the best stat 9, then a point for every third level (floor(level / 3)) on the best and DEX', () => {
     assert.deepEqual(companionStats('int', 1), { str: 5, vit: 5, agi: 5, dex: 5, int: 9, luk: 5, cha: 5 });
-    assert.deepEqual(companionStats('int', 3), { str: 5, vit: 5, agi: 5, dex: 9, int: 13, luk: 5, cha: 5 });
-    const late = companionStats('str', 9);
+    assert.deepEqual(companionStats('int', 25), { str: 5, vit: 5, agi: 5, dex: 9, int: 13, luk: 5, cha: 5 });
+    const late = companionStats('str', 85);
     assert.equal(late.str, STANDARD_NUMBERS.statMax);
-    assert.deepEqual(late, { str: 20, vit: 11, agi: 5, dex: 20, int: 5, luk: 5, cha: 5 });
-    assert.equal(Object.values(late).reduce((a, b) => a + b, 0), 35 + 4 + 4 * 8, 'no point is left unspent');
+    assert.deepEqual(late, { str: 20, vit: 7, agi: 5, dex: 20, int: 5, luk: 5, cha: 5 });
+    assert.equal(Object.values(late).reduce((a, b) => a + b, 0), 35 + 4 + Math.floor(85 / 3), 'no point is left unspent');
 });

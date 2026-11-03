@@ -186,7 +186,7 @@ test('a new Standard character starts with its bars full: Health, Stamina and Ma
 test('a companion the story adds on the Standard scale: every stat 5, the best 9, then the points of each Soul Class; Classic\'s 10 and 14 as before', () => {
     const request = { name: 'Mara', about: 'a hedge-witch', soul: 3, best: 'int' };
     const draft = joinDraft(request, STANDARD_FORMULA);
-    assert.deepEqual(draft.stats, companionStats('int', 3, STANDARD_FORMULA));
+    assert.deepEqual(draft.stats, companionStats('int', 25, STANDARD_FORMULA));
     assert.equal(draft.stats.int > 9 && draft.stats.dex > 5, true);
     assert.equal(pointsLeft(draft), 0, 'what they cost is their budget');
     assert.equal(draft.level, 25, 'Soul Class III stands for level 25');

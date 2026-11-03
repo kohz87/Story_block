@@ -104,7 +104,7 @@ export function readDraft(raw) {
         };
     });
     // (`level` is the starting level; a draft from a companion's `+ party` line or an older file says `soul`, the class, which stands for the level 10n - 5.)
-    const startLevel = Number.isSafeInteger(given.level) && given.level > 1 ? clamp(given.level, 1, LEVEL.max) : Number.isSafeInteger(given.soul) && given.soul > 1 ? clamp(levelOfClass(clamp(given.soul, 1, 9)), 1, LEVEL.max) : 1;
+    const startLevel = Number.isSafeInteger(given.level) && given.level > 1 ? clamp(given.level, 1, LEVEL.max) : Number.isSafeInteger(given.soul) && given.soul >= 1 ? clamp(levelOfClass(clamp(given.soul, 1, 9)), 1, LEVEL.max) : 1;
     return { name: oneLine(given.name, CREATION.name), kind: given.kind === 'companion' ? 'companion' : 'you',
         about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '',
         ...(startLevel > 1 ? { level: startLevel } : {}), ...(from ? { from } : {}), ...(creation ? { creation } : {}) };
@@ -311,7 +311,7 @@ export function buildDefinitions(draft, { used = [], points = null, cap = null }
     // The starting level (the draft's `level`, 1 to 99; a companion or a file that came with a Soul Class has the level it stands for): into the block's `level` field,
     // held to the story's cap (levelCapFor, 99 unset), with the cap as the block's `cap`; a block of the earlier rules gets the class the level stands for.
     const top = Number.isSafeInteger(cap) ? Math.max(1, Math.min(99, cap)) : 99;
-    const wanted = draft.level > 1 ? draft.level : draft.soul > 1 ? levelOfClass(draft.soul) : 1;   // (a draft read by readDraft has `level`; a raw one may still say the class)
+    const wanted = draft.level > 1 ? draft.level : draft.soul >= 1 ? levelOfClass(draft.soul) : 1;   // (a draft read by readDraft has `level`; a raw one may still say the class)
     const start = Math.min(top, wanted);
     if (state.level) { state.level.default = start; state.cap.default = top; }
     else if (start > 1) state.soul.default = classOfLevel(start);
