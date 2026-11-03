@@ -224,7 +224,7 @@ export function restoreMissing(chat, staticText, tailText) {
  * onChatChanged, seed, onChatRenamed, onTimelineChanged, onGenerationEnded, preview, report, problems, clearProblems, blocked, blockers, unblock,
  * session, replyBusy, whenIdle }.
  */
-export function createTurn({ ctx, live = () => ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState(), ownPrompt = () => false, timeline = null }) {
+export function createTurn({ ctx, live = () => ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState(), ownPrompt = () => false, timeline = null, prepare = null }) {
     const types = () => ctx?.extension_prompt_types ?? ctx?.extensionPromptTypes ?? {};
     const roles = () => ctx?.extension_prompt_roles ?? ctx?.extensionPromptRoles ?? {};
     const position = place => (place === 'static' ? types().IN_PROMPT ?? IN_PROMPT : types().IN_CHAT ?? IN_CHAT);
@@ -593,6 +593,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             return;
         }
         if (!ctx?.chat) return;
+        // The feature switched on a moment ago: its code is waited for (no pass over the chat; onChatChanged did that).
+        if (typeof prepare === 'function') { try { const waiting = prepare({ scan: false }); if (waiting) await waiting; } catch { /* the loader reports its own failure */ } }
         // The safety net still reading the last reply: waited for briefly, so its lines are in this prompt.
         if (assistPending) await within(assistPending, ASSIST_WAIT_MS);
         markBusy();
@@ -1421,6 +1423,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
 
     /** CHAT_CHANGED: a new chat (or the same one reloaded). */
     async function onChatChanged() {
+        // The RPG's code, when this chat needs it (the feature is on, or it holds the RPG's records), before anything is replayed (rpg-lazy.js).
+        if (typeof prepare === 'function') { try { await prepare(); } catch { /* the loader reports its own failure */ } }
         session = null;
         markIdle();
         clearPrompts();

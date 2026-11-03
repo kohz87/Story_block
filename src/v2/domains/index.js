@@ -29,7 +29,9 @@ import { youRankOf } from '../packs/content.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 import { createTimelinePart } from '../timeline/part.js';
 import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
-import { FIGHT as RPG_FIGHT, PRACTICE_STEP as RPG_PRACTICE, RESOLVE as RPG_RESOLVE, createLeanRpgPart, partyOf } from '../lean-rpg/index.js';
+import { FIGHT as RPG_FIGHT, PRACTICE_STEP as RPG_PRACTICE, RESOLVE as RPG_RESOLVE } from '../lean-rpg/names.js';
+// The RPG's code is loaded only when it is needed (rpg-lazy.js): this part answers for it until it is there.
+import { createLazyRpgPart, rpgLib } from '../rpg-lazy.js';
 import { hookTimeout } from '../turn.js';
 
 // The Rank's label for the tail: asked through the view's query (null while no pack gives one).
@@ -190,7 +192,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         },
         commands: { ...createInventoryCommands(env), ...sceneCommands, ...mountsCommands },
         // The party's riders for `mounts.pace`: the RPG's characters who have not left, else the one reader.
-        queries: { ...createInventoryQueries(env), ...sceneQueries, ...createMountsQueries({ riders: state => (rpgOn() ? Math.max(1, partyOf(state).filter(person => !person.left).length) : 1) }) },
+        queries: { ...createInventoryQueries(env), ...sceneQueries, ...createMountsQueries({ riders: state => (rpgOn() ? Math.max(1, (rpgLib()?.partyOf(state) ?? []).filter(person => !person.left).length) : 1) }) },
         kinds: {
             item: kind(CORE_KINDS.item.grammar, (ctx, line) => captureItem(ctx, line, env)),
             coin: kind(CORE_KINDS.coin.grammar, (ctx, line) => captureCoin(ctx, line, env)),
@@ -370,7 +372,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
     });
     const dataPart = createDataModulesPart({ packs: packs.packs, settings: () => settings(), ...dataModules });
     // The RPG's pre-call and rolls (`leanRpg`: the runtime's queued model call, the chat and its metadata; src/v2/lean-rpg/).
-    const rpg = createLeanRpgPart({ ...leanRpg, problem });
+    const rpg = createLazyRpgPart({ ...leanRpg, problem });
     const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), dataPart, rpg]);
     const timelineGuard = merged.hooks.replayGuard;
     // One host-owned hook for the host's guarded blocks, by predicate: data modules (`dm.*`), the RPG's rolls
