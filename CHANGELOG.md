@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.19.0
+
+The prompt diet: less text sent with every reply, the same story behaviour.
+- **The dice planner runs only when it can matter:** a fight is on, the reader's message reads as risky (attack, sneak,
+  climb, persuade, steal, cast, dodge … about 55 words and their forms), or it names one of the party's skills. A quiet
+  reply makes no planner call at all; a swipe, Re-read or rebuild repeats the same choice. The planner's own fixed text
+  is shorter (Classic about 1,800 → 1,100 characters, Standard about 1,900 → 1,300).
+- **Shorter RPG text.** Numbered kinds that share a shape are written once as a family ("learn-N … N = 1..5"; the four foe
+  slots likewise), health words are told once, and the Standard descriptions are shorter. On a quiet reply the combat
+  rules and the foes' hurt and clear lines are left out until a fight starts (the line that opens a fight and the
+  `+ party` line stay on every reply). Existing chats keep the text their blocks were pinned with.
+- **Shorter Story Block text:** a shorter header, the coin rule said once, the "set your look" note at most once per chat,
+  and where an item was found is left out of the prompt (the screens keep it).
+- **For module authors:** a kind may carry `heads` with an empty grammar, so its change lines written outside the
+  `<Changes>` block are still taken without adding prompt text (Story Director uses this).
+- **Ersveil 2.6.1** (example pack): the always-on lore is shorter and Classification, Knowledge, Currency and Naming load
+  only when their topic comes up. Re-import the Ersveil lorebook in SillyTavern to get it (SillyTavern keeps its own copy).
+- Measured on a quiet reply with the RPG on: our part of the main prompt about 20.0k → 13.6k characters, and no planner
+  call (about 2.5k more).
+
 ## 2.18.1
 
 - **The party roster** (only while Gear in fights is on; with it off nothing changes). The RPG now tells the rest of Story Block who is in the party: every Character block is a party
