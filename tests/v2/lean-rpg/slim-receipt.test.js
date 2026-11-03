@@ -133,3 +133,15 @@ test('a fight through the real turn: the stored receipt has no text, the cue in 
         host.close();
     }
 });
+
+test('B12: a reader of the receipts (Story Director\'s chronicle) is given the roll\'s cue as `summary`, computed, while the stored receipt keeps none', { skip }, async () => {
+    const { host } = await setup();
+    await host.send('I hit the lead rat.', 'The rats scatter.');
+    const stored = rollReceipt(host, 2);
+    assert.equal(stored.summary, '', 'the stored receipt keeps no cue text');
+    const seen = host.sdk.receipts().map(entry => entry.receipt).find(receipt => receipt.type === RESOLVE);
+    assert.ok(seen.summary.startsWith('[Rolls]'), 'the receipts a reader gets carry the cue');
+    assert.equal(seen.summary, receiptCue(stored));
+    assert.equal(rollReceipt(host, 2).summary, '', 'and nothing was written back');
+    host.close();
+});
