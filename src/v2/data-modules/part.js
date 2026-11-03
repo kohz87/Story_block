@@ -14,18 +14,19 @@ import { blockTabScreen } from './block-screen.js';
 import { roleTail } from '../lean-rpg/tail.js';
 import { LEAN_RPG_FEATURE } from '../lean-rpg/names.js';
 import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blocks.js';
-import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, soulNaming } from '../lean-rpg/join.js';
-import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
 import { fold, readSheet } from '../lean-rpg/read.js';
+// (foes.js and levels.js are small and need nothing of the RPG's library: they stay static, like read.js)
 import { averageLevel, bandOfRank, foeRandom, levelCap, levelOf, partyLevels, pickLevel } from '../lean-rpg/foes.js';
-import { isStandard, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
 import { XP_RATE, scaleXp, xpRateFrom } from '../lean-rpg/levels.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
-import { RPG_STRINGS } from '../lean-rpg/strings.js';
+// The companions who join, the rules they are made with and their words are the RPG's library, loaded only when it is needed (rpg-lazy.js).
+import { rpgLib } from '../rpg-lazy.js';
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
-const J = RPG_STRINGS.join;
+// The RPG library's pieces, at the time they are used: a step that needs them while the library is not there is refused (the loader brings it in first).
+const rpg = () => rpgLib() ?? refuse('FAILED', '', 'The RPG is still loading. Try again in a moment.');
+const J = new Proxy({}, { get: (_target, key) => rpg().RPG_STRINGS.join[key] });
 // The most fields one multi-field `dm.set` takes (a sheet's seven stats and its points fit with room to spare).
 const SET_FIELDS = 16;
 
@@ -177,7 +178,7 @@ export function dataModuleGuard(view, info) {
             // A joining companion is two blocks made as one action (the Character, then the Skills block kept in `decision.more`, then the
             // Combat rules and Foes blocks a story's first character brings when it has none).
             const join = predicate.kind === 'dm.join', more = join ? recorded.decision?.more : [];
-            if (join && (!Array.isArray(more) || more.length < 1 || more.length > 1 + RPG_EXTRAS.length || !more.every(dmObject))) return { ok: false, reason: 'Malformed data module guard.' };
+            if (join && (!Array.isArray(more) || more.length < 1 || more.length > 1 + (rpgLib()?.RPG_EXTRAS.length ?? Infinity) || !more.every(dmObject))) return { ok: false, reason: 'Malformed data module guard.' };
             if (domain?.active?.[predicate.module] || recorded.pin.interpreter !== 1 || recorded.pin.definition.id !== predicate.module
                 || hashOf(recorded.pin.definition) !== predicate.hash) return { ok: false, reason: 'Pin selection or checked definition changed.' };
             if (activeCount(domain) + more.length >= L.pins) return { ok: false, reason: 'Data module limit changed.' };
@@ -505,12 +506,12 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
         // (the formula and numbers in force: the reader's settings, else what the story's pack asks for, as the roll planner reads them)
         let pack = null;
-        try { pack = packRulesOf((packs?.packs?.() ?? []).flatMap(entry => entry?.content?.rpg ?? [])); } catch { pack = null; }
-        const rules = rulesFromSettings(settings(), pack);
-        const made = joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul, rules });
+        try { pack = rpg().packRulesOf((packs?.packs?.() ?? []).flatMap(entry => entry?.content?.rpg ?? [])); } catch { pack = null; }
+        const rules = rpg().rulesFromSettings(settings(), pack);
+        const made = rpg().joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul, rules });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
-        const first = partyOf(prefix).length === 0, plan = first ? extrasPlan(prefix) : { add: [], skipped: [] };
-        const extras = extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug], formula: isStandard(rules) ? 'standard' : 'classic' });
+        const first = rpg().partyOf(prefix).length === 0, plan = first ? rpg().extrasPlan(prefix) : { add: [], skipped: [] };
+        const extras = rpg().extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug], formula: rpg().isStandard(rules) ? 'standard' : 'classic' });
         const catalog = Object.keys(domain?.active ?? {}).map(id => activeDefinition(prefix, id)).filter(Boolean);
         const checked = validateDataModules([made.character, made.skills, ...extras], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions: catalog });
         if (!checked.ok) refuse(checked.errors[0].code, checked.errors[0].path, checked.errors[0].message);
@@ -527,7 +528,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const recorded = guard(ctx, prefix, { kind: 'dm.join', module: head.definition.id, hash: head.hash, generation, imports: [],
             decision: { subjects: ['chat'], inputs: {}, previous: null, base: Boolean(domain && Object.keys(domain.active ?? {}).length),
                 more: rest.map(entry => ({ module: entry.definition.id, hash: entry.hash, generation, pin: entry.pin })) }, pin: head.pin, bound: true });
-        const left = plan.skipped.length ? ` ${fill(J.noExtras, { list: plan.skipped.map(item => extraName(item.role)).join(', ') })}` : '';
+        const left = plan.skipped.length ? ` ${fill(J.noExtras, { list: plan.skipped.map(item => rpg().extraName(item.role)).join(', ') })}` : '';
         const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module: head.definition.id, skills: rest[0].definition.id },
             summary: `${fill(J.joined, { name: request.name })}${left}` });
         answer.data.join = { op: 'added', name: request.name };
@@ -536,20 +537,20 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     function party(ctx, line, call = {}) {
         if (ctx.cause !== 'story' || ctx.caller !== null) refuse('REFUSED', '', J.storyOnly);
         const prefix = stateOf(ctx);
-        const read = readJoin(line, soulNaming(prefix));
+        const read = rpg().readJoin(line, rpg().soulNaming(prefix));
         call.label = 'Party';
         if (read.error) refuse('DM_LABEL', '', read.error);
         if (read.op === '-') {
-            const person = partyOf(prefix).find(entry => fold(entry.name) === fold(read.name));
+            const person = rpg().partyOf(prefix).find(entry => fold(entry.name) === fold(read.name));
             if (!person || person.left) refuse('DM_SCHEMA', '', fill(J.nothing, { name: read.name }));
             // The player's own character (the one named like the persona) never leaves: companions only.
             if (isReader(person.name)) refuse('REFUSED', '', fill(J.isYou, { name: person.name }));
             return leave(ctx, person, true, call);
         }
-        const check = checkJoin(prefix, read);
+        const check = rpg().checkJoin(prefix, read);
         if (!check.ok) refuse('REFUSED', '', check.why);
         if (check.returning) return leave(ctx, check.returning, false, call);
-        if (joinMode(settings()) === 'ask') {
+        if (rpg().joinMode(settings()) === 'ask') {
             // Ask: nothing is made. The line is kept in this reply's own receipt, and the card under the reply (rpg.joins) is read from it.
             const offer = { op: 'offer', name: read.name, about: read.about, soul: read.soul, best: read.best };
             return { summary: fill(J.offerNote, { name: read.name }), narrate: false, data: { join: offer } };
@@ -569,10 +570,10 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     function addParty(ctx, payload, call = {}) {
         if (ctx.cause !== 'ui' || ctx.caller !== null) refuse('REFUSED', '', J.cardOnly);
         const soul = payload?.soul === undefined ? 1 : payload.soul;
-        const request = readJoin({ op: '+', name: payload?.name, labels: { about: payload?.about, class: Number.isSafeInteger(soul) ? CLASS_NAMES[soul - 1] ?? 'X' : 'X', best: payload?.best ?? '' } }, soulNaming(stateOf(ctx)));
+        const request = rpg().readJoin({ op: '+', name: payload?.name, labels: { about: payload?.about, class: Number.isSafeInteger(soul) ? CLASS_NAMES[soul - 1] ?? 'X' : 'X', best: payload?.best ?? '' } }, rpg().soulNaming(stateOf(ctx)));
         call.label = 'Party';
         if (request.error) refuse('DM_LABEL', '', request.error);
-        const check = checkJoin(stateOf(ctx), request);
+        const check = rpg().checkJoin(stateOf(ctx), request);
         if (!check.ok) refuse('REFUSED', '', check.why);
         if (check.returning) refuse('REFUSED', '', fill(J.taken, { name: request.name }));
         return makeParty(ctx, request, check.soul, call);
@@ -896,7 +897,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             'dm.join': Object.assign(wrap(addParty), { feature: LEAN_RPG_FEATURE }) },
         // `+ party Name | about: … | class: I | best: int` and `- party Name`: under the RPG feature, out of the grammar while Companions who join is Off, and
         // until the story has a Character block (a party line means something only once there is a party).
-        kinds: { dm: kind, party: { grammar: joinGrammar(), feature: LEAN_RPG_FEATURE, get enabled() { return joinMode(settings()) !== 'off' && partyOf(state()).length > 0; }, apply: wrap(party) } },
+        kinds: { dm: kind, party: { grammar: () => rpgLib()?.joinGrammar() ?? '', feature: LEAN_RPG_FEATURE, get enabled() { const lib = rpgLib(); return lib !== null && lib.joinMode(settings()) !== 'off' && lib.partyOf(state()).length > 0; }, apply: wrap(party) } },
         queries: { 'dataModules.offers': offers, 'dataModules.view': moduleView, 'dataModules.public': publicView,
             'dataModules.replayInputs': replayInputs, 'dataModules.actors': actorsOf,
             'dataModules.setup': prefix => {
