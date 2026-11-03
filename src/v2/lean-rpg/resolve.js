@@ -67,13 +67,13 @@ import { fightGuard } from './fight.js';
 import { practiceGuard } from './practice.js';
 import { classTerm, EARLIER_RULES, hasLevels, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
 import { prepareStandard, rollStandard, summaryStd } from './standard.js';
-import { cueOfResult, fitCue, wearLine } from './cue.js';
+import { cueOfResult, fitCue } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from './read.js';
 import { validatePlan } from './plan.js';
 import { openFoes } from './open.js';
 import { levelBonus } from './formula.js';
 import { applyGear, earnedLegend, gearOf, gearValid, noteGear, wearGear } from './gear.js';
-import { condWord } from '../domains/gear.js';
+import { condWord, stepDown } from '../domains/gear.js';
 import { partyLevels, averageLevel, settleOpen } from './foes.js';
 import { rng as seededRandom } from '../rng.js';
 
@@ -262,8 +262,8 @@ export function positionalDice(base) {
  * are dropped). `rules` are the numbers in force (default: Standard); the most rounds is `rules.roundCap`. `earlier`: the cue is fitted as it
  * was for a roll of the earlier scheme (cue.js fitCue), so that its rounds and stop never change.
  */
-export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier = false, carried = null, flow = 1 } = {}) {
-    if (isStandard(rules)) return rollStandard(plan, prepared, source, rules, { carried, flow });
+export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier = false, carried = null, flow = 1, wearOf = null } = {}) {
+    if (isStandard(rules)) return rollStandard(plan, prepared, source, rules, { carried, flow, wearOf });
     const own = new Map();
     const diceOf = entry => {
         if (source.positional !== true) return source;
@@ -272,7 +272,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
     };
     const checks = prepared.checks.map(entry => { const roll = diceOf(entry); return rolled(entry, roll(), 0, rules); });
     const fight = [...prepared.acts, ...prepared.foes];
-    if (flow === FLOW_VERSION && source.positional === true && prepared.roster) return rollClassicFlow(plan, prepared, checks, fight, diceOf, rules);
+    if (flow === FLOW_VERSION && source.positional === true && prepared.roster) return rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf);
     const most = fight.length ? Math.min(PACE[plan.pace], rules.roundCap) : 0;
     const all = [];
     for (let n = 1; n <= most; n += 1) {
@@ -282,7 +282,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
         if (decisive) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && all.at(-1).decisive }, undefined, { earlier });
+    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && all.at(-1).decisive, ...(wearOf ? { wearOf } : {}) }, undefined, { earlier });
     const fits = cue.count;
     const rounds = all.slice(0, fits);
     const decisive = rounds.length > 0 && rounds.at(-1).decisive;
@@ -295,7 +295,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
 // are already made; `diceOf` gives an action's stream. The bars are a count for the stop only (nothing is written): a hit by the party member (success or at
 // a cost) takes 1 stage from the foe group, one by the foe (the defender fails) 1 from the defender, 2 when the winner's natural 20, the loser's natural 1 or
 // a lead of the decisive margin made it (Standard's judge). An action whose party member or foe group is Down does not act (its dice are drawn all the same).
-function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules) {
+function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = null) {
     const bars = new Map([...prepared.roster.characters, ...prepared.roster.foes].map(bar => [bar.id, { ...bar }]));
     const chars = prepared.roster.characters, foesHere = prepared.roster.foes;
     const charOf = who => chars.find(bar => bar.name === who);
@@ -334,7 +334,7 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules) {
         if (end) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: false, flow: FLOW_VERSION, end: all.at(-1)?.end ?? null });
+    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: false, flow: FLOW_VERSION, end: all.at(-1)?.end ?? null, ...(wearOf ? { wearOf } : {}) });
     const told = all.slice(0, cue.count);
     const rounds = told.map(({ end: _, ...round }) => round);
     const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : told.at(-1).end ?? (plan.pace === 'careful' ? 'pace' : 'cap');
@@ -434,7 +434,7 @@ export function resolve(ctx, payload = {}) {
     // A roll that asks for the dice version draws one number from the seed, and each action's dice come from that and its place in
     // the plan; one made before has no version and draws its dice in one sequence, as it did.
     const source = positional ? positionalDice(base) : () => ctx.roll(`d${FORMULA.die}`).total;
-    const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, flow });
+    const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, flow, wearOf: gear ? (rounds, opening) => wearGear(ctx, gear, { opening, rounds, rules, condWord, stepDown }) : null });
     // From stage 50 a payload may carry the practice per skill use (practice.js); a roll made before has none and gives none.
     const practice = practiceOf(payload.practice) ?? undefined;
     // Gear: each told line names what it rolled with, and a decisive hit taken or miss made wears a piece (gear.js); the wear is part of the roll's receipt.
@@ -443,7 +443,6 @@ export function resolve(ctx, payload = {}) {
         noteGear([...dice.checks, ...(dice.opening ?? []), ...dice.rounds.flatMap(round => round.lines)], gear);
         wear = wearGear(ctx, gear, { opening: dice.opening ?? [], rounds: dice.rounds, rules, condWord });
         legend = earnedLegend(dice, sheet, lv === LV_VERSION);
-        if (wear.length) dice.text = `${dice.text}\n${wear.map(event => `Round ${event.n}: ${wearLine(event)}.`).join('\n')}`;
     }
     const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: ctx.hash(levelsOf(settled)) } : {}), ...(gear ? { gear: ctx.hash(gear) } : {}) };
     ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
@@ -455,6 +454,8 @@ export function resolve(ctx, payload = {}) {
     if (std) writeBars(ctx, dice.hurts);
     // From stage 51 the receipt keeps no copy of the cue text: it is rebuilt from the record (cue.js cueOfResult) wherever it is told or shown. The text is
     // kept as it always was only if the record would not give back exactly the same bytes (so what is told never changes).
+    // (with gear the wear lines were fitted into the cue's budget with the dice (cue.js fitCue `wearOf`); what was really worn is in the record, so the text is the record's)
+    if (gear) dice.text = cueOfResult(result, dice.shape);
     const text = cueOfResult(result, dice.shape) === dice.text ? '' : dice.text;
     // (the shape the cue was fitted to is kept beside the record, not in it: a roll made before it is replanned without its record changing)
     return { summary: text, narrate: true, replan: true, data: { v2: { key: claimKey(key), result, ...(dice.shape ? { shape: dice.shape } : {}) } } };

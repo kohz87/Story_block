@@ -19,9 +19,9 @@ const EXPECTED = [
     ['Iron Guard Plate', 'body', 'rare', { VIT: 2 }],
     ['Iron Guard Longsword', 'weapon', 'rare', { STR: 1, DEX: 1 }],
     ['Gold-Thread Hooded Cloak', 'cloak', 'rare', { CHA: 1, AGI: 1 }],
-    ['Rune-Marked Dwarf Axe', 'weapon', 'rare', { STR: 1, VIT: 1 }],
+    ['Rune-Marked Dwarven War-Hammer', 'weapon', 'rare', { STR: 1, VIT: 1 }],
     ['Atlantean Breathing Sheath', 'accessory', 'rare', { VIT: 1, AGI: 1 }],
-    ['Huge Spiked Club', 'weapon', 'uncommon', { STR: 1 }],
+    ['Huge Spiked Iron Maul', 'weapon', 'uncommon', { STR: 1 }],
     ['Fang Charm', 'accessory', 'common', {}],
     ['Startrace Travelling Coat', 'body', 'uncommon', { INT: 1 }],
     ['Three Walnut Shells', 'accessory', 'uncommon', { LUK: 1 }],
@@ -62,4 +62,21 @@ test('values rise with rarity and the whole pack passes the pack validator with 
     assert.equal(result.ok, true, JSON.stringify(result.errors ?? result.problems ?? result));
     assert.equal(result.pack.content.items.length, 16);
     assert.equal(new Set(items.map(item => item.slug)).size, 16);
+});
+
+test('each cast member lists their signature gear by slug, every piece is an item of the pack, and the renamed pieces keep slot, rarity and stats', () => {
+    const p = pack();
+    const gear = Object.fromEntries(p.content.cast.map(person => [person.id, person.gear]));
+    assert.deepEqual(gear, {
+        harrak: ['long-watch-great-axe', 'white-fur-watch-cloak', 'carved-beacon-horn'], hush: ['rain-veil-hood'], nysseth: ['cell-runners-knives'],
+        ysmeth: ['rune-collar-hammer'], lothar: ['iron-guard-plate', 'iron-guard-longsword'], asphodel: ['gold-thread-hooded-cloak'],
+        gorm: ['rune-marked-dwarven-war-hammer'], nerissa: ['atlantean-breathing-sheath'], torka: ['huge-spiked-iron-maul', 'fang-charm'],
+        rika: ['startrace-travelling-coat'], barney: ['three-walnut-shells'], temiwa: ['flame-cross-pendant'],
+    });
+    const slugs = new Set(p.content.items.map(item => item.slug));
+    for (const list of Object.values(gear)) for (const slug of list) assert.ok(slugs.has(slug), slug);
+    const byName = Object.fromEntries(p.content.items.map(item => [item.name, item]));
+    assert.deepEqual([byName['Rune-Marked Dwarven War-Hammer'].slot, byName['Rune-Marked Dwarven War-Hammer'].rarity, byName['Rune-Marked Dwarven War-Hammer'].stats], ['weapon', 'rare', { STR: 1, VIT: 1 }]);
+    assert.deepEqual([byName['Huge Spiked Iron Maul'].slot, byName['Huge Spiked Iron Maul'].rarity, byName['Huge Spiked Iron Maul'].stats], ['weapon', 'uncommon', { STR: 1 }]);
+    assert.equal(p.version, '2.5.0');
 });

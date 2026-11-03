@@ -26,6 +26,19 @@ export const GAP = 10;
 const MEMBERS_MAX = 24, OWN_MAX = 3, ITEMS_MAX = 8, NAME_MAX = 80;
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+/**
+ * Whether a party member called `name` (with `aliases`) is the Character `character` (readSheet's): the same name, or the first name against the whole
+ * one (Ren is Ren Ashby), or an alias of the member that is either. Names are compared folded (case, spaces and hyphens do not count).
+ */
+export function sameWho(character, name, aliases = []) {
+    const first = value => fold(String(value ?? '').trim().split(/\s+/u)[0]);
+    const whole = String(character?.who ?? character?.key ?? '');
+    return [name, ...(Array.isArray(aliases) ? aliases : [])].filter(value => typeof value === 'string' && value.trim()).some(value => {
+        if (fold(value) === character?.key) return true;
+        const single = !/\s/u.test(value.trim()), singleCharacter = !/\s/u.test(whole.trim());
+        return (single && fold(value) === first(whole)) || (singleCharacter && fold(whole) === first(value));
+    });
+}
 const ask = (query, name, args) => { try { return query(name, args) ?? null; } catch { return null; } };
 const lower = stats => Object.fromEntries(Object.entries(isObject(stats) ? stats : {}).filter(([stat, n]) => STATS.includes(stat.toLowerCase()) && Number.isSafeInteger(n) && n !== 0).map(([stat, n]) => [stat.toLowerCase(), n]));
 
@@ -33,15 +46,24 @@ const lower = stats => Object.fromEntries(Object.entries(isObject(stats) ? stats
  * The gear of every member of `sheet` (readSheet's), as the inventory reports it through `query(name, args)`: the record the payload carries, or null
  * while gear is off (the inventory answers nothing) or there is no one to dress.
  */
-export function planGear(sheet, query) {
+export function planGear(sheet, query, reader = '') {
     if (typeof query !== 'function' || !sheet?.characters?.length) return null;
     const party = ask(query, 'inventory.gear', { owner: 'party' });
     if (!isObject(party) || party.on !== true) return null;
     const actors = ask(query, 'party.actors', {});
+    const members = Array.isArray(actors) ? actors.filter(actor => typeof actor?.id === 'string' && actor.id !== 'party') : [];
+    // The shared bag (`party`) is the reader's own Character's: the one the party module names (`party.pc`), else the one named like the reader; only when none
+    // matches the first block (a companion who sorts first is not the reader).
+    const pc = ask(query, 'party.pc', {});
+    const pcName = typeof pc?.id === 'string' ? members.find(actor => actor.id === pc.id)?.name : '';
+    const matching = name => (name ? sheet.characters.findIndex(character => sameWho(character, name)) : -1);
+    const lead = Math.max(0, [matching(pcName), matching(reader)].find(at => at >= 0) ?? 0);
     const who = {};
     for (const [at, character] of sheet.characters.slice(0, MEMBERS_MAX).entries()) {
-        const named = Array.isArray(actors) ? actors.find(actor => typeof actor?.id === 'string' && actor.id !== 'party' && fold(actor.name) === character.key) : null;
-        const own = [...(named ? [named.id] : []), ...(at === 0 ? ['party'] : [])];
+        // (an exact name wins; a first name or an alias counts only for an actor no other Character is exactly called)
+        const named = members.find(actor => fold(actor.name) === character.key)
+            ?? members.find(actor => sameWho(character, actor.name, actor.aliases) && !sheet.characters.some(other => other !== character && fold(actor.name) === other.key));
+        const own = [...(named ? [named.id] : []), ...(at === lead ? ['party'] : [])];
         const answers = own.map(owner => (owner === 'party' ? party : ask(query, 'inventory.gear', { owner })));
         const add = {}, items = [];
         let enc = party.carry?.encumbered === true ? (Number.isSafeInteger(party.carry.penalty) && party.carry.penalty < 0 ? party.carry.penalty : ENCUMBERED) : 0;
@@ -130,20 +152,25 @@ export function isDecisive(line, rules) {
  * (`ctx.call('gear.wear')`; a piece already broken, or no piece, wears nothing). `opening` lines come before round 1. → [{ n, who, item, from, to }], recorded in the result.
  * `condWord(cond)` names a condition. Nothing happens while the inventory answers no gear (the switch went off).
  */
-export function wearGear(ctx, gear, { opening = [], rounds = [], rules, condWord }) {
+export function wearGear(ctx, gear, { opening = [], rounds = [], rules, condWord, stepDown = null }) {
     const events = [];
-    if (!gear || !ctx.query('inventory.gear', { owner: 'party' })) return events;
+    // `stepDown(cond)` given: a dry run (nothing is called; the conditions are walked down here), what the cue is fitted with so the wear lines count in its budget.
+    const dry = typeof stepDown === 'function', conds = new Map();
+    // (decided by the record the roll carries, not by today's switch: a roll made with gear keeps the wear it made when it is read again with the switch off)
+    if (!gear) return events;
     const told = [...opening.map(line => ({ n: rounds[0]?.n ?? 1, line })), ...rounds.flatMap(round => round.lines.map(line => ({ n: round.n, line })))];
     for (const { n, line } of told) {
         if (!['act', 'foe'].includes(line.kind) || line.support || line.outcome !== 'fail' || !isDecisive(line, rules)) continue;
         const slots = line.kind === 'foe' ? ['body', 'off-hand'] : ['weapon'];
         for (const owner of gear.who?.[fold(line.pc.who)]?.own ?? []) {
-            const worn = ctx.query('inventory.gear', { owner })?.slots ?? {};
+            const worn = ctx.query('inventory.gear', { owner, recorded: true })?.slots ?? {};
             // (what a hit taken wears is the body armour, else the off-hand, as `gear.wear defence` picks it)
             const place = line.kind === 'foe' ? (worn.body ? 'body' : worn['off-hand'] ? 'off-hand' : null) : (worn.weapon ? 'weapon' : null);
-            if (!place || worn[place].broken === true) continue;
-            const out = ctx.call('gear.wear', { owner, slot: line.kind === 'foe' ? 'defence' : 'weapon', steps: 1 });
-            const data = out?.data ?? {};
+            const mark = `${owner}/${place}`;
+            if (!place || (dry ? (conds.get(mark) ?? worn[place].cond) <= 0 : worn[place].broken === true)) continue;
+            let data;
+            if (dry) { const before = conds.get(mark) ?? worn[place].cond; data = { before, now: stepDown(before, 1) }; conds.set(mark, data.now); }
+            else data = ctx.call('gear.wear', { owner, slot: line.kind === 'foe' ? 'defence' : 'weapon', steps: 1, recorded: true })?.data ?? {};
             events.push({ n, who: line.pc.who, item: worn[place].name, from: condWord(data.before), to: condWord(data.now) });
             break;
         }

@@ -187,7 +187,7 @@ test('gear.view: the persona is the main wearer, members follow; the breakdown, 
     assert.equal(createHarness([createCoreModule({ hooks: () => [], settings: () => ({}) })], { state }).query('gear.view', {}), null, 'off: nothing');
 });
 
-test('Edit, gear on: Equipped by a member hands the piece over (inventory.transfer) and puts it on (item.equip)', async () => {
+test('Edit, gear on: Equipped by a member hands the piece over and puts it on in one command (item.equip with transfer)', async () => {
     const { module, state } = crewState();
     const h = createHarness([module], { state });
     const calls = [];
@@ -203,7 +203,7 @@ test('Edit, gear on: Equipped by a member hands the piece over (inventory.transf
     by.value = 'ac_ren00001';
     sword.querySelector('.ss-w-editable-save').click();
     await settle();
-    assert.deepEqual(calls.map(([type]) => type), ['inventory.transfer', 'item.equip']);
+    assert.deepEqual(calls.map(([type]) => type), ['item.equip'], 'one command: all or nothing (G7)');
     const held = Object.values(h.state.domains.inventory.stacks).find(item => item.def === 'pack.fantasy/iron-sword');
     assert.deepEqual([held.owner, held.equipped], ['ac_ren00001', 'weapon']);
 });

@@ -414,7 +414,8 @@ function render(el, input, api) {
             const placed = String(p.gear.place ?? ''), wearer = String(p.gear.by ?? '');
             if (by === '' || slot === '') return placed ? [{ command: 'inventory.unequip', payload: { stack } }] : [];
             if (placed === slot && wearer === by) return [];
-            return [...(by !== p.gear.owner ? [{ command: 'inventory.transfer', payload: { stack, to: by } }] : []), { command: 'item.equip', payload: { stack, owner: by, slot } }];
+            // (one command, so a refusal of the slot leaves the item with its owner: all or nothing)
+            return [{ command: 'item.equip', payload: { stack, owner: by, slot, ...(by !== p.gear.owner ? { transfer: true } : {}) } }];
         }
 
         // Commands one after the other: a refusal stops the rest and leaves the form open with its sentence.

@@ -140,9 +140,9 @@ legendary 4; common none) and a piece raises two stats at most.
 | Iron Guard Plate | Sir Lothar | body | rare | VIT +2 |
 | Iron Guard Longsword | Sir Lothar | weapon | rare | STR +1, DEX +1 |
 | Gold-Thread Hooded Cloak | Asphodel | cloak | rare | CHA +1, AGI +1 |
-| Rune-Marked Dwarf Axe | Gorm Kettlebright | weapon | rare | STR +1, VIT +1 |
+| Rune-Marked Dwarven War-Hammer | Gorm Kettlebright | weapon | rare | STR +1, VIT +1 |
 | Atlantean Breathing Sheath | Nerissa | accessory | rare | VIT +1, AGI +1 |
-| Huge Spiked Club | Torka | weapon | uncommon | STR +1 |
+| Huge Spiked Iron Maul | Torka | weapon | uncommon | STR +1 |
 | Fang Charm | Torka | accessory | common | none |
 | Startrace Travelling Coat | Rika | body | uncommon | INT +1 |
 | Three Walnut Shells | Barney Thimblewick | accessory | uncommon | LUK +1 |

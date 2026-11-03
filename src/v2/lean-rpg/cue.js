@@ -169,6 +169,8 @@ export function fitCue(parts, budget = LIMITS.cueTokens, { earlier = false } = {
     for (let shape = 0; shape <= (earlier ? 0 : 3); shape += 1) {
         for (let count = total; count >= Math.min(1, total); count -= 1) {
             const told = { ...parts, rounds: parts.rounds.slice(0, count), decisive: parts.decisive && count === total, end: count === total ? parts.end ?? null : null };
+            // Gear's wear lines come after the dice (gear.js): `wearOf(rounds, opening)` says what the rounds told would wear, so those lines count in the budget.
+            if (typeof parts.wearOf === 'function') told.wear = parts.wearOf(told.rounds, parts.standard?.opening ?? []);
             last = { count, shape, text: cueText(told, shape) };
             // Measured as if no stat were hidden, so whether a stat is hidden never changes how many rounds are told (review
             // 164); the text that is sent is never longer than the one measured.

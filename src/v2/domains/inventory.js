@@ -389,7 +389,21 @@ const freeId = (inv, base) => {
 function legendaryEarned(ctx) {
     try { if (ctx.query('story.legendaryEarned', {}) === true) return true; } catch { /* nothing answers */ }
     // The reply's own roll (the RPG, lean-rpg/gear.js earnedLegend): a won fight against a group 10+ levels above the party carries `legend: 1`.
-    try { return ctx.query('rpg.rolls', {})?.result?.legend === 1; } catch { return false; }
+    try { if (ctx.query('rpg.rolls', {})?.result?.legend === 1) return true; } catch { /* no roll this reply */ }
+    // Once earned it lasts: any earlier roll of the chat's record with `legend: 1`, or a quest completed (`inventory.legendEarned`, derived from the record).
+    try { return ctx.query('inventory.legendEarned', {}) === true; } catch { return false; }
+}
+
+/** Whether legendary has been earned in this chat's record up to the reply asking: a roll with `legend: 1` at or before it, or a quest the Director's threads say ended `done`. */
+export function legendEarned(tools) {
+    const upTo = Number.isInteger(tools?.reply?.index) ? tools.reply.index : Infinity;
+    let entries = [];
+    try { entries = tools?.receipts?.() ?? []; } catch { entries = []; }
+    if (entries.some(entry => entry?.receipt?.type === 'rpg.resolve' && entry.receipt.data?.v2?.result?.legend === 1 && (!Number.isInteger(entry.index) || entry.index <= upTo))) return true;
+    try {
+        const threads = tools?.query?.('director.threads', { kind: 'quest' });
+        return Array.isArray(threads) && threads.some(thread => thread?.kind === 'quest' && thread.ended?.outcome === 'done');
+    } catch { return false; }
 }
 
 // The most a pack's place allows the story's items to be (`loot: { maxRarity }` on the place the party is at, by name or alias), or null.
@@ -696,7 +710,8 @@ function wear(ctx, payload) {
 // defender's `defence`, a decisive miss of the attacker wears their `weapon`.
 const WEAR_SLOTS = Object.freeze({ weapon: 'weapon', body: 'body', armour: 'body', 'off-hand': 'off-hand', shield: 'off-hand', defence: 'defence' });
 function gearWear(ctx, payload) {
-    if (!gearOn(ctx)) ctx.fail('REFUSED', 'Gear is not switched on.');
+    // (a roll that carries a gear record wears by it even if the switch is off now: `recorded`, system only)
+    if (!gearOn(ctx) && !(payload.recorded === true && ctx.cause === 'system')) ctx.fail('REFUSED', 'Gear is not switched on.');
     if (!(ctx.cause === 'system' || ctx.caller)) ctx.fail('REFUSED', 'Gear wears from the rules of a fight, not from a button or a change line.');
     const owner = typeof payload.owner === 'string' && payload.owner ? payload.owner : 'party';
     if (!OWNER_RE.test(owner)) ctx.fail('INVALID', 'The owner is the party or a member.');
@@ -727,9 +742,17 @@ function gearWear(ctx, payload) {
 // must be equipment that fits the slot (its own slot, or an accessory in either accessory place), and belong to `owner`.
 function itemEquip(ctx, payload) {
     if (!gearOn(ctx)) ctx.fail('REFUSED', 'Gear is not switched on.');
-    const inv = ctx.draft('inventory');
-    const stack = stackIn(ctx, inv, payload.stack);
+    let inv = ctx.draft('inventory');
+    let stack = stackIn(ctx, inv, payload.stack);
     const def = inv.defs[stack.def];
+    // `transfer: true` (the item Edit): hand it to `owner` first. It is one command, so a refusal below leaves it where it was (all or nothing).
+    let handed = false;
+    if (payload.owner !== undefined && payload.owner !== stack.owner && payload.transfer === true) {
+        const moved = ctx.call('inventory.transfer', { stack: stack.id, to: payload.owner });
+        inv = ctx.draft('inventory');
+        stack = stackIn(ctx, inv, moved?.data?.stack ?? stack.id);
+        handed = true;
+    }
     if (payload.owner !== undefined && payload.owner !== stack.owner) ctx.fail('REFUSED', `${def.name} is not ${ownerNameIn(ctx, payload.owner)}'s.`);
     const named = slotWordOf(payload.slot ?? def.slot);
     if (!named) ctx.fail('INVALID', `The slot is one of ${GEAR.places.join(', ')}.`);
@@ -743,7 +766,7 @@ function itemEquip(ctx, payload) {
         where = ['accessory-1', 'accessory-2'].find(key => !taken(key)) ?? 'accessory-1';
     }
     const out = ctx.call('inventory.equip', { stack: stack.id, slot: where });
-    return { ...out, data: { ...(out.data ?? {}), owner: stack.owner, place: where } };
+    return { ...out, data: { ...(out.data ?? {}), owner: stack.owner, place: where, ...(handed ? { handed: true } : {}) } };
 }
 
 // `inventory.repair { stack, amount }`: the condition goes up by `amount` (1…100), never above 100;
@@ -1547,7 +1570,8 @@ export function createInventoryCommands(env) {
         'inventory.wear': (ctx, payload = {}) => wear(ctx, payload),
         'inventory.repair': (ctx, payload = {}) => repair(ctx, payload),
         // { owner, slot, step }: the piece `owner` wears in `slot` (weapon | armour | shield) takes scuff | tear | ruin wear (part 2's fights).
-        'gear.wear': Object.assign((ctx, payload = {}) => gearWear(ctx, payload), { feature: FEATURE.gear }),
+        // (no feature on the command: a roll that carries a gear record wears by it with the switch off; gearWear itself refuses everyone else)
+        'gear.wear': (ctx, payload = {}) => gearWear(ctx, payload),
         'item.equip': Object.assign((ctx, payload = {}) => itemEquip(ctx, payload), { feature: FEATURE.gear }),
         // { sid, pick: [index…] }: the reader takes what they picked of a reply's loot.
         'inventory.lootTake': Object.assign((ctx, payload = {}) => lootTake(ctx, payload, env), { feature: FEATURE.loot }),
@@ -2068,15 +2092,17 @@ export const ENCUMBERED_STATS = Object.freeze(['AGI', 'DEX']);
  * `penalty` (ENCUMBERED_PENALTY while encumbered, else 0) is what the checks module adds to checks of
  * `stats`; Story Block only tells the story.
  */
-export function encumbrance(state, tools) {
+export function encumbrance(state, tools, gear = false) {
     const none = { on: false, encumbered: false, party: false, who: [], load: 0, capacity: 0, penalty: 0, stats: [...ENCUMBERED_STATS] };
     const view = carryAnswer(asker(tools), {});
     if (!isPlainObject(view) || view.on === false) return none;
     const num = value => (Number.isFinite(value) ? value : 0);
+    // Past the limit encumbers (exactly at it does not) as it always did; only with gear on is "at the limit" (100 %) already encumbered, as its Carry card says.
+    const over = (load, capacity) => (gear ? atLimit(load, capacity) : load > capacity);
     const who = (Array.isArray(view.people) ? view.people : [])
-        .filter(person => isPlainObject(person) && atLimit(num(person.load), num(person.capacity)))
+        .filter(person => isPlainObject(person) && over(num(person.load), num(person.capacity)))
         .map(person => ({ id: String(person.id ?? ''), name: trimText(person.name || person.id || 'someone', 40), load: num(person.load), capacity: num(person.capacity) }));
-    const party = atLimit(num(view.load), num(view.capacity));
+    const party = over(num(view.load), num(view.capacity));
     const encumbered = party || who.length > 0;
     return {
         on: true, encumbered, party, who, load: num(view.load), capacity: num(view.capacity),
@@ -2192,7 +2218,8 @@ export const createInventoryQueries = env => ({
         const stack = typeof args?.stack === 'string' && isPlainObject(inventory?.stacks?.[args.stack]) ? inventory.stacks[args.stack] : null;
         return stack ? { stack: stack.id, cond: condOf(stack, inventory), events: condEvents(inventory, stack.id) } : null;
     },
-    'inventory.encumbrance': Object.assign((state, args, tools) => encumbrance(state, tools), { feature: FEATURE.encumbrance }),
+    'inventory.legendEarned': Object.assign((_state, _args, tools) => legendEarned(tools), { feature: FEATURE.gear }),
+    'inventory.encumbrance': Object.assign((state, args, tools) => encumbrance(state, tools, gearIsOn(env)), { feature: FEATURE.encumbrance }),
     // `story-block.gear`: { owner } → { on, owner, weapon, armour, shield: { name, bonus, cond, broken } | null, carry: { load, capacity,
     // encumbered, penalty } } (part 2's rolls read it), and `gear.carry`, `items.carry`'s answer when no carry module gives one.
     ...createGearQueries({

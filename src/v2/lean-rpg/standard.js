@@ -231,7 +231,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1 } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -383,7 +383,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const refused = prepared.refused.map(entry => entry.text);
     const start = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, bar]));
     const cueParts = { checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && (all.at(-1).decisive || all.at(-1).over), standard: { order, opening, quick, start },
-        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}) };
+        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}), ...(wearOf ? { wearOf } : {}) };
     const cue = fitCue(cueParts);
     const rounds = all.slice(0, cue.count).map(({ over: _, end: _end, ...round }) => round);
     const told = all.slice(0, cue.count);

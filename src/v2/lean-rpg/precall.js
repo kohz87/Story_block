@@ -244,7 +244,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         // this reply rolls this reply's dice again and keeps the order the fight began with.
         const order = isStandard(rules) && planned.plan ? carriedOrder(view, index) : null;
         // Gear in fights (gear.js): while the switch is on, what each member has on and carries is fixed here and travels with the roll, like the numbers.
-        const gear = planned.plan ? planGear(sheet, (name, args) => view.query?.(name, args)) : null;
+        const gear = planned.plan ? planGear(sheet, (name, args) => view.query?.(name, args), String(last.name ?? '')) : null;
         return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
     }
 

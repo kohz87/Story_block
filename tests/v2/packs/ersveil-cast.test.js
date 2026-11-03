@@ -3,6 +3,7 @@
 // come in as one zip that the importer reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { validatePack } from '../../../src/v2/packs/validate.js';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { checkCast } from '../../../src/v2/packs/cast.js';
 import { CAST_LIMITS, METER_LIMITS, PORTRAIT_LIMITS, ZIP_LIMITS } from '../../../src/v2/packs/limits.js';
@@ -26,7 +27,7 @@ const ROMANCEABLE = IDS.filter(id => id !== 'barney');
 test('the cast is the twelve, in order, and the whole list passes the cast check with nothing dropped', () => {
     assert.deepEqual(cast().map(person => person.id), IDS);
     const problems = [];
-    const checked = checkCast(cast(), 'ersveil', (code, path, message) => problems.push(`${code} ${path} ${message}`));
+    const checked = checkCast(cast(), 'ersveil', (code, path, message) => problems.push(`${code} ${path} ${message}`), validatePack(JSON.parse(packText)).pack.content.items);
     assert.deepEqual(problems, []);
     assert.equal(checked.length, 12);
     for (const [index, person] of checked.entries()) {

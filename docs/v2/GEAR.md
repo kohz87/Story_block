@@ -40,7 +40,7 @@ While the feature is on, a `+ item` line that makes a new item gets (before any 
 * **stats**: the narrator may name any stat on any item (`| rarity: rare | AGI: +1 | DEX: +1` on a blade); code holds the total to
   the budget and to at most 2 different stats, and picks the default above only when none is named.
 * Other numbers on the line (`atk: 9`, `bonus: 5`, `carry: 50`) are not read.
-* Rarity limits for story items: common to epic anywhere. Legendary only when the same reply also completes a quest or wins a
+* Rarity limits for story items: common to epic anywhere. Legendary only once earned (it lasts: see "In the rolls"), in or before this reply: a quest completed or a
   fight against a group at least 10 levels above the party; otherwise it is held to epic with one Problems line. Whoever knows
   that (the quests, the fights) answers the query `story.legendaryEarned` for the reply; nothing answering counts as no. A
   module's own reward (`inventory.grant`) and a pack's item keep the rarity they are given.
@@ -144,13 +144,25 @@ equipping something later never moves a roll that was made; a roll with no `gear
 
 * Stats: effective = stat + bonus, held to 30, then AGI and DEX -2 while encumbered (never under 1). Both formulas, the turn order and the Settings odds read
   these; the bars' sizes (blocks) follow the block's own stats, never the gear.
-* Encumbered is at 100 % and over (load at or over the capacity; an empty load never): the roll penalty, `inventory.encumbrance`, and the Carry card
+* Whose bag is `party`: the reader's own Character, found by the party module's main character (`party.pc`), else the Character named like the persona; only
+  when none matches is it the first block (a companion who sorts first is not the reader).
+* A party member is a Character when the names are the same, or one is the first name of the other ("Ren" is "Ren Ashby"), or an alias of the member says so
+  (`sameWho`, lean-rpg/gear.js). An exact name wins: a first name or alias counts only for a member no other Character is exactly called.
+* Encumbered is at 100 % and over (load at or over the capacity; an empty load never) **only with gear on**; with gear off the limit is as it always was
+  (more than the capacity: exactly 5 of 5 is not encumbered). The roll penalty, `inventory.encumbrance`, and the Carry card
   (red "Encumbered" from 100 %, yellow "Heavy load" from 80 % to below 100 %).
 * Wear: a decisive hit taken wears the member's body armour (else off-hand) one step; a decisive miss of their own act wears the weapon one step
   (`gear.wear`, called by the roll, so it is in the roll's receipt and undone with it). Told rounds only; a broken or absent piece wears nothing. The result
-  has `wear: [{ n, who, item, from, to }]`; the cue and the log say "Boiled Leather Jerkin is worn (Torn)".
+  has `wear: [{ n, who, item, from, to }]`; the cue and the log say "Boiled Leather Jerkin is worn (Torn)". The wear lines count inside the cue budget (the
+  rounds told are fitted with the wear they would cause), and the cue a reader gets from the receipt is rebuilt from the record, wear included. A roll
+  that is planned again (Re-read, rebuild) wears by its stored `gear` record, never by today's switch, so switching gear off does not take wear away.
+* A later delete, equip or unequip never changes a stored roll's bonus: the record in the roll wins (and a later repair or wear does not rewrite what it
+  said), so what a roll rolled with is what it keeps.
 * `wear: ruin` from the story breaks the piece in one step (condition 0); scuff and tear are as before.
 * Log: a roll line names the gear that was in it ("Astra uses Iaijutsu (Cane Sword +2 DEX)"), from `pc.gear` of the line.
-* Legendary: a roll that won a fight against a group at least 10 levels above the party's highest carries `legend: 1`; the narrator's legendary item line in
-  that reply stands, else it is held to epic (`story.legendaryEarned` is still asked first, so a quests module can answer it). Quest completion has no
-  seam in Story Block itself.
+* Legendary is a lasting flag: a roll that won a fight against a group at least 10 levels above the party's highest carries `legend: 1`, and from then on
+  (that reply and every later one) the narrator's legendary item lines stand; likewise once a quest is completed (a Director thread of kind quest that ended
+  `done`). `inventory.legendEarned` derives it from the chat's record (rolls up to the reply asking, threads), so a swipe or delete of the winning reply takes
+  it back and a rebuild gives the same. `story.legendaryEarned` is still asked first, so another module can answer it.
+* The item Edit's Equipped by is one command (`item.equip` with `transfer: true`): if the slot is refused, the item stays with its owner.
+* The mount pencil's Carry field and the Carry card exist only with gear on; with gear off every screen is as it was (six fields).

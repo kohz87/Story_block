@@ -8,7 +8,7 @@ import { createFakeModel } from '../../../testkit/model.js';
 import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { PRESETS, STANDARD_FORMULA, DICE_VERSION, FLOW_VERSION, LV_VERSION, leanRpgGuard, readSheet, resolve } from '../../../src/v2/lean-rpg/index.js';
-import { cueOfResult, wearLine } from '../../../src/v2/lean-rpg/cue.js';
+import { cueOfResult, cueTokens, entriesWithCue, fitCue, wearLine } from '../../../src/v2/lean-rpg/cue.js';
 import { ENCUMBERED, STAT_MAX, applyGear, earnedLegend, gearOf, gearValid, isDecisive, noteGear, planGear } from '../../../src/v2/lean-rpg/gear.js';
 import { readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
 import { oddsView } from '../../../src/v2/lean-rpg/view/settings-data.js';
@@ -165,7 +165,8 @@ test('wear: a decisive hit taken wears the body armour one step, a decisive miss
     const hit = made.result.wear.find(event => event.item === 'Boiled Leather Jerkin');
     assert.deepEqual([hit.from, hit.to, hit.who], ['good', 'worn', 'Wessel']);
     assert.ok(made.result.wear.every(event => Number.isInteger(event.n)));
-    assert.deepEqual(made.inv.calls[0], ['gear.wear', { owner: 'party', slot: made.inv.calls[0][1].slot, steps: 1 }]);
+    // (pinned change, G3: the call says `recorded: true`, so the roll's own record decides, not today's switch)
+    assert.deepEqual(made.inv.calls[0], ['gear.wear', { owner: 'party', slot: made.inv.calls[0][1].slot, steps: 1, recorded: true }]);
     assert.ok(made.inv.calls.every(([type, payload]) => type === 'gear.wear' && payload.steps === 1));
     // the lines the wear came from really were decisive
     const lines = made.result.rounds.flatMap(round => round.lines);
@@ -252,7 +253,7 @@ const PLAN_TEXT = 'pace: all\nact Astra | target: Mud Crawlers\nfoe Mud Crawlers
 const SET = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | level: 60';
 const GEAR_LINES = ['+ item Cane Sword | kind: weapon | rarity: rare | DEX: +2 | equipped: weapon', '+ item Jerkin | kind: armour | rarity: uncommon | VIT: +1 | equipped: body'];
 
-async function world(t, { gear = true, standard = false, fields = { level: 5 } } = {}) {
+async function world(t, { gear = true, standard = false, fields = { level: 5 }, foeLevel = 60 } = {}) {
     const plan = standard ? PLAN_TEXT.replace('act Astra |', 'act Astra | type: physical |') : PLAN_TEXT;
     const templates = standard ? STANDARD_TEMPLATES : LEAN_RPG_TEMPLATES;
     const host = await createHost({ callModel: createFakeModel(Array(40).fill(plan)), settings: { features: gear ? { 'story-block.gear': true } : {}, modules: { 'story-block': { rpgFormula: standard ? 'standard' : 'classic' } } } });
@@ -261,7 +262,7 @@ async function world(t, { gear = true, standard = false, fields = { level: 5 } }
     await host.send('Begin.', 'Opening.');
     for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(templates.find(entry => entry.name === name).definition) }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', ...fields } }));
-    await host.send('Set.', reply(SET, ...GEAR_LINES));
+    await host.send('Set.', reply(SET.replace('level: 60', `level: ${foeLevel}`), ...GEAR_LINES));
     return host;
 }
 const resultOf = host => host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve')?.data?.v2?.result;
@@ -356,7 +357,7 @@ test('ruin: with gear on one ruin breaks the piece; scuff and tear are as they w
 });
 
 test('the legendary mark: the narrator\'s legendary line is held to epic, unless the same reply\'s roll won a fight against a group 10 levels above the party', { skip }, async t => {
-    const host = await world(t, { standard: true, fields: { level: 1, str: 20, dex: 20, vit: 20, agi: 20 } });
+    const host = await world(t, { standard: true, fields: { level: 1, str: 20, dex: 20, vit: 20, agi: 20 }, foeLevel: 3 });
     const rarity = n => host.sdk.query('inventory.definitions').find(def => def.name === `Blade ${n}`).rarity;
     const group = level => `+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 1 | level: ${level}`;
     const fresh = '~ dm foes — why | kind: hurt-1 | to: 4';
@@ -369,7 +370,54 @@ test('the legendary mark: the narrator\'s legendary line is held to epic, unless
     await host.send('Quiet.', reply('+ item Blade 3 | kind: weapon | rarity: legendary'));
     assert.equal(rarity(3), 'legendary', 'this reply still fought the group the one before set');
     await host.send('Quiet.', reply('+ item Blade 4 | kind: weapon | rarity: legendary'));
-    assert.equal(rarity(4), 'epic', 'no fight in this reply: held again');
+    // (pinned change, G4: once earned it lasts, so a later reply with no fight keeps the legendary line; it used to be held again)
+    assert.equal(rarity(4), 'legendary', 'earned once: it lasts');
     rebuilt(host);
     await reloaded(host);
+});
+
+test('G6: the wear lines count inside the cue budget (fitCue wearOf), and the cue a reader gets (receipts) has them', () => {
+    const wearing = made => made.result.wear?.length >= 1 && made.result.rounds.length >= 2;
+    const seed = seedWhere(wearing, { gear: GEAR, rules: RULES.classic });
+    assert.ok(seed, 'a seed with wear');
+    const made = run({ gear: GEAR, seed });
+    const parts = { checks: made.result.checks, rounds: made.result.rounds, refused: [], decisive: false };
+    const wearOf = rounds => made.result.wear.filter(event => rounds.some(round => round.n === event.n));
+    const total = rounds => cueTokens(fitCue({ ...parts, rounds }, 100000).text);
+    // a budget that fits the told rounds without their wear but not with it: fewer rounds are told, and what is told fits
+    const plain = fitCue(parts, 100000);
+    const roomy = cueTokens(plain.text) - 1;
+    const without = fitCue(parts, roomy + 40);
+    const withWear = fitCue({ ...parts, wearOf }, roomy + 40);
+    assert.ok(withWear.count <= without.count);
+    const told = withWear.text;
+    assert.ok(cueTokens(told) <= roomy + 40 || withWear.shape === 3, 'the cue with its wear lines is inside the budget');
+    for (const event of wearOf(made.result.rounds.slice(0, withWear.count))) assert.ok(told.includes(wearLine(event)), 'the wear line is in the fitted cue');
+    void total;
+    // the cue readers get from the receipt tells the wear as well
+    const receipt = { type: 'rpg.resolve', summary: '', data: { v2: { result: made.result } } };
+    const [entry] = entriesWithCue([{ index: 1, receipt }]);
+    assert.ok(entry.receipt.summary.includes(wearLine(made.result.wear[0])));
+    assert.equal(entry.receipt.summary, made.text, 'byte for byte what the roll told');
+});
+
+test('G3: a re-planned roll wears by its stored record, so switching gear off never removes the wear an old roll made', { skip }, async t => {
+    const host = await world(t);
+    let n = 0;
+    while (!resultOf(host)?.wear && n < 14) { await host.send(`I strike ${n}.`, 'The fight.'); n += 1; }
+    const made = resultOf(host);
+    assert.ok(made?.wear?.length, 'a roll that wore something');
+    const worn = JSON.stringify(slotsOf(host));
+    host.features.set('story-block.gear', false);
+    const before = stable(host);
+    host.store.rebuild();
+    assert.equal(stable(host), before, 'gear off, rebuilt: the same story');
+    assert.equal((await host.turn.reread(host.ctx.chat.length - 1)).ok, true);
+    // (a Re-read writes the wear again under a new receipt id, so the story is compared by what it says: the pieces and the record)
+    host.features.set('story-block.gear', true);
+    assert.equal(JSON.stringify(slotsOf(host)), worn, 'gear off, Re-read: the pieces are as worn as before');
+    host.features.set('story-block.gear', false);
+    assert.deepEqual(resultOf(host).wear, made.wear);
+    host.features.set('story-block.gear', true);
+    assert.equal(JSON.stringify(slotsOf(host)), worn, 'and the pieces are as worn as they were');
 });

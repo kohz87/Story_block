@@ -44,8 +44,7 @@ import { HOST_VERSION, validatePack, slugify } from './validate.js';
 import { readCharacterLorebook, stCapabilities, stHostVersion, stPortraitFiles, stSettings } from './st-adapter.js';
 import { marketEntries } from './lorebook.js';
 import { castGearOf, gearLine } from './cast-gear.js';
-import { partyOf } from '../lean-rpg/join.js';
-import { fold } from '../lean-rpg/read.js';
+import { fold, readSheet } from '../lean-rpg/read.js';
 
 export { validatePack, slugify, applyStart, mergeStart, resolveItemIn, contentOf, calendarOf, craftsOf, economyOf, weatherOf, youRankOf, createInstalled, renderPacksPanel };
 export { LIMITS, CONTENT_KINDS, DEFAULT_CRAFTS, STATIONS } from './limits.js';
@@ -134,7 +133,8 @@ export function createPacksPart({ settings, readLorebook = async () => ({ charac
                 if (!on) return null;
                 const found = castGearOf(packs.packs(), name);
                 if (!found?.items.length) return null;
-                if (partyOf(state).some(person => !person.left && fold(person.name) === fold(found.name))) return null;
+                // (the sheet holds the Characters in the party now: one who left is not on it; read.js is the RPG's small shared reader, the rest stays lazy)
+                if (readSheet(state).characters.some(person => person.key === fold(found.name))) return null;
                 return { name: found.name, line: gearLine(found.items), items: found.items };
             },
         },
