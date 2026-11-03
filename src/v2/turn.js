@@ -816,6 +816,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             }
             // A pre-roll is part of this reply even when its narration has no Changes block.
             if (receipts.length || prepared.length) steps = [...prepared, ...await afterCapture(index, { type, problems: found })];
+            // A reply with no story lines runs only the hooks that opted in (`hook.always === true`).
+            else steps = await afterCapture(index, { type, problems: found, alwaysOnly: true });
         });
         return { receipts, problems: found, off, steps: steps.map(step => step.receipt) };
     }
@@ -835,7 +837,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
      * each gets its own ordinal). The same runner stores Assist's seeded pre-roll prelude with
      * `beforeGenerate: true`; Re-read plans that prelude before the story lines and replaces it too.
      */
-    async function afterCapture(index, { type = 'normal', problems = [], state = null, reply = null, seeds = null, plan = null, prechecks = [], onlyPrechecks = false } = {}) {
+    async function afterCapture(index, { type = 'normal', problems = [], state = null, reply = null, seeds = null, plan = null, prechecks = [], onlyPrechecks = false, alwaysOnly = false } = {}) {
         const steps = [];
         const live = state === null;
         let now = live ? store.head() : state;
@@ -843,12 +845,12 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const planned = () => (live || !plan ? [] : [...plan.blocks.flatMap(piece => piece.block?.evidence ?? []), ...steps.flatMap(step => step.block?.evidence ?? [])]);
         const hooks = [
             ...(prechecks.length ? [{ moduleId: HOST_MODULE, precheck: true, fn: () => ({ commands: prechecks }) }] : []),
-            ...(onlyPrechecks ? [] : registry.hookEntries('afterCapture')),
+            ...(onlyPrechecks ? [] : registry.hookEntries('afterCapture').filter(entry => !alwaysOnly || entry.fn.always === true)),
         ];
         for (const { moduleId, fn, precheck = false } of hooks) {
             const seen = live ? view() : makeView({ store, registry, settings, chat: ctx?.chat, active: viewReader, state: now, reply, pendingProofs: () => planned().map(proof => ({ proof, block: null })) });
             let out;
-            try { out = await within(fn(seen, { index, type }), HOOK_TIMEOUT_MS); } catch (error) {
+            try { out = await within(fn(seen, { index, type, ...(alwaysOnly ? { always: true } : {}) }), HOOK_TIMEOUT_MS); } catch (error) {
                 problems.push(problem({ module: moduleId, index, code: 'FAILED', message: `afterCapture failed: ${error?.message ?? error}` }));
                 continue;
             }
@@ -1155,6 +1157,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 }
                 // The reply's afterCapture steps, run again after its new story lines (none when none was kept).
                 if (receipts.length) steps = await afterCapture(index, { type: 'reread', problems, state: after, reply, seeds: stepSeeds(readRecord(message)), plan });
+                else steps = await afterCapture(index, { type: 'reread', problems, state: after, reply, seeds: stepSeeds(readRecord(message)), plan, alwaysOnly: true });
                 const unsure = plan.reuse.ambiguous([...plan.blocks, ...steps]);
                 if (!unsure.length) { settled = true; break; }
                 retire = new Set([...retire, ...unsure]);

@@ -1,6 +1,6 @@
 {
   "name": "story-block",
-  "version": "2.16.5",
+  "version": "2.16.6",
   "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
