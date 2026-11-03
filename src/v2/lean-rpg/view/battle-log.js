@@ -31,6 +31,7 @@ import { readRecord } from '../../persist.js';
 import { fold } from '../read.js';
 import { characterReading, soulShortOf } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
+import { wearLine } from '../gear.js';
 import { BARS, readFoes, readParty } from './party-data.js';
 
 const B = RPG_STRINGS.battle;
@@ -79,6 +80,10 @@ const pcRoll = (pc, skill, soul, lv) => ({ d20: pc.die, total: pc.total, parts: 
     { label: skill ? RANK_NAMES[pc.rank] ?? `Rank ${pc.rank}` : '', value: pc.rank }, { label: 'Edge', value: pc.edge }] });
 const foeRoll = (foe, soul, lv) => ({ d20: foe.die, total: foe.total, parts: [{ label: '', value: foe.base }, { label: termLabel(foe, soul, lv), value: termValue(foe, lv) }] });
 
+// Gear in the roll (the record's `pc.gear`, gear.js): "Cane Sword +2 DEX, Encumbered −2 AGI". A record without it says nothing.
+const gearText = gear => list(gear).filter(item => isRecord(item) && Number.isFinite(item.n) && item.n !== 0 && words(item.name, 40) && words(item.stat, 12))
+    .map(item => `${words(item.name, 40)} ${item.n < 0 ? '−' : '+'}${Math.abs(item.n)} ${words(item.stat, 12).toUpperCase()}`).join(', ');
+
 // ---- the Standard formula's lines ----
 
 const TYPE_WORDS = Object.freeze({ physical: 'Physical', magic: 'Magic', defence: 'Defence', social: 'Social', check: 'Check' });
@@ -124,7 +129,8 @@ function lineOf(raw, soulOf = () => null, lv = false) {
     // A Standard line (typed, with both stats of the pair recorded) tells its roll as the formula makes it; a Classic one is as it was.
     const standard = typeof raw.type === 'string' && Number.isFinite(raw.pc.mainValue) && Number.isFinite(raw.pc.secondValue);
     const breakdown = told || (standard ? breakdownStandard(raw, skill, soul, foeSide, against, lv) : why ? `${detail} · ${why}` : detail);
-    const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown, arrows: [], ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}) };
+    const gear = gearText(raw.pc.gear);
+    const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: gear && breakdown ? `${breakdown} · ${gear}` : breakdown, arrows: [], ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}), ...(gear ? { gear } : {}) };
     // A support action (a heal or a buff, a `check` line that names the one helped) reads like an act on that character.
     if (raw.kind === 'check' && raw.support === true && words(raw.target, 40)) return { ...base, who: words(raw.pc.who, 40), target: words(raw.target, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, support: true, heals: isRecord(raw.damage) && raw.damage.blocks < 0 };
     if (raw.kind === 'foe') return { ...base, total: foeSide?.total ?? null, vs: raw.pc.total, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', defence: skill, stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
@@ -142,7 +148,10 @@ export function readResolve(result, { soulOf = () => null } = {}) {
     const rounds = list(result.rounds).map((round, at) => {
         // Who does not act this round: Standard's `idle` entries (with why), or plain names (read as beaten before their turn).
         const skipped = list(round?.idle ?? round?.skipped).map(item => ({ who: words(isRecord(item) ? item.who ?? item.name : item, 40), why: IDLE[item?.why] ? item.why : 'beaten' })).filter(item => item.who);
-        return { n: Number.isSafeInteger(round?.n) ? round.n : at + 1, lines: list(round?.lines).map(line => lineOf(line, soulOf, lv)).filter(line => line?.who), ...(skipped.length ? { skipped } : {}) };
+        const n = Number.isSafeInteger(round?.n) ? round.n : at + 1;
+        // What the round wore out (gear.js): "Boiled Leather Jerkin is worn (Torn)", from the roll's own record.
+        const wear = list(result.wear).filter(item => isRecord(item) && item.n === n && words(item.item, 60)).map(item => wearLine({ ...item, item: words(item.item, 60) }));
+        return { n, lines: list(round?.lines).map(line => lineOf(line, soulOf, lv)).filter(line => line?.who), ...(skipped.length ? { skipped } : {}), ...(wear.length ? { wear } : {}) };
     }).filter(round => round.lines.length || round.skipped?.length);
     const opening = list(result.opening).map(line => lineOf(line, soulOf, lv)).filter(line => line?.who);
     const checks = list(result.checks).map(line => lineOf(line, soulOf, lv)).filter(line => line?.who);
@@ -254,14 +263,16 @@ function lineNode(doc, line, { check = false } = {}) {
         } else {
             text.append(`${line.who} ${line.skill ? B.uses : B.attacks} `);
             if (line.skill) text.appendChild(el(doc, 'span', 'rpg-skill', line.skill));
+            if (line.skill && line.gear && !line.foe) text.append(` (${line.gear})`);
             if (line.target) text.append(`${line.skill ? ` ${B.on} ` : ''}${line.target}${line.area ? ` (${B.area})` : ''}`);
+            if (!line.skill && line.gear && !line.foe) text.append(` (${line.gear})`);
         }
         // The skill a defender used ("Sluice Rat A attacks Astra (Iaijutsu) — Blocked"); a roll made before there were any has none.
         if (line.defence) {
             text.append(' (');
             text.appendChild(el(doc, 'span', 'rpg-skill', line.defence));
-            text.append(')');
-        }
+            text.append(line.gear ? `, ${line.gear})` : ')');
+        } else if (line.gear && line.foe) text.append(` (${line.gear})`);
         if (outcome) {
             text.append(' — ');
             text.appendChild(el(doc, 'span', `rpg-out rpg-out-${line.outcome}`, outcome));
@@ -332,6 +343,7 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
         box.appendChild(el(doc, 'p', 'rpg-bl-round-title', fill(B.round, { n: round.n })));
         for (const line of round.lines) box.appendChild(lineNode(doc, line));
         for (const item of round.skipped ?? []) box.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-skip', fill(IDLE[item.why], { who: item.who })));
+        for (const text of round.wear ?? []) box.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-wear', text));
         body.appendChild(box);
     }
     for (const item of model.refused) body.appendChild(el(doc, 'p', 'rpg-bl-note', fill(B.refused, { why: item.why })));

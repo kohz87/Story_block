@@ -798,7 +798,8 @@ function storyWear(ctx, inv, def, written, why) {
     if (!stack) ctx.fail('NOT_FOUND', `There is no ${def.name} in the inventory.`);
     const reply = ctx.carrier?.sid ?? ctx.receiptId ?? '';
     if (!ctx.claim(`wear:${reply}:${stack.id}`)) ctx.fail('CLAIMED', `${def.name} already took its wear in this reply.`);
-    const now = condWrite(ctx, inv, stack, -STORY_WEAR[word]);
+    // With gear on a ruin breaks the piece in one step; scuff and tear are as they were.
+    const now = condWrite(ctx, inv, stack, word === 'ruin' && gearOn(ctx) ? -COND_MAX : -STORY_WEAR[word]);
     return now === 0 ? `${def.name} is broken` : `${def.name} is ${{ scuff: 'scuffed', tear: 'damaged', ruin: 'badly damaged' }[word]} (${now}/100)`;
 }
 

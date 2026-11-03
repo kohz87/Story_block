@@ -304,6 +304,7 @@
 @media (min-width: 700px) { .rpg-order-note { flex-basis: auto; } }
 .rpg-quick-start { margin: 0; font-size: 12.5px; color: var(--ss-muted); }
 .rpg-bl-skip { font-style: italic; opacity: 0.75; }
+.rpg-bl-wear { font-style: italic; color: var(--ss-warn-text, var(--ss-warn)); }
 
 /* Levels: the level pill on a card's name row (the app's small pill at 12px text, 20px tall) and the starting level's narrow field. */
 .rpg-level-pill { font-size: 12px; line-height: 20px; min-height: 20px; height: 20px; padding-top: 0; padding-bottom: 0; white-space: nowrap; }

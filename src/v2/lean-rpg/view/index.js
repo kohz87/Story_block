@@ -19,6 +19,8 @@ import { HOLD_WIDGET, createStart } from './start.js';
 import { WIZARD_WIDGET, createWizard } from './wizard.js';
 import { EXPORT_WIDGET, createExporter } from './export.js';
 import { packLevelsOf } from '../levels.js';
+import { planGear } from '../gear.js';
+import { readSheet } from '../read.js';
 import { readRecord } from '../../persist.js';
 
 export { PARTY_SCREEN_ID, PARTY_WIDGET } from './party.js';
@@ -100,7 +102,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         exporter,
         start,
         cardLines: info => { try { return rpgReplyLines({ ...info, roleOf, rules: rules() }); } catch { return []; } },
-        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack, gear })],
+        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack, gear, gearOf: () => { try { return planGear(readSheet(headState()), (name, args) => query?.(name, args)); } catch { return null; } } })],
         heroLead: state => { try { return heroLead(state, { own: readerName(), roleOf, ...levels() }); } catch { return null; } },
         destroy() {
             battleLog.destroy();

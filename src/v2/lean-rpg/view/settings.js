@@ -88,7 +88,7 @@ const CARD_WORDS = Object.freeze({
  * host's commands: the Combat rules text is saved with `dm.redefine`, and added with `dm.define`).
  * → { el, filter(text) → count, refresh(), refreshSize(), destroy() }, as a settings page body expects.
  */
-export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null, pack = () => null, gear = null } = {}) {
+export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null, pack = () => null, gear = null, gearOf = () => null } = {}) {
     const root = h(doc, 'div', 'rpg-set');
     parent.appendChild(root);
     const values = () => settings(SETTINGS_MODULE) ?? {};
@@ -311,7 +311,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
     function drawOdds() {
         const parts = oddsParts;
         if (!parts) return;
-        const view = oddsView(headState(), readerName(), rulesFromSettings(values(), pack()));
+        const view = oddsView(headState(), readerName(), rulesFromSettings(values(), pack()), gearOf());
         parts.odds.hidden = !view;
         parts.compare.hidden = !view;
         if (!view) return;
