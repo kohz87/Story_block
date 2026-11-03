@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.16.5
+
+- **Mixed coins in one line are added up.** A coin line such as `+ coin 3 silver 6 copper` (also with "," or "and"
+  between) was refused and the money lost. When every number is followed by a coin the chat knows, they are now added
+  up in the smallest unit (36 copper), as the purse's own Edit box already did. Two bare numbers (`+ coin 30 5`) or a
+  coin the chat does not know are still refused. **Re-read** a reply whose coins were refused to add them.
+
 ## 2.16.4
 
 - **Old-format change blocks are read, never copied.** A hidden `<!-- STORY_BLOCKS_V1 … -->` block (written by an old

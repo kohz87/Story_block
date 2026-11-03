@@ -351,8 +351,8 @@ These settle questions agents raised; the host changes they need are made at int
     part gets one line naming the coins and their worth and saying a money line names one coin
     (`+ coin 3 silver`) or the smallest unit (`+ coin 35`); it changes only when the coins do. Capture reads
     `+ coin`, `+ item <coin> | qty`, and loot money with a known coin name and converts it before the reply's
-    budget and caps (rule 1); with coins, an unknown coin word or two numbers in one line is refused (as strict
-    as SB #118). Money words read the same on every path (beta-candidate break): an item or loot named as
+    budget and caps (rule 1); with coins, an unknown coin word, or two numbers not each named by a known coin, is
+    refused (as strict as SB #118); `+ coin 3 silver 6 copper` (also with "," or "and") adds up to 36 (SB 2.16.5). Money words read the same on every path (beta-candidate break): an item or loot named as
     money (`+ item Silver Coins | qty: 3`, `+ item 3 silver coins`, `+ item Silvers`, `? loot 2 gold pieces`)
     goes to the wallet in the smallest unit, as `+ coin 3 silver coins` does. The bare money words are money
     too (final break FB-3), with coins or without: **coin**, **coins**, the currency's own name and its

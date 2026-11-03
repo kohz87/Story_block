@@ -39,7 +39,10 @@ test('amounts: a known coin converts to the smallest unit; anything else is refu
         assert.deepEqual(parseAmount(text, PENNY), { amount }, text);
     }
     assert.match(parseAmount('15 copper', PENNY).error, /"copper" is not a coin here: write penny, silver, gold/);
-    assert.match(parseAmount('3 silver 5 pennies', PENNY).error, /more than one number: write it in one coin or in pennies/);
+    // Several numbers each named by a known coin add up (USER 3 Nov: "+ coin 3 silver 6 copper" was dropped); bare numbers or an unknown coin are still refused.
+    for (const text of ['3 silver 5 pennies', '3 silver, 5 pennies', '3 silver and 5 pennies']) assert.deepEqual(parseAmount(text, PENNY), { amount: 35 }, text);
+    assert.match(parseAmount('30 5', PENNY).error, /more than one number: write it in one coin or in pennies/);
+    assert.match(parseAmount('3 silver 5 copper', PENNY).error, /more than one number: write it in one coin or in pennies/);
     assert.match(parseAmount('-3 silver', PENNY).error, /without a sign/);
     assert.match(parseAmount('0 silver', PENNY).error, /more than nothing/);
     assert.deepEqual(parseAmount('3 silver'), { amount: 3 }, 'without coins the words are ignored, as before');
@@ -106,9 +109,11 @@ test('capture: + coin 3 silver pays 30, + item Silver | qty: 3 too, loot in coin
     await host.send('Copper?', 'Odd coin.\n<Changes>\n+ coin 15 copper\n</Changes>');
     assert.equal(coin(host), 250, 'an unknown coin is refused, not paid as pennies');
     await host.send('Two coins.', 'Change.\n<Changes>\n+ coin 3 silver 5 pennies\n</Changes>');
-    assert.equal(coin(host), 250, 'two coins in one line are refused');
+    assert.equal(coin(host), 285, 'two known coins in one line add up (3 silver 5 pennies = 35)');
+    await host.send('Bare.', 'Change.\n<Changes>\n+ coin 30 5\n</Changes>');
+    assert.equal(coin(host), 285, 'two bare numbers are refused, not guessed');
     await host.send('Pay.', 'You pay.\n<Changes>\n- coin 1 silver | to: the inn\n</Changes>');
-    assert.equal(coin(host), 240);
+    assert.equal(coin(host), 275);
     await host.send('Loot.', 'A chest.\n<Changes>\n? loot 4 silver, Rope — in the chest\n</Changes>');
     const purse = host.sdk.query('inventory.loot')?.[0]?.items?.find(item => item.coin !== undefined);
     assert.equal(purse?.coin, 40, JSON.stringify(host.sdk.query('inventory.loot')));
