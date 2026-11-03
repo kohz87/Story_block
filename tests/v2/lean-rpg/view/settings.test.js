@@ -476,3 +476,12 @@ test('the roll table and the tiles say level: level ÷ 5 in every row, "1 per 3 
     assert.deepEqual(root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-num').slice(2).map(node => node.textContent), ['1 per 3 levelsStat points', '4 + level ÷ 5Foe\'s base']);
     assert.doesNotMatch(root.querySelector('[data-card="formula"]').textContent, /Soul/i);
 });
+
+test('F15: the Level cap is one row in Settings: the RPG page draws it, the Modules page does not draw the module schema\'s copy', async t => {
+    const { doc, win, root } = await open(t);
+    const rows = node => node.querySelectorAll('*').filter(item => item.children.length === 0 && item.textContent.trim() === 'Level cap');
+    assert.equal(rows(root).length, 1, 'the RPG page: one Level cap row');
+    win.select('modules');
+    await settle();
+    assert.equal(rows(doc).filter(node => !root.contains(node)).length, 0, 'the Modules page has none');
+});
