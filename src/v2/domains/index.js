@@ -161,7 +161,7 @@ export const CORE_SETTINGS = Object.freeze({
  * tabs }), for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's
  * `hooks`); `settings()` → this module's settings. Without them no hooks run and the currency is gold.
  */
-export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, youRank = () => null, query = null, rpgOn = () => false, gearOn = () => false } = {}) {
+export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, youRank = () => null, query = null, rpgOn = () => false, gearOn = () => false, persona = () => '' } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
@@ -178,6 +178,8 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         settings: () => settings() ?? {},
         // Whether `story-block.gear` is on (off without a host that says so): the gear queries answer null while it is off.
         gearOn: () => { try { return gearOn() === true; } catch { return false; } },
+        // The reader's persona name: what the gear screens call the party's own wearer when no party module names one.
+        persona: () => { try { return String(persona() ?? ''); } catch { return ''; } },
         // The enabled pack's money scale ({ scale } or null) for inventory.economy.
         economy,
         // The Rank an enabled pack gives {{user}}'s look, `{ label }`, or null (no Rank in this story).
@@ -368,7 +370,7 @@ export function headMoved(tools, headIndex) {
  * `assist`: the assist part (pre-roll classifier, after-reply extractor; both off by default).
  */
 export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null, extras = null, timeline = () => null, dataModules = {}, leanRpg = {} } = {}) {
-    const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, gearOn: () => { try { return extras?.gearOn?.() === true; } catch { return false; } }, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null), youRank: () => youRankOf(typeof packs.packs?.packs === 'function' ? packs.packs.packs() : []) });
+    const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, gearOn: () => { try { return extras?.gearOn?.() === true; } catch { return false; } }, persona: () => extras?.persona?.() ?? '', economy: () => (typeof packs.economy === 'function' ? packs.economy() : null), youRank: () => youRankOf(typeof packs.packs?.packs === 'function' ? packs.packs.packs() : []) });
     // The reader's cap on Inner chatter lines a reply (1 to 10; 3 unless set).
     const chatterCapNow = () => { try { return chatterCap(settings()?.chatterMax); } catch { return chatterCap(); } };
     const events = createEventsPart({
