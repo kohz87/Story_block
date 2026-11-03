@@ -15,13 +15,14 @@ const featureOn = id => id === 'story-block.gear' || id === 'story-block.rpg';
 const core = gear => createCoreModule({ hooks: () => [], settings: () => ({}), extras: { gearOn: () => gear, persona: () => 'Astra' } });
 
 // Ren's dagger is a signature piece (bound to Ren, worn in the weapon slot); the iron sword is Astra's own (worn); the rest is carried.
-function crew({ gear = true } = {}) {
+function crew({ gear = true, long = null } = {}) {
     const module = core(gear);
     const state = stocked(module);
     const inv = state.domains.inventory;
     inv.defs['pack.fantasy/iron-sword'].slot = 'weapon';
     inv.defs['pack.fantasy/dagger'].slot = 'weapon';
     inv.defs['pack.fantasy/dagger'].rarity = 'legendary';
+    if (long) inv.defs['pack.fantasy/dagger'].name = long;
     state.domains.party = { actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' } } };
     const dagger = inv.stacks.it_dagg0001;
     dagger.owner = 'ac_ren00001';
@@ -146,6 +147,23 @@ test('Edit on a bound piece: Save with nothing changed sends nothing (the locked
     await settle();
     assert.deepEqual(calls, []);
     assert.equal(setup.h.state.domains.inventory.stacks.it_dagg0001.equipped, 'weapon');
+});
+
+test('Edit, a note-only Save on a piece with a long name (61 to 120 characters) sends the note alone: no cut-down rename (refused on a bound piece, a silent rename on any other)', async () => {
+    const long = 'Dagger of the Long Watch that Ren carried out of the burning Sealcrown';
+    assert.ok(long.length > 60 && long.length <= 120);
+    const setup = crew({ long });
+    const calls = [];
+    const { el } = draw(setup, calls);
+    const row = rowOf(el, long);
+    row.querySelector('.ss-w-editable-pencil').click();
+    assert.equal(row.ownerDocument.activeElement, row.querySelector('[aria-label="Note"]'), 'a bound piece puts the focus on its note, the one field that can change');
+    row.querySelector('[aria-label="Note"]').value = 'notched';
+    row.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls, [['inventory.edit', { stack: 'it_dagg0001', group: true, note: 'notched' }]]);
+    const inv = setup.h.state.domains.inventory;
+    assert.deepEqual([inv.stacks.it_dagg0001.note, inv.defs['pack.fantasy/dagger'].name], ['notched', long]);
 });
 
 test('the slot card: a bound tile carries a lock in its corner (and says so in its title); an ordinary tile has none', () => {

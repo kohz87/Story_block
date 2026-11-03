@@ -262,7 +262,7 @@ function render(el, input, api) {
                 add.hidden = true;
                 form.classList.add('ss-w-editable-item-form');
                 draw();
-                focusNode(field);
+                focusNode(field.disabled ? itemNote : field);
                 return;
             }
             fieldSlot.classList.remove('ss-w-editable-item-fields', 'ss-w-editable-record-fields');
@@ -453,7 +453,8 @@ function render(el, input, api) {
                 const raw = String(itemCount.value).trim(), qty = Number(raw);
                 if (!/^\d+$/.test(raw) || !Number.isSafeInteger(qty) || qty < 1) { error.textContent = STRINGS.inventory.countError; return; }
                 payload = { ...p.payload };
-                const name = cut(field.value, 60), note = cut(itemNote.value, 300);
+                // The name is sent only when the reader changed it (a long name shown in full and left alone is no rename), held to the inventory's 120.
+                const name = field.value === p.value ? p.value : cut(field.value, 120), note = cut(itemNote.value, 300);
                 if (name !== p.value) payload.name = name;
                 if (qty !== p.itemCount) payload.qty = qty;
                 if (note !== p.itemNote) payload.note = note;
