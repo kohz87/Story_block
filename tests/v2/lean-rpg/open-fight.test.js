@@ -13,7 +13,7 @@ import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg
 import { hashJson as hashOf } from '../../../src/v2/replay.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { reply, success } from '../data-modules/helpers.js';
-import { PARTY, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
+import { cueOf, PARTY, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -63,7 +63,7 @@ test('an empty Foes block and a reader message naming crawlers: the slot is fill
     assert.equal(result.rounds[0].lines[0].pc.edge === 2 || result.rounds[0].lines.some(line => line.pc.edge === 2), true, 'the ambush edge');
     const model = readResolve(result);
     assert.ok(model && model.rounds.length >= 1, 'the [battle] panel model');
-    assert.ok(tailOf(request).includes(`[Happened]\n${receipt.summary}`));
+    assert.ok(tailOf(request).includes(`[Happened]\n${cueOf(receipt)}`));
     assert.ok(!tailOf(request).includes(OPEN_FIGHT_LINE) && !tailOf(request).includes(NO_ROLLS_LINE));
     assert.equal(rolled(host).length, 1);
     assert.equal(host.head().meta.claims[`rpg:resolve:${result.key}`], true);

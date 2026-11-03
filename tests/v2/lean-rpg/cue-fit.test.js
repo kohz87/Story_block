@@ -5,7 +5,7 @@ import { hostAvailable } from '../../../testkit/index.js';
 import { LIMITS, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { cueTokens } from '../../../src/v2/lean-rpg/cue.js';
 import { assemble } from '../../../src/v2/prompt.js';
-import { character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock, tailOf } from './helpers.js';
+import { cueOf, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -28,7 +28,7 @@ test('B4: three characters and two foes with long names, Notes per reply at 100:
     const { request } = await host.send('We all strike at once.', 'The rats scatter.');
     const receipt = rollReceipt(host, 2);
     assert.ok(receipt, 'the roll is saved');
-    assert.ok(receipt.summary.length > 400, `a long cue (${receipt.summary.length} characters)`);
+    assert.ok(cueOf(receipt).length > 400, `a long cue (${cueOf(receipt).length} characters)`);
     const tail = tailOf(request);
     assert.ok(tail.includes('[Rolls]'), 'the cue is in the request');
     for (const who of NAMES) assert.ok(tail.includes(who.slice(0, 20)), `${who} is told`);

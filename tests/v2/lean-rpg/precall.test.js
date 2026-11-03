@@ -6,7 +6,7 @@ import { hostAvailable } from '../../../testkit/index.js';
 import { NO_ROLLS_LINE, NOTE_SETTING, ROLLS_SETTING, createLeanRpgPart, createPlanHold, createPrecall, precallPrompt, readSheet } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD, ANSWER_TOKENS, MESSAGE_LIMIT } from '../../../src/v2/lean-rpg/precall.js';
 import { manualTimer } from '../assist/helpers/fakes.js';
-import { NEVER, OWNER, PARTY, PLAN_ANSWER, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
+import { cueOf, NEVER, OWNER, PARTY, PLAN_ANSWER, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -27,8 +27,8 @@ test('a message in a fight: one call, the plan is rolled before the reply and to
     assert.ok(receipt);
     assert.equal(receipt.narrate, true);
     assert.equal(receipt.beforeGenerate, true);
-    assert.ok(tailOf(request).includes(`[Happened]\n${receipt.summary}`), tailOf(request));
-    assert.match(receipt.summary, /^\[Rolls\] Code rolled these\./);
+    assert.ok(tailOf(request).includes(`[Happened]\n${cueOf(receipt)}`), tailOf(request));
+    assert.match(cueOf(receipt), /^\[Rolls\] Code rolled these\./);
     assert.deepEqual(host.ctx.chat[2].extra.storySuite.narrated, [receipt.id], 'told once: the next prompt does not repeat it');
     assert.deepEqual(problems, []);
     host.close();

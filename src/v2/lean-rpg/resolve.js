@@ -67,7 +67,7 @@ import { fightGuard } from './fight.js';
 import { practiceGuard } from './practice.js';
 import { EARLIER_RULES, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
 import { prepareStandard, rollStandard, summaryStd } from './standard.js';
-import { fitCue } from './cue.js';
+import { cueOfResult, fitCue } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from './read.js';
 import { validatePlan } from './plan.js';
 import { openFoes } from './open.js';
@@ -287,7 +287,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
     const decisive = rounds.length > 0 && rounds.at(-1).decisive;
     const stop = !rounds.length ? 'none' : fits < all.length ? 'budget' : decisive ? 'decisive' : rounds.length === PACE[plan.pace] ? 'pace' : 'cap';
     const text = cue.text;
-    return { checks, rounds, stop, text, summary: summaryOf(checks, rounds, prepared.refused) };
+    return { checks, rounds, stop, text, shape: cue.shape, summary: summaryOf(checks, rounds, prepared.refused) };
 }
 
 // Classic under the flow of stage 49: the rounds go on until the fight is won, lost or heavy, the cap or the careful pace (see the top). `checks` and `fight`
@@ -337,7 +337,7 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules) {
     const told = all.slice(0, cue.count);
     const rounds = told.map(({ end: _, ...round }) => round);
     const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : told.at(-1).end ?? (plan.pace === 'careful' ? 'pace' : 'cap');
-    return { checks, rounds, stop, text: cue.text, summary: summaryStd(checks, rounds, prepared.refused) };
+    return { checks, rounds, stop, text: cue.text, shape: cue.shape, summary: summaryStd(checks, rounds, prepared.refused) };
 }
 
 // "Rolled for you: N exchanges": one entry per action of the plan with its outcome in each round told.
@@ -437,10 +437,14 @@ export function resolve(ctx, payload = {}) {
     const result = {
         v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
         refused: prepared.refused, summary: dice.summary, ...(opening ? { opened } : {}),
+        ...(dice.shape ? { shape: dice.shape } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
     if (std) writeBars(ctx, dice.hurts);
-    return { summary: dice.text, narrate: true, replan: true, data: { v2: { key: claimKey(key), result } } };
+    // From stage 51 the receipt keeps no copy of the cue text: it is rebuilt from the record (cue.js cueOfResult) wherever it is told or shown. The text is
+    // kept as it always was only if the record would not give back exactly the same bytes (so what is told never changes).
+    const text = cueOfResult(result) === dice.text ? '' : dice.text;
+    return { summary: text, narrate: true, replan: true, data: { v2: { key: claimKey(key), result } } };
 }
 
 /**

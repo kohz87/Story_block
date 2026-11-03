@@ -395,7 +395,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         : flow === 2 ? told.at(-1).end ?? (plan.pace === 'careful' ? 'pace' : 'cap') : decisive ? 'decisive' : over ? 'over' : told.length === most ? 'pace' : 'cap';
     const toldIdle = told.flatMap(round => round.idle ?? []);
     return {
-        checks, rounds, stop, text: cue.text, opening, order, quickStart: quick, idle: toldIdle, hurts,
+        checks, rounds, stop, text: cue.text, shape: cue.shape, opening, order, quickStart: quick, idle: toldIdle, hurts,
         summary: summaryStd(checks, rounds, prepared.refused),
     };
 }

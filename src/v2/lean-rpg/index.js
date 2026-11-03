@@ -28,7 +28,7 @@ export { characterOf, fold, matchCharacter, matchFoe, matchName, matchSkill, rea
 export { RANK_QUERY, XP_RATE, XP_RATE_SETTING, bandsOf, clampLevel, levelLabel, packLevelsOf, playerRankValue, rankNamed, rankOf, scaleXp, xpRateFrom, xpRateOf } from './levels.js';
 export { FIGHT_XP_HELD, fightOf, memberXp, standingSlots } from './fight.js';
 export { PRACTICE_HELD, practiceStep, usesOf } from './practice.js';
-export { NO_ROLLS_LINE, OPEN_FIGHT_LINE, OUTCOME_WORD, cueText, fitCue, lineText } from './cue.js';
+export { NO_ROLLS_LINE, OPEN_FIGHT_LINE, OUTCOME_WORD, cueOfResult, cueText, fitCue, lineText, receiptCue } from './cue.js';
 export { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from './join.js';
 export { setStartNotes, skipOf, startNotes } from './start.js';
 export { PRECALL_HEAD, claimed, createPrecall, precallPrompt, sheetText } from './precall.js';

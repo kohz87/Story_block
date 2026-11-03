@@ -18,7 +18,7 @@ import { rpgReplyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { buildPanel, panelModel, readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
 import { oddsView, soulLabelFor } from '../../../src/v2/lean-rpg/view/settings-data.js';
 import { renderRpgSettings } from '../../../src/v2/lean-rpg/view/settings.js';
-import { PARTY, PLAN_ANSWER, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
+import { cueOf, PARTY, PLAN_ANSWER, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 import { fakeState, roleOf as viewRoleOf } from './view/helpers.js';
 
 const available = await hostAvailable();
@@ -139,7 +139,7 @@ test('B: through the turn, the plan\'s defending skill is rolled, stored and tol
     const lines = receipt.data.v2.result.rounds.flatMap(round => round.lines).filter(line => line.kind === 'foe');
     assert.ok(lines.length >= 1);
     assert.ok(lines.every(line => line.skill === 'Iron Breath' && line.pc.stat === 'str' && line.pc.rank === 1));
-    assert.match(receipt.summary, /Sluice Rats attacks Wessel \(Iron Breath\): /);
+    assert.match(cueOf(receipt), /Sluice Rats attacks Wessel \(Iron Breath\): /);
     assert.deepEqual(receipt.data.v2.result.summary.acts.find(act => act.kind === 'foe').skill, 'Iron Breath');
     host.close();
 });
@@ -151,7 +151,7 @@ test('B: a payload made before (no skill on its foe lines) rolls and tells as it
     const lines = receipt.data.v2.result.rounds.flatMap(round => round.lines).filter(line => line.kind === 'foe');
     assert.ok(lines.length >= 1);
     assert.ok(lines.every(line => line.skill === null && line.pc.stat === 'agi' && line.pc.rank === 0));
-    assert.ok(!/attacks Wessel \(/.test(receipt.summary));
+    assert.ok(!/attacks Wessel \(/.test(cueOf(receipt)));
     const before = JSON.stringify(host.head());
     host.store.rebuild();
     assert.equal(JSON.stringify(host.head()), before, 'a rebuild gives the same story');

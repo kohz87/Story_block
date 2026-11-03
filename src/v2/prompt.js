@@ -23,6 +23,8 @@
 // `ownPrompt` hook says what, turn.js ownPrompt) counts toward the share too: the tail gets what the
 // static part and that leave, still never below MIN_TAIL_BUDGET. It never cuts the static part.
 
+import { receiptCue } from './lean-rpg/cue.js';
+
 export const TAIL_ORDER = Object.freeze(['scene', 'inventory', 'party', 'combat', 'trade', 'director']);
 export const DEFAULT_TAIL_BUDGET = 1500;
 // The most of the prompt's room (percent) Story Suite's static and tail may take together, by default.
@@ -208,8 +210,9 @@ export function assemble({ registry, view, untold = [], settings = {}, cues = {}
         : Number.isInteger(settings?.tailBudget) && settings.tailBudget > 0 ? settings.tailBudget : DEFAULT_TAIL_BUDGET;
 
     const happened = untold
-        .filter(receipt => receipt && receipt.narrate !== false && typeof receipt.summary === 'string' && receipt.summary.trim())
-        .map(receipt => fill(`${receipt.summary}${typeof receipt.data?.told === 'string' && receipt.data.told.trim() ? ` (${receipt.data.told.trim()})` : ''}`)
+        .map(receipt => receipt && receipt.narrate !== false && typeof receipt.summary === 'string' ? { receipt, text: receiptCue(receipt) } : null)
+        .filter(entry => entry && entry.text.trim())
+        .map(({ receipt, text }) => fill(`${text}${typeof receipt.data?.told === 'string' && receipt.data.told.trim() ? ` (${receipt.data.told.trim()})` : ''}`)
             .trim().split(/\n/).map(part => part.trim()).filter(Boolean).join(' '));
     const head = happened.length
         ? { module: 'story-suite', label: 'Happened', text: happenedLines(happened, Math.floor(total / 2)).join('\n') }

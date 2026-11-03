@@ -2,6 +2,7 @@
 // and Foes blocks as the RPG reads them), a scripted pre-call model, and a host that has the RPG part on it.
 import { createHost } from '../../../testkit/index.js';
 import { LEAN_RPG_FEATURE, ROLLS_SETTING, createLeanRpgPart } from '../../../src/v2/lean-rpg/index.js';
+import { receiptCue } from '../../../src/v2/lean-rpg/cue.js';
 
 export const OWNER = 'story-block';
 
@@ -113,3 +114,5 @@ export const tailOf = request => request.chat.filter(message => message.role ===
 export const recordOf = (host, index) => host.ctx.chat[index].extra.storySuite;
 export const rollReceipt = (host, index) => recordOf(host, index).receipts.find(receipt => receipt.type === 'rpg.resolve');
 export { ROLLS_SETTING };
+/** The cue a roll's receipt tells: stage 51 stores no copy of it on the receipt, so it is built from the record (old receipts carry the text). */
+export const cueOf = receipt => receiptCue(receipt);

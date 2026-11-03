@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
 import { RESOLVE, claimKey } from '../../../src/v2/lean-rpg/index.js';
-import { PLAN_ANSWER, rollReceipt, setup } from './helpers.js';
+import { cueOf, PLAN_ANSWER, rollReceipt, setup } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -84,7 +84,7 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
                     const after = resolves(host).find(entry => entry.index === target.index)?.receipt;
                     if (before) {
                         assert.equal(after?.seed, before.seed, 'a Re-read keeps the seed');
-                        assert.equal(after?.summary, before.summary, 'and the dice');
+                        assert.equal(cueOf(after), cueOf(before), 'and the dice');
                     } else assert.equal(after, undefined, 'a Re-read does not make rolls');
                 }
             } else if (roll < 0.8) {

@@ -83,8 +83,8 @@ function fromOf(domain, source) {
 
 /** The numbers the step depends on (the replay guard asks them again): the fight's groups and every filled group's Health, each paid member's rises, and what the reply's XP lines started from. */
 export function fightWitness(sheet, domain, source, decision) {
-    // (`level` joins an entry only when the sheet has one, so the witness of an older Foes block, and the guard hash of its receipt, are what they were)
-    const foes = sheet.foes.filter(foe => foe.filled).map(({ slot, name, count, class: soul, hurt, level }) => ({ slot, name, count, class: soul, hurt, ...(whole(level) ? { level } : {}) }));
+    // (`level` joins an entry only when the sheet has one of its own (a Foes block of the Levels rules), so the witness of an older Foes block, and the guard hash of its receipt, are what they were)
+    const foes = sheet.foes.filter(foe => foe.filled).map(({ slot, name, count, class: soul, hurt, level, levelled }) => ({ slot, name, count, class: soul, hurt, ...(levelled && whole(level) ? { level } : {}) }));
     return { foes, was: slotsOf(decision?.was), from: fromOf(domain, source),
         members: paidOf(sheet).map(character => ({ module: character.module, who: character.who, xp: character.xp, soul: character.soul, points: character.points, ...(whole(character.level) ? { level: character.level } : {}) })) };
 }
