@@ -111,6 +111,24 @@ answers everything the screens draw: `carry` (`load`, `capacity`, `level` normal
 * **Party card**: an Inventory button (Stats, Skills, Inventory, Export in one row) opens the slot card: the eight places in two columns, each a tile
   with a 3px condition line along its bottom (yellow Worn, orange Torn, red Broken, none when Good). No carry there.
 
+## Signature gear
+
+A pack's cast entry may list `gear` (PACKS.md "The cast"): up to 6 of the pack's equipment items, one to a slot (two accessories at most),
+checked when the pack is read. With the switch on:
+
+* **Joining.** When that person joins the party (a `+ party` line or the Ask card's Add to party; the name or an alias matches the
+  cast entry), each item is added to the inventory owned by them (the party's actor of that name when a party module lists one, else
+  the party's bag) and put on in its slot through `item.equip`, condition Good, as part of the join's own receipt: the summary ends
+  "Gear: Cane Sword, Oak Buckler." and `data.gear` lists them. A swipe, a delete or a Re-read of the reply takes the join and the
+  gear away together; a rebuild gives the same. In the party's bag a slot already taken stays as it is and the piece is carried.
+* **Coming back.** Someone who left and comes back (`- party`, then `+ party`) keeps what they own: only a piece no longer owned is
+  given again, and nothing is duplicated.
+* **The narrator's cast entry.** While the person is not in the party the query `packs.castGear { name }` answers
+  `{ name, line: "Gear: Cane Sword, Oak Buckler", items }`; the cast entry that names the person (NPC State Delta's) adds `line` as one
+  short line in its static part. It answers null once they are in the party, with no gear, or while the switch is off, so the prompt
+  is byte-identical then.
+* **Off.** Nothing runs: a join is exactly as it was, with identical receipts.
+
 ## Replay
 
 Everything is derived from the inventory slice and its condition events; a swipe, a delete, a Re-read, a rebuild and a reload
