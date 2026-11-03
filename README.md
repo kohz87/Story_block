@@ -1,4 +1,4 @@
-# Story Block 2.16.7
+# Story Block 2.16.8
 
 Story Block is a SillyTavern extension for stories with a narrator. It keeps your inventory, your purse, the place you are in and who is with you. The narrator writes what changed at the end of each reply. Story Block checks those lines, keeps the result with the reply and shows it to you in plain words.
 
@@ -140,7 +140,7 @@ The checker checks the pack and each screen's fields. A layout is checked in ful
 
 The Story Suite has four parts.
 
-- **Story Block** (2.16.7) is the hub. It keeps the story's state, runs the packs and draws the reader's screens.
+- **Story Block** (2.16.8) is the hub. It keeps the story's state, runs the packs and draws the reader's screens.
 - **Story Director** (2.9.3) adds the story clock, the map, quests, the world's events and the pack's living cast. It needs Story Block.
 - **NPC State Delta** (1.7.1) adds a dossier for each person you meet, with meters, stages and secrets. It needs Story Block; with Story Director it also follows the cast and Key people.
 - **Story Studio** (0.6.0) is a separate page where you write packs. It is not an extension.
