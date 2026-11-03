@@ -11,7 +11,8 @@
 // (its header documents the `data.v2.result` record the battle log draws from) and the cue text in cue.js.
 import { stCallModel, stChat, stChatId } from '../assist/st-adapter.js';
 import { TIMEOUT_MS } from '../assist/common.js';
-import { LEAN_RPG_FEATURE, RESOLVE, ROLLS, ROLLS_SETTING } from './names.js';
+import { FIGHT, LEAN_RPG_FEATURE, RESOLVE, ROLLS, ROLLS_SETTING } from './names.js';
+import { fightHook, fightXp } from './fight.js';
 import { createPlanHold } from './plan.js';
 import { JOIN_NO, joinCard, joinOffers, partyOf } from './join.js';
 import { createPrecall } from './precall.js';
@@ -19,14 +20,15 @@ import { leanRpgGuard, resolve, rollsOf } from './resolve.js';
 import { skipOf } from './start.js';
 
 export * from './names.js';
-export { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, FORMULA_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_KEYS, RULE_RANGES, STANDARD, STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_RANGES, STANDARD_RULE_KEYS, STANDARD_SETTING, STAT_ABOVE, difficultyOf, formulaOf, isStandard, normalizeRules, packInForce, packRulesOf, normalizeStandard, oddsFor, oddsSubject, plannerNoteOf, presetOf, rulesFromSettings, sameRules, statShare, subjectOdds } from './rules.js';
+export { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, EARLIER_RULES, FORMULA_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_KEYS, RULE_RANGES, STANDARD, STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_RANGES, STANDARD_RULE_KEYS, STANDARD_SETTING, STAT_ABOVE, difficultyOf, formulaOf, isStandard, normalizeRules, packInForce, packRulesOf, normalizeStandard, oddsFor, oddsSubject, plannerNoteOf, presetOf, rulesFromSettings, sameRules, statShare, subjectOdds } from './rules.js';
 export { createPlanHold, parsePlanAnswer, planIsEmpty, validatePlan } from './plan.js';
 export { characterOf, fold, matchCharacter, matchFoe, matchName, matchSkill, readSheet } from './read.js';
+export { FIGHT_XP_HELD, fightOf, memberXp, standingSlots } from './fight.js';
 export { NO_ROLLS_LINE, OPEN_FIGHT_LINE, OUTCOME_WORD, cueText, fitCue, lineText } from './cue.js';
 export { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from './join.js';
 export { setStartNotes, skipOf, startNotes } from './start.js';
 export { PRECALL_HEAD, claimed, createPrecall, precallPrompt, sheetText } from './precall.js';
-export { DICE_VERSION, RESULT_VERSION, claimKey, leanRpgGuard, outcomeOf, positionalDice, prepare, resolve, rollPrepared, rollsOf } from './resolve.js';
+export { DICE_VERSION, FLOW_VERSION, RESULT_VERSION, claimKey, leanRpgGuard, outcomeOf, positionalDice, prepare, resolve, rollPrepared, rollsOf } from './resolve.js';
 
 // How much longer the hook may take than the planner's call, for the work around it.
 const HOOK_MARGIN_MS = 2000;
@@ -57,6 +59,8 @@ export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chat
         // feature, so a Re-read of a reply that has rolls keeps them whatever the feature says now.
         commands: {
             [RESOLVE]: Object.assign((ctx, payload) => resolve(ctx, payload), { prelude: true, internal: true }),
+            // XP for a won fight, a step after the reply's lines (fight.js). Not tied to the feature either: a Re-read keeps it.
+            [FIGHT]: Object.assign((ctx, payload) => fightXp(ctx, payload), { internal: true }),
             // "No" on a companion's card (join.js): the reader's answer, kept in the reply's own receipt like the offer it answers.
             [JOIN_NO]: Object.assign((ctx, payload) => {
                 if (ctx.cause !== 'ui') ctx.fail('REFUSED', 'Only the reader answers a companion\'s card.');
@@ -74,7 +78,7 @@ export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chat
         // its own skip path (quiet ROLLS_SKIPPED, the no-rolls cue) runs on a slow answer and the turn's generic limit never cuts in.
         hooks: {
             beforeGenerate: Object.assign((view, info) => precall.beforeGenerate(view, info), { timeoutMs: (Number.isFinite(timeoutMs) ? timeoutMs : TIMEOUT_MS) + HOOK_MARGIN_MS }),
-            afterCapture: view => { precall.afterCapture(view); },
+            afterCapture: (view, info) => { precall.afterCapture(view); return fightHook(view, info); },
             // Every reply, whatever else answers afterCapture and with or without change lines: the plan it used is let go.
             afterReceive: view => { precall.afterCapture(view); },
         },

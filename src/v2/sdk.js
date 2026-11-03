@@ -239,6 +239,8 @@ export function makeView({ store, registry, settings, chat = [], active = null, 
         settings,
         feature: id => featureOn(registry, id),
         chat: Object.freeze({ length: messages.length, lastUser: String(lastUser?.mes ?? '') }),
+        // The state before the reply this view stands for (the one its lines start from), or null: asked by a step that compares the reply with it (the RPG's fight XP).
+        before: () => { try { return Number.isInteger(reply?.index) ? store.before?.(reply.index) ?? null : null; } catch { return null; } },
     });
 }
 

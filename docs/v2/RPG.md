@@ -260,6 +260,18 @@ reply's text. A `[battle]` line with no rolls behind it (or with the RPG off) is
 A foe's attack reads from the foe's side: **Hit** (red) when it gets through, **Grazed** (amber) when it costs you, **Blocked**
 (green) when you stop it, with the foe's total first. The Status bars are coloured by stage, like the Party tab's.
 
+**How long a reply's exchanges run.** The rolls for a reply keep going, exchange after exchange, until the first of these happens: the fight is
+**won** (every foe group is Down), it is **lost** (every party member who has not Left is Down), it turns **heavy** (a party member has lost 2 or
+more Health blocks in this reply, 2 or more stages under Classic, or went Down), the reader's **Most exchanges per reply** is reached (8 by
+default), the roll cue no longer fits its budget, or, at the careful pace, one exchange is done. A Decisive result is still marked Decisive in the
+log and still counts (a Decisive hit takes two blocks), but it no longer ends the reply. A foe group or a party member who is Down does not act in
+the exchanges after, and the cue says so ("does not act: Down"). The cue's last line tells the narrator where the rolls end, and for a won fight
+that code gives the XP for it (below). Under Classic, where the narrator sets the bars, the rolls keep a count of their own just to know when
+to stop (a hit takes one stage, a Decisive one two, from the Health on the sheet) and write nothing. A roll made before this (its record has no
+`flow`) stopped at the first Decisive round, at the pace (careful 1, normal 5, all 8) or at the cap of 5, and still reads, replays and Re-reads
+exactly so; the log's stop word for it is `decisive`, `over`, `pace`, `cap` or `budget`, and for a new roll `won`, `lost`, `heavy`, `cap`,
+`budget` or `pace`.
+
 **The roll rule (Classic).** The rest of this section describes the **Classic** formula; the Standard one, the default, is described in
 [The stat formulas](#the-stat-formulas). A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
 the foe's `d20 + 5 + 2 × the foe's class`. The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
@@ -321,8 +333,8 @@ The page has six cards, and shows only while the RPG is on.
 - **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. On the Standard formula the presets move only the foe's base (2, 4 and
   6) and **Custom** shows its thirteen numbers; the paragraph below is Classic's. The presets change the foe's base and how far short
   a roll may fall and still be "success at a cost": Gentle is a base of 3 and a window of 3, Standard 5 and 2 (the rule
-  above), Harsh 7 and 1. All three keep a Soul Class worth 2, half the stat, a decisive margin of 8 and at most 5 exchanges
-  a reply. **Custom** shows the six numbers: **Foe's base** (0 to 15), **Soul Class adds** (×1, ×2 or ×3, for both sides),
+  above), Harsh 7 and 1. All three keep a Soul Class worth 2, half the stat, a decisive margin of 8 and at most 8 exchanges
+  a reply (5 before stage 49; a Custom number you typed stays as you typed it, and a roll already made keeps its own). **Custom** shows the six numbers: **Foe's base** (0 to 15), **Soul Class adds** (×1, ×2 or ×3, for both sides),
   **Stat adds** (half the stat, a third of the stat, or full above 10), **"At a cost" when short by** (0 to 5; 0 turns it off), **Decisive at a margin
   of** (4 to 15, or a natural 1 or 20) and **Most exchanges per reply** (1 to 8). A number outside its range is held to
   it. Under the numbers a bar shows the exact chances of success, success at a cost and fail for your own character (the
@@ -421,8 +433,22 @@ These rise on their own, with no confirm step.
 - **Skill ranks** run Novice, Adept, Expert, Master. At 100 practice a skill's rank goes up by one and practice starts
   again at 0. A Master keeps practice at 100.
 
-The narrator gives XP and practice with lines in the story. The Combat rules block suggests how much: a small fight
-5 to 15 XP, a hard fight 20 to 40, a boss 50 or more, and 5 to 20 practice for each use of a skill.
+**XP for a won fight is given by code.** When a reply takes the fight from "a foe group is still standing" to "every filled foe group is Down"
+(by the dice, or by the narrator's own Foes lines), every party member who has not Left (a Down member too; a dead one is not paid) gets XP of their
+own, once for that fight, worked out group by group from their Soul Class against the group's: count × class × 2 for a group of their own class; for
+a group of a lower class half of it (1 lower), a quarter (2 lower), 12 % (3 lower) or nothing (4 or more lower), so a veteran cannot farm weak foes; for a
+higher class 150 % (1 higher), 200 % (2 higher), 250 % (3 higher). The groups are added and rounded down; a total above 0 is held between 1 and 60, a
+total of 0 gives no XP and no line. Members of different Soul Class get different amounts (Soul Class II against six Class I crawlers: 12 × 50 % = 6). The
+fight's groups are the ones that were standing when the reply began and are still on the Foes block, so a beaten group that stays on the block pays
+nothing again, and a later reply that fills a slot again and wins is a new fight. "Changed this reply" says so ("Astra +12 XP (fight won)"), a Soul
+Class rise follows the block's own rule, and a swipe, a Re-read, a delete in the middle, a rebuild and a reload all give the same XP. In that reply the
+narrator's own XP line for a party member is not used (one line in the Problems list says "XP for the fight is given by code; the narrator's XP line was
+not used."); XP lines in any other reply (a quest, a discovery) are the narrator's as before. A group the narrator clears from the block is gone, not
+Down (it fled, yielded or was taken), so the cue tells the narrator to leave a beaten group on the block, Down, in the reply it falls. The Combat rules
+text of a new chat says so too; a chat's stored text is not rewritten.
+
+The narrator gives XP for other deeds, and practice, with lines in the story. The Combat rules block says: XP for a won fight is given by code, other
+deeds 5 to 40, and 5 to 20 practice for each use of a skill.
 
 ## Down and death
 

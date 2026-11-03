@@ -867,6 +867,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                     problems.push(problem({ module: moduleId, index, code: result?.code ?? 'FAILED', message: `The step "${command?.type}" after the reply's lines was not run: ${result?.message ?? 'unknown error'}` }));
                     continue;
                 }
+                // Done, but not all of what was asked (a clamp, a line of the story that was not used): the step says why, and it goes to the Problems list.
+                if (typeof result.problem === 'string' && result.problem) problems.push(problem({ module: moduleId, index, code: 'LIMITED', message: result.problem }));
                 let replan = result.receipt.replan;
                 if (!replan) { try { replan = { payload: structuredClone(payload) }; } catch { replan = undefined; } }
                 const receipt = { ...result.receipt, afterCapture: true, ...(precheck ? { beforeGenerate: true } : {}), ...(replan ? { replan } : {}) };

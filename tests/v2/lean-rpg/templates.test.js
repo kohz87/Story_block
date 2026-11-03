@@ -139,7 +139,7 @@ test('the combat rules text is the [COMBAT SYSTEM] prompt with one line of XP gu
     assert.equal(lines.length, 6);
     assert.equal(lines[0], '[COMBAT SYSTEM]');
     COMBAT_HEADINGS.forEach((heading, index) => assert.ok(lines[index + 1].startsWith(heading), heading));
-    assert.match(lines[5], /^XP guide: a small fight 5 to 15, a hard fight 20 to 40, a boss 50 or more\. Practice a skill 5 to 20 for each use\.$/);
+    assert.match(lines[5], /^XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\. Practice a skill 5 to 20 per use\.$/);
     assert.ok([...prompt].length <= 1200);
     assert.deepEqual(state, {});
     assert.deepEqual(kinds, {});

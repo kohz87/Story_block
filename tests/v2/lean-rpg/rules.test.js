@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    CLASS_NAMES, CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, FORMULA, LIMITS, NOTE_MAX, NOTE_SETTING, PRESETS, RANK_NAMES, RULE_KEYS, RULE_RANGES, STANDARD,
+    CLASS_NAMES, CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, EARLIER_RULES, FORMULA, LIMITS, NOTE_MAX, NOTE_SETTING, PRESETS, RANK_NAMES, RULE_KEYS, RULE_RANGES, STANDARD,
     difficultyOf, fold, normalizeRules, oddsFor, oddsSubject, outcomeOf, plannerNoteOf, precallPrompt, prepare, presetOf, readSheet, rollPrepared, rulesFromSettings, sameRules, subjectOdds,
 } from '../../../src/v2/lean-rpg/index.js';
 import { PARTY, character, sheetDomain, skillBlock } from './helpers.js';
@@ -18,10 +18,10 @@ const wessel = (over = {}) => ({ who: 'Wessel', skill: 'Iron Breath', stat: 'str
 const plan = (over = {}) => ({ pace: 'normal', acts: [wessel()], foes: [], checks: [], ...over });
 
 test('Standard is today\'s formula, to the number; Gentle and Harsh move the foe\'s base and the "at a cost" window only', () => {
-    assert.deepEqual(STANDARD, { foeBase: FORMULA.foeBase, classWeight: FORMULA.classWeight, statDivisor: FORMULA.statDivisor, costMargin: FORMULA.costMargin, decisiveMargin: LIMITS.decisiveMargin, roundCap: LIMITS.roundCap });
-    assert.deepEqual(PRESETS.gentle, { foeBase: 3, classWeight: 2, statDivisor: 2, costMargin: 3, decisiveMargin: 8, roundCap: 5 });
-    assert.deepEqual(PRESETS.standard, { foeBase: 5, classWeight: 2, statDivisor: 2, costMargin: 2, decisiveMargin: 8, roundCap: 5 });
-    assert.deepEqual(PRESETS.harsh, { foeBase: 7, classWeight: 2, statDivisor: 2, costMargin: 1, decisiveMargin: 8, roundCap: 5 });
+    assert.deepEqual(STANDARD, { foeBase: FORMULA.foeBase, classWeight: FORMULA.classWeight, statDivisor: FORMULA.statDivisor, costMargin: FORMULA.costMargin, decisiveMargin: LIMITS.decisiveMargin, roundCap: LIMITS.roundCapDefault });
+    assert.deepEqual(PRESETS.gentle, { foeBase: 3, classWeight: 2, statDivisor: 2, costMargin: 3, decisiveMargin: 8, roundCap: 8 });
+    assert.deepEqual(PRESETS.standard, { foeBase: 5, classWeight: 2, statDivisor: 2, costMargin: 2, decisiveMargin: 8, roundCap: 8 });
+    assert.deepEqual(PRESETS.harsh, { foeBase: 7, classWeight: 2, statDivisor: 2, costMargin: 1, decisiveMargin: 8, roundCap: 8 });
     assert.deepEqual(DIFFICULTIES, ['gentle', 'standard', 'harsh', 'custom']);
     assert.ok(Object.isFrozen(PRESETS.standard) && Object.isFrozen(PRESETS));
     assert.deepEqual(Object.keys(normalizeRules()), RULE_KEYS);
@@ -52,7 +52,7 @@ test('the settings give the numbers: a preset by its word, Custom by its stored 
     assert.notEqual(rulesFromSettings({ rpgFormula: 'classic' }), STANDARD, 'a copy');
     assert.equal(presetOf(PRESETS.harsh), 'harsh');
     assert.equal(presetOf({ ...STANDARD, roundCap: 4 }), 'custom');
-    assert.equal(sameRules(STANDARD, { roundCap: 5 }), true);
+    assert.equal(sameRules(STANDARD, { roundCap: 8 }), true);
     assert.equal(sameRules(STANDARD, PRESETS.harsh), false);
 });
 
@@ -119,8 +119,10 @@ test('the decisive margin and the most exchanges per reply', () => {
     // A margin of 7 each round: Wessel's 12 + 12 = 24 against the foe's 10 + 5 + 2 = 17.
     const run = rules => rollPrepared(body, prepare(body, sheet, rules), calmWith(12, 10), rules);
     const calmWith = (pc, foe) => { let turn = 0; return () => (turn++ % 2 === 0 ? pc : foe); };
-    assert.equal(run(STANDARD).rounds.length, 5, 'margin 7 is not decisive at 8: five rounds (the cap)');
-    assert.equal(run(STANDARD).stop, 'cap');
+    // (The rule of a roll made before the flow of stage 49, which has the cap of 5: its numbers are EARLIER_RULES; presets now hold 8.)
+    assert.equal(run(EARLIER_RULES).rounds.length, 5, 'margin 7 is not decisive at 8: five rounds (the cap)');
+    assert.equal(run(EARLIER_RULES).stop, 'cap');
+    assert.equal(run(STANDARD).rounds.length, 8, 'a preset now holds eight');
     const keen = run({ ...STANDARD, decisiveMargin: 7 });
     assert.deepEqual([keen.rounds.length, keen.stop], [1, 'decisive'], 'at 7 the first round settles it');
     for (const roundCap of [1, 2, 3, 8]) {

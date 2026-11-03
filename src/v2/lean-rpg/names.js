@@ -9,6 +9,9 @@ export const LEAN_RPG_FEATURE = 'story-block.rpg';
 /** The prelude command a planned reply's rolls are committed through (turn.js prelude list). */
 export const RESOLVE = 'rpg.resolve';
 
+/** The step after a reply's lines that gives the party its XP for a won fight (fight.js); also the kind of its replay guard. */
+export const FIGHT = 'rpg.fight';
+
 /** `role` on a block definition: what the RPG reads it as. A Character, Skills or Foes block names its `who`. */
 export const ROLES = Object.freeze(['character', 'skills', 'foes', 'rules']);
 
@@ -35,7 +38,7 @@ export const stageWord = (words, value, size) => spreadWord(words, Number.isFini
 /** The formula (SPEC_RPG §0): PC d20 + stat/2 + 2×class + skill rank vs foe d20 + 5 + 2×class. */
 export const FORMULA = Object.freeze({ die: 20, statDivisor: 2, classWeight: 2, foeBase: 5, edgeMax: 3, costMargin: 2 });
 
-/** Pacing: exchanges per reply. */
+/** Pacing: exchanges per reply. (From the second flow, FLOW_VERSION in resolve.js, only `careful` limits a reply: 1 exchange; the others run to the cap.) */
 export const PACE = Object.freeze({ careful: 1, normal: 5, all: 8 });
 
 /** How many skill slots a Skills block has (`skill1`…`skill5`, `rank1`…, `practice1`…) and foe slots a Foes block (`foe1`…`foe4`). */
@@ -48,7 +51,10 @@ export const FOE_SLOTS = 4;
  * `cueTokens` (about four characters each). `dc` is the number a check's difficulty word stands for.
  */
 export const LIMITS = Object.freeze({
+    // The cap of a roll made before the flow of stage 49 (`flow` absent in its payload): such a roll, and one recorded with no numbers at all, keeps it.
     roundCap: 5,
+    // The most exchanges one reply holds by default (every preset; Custom may pick 1 to 8): a fight now runs until something happens (resolve.js).
+    roundCapDefault: 8,
     decisiveMargin: 8,
     cueTokens: 600,
     dc: Object.freeze({ easy: 10, normal: 15, hard: 20, 'very hard': 25 }),
@@ -63,6 +69,15 @@ export const LIMITS = Object.freeze({
  */
 export const ROLLS_SETTING = 'rpgRolls';
 export const ROLLS = Object.freeze(['automatic', 'off']);
+
+/**
+ * XP for a won fight (stage 49, fight.js), worked out for each party member who has not Left, group by group from the member's Soul Class against the
+ * group's: base = count × the group's class × `perClass`; a group of the same class gives the base, a LOWER class gives it times `lowerPercent[difference - 1]`
+ * per cent (1 lower 50, 2 lower 25, 3 lower 12; 4 or more lower nothing), a HIGHER class times (100 + `higherPercent` × difference) per cent. The groups are
+ * added (whole per cents, so no rounding error) and rounded down; a total above 0 is held to `min` .. `max`, a total of 0 gives nothing.
+ * Astra (Soul Class II) against six Class I crawlers: 12 × 50% = 6.
+ */
+export const FIGHT_XP = Object.freeze({ perClass: 2, min: 1, max: 60, lowerPercent: Object.freeze([50, 25, 12]), higherPercent: 50 });
 
 /** The line the narrator writes where the fight is told (the battle log is drawn there). */
 export const BATTLE_MARKER = '[battle]';

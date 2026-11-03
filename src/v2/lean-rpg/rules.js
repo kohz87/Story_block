@@ -41,7 +41,7 @@ export const STAT_ABOVE_FROM = 5;
 export const statShare = (value, rules) => (rules.statDivisor === STAT_ABOVE ? value - STAT_ABOVE_FROM : Math.floor(value / rules.statDivisor));
 
 const preset = (foeBase, costMargin) => Object.freeze({
-    foeBase, classWeight: 2, statDivisor: 2, costMargin, decisiveMargin: LIMITS.decisiveMargin, roundCap: LIMITS.roundCap,
+    foeBase, classWeight: 2, statDivisor: 2, costMargin, decisiveMargin: LIMITS.decisiveMargin, roundCap: LIMITS.roundCapDefault,
 });
 
 /** The three presets. Standard is today's formula. */
@@ -111,7 +111,7 @@ export const STANDARD_RANGES = Object.freeze({
 });
 
 const standardPreset = foeBase => {
-    const all = { formula: 'standard', ...STANDARD_NUMBERS, foeBase, classWeight: FORMULA.classWeight, costMargin: FORMULA.costMargin, decisiveMargin: LIMITS.decisiveMargin, roundCap: LIMITS.roundCap };
+    const all = { formula: 'standard', ...STANDARD_NUMBERS, foeBase, classWeight: FORMULA.classWeight, costMargin: FORMULA.costMargin, decisiveMargin: LIMITS.decisiveMargin, roundCap: LIMITS.roundCapDefault };
     return Object.freeze(Object.fromEntries(STANDARD_RULE_KEYS.map(key => [key, all[key]])));
 };
 
@@ -125,6 +125,12 @@ export const STANDARD_PRESETS = Object.freeze({
     harsh: standardPreset(6),
 });
 export const STANDARD_FORMULA = STANDARD_PRESETS.standard;
+
+/**
+ * The numbers of a roll recorded before the numbers were kept (a payload with no `rules`): Classic's Standard difficulty as it was then, with the
+ * cap of 5 exchanges it had. Replay reads those with this, never with today's presets.
+ */
+export const EARLIER_RULES = Object.freeze({ ...PRESETS.standard, roundCap: LIMITS.roundCap });
 
 /** Whether numbers are the Standard formula's. */
 export const isStandard = rules => rules?.formula === 'standard';

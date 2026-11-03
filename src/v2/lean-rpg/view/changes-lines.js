@@ -4,7 +4,7 @@
 // fields' `names`). They come in the shape `replyCardLines` gives (ui-host.js adds them to the card's `moduleLines`).
 // Pure: no DOM.
 
-import { FORMULA, RESOLVE } from '../index.js';
+import { FIGHT, FORMULA, RESOLVE } from '../index.js';
 import { STANDARD, normalizeRules } from '../rules.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { rpgBlocks, readParty, skillsOf } from './party-data.js';
@@ -77,6 +77,24 @@ export function partyLines(record, problems = []) {
 }
 
 /**
+ * The XP code gave for a fight this reply won (fight.js), one line each: "Astra +12 XP (fight won)", from the step's own receipt
+ * (`data.v2.result.fight`): a swipe or a delete takes the receipt and so the line away, and a step the replay skipped is not told.
+ */
+export function fightLines(record, problems = []) {
+    const skipped = new Set(list(problems).flatMap(problem => list(problem?.receipts)));
+    const out = [];
+    for (const receipt of list(record?.receipts)) {
+        if (receipt?.type !== FIGHT || skipped.has(receipt.id)) continue;
+        for (const award of list(receipt.data?.v2?.result?.fight?.awards)) {
+            const who = words(award?.who);
+            if (!who || !Number.isSafeInteger(award.xp) || award.xp <= 0) continue;
+            out.push(line({ icon: 'fa-trophy', tone: 'good', text: fill(C.fightXp, { who, xp: award.xp }), summary: fill(C.fightXpSummary, { who, xp: award.xp }), note: C.fightXpNote }));
+        }
+    }
+    return out;
+}
+
+/**
  * The RPG's lines for one reply. `state` is the reply's state, `before` the one before it (null for the first reply: no
  * rises are told then), `record` the reply's record, `problems` the replay problems of that reply. `rules`: the numbers in force
  * now, used only for a reply that has no roll of its own (its roll's recorded numbers win).
@@ -91,6 +109,7 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
             summary: fill(rolled.exchanges === 1 ? C.rolledSummaryOne : C.rolledSummary, { n: rolled.exchanges }), note }));
     }
     out.push(...partyLines(record, problems));
+    out.push(...fightLines(record, problems));
     if (!before) return out;
     const then = new Map(readParty(before, { roleOf }).map(character => [`${character.module}|${character.subject}`, character]));
     for (const character of readParty(state, { roleOf })) {

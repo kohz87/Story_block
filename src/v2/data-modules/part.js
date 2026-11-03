@@ -373,12 +373,15 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             predicate, inputHash: hashJson({ source, witness, predicate, decision }), ...(bound ? { replyBound: true } : {}) }, recorded);
         return recorded;
     }
-    function finish(ctx, prefix, draft, data, { pin = false, visits = 0, summary, notes = [], replan = false, result = null } = {}) {
+    function finish(ctx, prefix, draft, data, { pin = false, visits = 0, summary, notes = [], replan = false, result = null, xpFrom = null } = {}) {
         const key = pairKey(ctx.source), standing = ctx.standing?.domains?.dataModules?.perReply?.[key];
         const actions = { ...(draft.perReply[key]?.actions ?? {}) };
+        // `xpFrom` (the RPG's fight XP, lean-rpg/fight.js): what a character's xp, soul and points were before the first story line of this reply that wrote
+        // XP, by block. The first line's is kept; later actions of the reply carry it on.
+        const rises = { ...(xpFrom ?? {}), ...(draft.perReply[key]?.xpFrom ?? {}) };
         for (const [id, action] of Object.entries(standing?.actions ?? {})) if (action.click) actions[id] ??= action;
         actions[ctx.cursor().block] = { visits, click: ctx.cause === 'ui' && !pin };
-        const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions };
+        const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions, ...(Object.keys(rises).length ? { xpFrom: rises } : {}) };
         if (next.roots > L.replyRoots || next.visits > L.replyVisits) refuse('DM_BUDGET', '', 'Data module reply budget exhausted.');
         // The story's lines leave room for the steps that settle the reply (what each block with reply-end functions can really cost): without it a full
         // reply would take its last action and the settling that decides a death would be refused.
@@ -648,7 +651,11 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
-        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, summary: `${definition.name}: ${kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
+        // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is
+        // given by code, can put back what the narrator added in that reply.
+        const xpFrom = ctx.cause === 'story' && definition.role === 'character' && kind.effects.some(effect => Array.isArray(effect?.path) && effect.path[0] === 'xp')
+            ? { [module]: Object.fromEntries(['xp', 'soul', 'points'].filter(key => Number.isSafeInteger(fieldsBefore[key])).map(key => [key, fieldsBefore[key]])) } : null;
+        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, xpFrom, summary: `${definition.name}: ${kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }
