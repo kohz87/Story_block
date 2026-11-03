@@ -202,6 +202,11 @@ export function cueOfResult(result, shape = 0) {
     } catch { return ''; }
 }
 
+/** A receipt with its cue as `summary` (an `rpg.resolve` receipt stores none from stage 51 on): readers get the same text the prompt does. */
+export const receiptWithCue = receipt => (receipt?.type === RESOLVE && !receipt.summary ? { ...receipt, summary: receiptCue(receipt) } : receipt);
+/** The same over the store's `{ index, receipt }` entries. */
+export const entriesWithCue = list => (Array.isArray(list) ? list.map(entry => (entry?.receipt ? { ...entry, receipt: receiptWithCue(entry.receipt) } : entry)) : list);
+
 /** The cue a receipt tells: its own `summary`, else (an `rpg.resolve` receipt of stage 51 on) the one its record gives back. */
 export function receiptCue(receipt) {
     if (typeof receipt?.summary === 'string' && receipt.summary) return receipt.summary;

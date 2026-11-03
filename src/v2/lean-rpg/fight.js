@@ -146,7 +146,9 @@ export function fightXp(ctx, payload = {}) {
         const keys = RISES.filter(key => whole(kept?.[key]) && key in fields);
         const held = Boolean(kept) && keys.some(key => fields[key] !== kept[key]);
         const instance = draft.instances[character.module].chat;
-        const xp = scaleXp(memberXp(fight.groups, memberLevel(character)), rate);
+        // The fight pays at the level the member had before this reply's own (held back) XP line raised it.
+        const before = held ? (whole(kept.level) ? clampLevel(kept.level) : whole(kept.soul) ? levelOfClass(kept.soul) : null) : null;
+        const xp = scaleXp(memberXp(fight.groups, before ?? memberLevel(character)), rate);
         if (isObject(definition?.state) && Array.isArray(definition.rules)) {
             const evaluation = createEvaluation(definition, instance, { inputs: {}, source: {}, cursor: null, subject: 'chat' });
             if (held) evaluation.effects(keys.map(key => ({ op: 'set', path: [key], value: kept[key] })));

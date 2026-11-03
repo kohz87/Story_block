@@ -9,7 +9,7 @@ import { KEY as RECORD_KEY, isCarrier, recordFault } from './persist.js';
 import { cutAt } from '../text.js';
 import { MODEL_CALL_ERRORS, MODEL_CALL_TEXT, profileName } from './model-call.js';
 import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
-import { receiptCue } from './lean-rpg/cue.js';
+import { receiptCue, entriesWithCue } from './lean-rpg/cue.js';
 
 // sdk.check comes from check.js (SB-commands); the sdk still loads without it.
 const checkModule = await import('./check.js').catch(() => null);
@@ -205,7 +205,7 @@ export function createSettings({ root, registry, save = () => {} }) {
  */
 // A roll's receipt keeps no cue text (stage 51: it is rebuilt from the record); a reader of the receipts (Story Director's chronicle) is given the text in
 // `summary`, computed here and not stored, so the day facts of a roll are still there.
-const withCue = list => list.map(entry => (entry?.receipt?.type === RPG_RESOLVE && !entry.receipt.summary ? { ...entry, receipt: { ...entry.receipt, summary: receiptCue(entry.receipt) } } : entry));
+const withCue = entriesWithCue;
 
 export function runQuery(registry, state, name, args, { receipts = () => [], reply = null, pendingProofs = null } = {}) {
     const query = registry.query(name);

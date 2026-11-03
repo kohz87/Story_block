@@ -34,7 +34,7 @@ import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 import { cutAt } from '../text.js';
 import { CORE_FEATURE } from './features.js';
 import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
-import { NO_ROLLS_LINE, receiptCue } from './lean-rpg/cue.js';
+import { NO_ROLLS_LINE, receiptCue, receiptWithCue } from './lean-rpg/cue.js';
 
 export const STATIC_KEY = 'story_suite_static';
 export const TAIL_KEY = 'story_suite_tail_1';
@@ -848,7 +848,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // A Re-read has stored nothing yet: the proof its lines and earlier steps planned is what the hooks and steps see.
         const planned = () => (live || !plan ? [] : [...plan.blocks.flatMap(piece => piece.block?.evidence ?? []), ...steps.flatMap(step => step.block?.evidence ?? [])]);
         // The reply's own receipts as far as this run knows them (`info.receipts`, read only when a hook asks): the store's for a live reply, a Re-read's planned ones.
-        const replyReceipts = () => (live ? (store.receipts?.() ?? []).filter(entry => entry.index === index).map(entry => entry.receipt) : [...(plan?.blocks ?? []).map(piece => piece.receipt), ...steps.map(step => step.receipt)].filter(Boolean));
+        const replyReceipts = () => (live ? (store.receipts?.() ?? []).filter(entry => entry.index === index).map(entry => entry.receipt) : [...(plan?.blocks ?? []).map(piece => piece.receipt), ...steps.map(step => step.receipt)].filter(Boolean)).map(receiptWithCue);
         const hooks = [
             ...(prechecks.length ? [{ moduleId: HOST_MODULE, precheck: true, fn: () => ({ commands: prechecks }) }] : []),
             ...(onlyPrechecks ? [] : registry.hookEntries('afterCapture').filter(entry => !alwaysOnly || entry.fn.always === true)),
