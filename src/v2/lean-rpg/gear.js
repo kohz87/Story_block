@@ -1,19 +1,27 @@
 // Gear in the rolls (`story-block.gear`, docs/v2/GEAR.md "In the rolls"). Pure, apart from the questions put to `query`.
 //
 // What it does. While the switch is on, the planner (precall.js) asks the inventory what each party member has on and carries (`planGear`),
-// and the answer travels in the `rpg.resolve` payload as `gear: { v: 1, who: { <member key>: { own, add?, enc?, items? } } }`:
+// and the roll carries only the version mark in its payload (`gear: { v: 1 }`); `rpg.resolve` works the gear out from the state before the roll (`planGear`
+// over the inventory's own answers) into the record `gear: { v: 1, who: { <member key>: { own, add?, enc?, items? } } }`:
 //   own    the inventory owners the member's gear is filed under (their party actor, and `party` for the reader's lead: the first character);
 //   add    { str…cha: +n } what the worn pieces give (broken ones give none), summed;
 //   enc    the penalty (-2) to AGI and DEX while they carry more than they can;
 //   items  [{ name, stats }] the pieces that give something, for the log.
 // The roll reads the sheet through `applyGear`: effective stat = stat + add, held to 30, then AGI and DEX + enc (never under 1). The record is in the
-// payload, the guard's predicate and the result, so a Re-read, a rebuild and a reload roll with it, and equipping something later never moves a roll
-// that was made. A payload with no `gear` is read exactly as before. Off means no `gear`, and nothing here runs.
+// guard's predicate and the result, so a rebuild and a reload roll with it, and equipping something later never moves a roll that was made. The guard
+// asks the state before the roll for the same pieces and load (`gearMatches`): a change before the roll (the reply that gave and equipped the gear deleted
+// or edited) no longer matches, and the roll stands off until it is Re-read, which works its gear out again. A roll with no `gear` (made before) is read
+// exactly as before. Off means no `gear`, and nothing here runs.
 //
 // Wear (`wearGear`): a decisive hit taken wears the member's body armour (else their off-hand) one step; a decisive miss wears their weapon one step
 // (inventory `gear.wear`, the same condition events as everything else, so the roll's receipt carries them and a swipe, a delete or a Re-read takes them back).
-import { fold } from './read.js';
+import { fold, sameWho } from './read.js';
 import { STATS } from './names.js';
+import { gearAnswer } from '../domains/gear.js';
+import { condOf, defCarry, ENCUMBERED_PENALTY } from '../domains/inventory.js';
+import { mountRows } from '../domains/mounts.js';
+
+export { sameWho };
 
 export const GEAR_VERSION = 1;
 /** A stat with gear added up may pass 20 but never this (GEAR.effectiveMax of the inventory side). */
@@ -26,24 +34,55 @@ export const GAP = 10;
 const MEMBERS_MAX = 24, OWN_MAX = 3, ITEMS_MAX = 8, NAME_MAX = 80;
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-/**
- * Whether a party member called `name` (with `aliases`) is the Character `character` (readSheet's): the same name, or the first name against the whole
- * one (Ren is Ren Ashby), or an alias of the member that is either. Names are compared folded (case, spaces and hyphens do not count).
- */
-export function sameWho(character, name, aliases = []) {
-    const first = value => fold(String(value ?? '').trim().split(/\s+/u)[0]);
-    const whole = String(character?.who ?? character?.key ?? '');
-    return [name, ...(Array.isArray(aliases) ? aliases : [])].filter(value => typeof value === 'string' && value.trim()).some(value => {
-        if (fold(value) === character?.key) return true;
-        const single = !/\s/u.test(value.trim()), singleCharacter = !/\s/u.test(whole.trim());
-        return (single && fold(value) === first(whole)) || (singleCharacter && fold(whole) === first(value));
-    });
-}
 const ask = (query, name, args) => { try { return query(name, args) ?? null; } catch { return null; } };
 const lower = stats => Object.fromEntries(Object.entries(isObject(stats) ? stats : {}).filter(([stat, n]) => STATS.includes(stat.toLowerCase()) && Number.isSafeInteger(n) && n !== 0).map(([stat, n]) => [stat.toLowerCase(), n]));
 
 /**
- * The gear of every member of `sheet` (readSheet's), as the inventory reports it through `query(name, args)`: the record the payload carries, or null
+ * What the owners `own` of one member give: { add?, enc?, items? } from the inventory's answers (`answerOf(owner)`; `party` is the shared bag's, which also
+ * says whether the load is too much). Shared by the planner (the live queries) and the guard (the state before the roll), so both read it the same way.
+ */
+function dressOf(own, party, answerOf) {
+    const add = {}, items = [];
+    let enc = party.carry?.encumbered === true ? (Number.isSafeInteger(party.carry.penalty) && party.carry.penalty < 0 ? party.carry.penalty : ENCUMBERED) : 0;
+    for (const answer of own.map(answerOf)) {
+        if (!isObject(answer)) continue;
+        for (const [stat, n] of Object.entries(lower(answer.statBonus))) add[stat] = (add[stat] ?? 0) + n;
+        for (const piece of Object.values(isObject(answer.slots) ? answer.slots : {})) {
+            const stats = piece && piece.broken !== true ? lower(piece.stats) : {};
+            if (Object.keys(stats).length && typeof piece.name === 'string') items.push({ name: piece.name.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX), stats });
+        }
+        if (answer.carry?.encumbered === true && !enc) enc = Number.isSafeInteger(answer.carry.penalty) && answer.carry.penalty < 0 ? answer.carry.penalty : ENCUMBERED;
+    }
+    return { ...(Object.keys(add).length ? { add } : {}), ...(enc ? { enc } : {}), ...(items.length ? { items: items.slice(0, ITEMS_MAX) } : {}) };
+}
+
+/** The version mark a roll's payload carries while gear is on (`gear: { v: 1 }`), or undefined: the roll works its gear out itself (resolve.js). */
+export const gearMarkOf = value => (isObject(value) && value.v === GEAR_VERSION ? { v: GEAR_VERSION } : undefined);
+
+/** Whether gear is on for a planner: the inventory answers (`query(name, args)`) and there is a Character to dress. */
+export function gearIsOn(sheet, query) {
+    return typeof query === 'function' && Boolean(sheet?.characters?.length) && ask(query, 'inventory.gear', { owner: 'party' })?.on === true;
+}
+
+/**
+ * Whether the pieces and the load `gear` (a roll's record) was worked out from are what the state before the roll holds: the same owners' worn pieces
+ * (their stats and condition) and the same load. The state alone is asked (a guard sees no more); whether mounts counted is not in the state, so the
+ * record may match with or without them. False when something before the roll changed (a reply that gave or equipped gear deleted, edited, swiped).
+ */
+export function gearMatches(state, gear, hash) {
+    try {
+        const stats = { condOf, carryOf: defCarry, penalty: ENCUMBERED_PENALTY };
+        const withMounts = [[], mountRows(state)];
+        return Object.values(gear?.who ?? {}).every(entry => withMounts.some(mounts => {
+            const answerOf = owner => gearAnswer(state, { owner }, { ...stats, mounts });
+            const now = dressOf(entry.own, answerOf('party'), answerOf);
+            return hash({ add: now.add ?? null, enc: now.enc ?? null, items: now.items ?? null }) === hash({ add: entry.add ?? null, enc: entry.enc ?? null, items: entry.items ?? null });
+        }));
+    } catch { return false; }
+}
+
+/**
+ * The gear of every member of `sheet` (readSheet's), as the inventory reports it through `query(name, args)`: the record a roll keeps, or null
  * while gear is off (the inventory answers nothing) or there is no one to dress.
  */
 export function planGear(sheet, query, reader = '') {
@@ -56,27 +95,15 @@ export function planGear(sheet, query, reader = '') {
     // matches the first block (a companion who sorts first is not the reader).
     const pc = ask(query, 'party.pc', {});
     const pcName = typeof pc?.id === 'string' ? members.find(actor => actor.id === pc.id)?.name : '';
-    const matching = name => (name ? sheet.characters.findIndex(character => sameWho(character, name)) : -1);
+    const matching = name => (name ? sheet.characters.findIndex(character => sameWho(character, name, [], sheet.characters)) : -1);
     const lead = Math.max(0, [matching(pcName), matching(reader)].find(at => at >= 0) ?? 0);
     const who = {};
     for (const [at, character] of sheet.characters.slice(0, MEMBERS_MAX).entries()) {
-        // (an exact name wins; a first name or an alias counts only for an actor no other Character is exactly called)
+        // (an exact name wins; a first name or an alias counts only when it means this Character alone: sameWho)
         const named = members.find(actor => fold(actor.name) === character.key)
-            ?? members.find(actor => sameWho(character, actor.name, actor.aliases) && !sheet.characters.some(other => other !== character && fold(actor.name) === other.key));
+            ?? members.find(actor => sameWho(character, actor.name, actor.aliases, sheet.characters));
         const own = [...(named ? [named.id] : []), ...(at === lead ? ['party'] : [])];
-        const answers = own.map(owner => (owner === 'party' ? party : ask(query, 'inventory.gear', { owner })));
-        const add = {}, items = [];
-        let enc = party.carry?.encumbered === true ? (Number.isSafeInteger(party.carry.penalty) && party.carry.penalty < 0 ? party.carry.penalty : ENCUMBERED) : 0;
-        for (const answer of answers) {
-            if (!isObject(answer)) continue;
-            for (const [stat, n] of Object.entries(lower(answer.statBonus))) add[stat] = (add[stat] ?? 0) + n;
-            for (const piece of Object.values(isObject(answer.slots) ? answer.slots : {})) {
-                const stats = piece && piece.broken !== true ? lower(piece.stats) : {};
-                if (Object.keys(stats).length && typeof piece.name === 'string') items.push({ name: piece.name.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX), stats });
-            }
-            if (answer.carry?.encumbered === true && !enc) enc = Number.isSafeInteger(answer.carry.penalty) && answer.carry.penalty < 0 ? answer.carry.penalty : ENCUMBERED;
-        }
-        who[character.key] = { own: own.slice(0, OWN_MAX), ...(Object.keys(add).length ? { add } : {}), ...(enc ? { enc } : {}), ...(items.length ? { items: items.slice(0, ITEMS_MAX) } : {}) };
+        who[character.key] = { own: own.slice(0, OWN_MAX), ...dressOf(own, party, (owner) => (owner === 'party' ? party : ask(query, 'inventory.gear', { owner }))) };
     }
     return { v: GEAR_VERSION, who };
 }

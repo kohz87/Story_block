@@ -72,7 +72,7 @@ import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from '
 import { validatePlan } from './plan.js';
 import { openFoes } from './open.js';
 import { levelBonus } from './formula.js';
-import { applyGear, earnedLegend, gearOf, gearValid, noteGear, wearGear } from './gear.js';
+import { applyGear, earnedLegend, gearMarkOf, gearMatches, gearValid, noteGear, planGear, wearGear } from './gear.js';
 import { condWord, stepDown } from '../domains/gear.js';
 import { partyLevels, averageLevel, settleOpen } from './foes.js';
 import { rng as seededRandom } from '../rng.js';
@@ -424,9 +424,12 @@ export function resolve(ctx, payload = {}) {
     const domain = opening ? ctx.draft('dataModules') : ctx.read('dataModules');
     const settled = opening && lv ? settleOpen(plan.open, averageLevel(partyLevels(readSheet({ domains: { dataModules: domain } }))), base) : null;
     const opened = opening ? openFoes(domain, settled ?? plan.open) : null;
-    // From a roll that carries `gear` (precall.js, while `story-block.gear` is on) the worn pieces and the load are laid over the stats it rolls with (gear.js).
-    const gear = gearOf(payload.gear);
-    const sheet = applyGear(readSheet({ domains: { dataModules: domain } }), gear);
+    // From a roll that carries the gear mark (precall.js, while `story-block.gear` is on) the worn pieces and the load, worked out here from the state before the
+    // roll (the inventory's `recorded` answers: the mark decides, not today's switch), are laid over the stats it rolls with (gear.js). The record is kept with the
+    // roll, so a later change never moves it; a change before it is seen by the guard.
+    const standing = readSheet({ domains: { dataModules: domain } });
+    const gear = gearMarkOf(payload.gear) ? planGear(standing, (name, args) => ctx.query(name, name === 'inventory.gear' ? { ...args, recorded: true } : args)) ?? undefined : undefined;
+    const sheet = applyGear(standing, gear);
     const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow, lv: Boolean(lv) });
     if (opening) prepared.witness = { ...prepared.witness, opened };
     if (!prepared.acts.length && !prepared.foes.length && !prepared.checks.length) ctx.fail('NO_LONGER_DONE', 'Nothing is left to roll on this sheet.');
@@ -493,6 +496,8 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         // Gear (gear.js) is hashed with the roll that carried it: a record that has it must be one this version reads; a roll made before has none.
         if ((recorded.gear === undefined) !== (predicate.gear === undefined) || (recorded.gear !== undefined && (!gearValid(recorded.gear) || hash(recorded.gear) !== predicate.gear))) return bad('The roll\'s gear was damaged.');
         const gear = recorded.gear;
+        // (what the roll was worked out from must still be what the state before it holds)
+        if (gear && !gearMatches(state, gear, hash)) return bad('The gear before this roll changed; Re-read this reply.');
         const lv = recorded.lv === LV_VERSION;
         const levels = lv && recorded.levels !== undefined ? recorded.levels : null;
         if (levels !== null && (!levelsValid(levels) || hash(levels) !== predicate.levels)) return bad('The roll\'s foe levels were damaged.');

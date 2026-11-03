@@ -50,6 +50,8 @@ export const INVENTORY_FEATURES = Object.freeze([
 
 // The gear switch lives in Settings → RPG and counts only while the RPG is on.
 const RPG_FEATURE = 'story-block.rpg';
+/** The module whose `rpg.resolve` rolls the dice: the only caller `gear.wear { recorded: true }` accepts. */
+const RPG_MODULE = 'story-block';
 
 /** Whether the gear feature is on for this handler (or view): off unless the host says so (off by default, and only while the RPG is on). */
 export function gearOn(ctx) {
@@ -710,8 +712,10 @@ function wear(ctx, payload) {
 // defender's `defence`, a decisive miss of the attacker wears their `weapon`.
 const WEAR_SLOTS = Object.freeze({ weapon: 'weapon', body: 'body', armour: 'body', 'off-hand': 'off-hand', shield: 'off-hand', defence: 'defence' });
 function gearWear(ctx, payload) {
-    // (a roll that carries a gear record wears by it even if the switch is off now: `recorded`, system only)
-    if (!gearOn(ctx) && !(payload.recorded === true && ctx.cause === 'system')) ctx.fail('REFUSED', 'Gear is not switched on.');
+    // (a roll that carries a gear mark wears by it even if the switch is off now: `recorded`, and only the RPG's own `rpg.resolve` may say so: its nested call has
+    // the Story Block module as `ctx.caller`; a pack event step (`event:<id>`), another module or a top-level call is refused the flag, whatever the switch says)
+    if (payload.recorded === true && !(ctx.cause === 'system' && ctx.caller === RPG_MODULE)) ctx.fail('REFUSED', 'Only the fight\'s own rolls wear gear by their record.');
+    if (!gearOn(ctx) && payload.recorded !== true) ctx.fail('REFUSED', 'Gear is not switched on.');
     if (!(ctx.cause === 'system' || ctx.caller)) ctx.fail('REFUSED', 'Gear wears from the rules of a fight, not from a button or a change line.');
     const owner = typeof payload.owner === 'string' && payload.owner ? payload.owner : 'party';
     if (!OWNER_RE.test(owner)) ctx.fail('INVALID', 'The owner is the party or a member.');
@@ -2085,6 +2089,8 @@ function usersOf(query, inventory, items, members) {
 // stored, so it lifts by itself once something is put down. Who is over their own capacity is named
 // (through the party module's members); a party over its whole capacity is the party.
 export const ENCUMBERED_PENALTY = -2;
+/** The capacity a def adds to what its owner carries (a pack item's `carry`), or null. */
+export const defCarry = def => (isCount(def?.carry, 1) && def.carry <= CARRY_MAX ? def.carry : null);
 export const ENCUMBERED_STATS = Object.freeze(['AGI', 'DEX']);
 
 /**
@@ -2224,7 +2230,7 @@ export const createInventoryQueries = env => ({
     // encumbered, penalty } } (part 2's rolls read it), and `gear.carry`, `items.carry`'s answer when no carry module gives one.
     ...createGearQueries({
         on: () => gearIsOn(env),
-        condOf, carryOf: def => (isCount(def?.carry, 1) && def.carry <= CARRY_MAX ? def.carry : null), penalty: ENCUMBERED_PENALTY, feature: FEATURE.gear,
+        condOf, carryOf: defCarry, penalty: ENCUMBERED_PENALTY, feature: FEATURE.gear,
         names: (state, tools, id) => gearWearers(state, tools, env).names.get(id) ?? (id === 'party' ? 'The party' : String(id)),
         owners: (state, tools) => gearWearers(state, tools, env).owners,
     }),

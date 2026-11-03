@@ -6,7 +6,7 @@ import { slotWordOf } from '../domains/gear.js';
 
 /**
  * The cast entry a name means (its name or an alias, folded) and the pack items of its `gear`, in the order written:
- * `{ id, name, pack, items: [{ id, name, slot }] }` or null. `packs`: the enabled packs (`packs.packs()`); the first pack with the person wins.
+ * `{ id, name, aliases, pack, items: [{ id, name, slot }] }` or null. `packs`: the enabled packs (`packs.packs()`); the first pack with the person wins.
  */
 export function castGearOf(packs, name) {
     const key = foldKey(oneLine(name));
@@ -17,7 +17,7 @@ export function castGearOf(packs, name) {
         const byId = new Map((pack.content.items ?? []).map(item => [item.id, item]));
         const items = (person.gear ?? []).map(id => byId.get(id)).filter(item => item && item.kind === 'equipment' && slotWordOf(item.slot))
             .map(item => ({ id: item.id, name: item.name, slot: slotWordOf(item.slot) }));
-        return { id: person.id, name: person.name, pack: pack.id, items };
+        return { id: person.id, name: person.name, aliases: [...(person.aliases ?? [])], pack: pack.id, items };
     }
     return null;
 }

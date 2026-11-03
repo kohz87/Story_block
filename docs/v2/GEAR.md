@@ -120,7 +120,9 @@ checked when the pack is read. With the switch on:
   cast entry), each item is added to the inventory owned by them (the party's actor of that name when a party module lists one, else
   the party's bag) and put on in its slot through `item.equip`, condition Good, as part of the join's own receipt: the summary ends
   "Gear: Cane Sword, Oak Buckler." and `data.gear` lists them. A swipe, a delete or a Re-read of the reply takes the join and the
-  gear away together; a rebuild gives the same. In the party's bag a slot already taken stays as it is and the piece is carried.
+  gear away together; a rebuild gives the same. In the party's bag a slot already taken stays as it is and the piece is carried (a Problems line says so).
+  Everything that could be refused is checked first, never tried: a piece is looked up and granted by its definition ID (a story item of the same name, or
+  two of that name, cannot get in the way), so a join never fails for its gear.
 * **Coming back.** Someone who left and comes back (`- party`, then `+ party`) keeps what they own: only a piece no longer owned is
   given again, and nothing is duplicated.
 * **The narrator's cast entry.** While the person is not in the party the query `packs.castGear { name }` answers
@@ -136,18 +138,21 @@ give the same answers (tests/v2/gear-inventory.test.js).
 
 ## In the rolls (part 2)
 
-While the switch is on, the planner asks the inventory what each member has on and carries (lean-rpg/gear.js `planGear`) and the answer goes in the
-`rpg.resolve` payload as `gear: { v: 1, who: { <member>: { own, add?, enc?, items? } } }`: `own` the owners the member's pieces are filed under (their
-party actor, and `party` for the first character, the lead), `add` the summed stat bonus (broken pieces give none), `enc` the encumbered penalty (-2),
-`items` the pieces that give something. The record is hashed with the roll (predicate and result), so a Re-read, a rebuild and a reload roll with it and
-equipping something later never moves a roll that was made; a roll with no `gear` is exactly as before, and off nothing asks the inventory.
+While the switch is on, the roll's payload carries only the version mark, `gear: { v: 1 }`. `rpg.resolve` works the gear out itself from the state before the roll
+(lean-rpg/gear.js `planGear`, over the inventory's own answers) into the record `gear: { v: 1, who: { <member>: { own, add?, enc?, items? } } }`: `own` the owners
+the member's pieces are filed under (their party actor, and `party` for the lead), `add` the summed stat bonus (broken pieces give none), `enc` the encumbered
+penalty (-2), `items` the pieces that give something. The record is hashed with the roll (predicate and result), so a rebuild and a reload roll with it and
+equipping something later never moves a roll that was made. A change **before** the roll does change its gear: the guard asks the state before the roll for the same
+pieces and load (`gearMatches`), so deleting, or editing and Re-reading, the reply that gave and equipped the gear takes the roll off and it is rolled again
+without it. A roll with no `gear` (made before) is exactly as before, and off nothing asks the inventory.
 
 * Stats: effective = stat + bonus, held to 30, then AGI and DEX -2 while encumbered (never under 1). Both formulas, the turn order and the Settings odds read
   these; the bars' sizes (blocks) follow the block's own stats, never the gear.
 * Whose bag is `party`: the reader's own Character, found by the party module's main character (`party.pc`), else the Character named like the persona; only
   when none matches is it the first block (a companion who sorts first is not the reader).
 * A party member is a Character when the names are the same, or one is the first name of the other ("Ren" is "Ren Ashby"), or an alias of the member says so
-  (`sameWho`, lean-rpg/gear.js). An exact name wins: a first name or alias counts only for a member no other Character is exactly called.
+  (`sameWho`, lean-rpg/read.js). An exact name wins, and a first name or alias counts only when it means exactly one Character: with "Ren Ashby" and "Ren Holt"
+  a member "Ren" is neither. `packs.castGear` asks the same question for "already in the party".
 * Encumbered is at 100 % and over (load at or over the capacity; an empty load never) **only with gear on**; with gear off the limit is as it always was
   (more than the capacity: exactly 5 of 5 is not encumbered). The roll penalty, `inventory.encumbrance`, and the Carry card
   (red "Encumbered" from 100 %, yellow "Heavy load" from 80 % to below 100 %).
@@ -156,6 +161,7 @@ equipping something later never moves a roll that was made; a roll with no `gear
   has `wear: [{ n, who, item, from, to }]`; the cue and the log say "Boiled Leather Jerkin is worn (Torn)". The wear lines count inside the cue budget (the
   rounds told are fitted with the wear they would cause), and the cue a reader gets from the receipt is rebuilt from the record, wear included. A roll
   that is planned again (Re-read, rebuild) wears by its stored `gear` record, never by today's switch, so switching gear off does not take wear away.
+  `gear.wear { recorded: true }` is accepted only from the RPG's own nested call in `rpg.resolve`; a pack event step or a top-level call is refused it.
 * A later delete, equip or unequip never changes a stored roll's bonus: the record in the roll wins (and a later repair or wear does not rewrite what it
   said), so what a roll rolled with is what it keeps.
 * `wear: ruin` from the story breaks the piece in one step (condition 0); scuff and tear are as before.

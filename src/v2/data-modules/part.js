@@ -541,8 +541,10 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     }
     // A cast member's signature gear (cast.js `gear`, GEAR.md): with `story-block.gear` on, the joining person's pack items are added to the
     // inventory owned by them (the party's actor of that name, else the party's bag) and put on, through the inventory's own commands, so
-    // the items are part of the join's one receipt. What they already own is not added again; a slot that is taken is left as it is.
-    // Gear off, or no gear: nothing here runs and the answer is untouched.
+    // the items are part of the join's one receipt. A command that fails inside another fails the whole receipt (the join with it), so everything that
+    // could be refused is checked first here, never tried: each piece is looked up by its definition ID (a story item of the same name never gets in
+    // the way), what they already own is not added again, a slot that is taken is left as it is (the piece is carried, not worn), and a piece that
+    // cannot be found goes to the Problems list. Gear off, or no gear: nothing here runs and the answer is untouched.
     function giveGear(ctx, answer, name) {
         if (!gearOn(ctx)) return answer;
         let found = null;
@@ -554,24 +556,30 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             const actor = (Array.isArray(actors) ? actors : []).find(entry => typeof entry?.id === 'string' && fold(entry.name) === fold(name));
             if (actor) owner = actor.id;
         } catch { owner = 'party'; }
-        const stacks = Object.values(ctx.read('inventory')?.stacks ?? {}).filter(stack => stack.owner === owner);
+        const inventory = ctx.read('inventory');
+        const stacks = Object.values(inventory?.stacks ?? {}).filter(stack => stack.owner === owner);
         const taken = new Set(stacks.map(stack => stack.equipped).filter(Boolean));
         const held = new Set(stacks.map(stack => stack.def));
-        const added = [];
+        let packed = [];
+        try { packed = ctx.query('packs.itemDefs', { ids: found.items.map(item => item.id) }); } catch { packed = []; }
+        const added = [], notes = [];
         for (const item of found.items) {
             if (held.has(item.id)) continue;
+            // (the def by its ID: the chat's own when it already has it, else the pack's, which the grant defines)
+            const def = inventory?.defs?.[item.id] ? item.id : (Array.isArray(packed) ? packed : []).find(entry => entry?.id === item.id);
+            if (!def) { notes.push(`${found.name}'s ${item.name} could not be found in the pack, so it was not given.`); continue; }
             const places = item.slot === 'accessory' ? ['accessory-1', 'accessory-2'] : [placeOf(item.slot)];
-            try {
-                const given = ctx.call('inventory.grant', { name: item.name, qty: 1, owner });
-                const stack = given?.data?.stacks?.[0];
-                const place = places.find(key => !taken.has(key));
-                if (given?.data?.def === item.id && stack && place) {
-                    const worn = ctx.call('item.equip', { stack, owner, slot: place });
-                    taken.add(worn?.data?.place ?? place);
-                }
-                added.push(item.name);
-            } catch { /* this piece could not be carried: the join goes on without it */ }
+            const place = places.find(key => !taken.has(key));
+            const given = ctx.call('inventory.grant', { def, qty: 1, owner });
+            const stack = given?.data?.stacks?.[0];
+            if (!stack) { added.push(item.name); continue; }
+            if (place) {
+                const worn = ctx.call('item.equip', { stack, owner, slot: place });
+                taken.add(worn?.data?.place ?? place);
+            } else notes.push(`${found.name}'s ${item.name} is carried, not worn: the ${item.slot} slot is taken.`);
+            added.push(item.name);
         }
+        if (notes.length) answer.problem = [answer.problem, ...notes].filter(Boolean).join(' ');
         if (!added.length) return answer;
         answer.summary = `${answer.summary} ${gearLine(found.items.filter(item => added.includes(item.name)))}.`;
         answer.data.gear = { owner, items: added };

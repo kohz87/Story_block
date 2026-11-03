@@ -27,14 +27,23 @@ const RULES = { classic: { ...PRESETS.standard, levelDivisor: 5 }, standard: { .
 const PLAN = { pace: 'all', acts: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats' }], foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }], checks: [] };
 const GEAR = { v: 1, who: { wessel: { own: ['party'], add: { str: 2, vit: 1 }, items: [{ name: 'Cane Sword', stats: { str: 2 } }, { name: 'Iron Cap', stats: { vit: 1 } }] } } };
 
-// A stand-in inventory: what Wessel wears (owner `party`), each piece with a condition; `gear.wear` goes one condition word down.
-function inventory(pieces = { weapon: ['Cane Sword', 100], body: ['Boiled Leather Jerkin', 100] }) {
+// A stand-in inventory: what Wessel wears (owner `party`), each piece with a condition; `gear.wear` goes one condition word down. Given a gear record
+// (`record`, the shape a roll keeps) it answers what that record was worked out from: the bonus, the pieces that give it and the load. (Pinned change, R1: the
+// roll's payload carries only the mark, so `rpg.resolve` asks the inventory for these instead of being handed the record.)
+function inventory(pieces = { weapon: ['Cane Sword', 100], body: ['Boiled Leather Jerkin', 100] }, record = null) {
     const worn = Object.fromEntries(Object.entries(pieces).map(([place, [name, cond]]) => [place, { name, cond }]));
-    const calls = [];
-    const slots = () => Object.fromEntries(Object.entries(worn).map(([place, piece]) => [place, { name: piece.name, cond: piece.cond, broken: piece.cond === 0, stats: {} }]));
+    const calls = [], entry = record ? Object.values(record.who)[0] : null;
+    const statsOf = name => Object.fromEntries(Object.entries(entry?.items?.find(item => item.name === name)?.stats ?? {}).map(([stat, n]) => [stat.toUpperCase(), n]));
+    const slots = () => {
+        const out = Object.fromEntries(Object.entries(worn).map(([place, piece]) => [place, { name: piece.name, cond: piece.cond, broken: piece.cond === 0, stats: statsOf(piece.name) }]));
+        for (const item of entry?.items ?? []) if (!Object.values(out).some(piece => piece.name === item.name)) out[`extra-${item.name}`] = { name: item.name, cond: 100, broken: false, stats: statsOf(item.name) };
+        return out;
+    };
     return {
         calls, worn,
-        query: (name, args) => (name === 'inventory.gear' ? { on: true, owner: args.owner, slots: args.owner === 'party' ? slots() : {}, statBonus: {}, carry: {} } : null),
+        query: (name, args) => (name === 'inventory.gear' ? { on: true, owner: args.owner, slots: args.owner === 'party' ? slots() : {},
+            statBonus: args.owner === 'party' ? Object.fromEntries(Object.entries(entry?.add ?? {}).map(([stat, n]) => [stat.toUpperCase(), n])) : {},
+            carry: { encumbered: Boolean(entry?.enc), penalty: entry?.enc ?? 0 } } : null),
         call(type, payload) {
             calls.push([type, payload]);
             const place = payload.slot === 'defence' ? (worn.body ? 'body' : 'off-hand') : payload.slot, piece = worn[place];
@@ -45,16 +54,16 @@ function inventory(pieces = { weapon: ['Cane Sword', 100], body: ['Boiled Leathe
     };
 }
 
-function run({ b = blocks(), plan = PLAN, rules = RULES.classic, gear, seed = 1, inv = inventory() } = {}) {
+function run({ b = blocks(), plan = PLAN, rules = RULES.classic, gear, seed = 1, inv = inventory(undefined, gear) } = {}) {
     const domain = sheetDomain(b), random = rng(seed);
     const ctx = { cause: 'system', caller: null, module: 'story-block', epoch: 1, source: {}, fail: (code, message) => { throw new Error(`${code}: ${message}`); },
         read: () => domain, draft: () => structuredClone(domain), claim: () => true, rng: random, roll: expression => roll(random, expression), hash: hashJson,
         replayGuard(guard, recorded) { ctx.guard = { guard, recorded }; }, query: inv.query, call: inv.call };
-    const payload = { key: '1-abc', plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, ...(gear ? { gear } : {}) };
+    const payload = { key: '1-abc', plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, ...(gear ? { gear: { v: 1 } } : {}) };
     const out = resolve(ctx, payload);
     return { out, ctx, result: out.data.v2.result, text: out.summary || cueOfResult(out.data.v2.result), inv, payload };
 }
-const seedWhere = (found, options) => { for (let seed = 1; seed <= 400; seed += 1) { const made = run({ ...options, seed, inv: inventory() }); if (found(made)) return seed; } return null; };
+const seedWhere = (found, options) => { for (let seed = 1; seed <= 400; seed += 1) { const made = run({ ...options, seed, inv: inventory(undefined, options.gear) }); if (found(made)) return seed; } return null; };
 
 test('applyGear: stat + the pieces\' bonus held to 30, then AGI and DEX less the encumbered penalty (never under 1); the block\'s own stats are kept as `base`', () => {
     const sheet = sheetOf(blocks({ str: 14, agi: 12, dex: 2, vit: 29 }));
@@ -179,11 +188,11 @@ test('wear: a decisive hit taken wears the body armour one step, a decisive miss
     assert.ok(log.rounds.some(round => round.wear?.includes('Boiled Leather Jerkin is worn (Worn)')));
     assert.ok(lines.some(line => line.pc.gear), 'a line names the gear');
     // a broken piece wears no further
-    const broken = run({ gear: GEAR, seed, inv: inventory({ weapon: ['Cane Sword', 0], body: ['Boiled Leather Jerkin', 0] }) });
+    const broken = run({ gear: GEAR, seed, inv: inventory({ weapon: ['Cane Sword', 0], body: ['Boiled Leather Jerkin', 0] }, GEAR) });
     assert.equal(broken.result.wear, undefined);
     assert.deepEqual(broken.inv.calls, []);
     // no piece worn: no wear
-    assert.equal(run({ gear: GEAR, seed, inv: inventory({}) }).result.wear, undefined);
+    assert.equal(run({ gear: GEAR, seed, inv: inventory({}, GEAR) }).result.wear, undefined);
 });
 
 test('wear words: "worn (Torn)", and a piece that breaks says so', () => {
