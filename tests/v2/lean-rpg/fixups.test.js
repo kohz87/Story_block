@@ -78,7 +78,7 @@ test('2: a pack that names Classic (the reader chose nothing) makes a Classic co
     await hero(plain);
     await plain.send('Mara arrives.', '+ party Mara | about: a hedge-witch | class: I | best: int');
     const standardMara = plain.sdk.query('dataModules.view', { module: 'pack.chat/mara' })?.chat;
-    assert.deepEqual([standardMara.str, standardMara.int], [5, 9]);
+    assert.deepEqual([standardMara.str, standardMara.int], [5, 10], 'class I stands for level 5: one point to the best stat (a point for every third level)');
 });
 
 test('5: the planner\'s words for bars come from the block\'s own size and value, whatever formula the chat plays', { skip }, async t => {

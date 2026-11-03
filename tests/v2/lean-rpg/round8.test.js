@@ -276,7 +276,7 @@ test('C: the odds line and the "adds" label follow the player\'s Character block
     doc.body.appendChild(parent);
     const settings = Object.assign(() => ({ rpgFormula: 'classic', rpgDifficulty: 'custom', rpgCustom: { ...STANDARD } }), { set: () => {} });
     renderRpgSettings(parent, { settings, doc, headState: () => renamed, readerName: () => 'Wessel', roleOf });
-    assert.deepEqual(parent.querySelector('[data-card="difficulty"]').querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level adds']);
+    assert.deepEqual(parent.querySelector('[data-card="difficulty"]').querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level divisor'], 'the row that was "Soul Class adds" is the Level divisor');
 });
 
 test('C: the battle log says "Class II" by default and the field\'s own word when it is renamed', () => {
@@ -299,8 +299,8 @@ test('C: a companion\'s class is read with the story\'s own names, and the refus
     assert.equal(soulNaming(world(true)).label, 'Level');
     assert.equal(soulNaming(fakeState([])).label, 'Soul Class');
     const card = joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], world(true));
-    assert.equal(card.rows[0].text, 'Level 3');
-    assert.equal(joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], fakeState([])).rows[0].text, 'Soul Class III');
+    assert.equal(card.rows[0].text, 'Level 25', 'F12: the card says the level the class stands for');
+    assert.equal(joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], fakeState([])).rows[0].text, 'Level 25');
 });
 
 test('C: the planner text is byte-identical with the default names', () => {
