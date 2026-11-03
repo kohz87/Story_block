@@ -52,6 +52,7 @@ import { capture as captureSnapshot } from './timeline/manifest.js';
 import { stateHash } from './timeline/host-block.js';
 import { newRoot, occurrenceOf, operationKey, receiptEvidence, submitProof } from './evidence.js';
 import { rpgLib } from './rpg-lazy.js';
+import { entriesWithCue } from './lean-rpg/cue.js';
 
 export const MAX_DEPTH = 8;
 const CAUSES = ['ui', 'story', 'system'];
@@ -336,7 +337,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 if (!fn) fail('NOT_FOUND', `There is no query called "${name}".`);
                 return frozenCopy(fn(state, deepFreeze(clone(args)), tools));
             },
-            receipts: () => store.receipts?.() ?? [],
+            receipts: () => entriesWithCue(store.receipts?.() ?? []),
             // The proof this root has given so far (not stored yet), for story.evidence (evidence.js).
             pendingProofs: () => [...(tx.planned ?? []), ...(tx.proofs?.list ?? [])].map(proof => ({ proof, block: null })),
         });
