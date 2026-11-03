@@ -6,7 +6,8 @@
 // 1 / 2 / 3 classes lower than theirs and nothing for 4 or more, times 150%, 200% … for a higher one; summed and rounded down, held to 1..60, and
 // nothing at 0, with no receipt line; Soul Class II against six Class I crawlers gives 6). The groups of the fight are the ones that were standing when the reply began and are still on the Foes
 // block; a group the narrator cleared is not Down, it is gone (fled, yielded), and a fight with none of its groups left is not won. A later reply that fills
-// the slots again and wins is a new fight, since the groups it starts from are the standing ones.
+// the slots again and wins is a new fight, since the groups it starts from are the standing ones. A group that arrives in the reply itself (the pre-call's
+// opened foes, or the narrator's own set-slot line) is part of that reply's fight, so a fight opened and won in one reply is paid.
 //
 // How. `fightHook` (the part's afterCapture) compares the reply's state with the one before it (view.before) and, only for a won fight, asks for the step
 // `rpg.fight { was }`: `was` = the slots standing before the reply. The step is a guarded block on the reply (replan: a swipe or a delete takes it away, a
@@ -21,7 +22,7 @@
 // The record (the step's receipt `data.v2.result.fight`): { groups: [{ slot, name, count, class }], awards: [{ who, module, xp, held? }] } (xp is the member's own).
 import { createEvaluation } from '../data-modules/interpreter.js';
 import { FIGHT, FIGHT_XP, FOE_SLOTS, LEAN_RPG_FEATURE } from './names.js';
-import { readSheet } from './read.js';
+import { fold, readSheet } from './read.js';
 
 /** The replies whose story is paid for (the same as the reply-end steps of the blocks: not a Continue's, nor the extractor's late lines). */
 const PAID_TYPES = Object.freeze(['normal', 'swipe', 'regenerate', 'reread']);
@@ -92,7 +93,11 @@ export function fightHook(view, info) {
     const earlier = typeof view.before === 'function' ? view.before() : null;
     if (!earlier) return undefined;
     const before = readSheet(earlier);
-    const was = standingSlots(before);
+    // The groups the fight began with: the ones standing before the reply, and the ones that arrived in it (the pre-call's opened foes, put on the block by the
+    // reply's roll, or the narrator's own set-slot line): a slot that was empty before, or held another group, and is filled now.
+    const filledBefore = new Map(before.foes.filter(foe => foe.filled).map(foe => [foe.slot, fold(foe.name)]));
+    const arrived = filled.filter(foe => filledBefore.get(foe.slot) !== fold(foe.name)).map(foe => foe.slot);
+    const was = [...new Set([...standingSlots(before), ...arrived])].sort((a, b) => a - b);
     if (!was.length || !fightOf(sheet, was).won) return undefined;
     return { commands: [{ type: FIGHT, payload: { was } }] };
 }

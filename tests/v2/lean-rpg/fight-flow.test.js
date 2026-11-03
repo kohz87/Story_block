@@ -9,7 +9,7 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { FIGHT, FIGHT_XP, FIGHT_XP_HELD, FLOW_VERSION, LEAN_RPG_FEATURE, LIMITS, PRESETS, RESOLVE, STANDARD_FORMULA, FORMULA_SETTING, fightOf, memberXp, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { fightLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 
@@ -407,5 +407,57 @@ test('a member whose XP comes to 0 gets none and no receipt line; another member
     await host.send('I finish them.', reply(DOWN));
     assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [6, 0], 'Soul Class V or more above Class I crawlers: nothing');
     assert.deepEqual(fightLines(host.ctx.chat[6].extra.storySuite).map(line => line.text), ['Astra +6 XP (fight won)']);
+    same(host);
+});
+
+// ---- a fight opened and won in the same reply -------------------------------------------------------------------------------
+
+const AMBUSH = 'Mud-scale crawlers boil out of the silt. I ambush them.';
+const OPENING = ['pace: normal', 'foe Mud-Scale Crawlers | new | count: 6 | class: I', 'act Astra | stat: STR | target: Mud-Scale Crawlers', 'foe Mud-Scale Crawlers | target: Astra | defend: AGI'].join('\n');
+
+test('a fight opened by the pre-call and won in the same reply is paid once; a swipe that opens it and does not win pays nothing; Re-read, rebuild and reload agree', { skip }, async t => {
+    const { host } = await world(t, { answers: [OPENING, OPENING, 'none'] });
+    await host.send(AMBUSH, reply(DOWN));
+    assert.equal(host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields.count1, 6, 'the pre-call opened the crawlers');
+    assert.equal(fields(host, 'Astra').xp, 6, 'Soul Class II against six Class I crawlers');
+    assert.equal(host.ctx.chat[4].extra.storySuite.receipts.filter(receipt => receipt.type === FIGHT).length, 1);
+    assert.deepEqual(fightLines(host.ctx.chat[4].extra.storySuite).map(line => line.text), ['Astra +6 XP (fight won)']);
+    same(host);
+    const head = JSON.stringify(host.head());
+    assert.equal((await host.turn.reread(4)).ok, true);
+    assert.equal(JSON.stringify(host.head()), head, 'a Re-read gives the same story');
+    await reloads(host);
+    await host.swipe(reply('~ dm foes — why | kind: hurt-1 | to: 3'));
+    assert.equal(host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields.count1, 6, 'the swipe opened the crawlers again');
+    assert.equal(fields(host, 'Astra').xp, 0, 'opened, hurt, not won');
+    assert.equal(host.ctx.chat[4].extra.storySuite.receipts.filter(receipt => receipt.type === FIGHT).length, 0);
+    same(host);
+    await host.send('I finish them.', reply(DOWN));
+    assert.equal(fields(host, 'Astra').xp, 6, 'won in the next reply: paid then');
+    same(host);
+});
+
+test('a fight the narrator opens with its own set-slot line and wins in the same reply is paid once', { skip }, async t => {
+    const { host } = await world(t);
+    await host.send('A swarm, dead at once.', reply(SLOT, DOWN));
+    assert.equal(fields(host, 'Astra').xp, 6);
+    same(host);
+    await host.send('We rest.', reply(XP(0)));
+    assert.equal(fields(host, 'Astra').xp, 6, 'the beaten group does not pay again');
+});
+
+test('Standard dice: a fight opened by the pre-call and won by the dice in the same reply is paid', { skip }, async t => {
+    const answer = ['foe Mud-Scale Crawlers | new | count: 2 | class: I', 'act Astra | type: physical | target: Mud-Scale Crawlers'].join('\n');
+    const model = createFakeModel([answer]);
+    const host = await createHost({ callModel: model });
+    t.after(() => host.close());
+    host.features.set(LEAN_RPG_FEATURE, true);
+    await host.send('Begin.', 'Opening.');
+    for (const entry of STANDARD_TEMPLATES.slice(0, 3)) success(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', soul: 2, str: 20, dex: 20 } }));
+    await host.send(AMBUSH, 'The crawlers are beaten.');
+    const result = rollReceipt(host, 4).data.v2.result;
+    assert.equal(result.stop, 'won');
+    assert.equal(fields(host, 'Astra').xp, 2, '2 × 1 × 2 = 4, Soul Class II: 50 %');
     same(host);
 });
