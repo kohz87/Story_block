@@ -38,7 +38,7 @@ test('the page is its own rail entry after Features, with seven cards in order a
     const { doc, root, card } = await open(t);
     assert.deepEqual(rail(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
     assert.equal(root.querySelector('.ss-settings-page-sub').textContent, 'How the dice work, and what the narrator and the roll planner are told.');
-    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
+    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join', 'Gear in fights']);
     assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: before each reply a short AI call plans the actions and code rolls the dice\. Off: no dice; the story decides\./);
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);

@@ -105,7 +105,7 @@ test('picking: sets the switches through the store, redraws them, tells the chan
     assert.deepEqual([CORE_FEATURE.weather, CORE_FEATURE.choices, CORE_FEATURE.chatter].map(switchOf), [true, true, true]);
     assert.equal(said(form), PROMPT_HINT);
     // The group counts follow the switches.
-    assert.match(form.group('story-block').querySelector('.ss-section-hint').textContent, /^\d+ of 14 on$/);
+    assert.match(form.group('story-block').querySelector('.ss-section-hint').textContent, /^\d+ of 15 on$/);
 
     // Picking the preset that already holds changes nothing and clears the note.
     changes.length = 0;

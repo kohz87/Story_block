@@ -78,6 +78,7 @@ const CARD_WORDS = Object.freeze({
     combat: words(S.combat, S.combatHelp, S.combatLabel, S.combatReset),
     planner: words(S.planner, S.plannerHelp, S.plannerShow, S.plannerFixed),
     join: words(S.join, S.joinHelp, S.joinAsk, S.joinAuto, S.joinOff),
+    gear: words(S.gear, S.gearHelp, S.gearOn, S.off),
 });
 
 /**
@@ -87,7 +88,7 @@ const CARD_WORDS = Object.freeze({
  * host's commands: the Combat rules text is saved with `dm.redefine`, and added with `dm.define`).
  * → { el, filter(text) → count, refresh(), refreshSize(), destroy() }, as a settings page body expects.
  */
-export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null, pack = () => null } = {}) {
+export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null, pack = () => null, gear = null } = {}) {
     const root = h(doc, 'div', 'rpg-set');
     parent.appendChild(root);
     const values = () => settings(SETTINGS_MODULE) ?? {};
@@ -222,6 +223,14 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         const box = card('join', S.join);
         chips(box, S.join, [['ask', S.joinAsk], ['auto', S.joinAuto], ['off', S.joinOff]], joinMode(values()), value => put(JOIN_SETTING, value));
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.joinHelp));
+    }
+
+    // ---- Gear in fights (the feature `story-block.gear`, kept off the Features list; `gear` = { on(), set(value) }, none without a host)
+    function drawGear() {
+        if (!gear) return;
+        const box = card('gear', S.gear);
+        chips(box, S.gear, [['off', S.off], ['on', S.gearOn]], gear.on() ? 'on' : 'off', value => { gear.set(value === 'on'); onChange(); });
+        box.appendChild(h(doc, 'p', 'rpg-set-help', S.gearHelp));
     }
 
     // ---- Difficulty and the odds
@@ -436,6 +445,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         drawCombat();
         drawPlanner();
         drawJoin();
+        drawGear();
         live();
         place();
     }

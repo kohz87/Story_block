@@ -58,7 +58,7 @@ function addStyle(doc) {
  * commands (the settings page saves the Combat rules text through `dm.redefine`); `closeView()` closes the game view
  * ("See it in the story" on the Fight tab); `refresh()` redraws the tabs.
  */
-export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, openDialog = null, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null }) {
+export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, gear = null, openDialog = null, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null }) {
     const link = addStyle(doc);
     // The numbers a roll would be made with now (Settings → RPG): the roll line on a skill and a class-up note state them.
     // What the story's pack asks for (its formula and numbers), with the pack's name: the default of a reader who has chosen nothing.
@@ -100,7 +100,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         exporter,
         start,
         cardLines: info => { try { return rpgReplyLines({ ...info, roleOf, rules: rules() }); } catch { return []; } },
-        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack })],
+        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack, gear })],
         heroLead: state => { try { return heroLead(state, { own: readerName(), roleOf, ...levels() }); } catch { return null; } },
         destroy() {
             battleLog.destroy();
