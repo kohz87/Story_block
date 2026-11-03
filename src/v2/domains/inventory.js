@@ -439,10 +439,10 @@ function hookScale(env) {
 
 function buildDef(def, env, about, keep = {}) {
     const id = def.id;
-    // The kind word of a story line (`+ item Healing Draught | kind: consumable`): a new plain item takes the inventory kind it names (consumable, material, quest);
+    // While gear is on, the kind word of a story line (`+ item Healing Draught | kind: consumable`): a new plain item takes the inventory kind it names (consumable, material, quest);
     // a gear word (weapon, cloak, ...) is not one and is read by the gear step below.
     const saidKind = STORY_KIND[String(about.words?.kind ?? '').normalize('NFKC').toLowerCase().trim().split(/[^a-z]+/).find(word => Object.hasOwn(STORY_KIND, word))];
-    if (saidKind && def.kind === 'goods') def.kind = saidKind;
+    if (about.gear === true && saidKind && def.kind === 'goods') def.kind = saidKind;   // (only with gear on: gear off builds the def exactly as 2.17.0 did)
     // Gear (`story-block.gear`): the slot and rarity the line's words and the name give, before the modules' hooks.
     if (about.gear === true) {
         gearDefine(def, about.words ?? {}, {

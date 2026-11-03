@@ -294,15 +294,15 @@ test('no party module: nothing is given to the party bag (its worn gear is the r
     assert.deepEqual(rows(host), []);
 });
 
-test('an item line\'s kind word names the inventory kind: consumable (potion, draught, food), material, quest; a plain item stays goods', { skip }, async t => {
+test('with gear on an item line\'s kind word names the inventory kind (gear off: goods, as 2.17.0): consumable (potion, draught, food), material, quest; a plain item stays goods', { skip }, async t => {
     for (const gear of [false, true]) {
         const host = await createHost({ settings: { features: gear ? { 'story-block.gear': true, 'story-block.rpg': true } : {} } });
         t.after(() => host.close());
         await host.send('Begin.', 'Opening.');
         await host.send('Loot.', reply('+ item Healing Draught | kind: consumable', '+ item Red Potion | kind: potion', '+ item Pine Resin | kind: material', '+ item Brass Key | kind: quest', '+ item Odd Stone'));
         const kind = name => host.sdk.query('inventory.definitions').find(def => def.name === name).kind;
-        assert.deepEqual(['Healing Draught', 'Red Potion', 'Pine Resin', 'Brass Key', 'Odd Stone'].map(kind), ['consumable', 'consumable', 'material', 'quest', 'goods'], `gear ${gear}`);
+        assert.deepEqual(['Healing Draught', 'Red Potion', 'Pine Resin', 'Brass Key', 'Odd Stone'].map(kind), gear ? ['consumable', 'consumable', 'material', 'quest', 'goods'] : Array(5).fill('goods'), `gear ${gear}: off builds the def as 2.17.0 did`);
         host.store.rebuild();
-        assert.deepEqual(host.sdk.query('inventory.definitions').find(def => def.name === 'Healing Draught').kind, 'consumable');
+        assert.deepEqual(host.sdk.query('inventory.definitions').find(def => def.name === 'Healing Draught').kind, gear ? 'consumable' : 'goods');
     }
 });
