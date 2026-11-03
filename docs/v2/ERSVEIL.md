@@ -45,7 +45,7 @@ and 56 notable people to the lorebook. Re-import the lorebook too.
 * SillyTavern → World Info → **Import World Info** → `examples/packs/ersveil/ersveil-lore.json`, a book
   named **Ersveil Lore** with 227 entries. Make it active for the chat (attach it to the narrator card or
   set it as a global book).
-* It is lore, not rules: Soul Class, the Guild letters F to S (with what a contract of each pays), the ten
+* It is lore, not rules: levels, the Guild letters F to S (with what a contract of each pays), the ten
   peoples, the thirteen callings, prices and wages, the bestiary, factions and places, and 56 notable people
   (rulers, champions, saints, famous adventurers), each told to the narrator only when named. The people
   are as they stand when the story starts; what happens to them later comes from the story and its events, which
@@ -55,7 +55,7 @@ and 56 notable people to the lorebook. Re-import the lorebook too.
 
 * **Character card:** a narrator card, for example `Ersveil` with "{{char}} narrates Ersveil and plays
   every person in it except {{user}}."
-* **Persona:** your own character; their people, calling and Soul Class are what you write.
+* **Persona:** your own character; their people, calling and level are what you write.
 * **First message:** your own opening at Bluewatch Village, at the Guild office.
 
 ## 5. The four data modules
@@ -115,6 +115,8 @@ opens as Trust or Affection grows or when the story reaches it; none of it is to
 | Hush | Vargate | A spirit of silver rain who lights the night lamps and guides the lost. |
 | Asphodel | Corrowen | A calm, watchful stranger who sells secrets in the harbor taverns. |
 | Barney Thimblewick | Thousand Sails | A halfling barge gambler and con man, the cast's grandfather figure (not a romance). |
+
+Starting levels (rank band): Temiwa 8 (F), Rika 12 and Barney 14 (E), Torka 18 (E), Gorm 22 and Nerissa 24 (D), Asphodel 30, Lothar 32 and Ysmeth 36 (C), Nysseth 44 and Hush 48 (B), Harrak 56 (A).
 
 The eleven who can be romanced use NPC State Delta's companion meters (Trust, Affection, Desire, Tension); Barney uses the mentor's, with no Desire.
 
