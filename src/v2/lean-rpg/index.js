@@ -22,7 +22,7 @@ export * from './names.js';
 export { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, FORMULA_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_KEYS, RULE_RANGES, STANDARD, STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_RANGES, STANDARD_RULE_KEYS, STANDARD_SETTING, STAT_ABOVE, difficultyOf, formulaOf, isStandard, normalizeRules, packInForce, packRulesOf, normalizeStandard, oddsFor, oddsSubject, plannerNoteOf, presetOf, rulesFromSettings, sameRules, statShare, subjectOdds } from './rules.js';
 export { createPlanHold, parsePlanAnswer, planIsEmpty, validatePlan } from './plan.js';
 export { characterOf, fold, matchCharacter, matchFoe, matchName, matchSkill, readSheet } from './read.js';
-export { NO_ROLLS_LINE, OUTCOME_WORD, cueText, fitCue, lineText } from './cue.js';
+export { NO_ROLLS_LINE, OPEN_FIGHT_LINE, OUTCOME_WORD, cueText, fitCue, lineText } from './cue.js';
 export { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from './join.js';
 export { setStartNotes, skipOf, startNotes } from './start.js';
 export { PRECALL_HEAD, claimed, createPrecall, precallPrompt, sheetText } from './precall.js';

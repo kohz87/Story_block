@@ -139,6 +139,9 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
     return lines.join('\n');
 }
 
+// No foe is on the Foes block and nothing was rolled for this reply: if a fight starts now, the narrator sets the Foes line and stops at the first clash.
+export const OPEN_FIGHT_LINE = 'No foes are set and no rolls this reply: if a fight starts now, set the Foes line and stop at the first clash; the dice decide from the next reply.';
+
 export const NO_ROLLS_LINE = 'No rolls this reply: keep the fight undecided, one exchange, nobody goes Down.';
 
 /**
