@@ -224,7 +224,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1 } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -254,7 +254,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
         const [line] = spent(entry, [{ kind: 'check', type: entry.type, skill: entry.skill, pc: { ...entry.pc, die, total }, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeStd(die, total, entry.dc, rules) }]);
         return line;
     });
-    const most = fight.length ? Math.min(PACE[plan.pace], rules.roundCap) : 0;
+    const most = fight.length ? Math.min(flow === 2 && plan.pace !== 'careful' ? rules.roundCap : PACE[plan.pace], rules.roundCap) : 0;
 
     // The turn order: kept when the fight goes on (a foe of the carried order is still there), else rolled here. A late arrival rolls on entry.
     const here = [...characters.filter(bar => standing(bar.id)), ...foes.filter(bar => standing(bar.id))];
@@ -362,24 +362,31 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
             }
         }
         const decisive = roundLines.some(line => line.decisive);
-        const over = !foes.some(bar => standing(bar.id)) || !characters.some(bar => standing(bar.id));
-        all.push({ n, decisive, over, lines: roundLines, ...(roundIdle.length ? { idle: roundIdle } : {}) });
-        if (decisive || over) break;
+        const lost = !characters.some(bar => standing(bar.id)), won = !foes.some(bar => standing(bar.id));
+        const over = won || lost;
+        // From the flow of stage 49 a decisive result no longer ends the reply: the rolls go on until the fight is won or lost, a party member is badly
+        // hurt (lost 2 or more Health blocks in this reply, or went Down), the cap or the careful pace (resolve.js).
+        const heavy = flow === 2 && characters.some(bar => bar.value > 0 && (bar.value - bars.get(bar.id).value >= 2 || !standing(bar.id)));
+        const end = flow === 2 ? (lost ? 'lost' : won ? 'won' : heavy ? 'heavy' : null) : null;
+        all.push({ n, decisive, over, ...(end ? { end } : {}), lines: roundLines, ...(roundIdle.length ? { idle: roundIdle } : {}) });
+        if (flow === 2 ? end : decisive || over) break;
     }
 
     // The cue, fitted to its budget; the rounds told decide the bars.
     const refused = prepared.refused.map(entry => entry.text);
     const start = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, bar]));
-    const cueParts = { checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && (all.at(-1).decisive || all.at(-1).over), standard: { order, opening, quick, start } };
+    const cueParts = { checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && (all.at(-1).decisive || all.at(-1).over), standard: { order, opening, quick, start },
+        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}) };
     const cue = fitCue(cueParts);
-    const rounds = all.slice(0, cue.count).map(({ over: _, ...round }) => round);
+    const rounds = all.slice(0, cue.count).map(({ over: _, end: _end, ...round }) => round);
     const told = all.slice(0, cue.count);
     const hurts = hurtsOf(start, [...opening, ...checks, ...told.flatMap(round => round.lines)]);
     // Where each foe group stands when this reply ends, kept with the order for the fight's next reply.
     for (const entry of order) if (!entry.party) entry.left = hurts.find(item => item.id === entry.id)?.to ?? start.get(entry.id).value;
     const decisive = told.length > 0 && told.at(-1).decisive;
     const over = told.length > 0 && told.at(-1).over;
-    const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : decisive ? 'decisive' : over ? 'over' : told.length === most ? 'pace' : 'cap';
+    const stop = !told.length ? 'none' : cue.count < all.length ? 'budget'
+        : flow === 2 ? told.at(-1).end ?? (plan.pace === 'careful' ? 'pace' : 'cap') : decisive ? 'decisive' : over ? 'over' : told.length === most ? 'pace' : 'cap';
     const toldIdle = told.flatMap(round => round.idle ?? []);
     return {
         checks, rounds, stop, text: cue.text, opening, order, quickStart: quick, idle: toldIdle, hurts,
@@ -388,7 +395,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
 }
 
 // "Rolled for you: N exchanges": one entry per action of the plan with its outcome in each round told.
-function summaryStd(checks, rounds, refused) {
+export function summaryStd(checks, rounds, refused) {
     const acts = [];
     const entry = (line, target) => ({ kind: line.kind, who: line.kind === 'foe' ? line.foe.name : line.pc.who, target, skill: line.skill, stat: line.pc.stat, outcomes: [] });
     for (const line of checks) acts.push({ ...entry(line, null), outcomes: [line.outcome] });

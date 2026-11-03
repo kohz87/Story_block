@@ -2,7 +2,7 @@
 // their stop rules, the cue and its budget, and what is refused. Pure: a sheet read from state, scripted dice.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FORMULA, LIMITS, PACE, outcomeOf, positionalDice, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
+import { EARLIER_RULES, FORMULA, LIMITS, PACE, outcomeOf, positionalDice, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { cueTokens } from '../../../src/v2/lean-rpg/cue.js';
 import { PARTY, character, foeBlock, sheetDomain, skillBlock } from './helpers.js';
 
@@ -131,14 +131,14 @@ test('a check is one d20 against the difficulty, outside the rounds', () => {
     assert.deepEqual(result.summary, { exchanges: 0, acts: [{ kind: 'check', who: 'Wessel', target: null, skill: null, stat: 'dex', outcomes: ['success'] }], refused: 0 });
 });
 
-test('rounds: the smallest of the pace, the cap of five and the first decisive round', () => {
+test('rounds: the smallest of the pace, the cap of five and the first decisive round (a roll of the earlier flow, with the earlier numbers)', () => {
     const roundsFor = pace => {
         const body = plan({ pace });
-        return rollPrepared(body, prepare(body, sheetOf()), calm()).rounds.length;
+        return rollPrepared(body, prepare(body, sheetOf(), EARLIER_RULES), calm(), EARLIER_RULES).rounds.length;
     };
     assert.deepEqual([roundsFor('careful'), roundsFor('normal'), roundsFor('all')], [1, PACE.normal, LIMITS.roundCap]);
     assert.ok(PACE.all > LIMITS.roundCap, 'the cap is what stops "all"');
-    const stops = pace => { const body = plan({ pace }); return rollPrepared(body, prepare(body, sheetOf()), calm()).stop; };
+    const stops = pace => { const body = plan({ pace }); return rollPrepared(body, prepare(body, sheetOf(), EARLIER_RULES), calm(), EARLIER_RULES).stop; };
     assert.deepEqual([stops('careful'), stops('normal'), stops('all')], ['pace', 'pace', 'cap']);
 });
 

@@ -29,7 +29,7 @@ import { youRankOf } from '../packs/content.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 import { createTimelinePart } from '../timeline/part.js';
 import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
-import { RESOLVE as RPG_RESOLVE, createLeanRpgPart, partyOf } from '../lean-rpg/index.js';
+import { FIGHT as RPG_FIGHT, RESOLVE as RPG_RESOLVE, createLeanRpgPart, partyOf } from '../lean-rpg/index.js';
 import { hookTimeout } from '../turn.js';
 
 // The Rank's label for the tail: asked through the view's query (null while no pack gives one).
@@ -296,6 +296,15 @@ export function mergeParts(parts) {
                 }
                 return { lines, commands, ...(problems.length ? { problems } : {}) };
             }, { timeoutMs: fns.reduce((sum, fn) => sum + hookTimeout(fn), 500) })
+            // afterCapture: every part's steps are run, in part order (the data blocks' timers and reply-end steps, then the RPG's fight XP).
+            : name === 'afterCapture' ? (...args) => {
+                const answers = fns.map(fn => fn(...args));
+                const join = list => {
+                    const commands = list.flatMap(answer => (Array.isArray(answer?.commands) ? answer.commands : []));
+                    return commands.length ? { commands } : list.find(answer => answer !== undefined && answer !== null);
+                };
+                return answers.some(answer => typeof answer?.then === 'function') ? Promise.all(answers).then(join) : join(answers);
+            }
             : (...args) => {
                 for (const fn of fns) {
                     const answer = fn(...args);
@@ -365,7 +374,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
     merged.hooks.replayGuard = Object.assign((view, info) => {
         const kind = String(info?.guard?.predicate?.kind ?? '');
         if (kind.startsWith('dm.')) return dataModuleGuard(view, info);
-        if (kind === RPG_RESOLVE) return rpg.guard(view, info);
+        if (kind === RPG_RESOLVE || kind === RPG_FIGHT) return rpg.guard(view, info);
         if (kind === INVENTORY_EDIT_GUARD) return inventoryEditGuard(view, info);
         return LOOT_KINDS.includes(kind) ? lootTakeGuard(view, info) : timelineGuard(view, info);
     }, { hostOwned: true });

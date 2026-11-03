@@ -294,8 +294,9 @@ test('a roll recorded before the numbers were kept stands as it was made, with S
     assert.deepEqual(ask(span.guard, span.recorded), { ok: true });
     assert.deepEqual(span.recorded.rules, STANDARD, 'Standard is what the settings said');
     // A roll from before the numbers were kept: no `rules` in the inputs or in the guard's predicate, its input hash made on Standard's.
-    const { rules: _a, ...plain } = span.recorded;
-    const { rules: _b, ...predicate } = span.guard.predicate;
+    // (and made before the flow of stage 49, so without its `flow` either)
+    const { rules: _a, flow: _c, ...plain } = span.recorded;
+    const { rules: _b, flow: _d, ...predicate } = span.guard.predicate;
     const witness = prepare(plain.plan, readSheet(before), STANDARD).witness;
     const oldOne = { ...span.guard, predicate, inputHash: hashOf({ source: span.source, predicate, witness }) };
     assert.deepEqual(ask(oldOne, plain), { ok: true }, 'it stands, on Standard\'s numbers');
@@ -304,7 +305,7 @@ test('a roll recorded before the numbers were kept stands as it was made, with S
     assert.equal(ask(span.guard, { ...span.recorded, rules: { ...STANDARD, foeBase: 9 } }).ok, false);
     assert.equal(ask(span.guard, { ...span.recorded, rules: { ...STANDARD, foeBase: 99 } }).ok, false);
     assert.equal(ask(span.guard, { ...span.recorded, rules: null }).ok, false);
-    assert.equal(ask(span.guard, plain).ok, false, 'numbers taken away');
+    assert.equal(ask(span.guard, { ...plain, flow: span.recorded.flow }).ok, false, 'numbers taken away');
     const swapped = { ...PRESETS.harsh };
     assert.equal(ask({ ...span.guard, predicate: { ...span.guard.predicate, rules: hashOf(swapped) } }, { ...span.recorded, rules: swapped }).ok, false, 'a different set that still hashes: the input hash is for the numbers it was rolled with');
     host.close();
@@ -339,7 +340,8 @@ test('B16: refusing one action never moves another action\'s dice; deleting the 
     const planned = rollReceipt(host, at);
     assert.equal(planned.seed, seed);
     assert.ok(planned.data.v2.result.rounds[0].lines.some(line => line.pc.who === 'Wessel'), 'Wessel acts now');
-    assert.deepEqual(renDice(planned).slice(0, before.length), before.slice(0, planned.data.v2.result.rounds.length), 'Ren\'s dice are the same');
+    // Ren's dice are the same; a line of his may be missing now that Wessel acts (a foe who is Down by then does not attack: the flow of stage 49 follows the bars).
+    renDice(planned).forEach((lines, round) => assert.deepEqual(lines, before[round].slice(0, lines.length), `Ren\'s dice are the same in round ${round + 1}`));
     assert.deepEqual(host.store.problems(), []);
     same(host);
     await reloads(host);

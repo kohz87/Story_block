@@ -64,7 +64,7 @@ test('Standard carries its formula and numbers in the rules; Gentle, Standard an
     for (const key of STANDARD_RULE_KEYS.filter(key => key !== 'foeBase')) assert.equal(rules('gentle')[key], rules('harsh')[key], key);
     assert.deepEqual(rules('standard'), { ...STANDARD_FORMULA });
     // formula.js's own numbers are the starting point: only the preset's foeBase differs from them.
-    assert.deepEqual({ ...rules('standard'), foeBase: 3 }, { formula: 'standard', foeBase: 3, foeClassWeight: 3, classWeight: 2, costMargin: 2, decisiveMargin: 8, roundCap: 5,
+    assert.deepEqual({ ...rules('standard'), foeBase: 3 }, { formula: 'standard', foeBase: 3, foeClassWeight: 3, classWeight: 2, costMargin: 2, decisiveMargin: 8, roundCap: 8,
         startStat: 5, createPoints: 10, createMin: 3, createMax: 10, pointsPerSoul: 4, statMax: 20, quickStartMargin: 10 });
     const classic = rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' });
     assert.deepEqual(classic, PRESETS.harsh);
@@ -119,7 +119,8 @@ test('the odds bar follows the formula in force: Standard puts the pair, the Sou
 // ---- Classic stays byte for byte --------------------------------------------------------------------------------------
 
 test('Classic output is byte-identical to the build before the Standard formula: prompt, sheet text, cue, rounds, witness, parse, rules', () => {
-    // (Fingerprints taken from the build that holds formula.js only, c072d16, for this fixed party, plan and seed.)
+    // (Fingerprints taken from the build that holds formula.js only, c072d16, for this fixed party, plan and seed. Only `rules` and `presets` moved, on purpose, in stage 49:
+    // the presets' most exchanges per reply went from 5 to 8; the roll itself (cue, rounds, witness, prompt) is unchanged byte for byte.)
     const sha = text => createHash('sha256').update(text).digest('hex').slice(0, 16);
     const sheet = sheetOf(PARTY());
     const prompt = precallPrompt({ sheet, message: 'I strike the rat.', excerpt: 'The rat hisses.', note: 'Be fair.' });
@@ -133,7 +134,7 @@ test('Classic output is byte-identical to the build before the Standard formula:
         parsed: sha(JSON.stringify(parsePlanAnswer(answer, sheet))), rules: sha(JSON.stringify(rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' }))), presets: sha(JSON.stringify(PRESETS)),
     }, {
         prompt: '9c2f43c8312a725c', head: '2ff341dbdc89949c', sheet: '0d382a6e9c87a18d', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
-        parsed: 'b0eedb0e4d7e0c16', rules: '0816289d883327a2', presets: '0a416a8d4dfe24d2',
+        parsed: 'b0eedb0e4d7e0c16', rules: '458d12337585e339', presets: '1a96e56e9499540c',
     });
 });
 

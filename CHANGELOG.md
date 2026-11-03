@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.16.9
+
+- **A fight runs until something happens.** A reply's dice used to stop at the first decisive result, even a decisive
+  block. Now they keep rolling exchanges until the fight is won, the party is beaten, you or a companion lose 2 or more
+  Health blocks (2 stages on the Classic formula) or go Down, or the reply's limit is reached. The default limit is now
+  8 exchanges a reply (was 5); Careful pace still rolls one. Decisive results still show in the log. Rolls already made
+  keep the rules they were made with.
+- **Winning a fight gives XP by itself.** When every foe group is Down, each party member gets XP once for that fight:
+  count × class × 2 for each group, scaled by the group's class against the member's Soul Class: 50%, 25%, 12% and
+  then nothing for groups 1, 2, 3 and 4+ classes lower; +50% for each class higher. A total of 0 gives nothing; otherwise
+  it is held to 1–60. "Changed this reply" says it: "Astra +6 XP (fight won)". A fight that starts and ends in the same
+  reply counts. The narrator's own XP line in that reply is not used (one Problems line says so); XP for other deeds
+  is still the narrator's. New chats' Combat rules say so; existing chats keep their text.
+
 ## 2.16.8
 
 - **The battle log's header lines up again.** Its icon and title sat flush against the panel's edge with no line under

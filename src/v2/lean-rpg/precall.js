@@ -15,7 +15,7 @@ import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rul
 import { NO_ROLLS_LINE, OPEN_FIGHT_LINE } from './cue.js';
 import { openLinesOf, parsePlanAnswer } from './plan.js';
 import { openFoes, vetOpen } from './open.js';
-import { DICE_VERSION, claimKey, prepare } from './resolve.js';
+import { DICE_VERSION, FLOW_VERSION, claimKey, prepare } from './resolve.js';
 import { readSheet } from './read.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
 
@@ -232,7 +232,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         // A Standard fight keeps its turn order across replies: the nearest earlier reply's order goes on in the payload (resolve.js), so a swipe of
         // this reply rolls this reply's dice again and keeps the order the fight began with.
         const order = isStandard(rules) && planned.plan ? carriedOrder(view, index) : null;
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, ...(order ? { order } : {}) } }] } : noFight(sheet);
+        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, ...(order ? { order } : {}) } }] } : noFight(sheet);
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether

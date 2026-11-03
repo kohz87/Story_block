@@ -34,7 +34,7 @@ const CLASSIC_HASHES = {
     Character: '60b845ebb1c2f41bb631bd84894c467b222c43804ae8de87ac4da76cc511b112',
     Skills: '87692b232c660a4b13a45f81571c6d5e69002037f920c77c786b9fe6c6eba5c5',
     Foes: 'd6e980f381748e3bc43cc0522bc29f6c264f01ab185076673018102d560269e8',
-    'Combat rules': '65ee8a16d315bf429e134cf4ed705218a550df6d9d35f6e174f6f452cb12968d',
+    'Combat rules': 'c421180a6fb5a732391e1386911e2f6a8f4fff9ce17161a634c21f001b83ee29',
 };
 
 test('Classic stays exactly as it was: the four templates and the hash of each checked definition are unchanged, and a Classic chat gets them', () => {

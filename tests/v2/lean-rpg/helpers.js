@@ -71,7 +71,7 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
@@ -92,9 +92,10 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         },
         queries: part.queries,
         // `earlier`: the rolls are asked for as they were before the dice version, a payload with no `dice` (a chat made on an older build).
-        hooks: { ...part.hooks, ...(earlier ? { beforeGenerate: Object.assign(async (view, info) => {
+        // `flowless`: the rolls are asked for as they were before stage 49's flow (a payload with no `flow`: a chat made on an older build); `earlier` strips the dice version too.
+        hooks: { ...part.hooks, ...(earlier || flowless ? { beforeGenerate: Object.assign(async (view, info) => {
             const out = await part.hooks.beforeGenerate(view, info);
-            return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice: _, ...payload }, ...command }) => ({ ...command, payload })) } : out;
+            return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow: _, ...payload }, ...command }) => ({ ...command, payload: earlier ? payload : { ...payload, dice } })) } : out;
         }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },
     };

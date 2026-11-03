@@ -92,6 +92,15 @@ const barsLine = (start, lines) => hurtsOf(start, lines).map(item => {
 
 const STOP_POINTS = 'Stop earlier at the first stop point (a foe falls, flees or yields; anyone on your side is Down or Badly wounded; new foes arrive).';
 
+// How the cue ends from the flow of stage 49 (resolve.js FLOW_VERSION): a reply's rolls run until something happens, so the last line says what.
+// A won fight also tells the narrator that code gives the XP for it (fight.js), so it writes none, and that the beaten groups stay on the Foes block.
+const FLOW_ENDS = Object.freeze({
+    won: 'every foe is Down: the fight is won. Stop there and tell it as the end of the fight. Code gives the party its XP for it: write no XP line for this fight, and leave the beaten groups on the Foes block (Down).',
+    lost: 'everyone on your side is Down. Stop there and tell it.',
+    heavy: 'a party member is badly hurt or Down. Stop there at the latest.',
+});
+const flowEnd = (n, end) => (end ? `Round ${n} ends the rolls: ${FLOW_ENDS[end]}` : `Round ${n} is the last rolled: stop there at the latest. ${STOP_POINTS}`);
+
 // A refusal in fewer words: without its bracketed reason, and cut.
 const shortRefusal = text => cut(String(text).replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').trim(), 70);
 
@@ -135,7 +144,8 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
         const standing = barsLine(std.start, [...std.opening, ...rounds.flatMap(round => round.lines)]);
         if (standing) lines.push(`Bars now: ${standing}.`);
     }
-    if (fight) lines.push(`Round ${rounds.at(-1).n} is ${decisive ? (rounds.at(-1).decisive || !std ? 'decisive' : 'the end of the fight') : 'the last rolled'}: stop there at the latest. ${STOP_POINTS}`);
+    if (fight && parts.flow === 2) lines.push(flowEnd(rounds.at(-1).n, parts.end ?? null));
+    else if (fight) lines.push(`Round ${rounds.at(-1).n} is ${decisive ? (rounds.at(-1).decisive || !std ? 'decisive' : 'the end of the fight') : 'the last rolled'}: stop there at the latest. ${STOP_POINTS}`);
     return lines.join('\n');
 }
 
@@ -156,7 +166,7 @@ export function fitCue(parts, budget = LIMITS.cueTokens, { earlier = false } = {
     let last = null;
     for (let shape = 0; shape <= (earlier ? 0 : 3); shape += 1) {
         for (let count = total; count >= Math.min(1, total); count -= 1) {
-            const told = { ...parts, rounds: parts.rounds.slice(0, count), decisive: parts.decisive && count === total };
+            const told = { ...parts, rounds: parts.rounds.slice(0, count), decisive: parts.decisive && count === total, end: count === total ? parts.end ?? null : null };
             last = { count, shape, text: cueText(told, shape) };
             // Measured as if no stat were hidden, so whether a stat is hidden never changes how many rounds are told (review
             // 164); the text that is sent is never longer than the one measured.
