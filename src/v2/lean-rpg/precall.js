@@ -10,6 +10,7 @@
 // connection profile and time limit; the answer is a plan, never a number.
 import { SETTING, TIMEOUT_MS, clip, estimateTokens, hashText, normalizeType, withTimeout } from '../assist/common.js';
 import { stripBlock } from '../capture.js';
+import { planGear } from './gear.js';
 import { CLASS_NAMES, LEAN_RPG_FEATURE, LV_VERSION, PRACTICE, PRACTICE_SETTING, RANK_NAMES, practiceOf, RESOLVE, ROLLS_SETTING, STAGES, STATS, stageWord } from './names.js';
 import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rules.js';
 import { NO_ROLLS_LINE, OPEN_FIGHT_LINE } from './cue.js';
@@ -242,7 +243,9 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         // A Standard fight keeps its turn order across replies: the nearest earlier reply's order goes on in the payload (resolve.js), so a swipe of
         // this reply rolls this reply's dice again and keeps the order the fight began with.
         const order = isStandard(rules) && planned.plan ? carriedOrder(view, index) : null;
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}) } }] } : noFight(sheet);
+        // Gear in fights (gear.js): while the switch is on, what each member has on and carries is fixed here and travels with the roll, like the numbers.
+        const gear = planned.plan ? planGear(sheet, (name, args) => view.query?.(name, args)) : null;
+        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether

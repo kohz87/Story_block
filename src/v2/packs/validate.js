@@ -16,7 +16,7 @@
 // it stays the one invalid event the events part makes of it (as before 2.11.3) and the rest of the pack keeps working. Install, import
 // and the authoring-kit checker leave it true.
 //
-import { YOU_FIELDS, YOU_RANK_FIELDS, YOU_RANK_LABEL_MAX, LEAN_RPG_FIELDS, LEAN_RPG_LIMITS, RPG_RANK_FIELDS, RPG_RANK_LIMITS, RPG_PLAYER_RANK_FIELDS, RPG_PLAYER_RANK_LIMITS, RPG_FORMULAS, RPG_NUMBER_KEYS, SKILL_SET_FIELDS, SKILL_SET_SKILL_FIELDS, RECORD_LIMITS, CALENDAR_FIELDS, CALENDAR_HOLIDAY_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, CRAFT_FIELDS, ECONOMY_FIELDS, ECONOMY_LIMITS, CRAFTS_LIMITS, DEFAULT_CRAFTS, METER_FIELDS, METER_LIMITS, METER_PRESET_FIELDS, METER_RESERVED, METER_STAGE_FIELDS, RECIPE_LIMITS, STAT_SUM, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, ITEM_CARRY, MARKET_FIELDS, MARKET_LIMITS, MARKET_WORD, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS, WEATHER_FIELDS, WEATHER_LIMITS, WEATHER_SEASON_FIELDS, WEATHER_TABLE_FIELDS } from './limits.js';
+import { YOU_FIELDS, YOU_RANK_FIELDS, YOU_RANK_LABEL_MAX, LEAN_RPG_FIELDS, LEAN_RPG_LIMITS, RPG_RANK_FIELDS, RPG_RANK_LIMITS, RPG_PLAYER_RANK_FIELDS, RPG_PLAYER_RANK_LIMITS, RPG_FORMULAS, RPG_NUMBER_KEYS, SKILL_SET_FIELDS, SKILL_SET_SKILL_FIELDS, RECORD_LIMITS, CALENDAR_FIELDS, CALENDAR_HOLIDAY_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, CRAFT_FIELDS, ECONOMY_FIELDS, ECONOMY_LIMITS, CRAFTS_LIMITS, DEFAULT_CRAFTS, METER_FIELDS, METER_LIMITS, METER_PRESET_FIELDS, METER_RESERVED, METER_STAGE_FIELDS, RECIPE_LIMITS, STAT_SUM, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, ITEM_CARRY, ITEM_BONUS, MARKET_FIELDS, MARKET_LIMITS, MARKET_WORD, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS, WEATHER_FIELDS, WEATHER_LIMITS, WEATHER_SEASON_FIELDS, WEATHER_TABLE_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
@@ -280,6 +280,8 @@ function checkItem(record, path, label, add) {
     if (typeof note !== 'string' || note.length > RECORD_LIMITS.note) say('note', 'note must be text of at most 500 characters.');
     // The carry capacity it adds while owned (worn, for equipment): PACKS.md "Carry capacity".
     if (record.carry !== undefined && !(isInt(record.carry, ITEM_CARRY.min) && record.carry <= ITEM_CARRY.max)) say('carry', `carry must be a whole number from ${ITEM_CARRY.min} to ${ITEM_CARRY.max} (the carry capacity it adds), or left out.`);
+    // The gear bonus it gives while worn instead of its rarity's: 0 to 6 (`story-block.gear`).
+    if (record.bonus !== undefined && !(isInt(record.bonus, ITEM_BONUS.min) && record.bonus <= ITEM_BONUS.max)) say('bonus', `bonus must be a whole number from ${ITEM_BONUS.min} to ${ITEM_BONUS.max} (the gear bonus it gives while worn), or left out.`);
     if (!ok) return null;
     return {
         name: oneLine(record.name, LIMITS.name), kind, rarity, value, stack,
@@ -287,6 +289,7 @@ function checkItem(record, path, label, add) {
         tags: tags.map(tag => tag.trim()), note,
         aliases: [...new Set(aliases.map(alias => oneLine(alias, LIMITS.name)))],
         ...(record.carry !== undefined ? { carry: record.carry } : {}),
+        ...(record.bonus !== undefined ? { bonus: record.bonus } : {}),
     };
 }
 
@@ -957,6 +960,8 @@ function checkPlace(record, path, label, add) {
     if (record.market !== undefined && !(typeof record.market === 'string' && MARKET_WORD.test(record.market))) say('market', 'market must be a settlement type, a lowercase word like "village" or "city".');
     const placeTags = record.tags ?? [];
     if (!Array.isArray(placeTags) || placeTags.length > MARKET_LIMITS.tags || placeTags.some(tag => typeof tag !== 'string' || !MARKET_WORD.test(tag))) say('tags', `tags must be a list of at most ${MARKET_LIMITS.tags} lowercase words like "river" or "port".`);
+    // The most the story's items may be here (`story-block.gear`): { maxRarity }, one of the five; absent = no extra limit.
+    if (record.loot !== undefined && !(isObject(record.loot) && Object.keys(record.loot).every(key => key === 'maxRarity') && RARITIES.includes(record.loot.maxRarity))) say('loot', `loot must be { "maxRarity": ${RARITIES.map(word => `"${word}"`).join(' | ')} }.`);
     if (!ok) return null;
     return {
         name: oneLine(record.name, LIMITS.name), aliases: [...new Set(aliases.map(alias => oneLine(alias, LIMITS.name)))],
@@ -965,6 +970,7 @@ function checkPlace(record, path, label, add) {
         // `secret` is another word for `hidden`; the map reads either.
         ...(record.hidden === true || record.secret === true ? { hidden: true } : {}),
         ...(record.market !== undefined ? { market: record.market } : {}),
+        ...(record.loot !== undefined ? { loot: { maxRarity: record.loot.maxRarity } } : {}),
         ...(placeTags.length ? { tags: [...new Set(placeTags)] } : {}),
     };
 }

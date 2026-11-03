@@ -5,6 +5,7 @@
 import { oneLine } from '../../../text.js';
 import { CLASS_NAMES, RANK_NAMES } from '../names.js';
 import { DIFFICULTIES, hasLevels, PRESETS, STANDARD_PRESETS, STANDARD_SETTING, formulaOf, isStandard, normalizeRules, normalizeStandard, oddsSubject, presetOf, rulesFromSettings, subjectOdds, CUSTOM_SETTING, DIFFICULTY_SETTING, difficultyOf } from '../rules.js';
+import { applyGear } from '../gear.js';
 import { fold, readSheet } from '../read.js';
 import { precallPrompt } from '../precall.js';
 import { COMBAT_PROMPT, COMBAT_PROMPT_STANDARD, templatesFor } from '../templates.js';
@@ -66,8 +67,9 @@ const inForce = ({ levelDivisor: _divisor, ...rest }) => rest;
  * character (`own`, else the first Character block; their best skill) against a foe of their Soul Class, under `rules`, and the
  * same fight under each preset the reader has not chosen (all three for Custom). Null while the story has no character.
  */
-export function oddsView(state, own, rules) {
-    const sheet = readSheet(state);
+export function oddsView(state, own, rules, gear = null) {
+    // (With gear in fights on, the odds are for the stats the character rolls with: gear.js.)
+    const sheet = applyGear(readSheet(state), gear);
     const standard = isStandard(rules);
     const subject = oddsSubject(sheet, own, { rankNames: RANK_NAMES, soulNames: CLASS_NAMES, fold, standard });
     if (!subject) return null;

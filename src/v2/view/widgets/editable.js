@@ -27,6 +27,9 @@ const props = {
     currency: { type: 'object', default: Object.freeze({}) },
     itemCount: { type: 'number', default: 1 },
     itemNote: { type: 'string', default: '' },
+    // kind 'item' while Gear in fights is on, for a piece of equipment: `{ kind: 'equipment', stack, owner, by, place, slot, owners: [{ value, label }] }` adds the two choices
+    // Slot (the eight places, or none) and Equipped by (a member, or none); a changed choice goes through inventory.transfer / item.equip / inventory.unequip.
+    gear: { type: 'object', default: Object.freeze({}) },
     // kind 'fields': one input per entry, `{ key, label, type: 'text' | 'number' | 'choice' | 'time', value, min?, max?, maxLength?, options?, soft?, group?, row? }`;
     // only the changed ones go in the payload. `choice` is a select over `options` (strings or `{ value, label }`); `time` is a time of day ("13:30", '' for none);
     // a `text` field with `options` suggests them. `soft` keeps `min`/`max` as hints on the box and clamps nothing. A `group` is a heading the fields under it sit
@@ -70,6 +73,8 @@ function render(el, input, api) {
         let field = null;
         let itemCount = null;
         let itemNote = null;
+        let slotSelect = null;
+        let bySelect = null;
         let inputs = [];
         let entries = [];
         let editing = false;
@@ -223,7 +228,30 @@ function render(el, input, api) {
                     return node;
                 };
                 fieldSlot.classList.add('ss-w-editable-item-fields');
-                fieldSlot.replaceChildren(label(STRINGS.inventory.itemName, field), label(STRINGS.inventory.itemCount, itemCount), label(STRINGS.inventory.itemNote, itemNote));
+                const rows = [label(STRINGS.inventory.itemName, field), label(STRINGS.inventory.itemCount, itemCount), label(STRINGS.inventory.itemNote, itemNote)];
+                slotSelect = null;
+                bySelect = null;
+                if (p.gear?.kind === 'equipment') {
+                    const G = STRINGS.inventory.gear;
+                    const choice = (text, options, value) => {
+                        const select = h(doc, 'select', 'ss-select');
+                        select.setAttribute('aria-label', text);
+                        for (const [optionValue, optionLabel] of [['', G.none], ...options]) {
+                            const option = h(doc, 'option', '', optionLabel);
+                            option.value = optionValue;
+                            select.appendChild(option);
+                        }
+                        select.value = value;
+                        pair.appendChild(label(text, select));
+                        return select;
+                    };
+                    const pair = h(doc, 'span', 'ss-w-editable-item-pair');
+                    rows[2].classList.add('ss-w-editable-item-wide');
+                    rows.push(pair);
+                    slotSelect = choice(G.editSlot, Object.entries(G.slots), String(p.gear.slot ?? ''));
+                    bySelect = choice(G.editBy, (Array.isArray(p.gear.owners) ? p.gear.owners : []).map(entry => [String(entry?.value ?? ''), String(entry?.label ?? '')]), String(p.gear.by ?? ''));
+                }
+                fieldSlot.replaceChildren(...rows);
                 chips.hidden = true;
                 add.hidden = true;
                 form.classList.add('ss-w-editable-item-form');
@@ -378,6 +406,38 @@ function render(el, input, api) {
             close();
         }
 
+        // The steps an item's Slot and Equipped by choices need: taken off, or handed to the wearer and put on. [] when nothing changed.
+        function wearSteps() {
+            if (!slotSelect || !bySelect) return [];
+            const stack = p.payload?.stack;
+            const by = bySelect.value, slot = slotSelect.value;
+            const placed = String(p.gear.place ?? ''), wearer = String(p.gear.by ?? '');
+            if (by === '' || slot === '') return placed ? [{ command: 'inventory.unequip', payload: { stack } }] : [];
+            if (placed === slot && wearer === by) return [];
+            return [...(by !== p.gear.owner ? [{ command: 'inventory.transfer', payload: { stack, to: by } }] : []), { command: 'item.equip', payload: { stack, owner: by, slot } }];
+        }
+
+        // Commands one after the other: a refusal stops the rest and leaves the form open with its sentence.
+        async function runSteps(steps) {
+            busy = true;
+            save.disabled = true;
+            for (const step of steps) {
+                let result;
+                try { result = await api.command(step.command, step.payload); }
+                catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
+                if (!alive) return;
+                if (!result?.ok) {
+                    busy = false;
+                    save.disabled = false;
+                    error.textContent = refusalText(result, E.failed);
+                    return;
+                }
+            }
+            busy = false;
+            save.disabled = false;
+            close();
+        }
+
         async function submit() {
             if (busy || !field) return;
             let value;
@@ -390,7 +450,10 @@ function render(el, input, api) {
                 if (name !== p.value) payload.name = name;
                 if (qty !== p.itemCount) payload.qty = qty;
                 if (note !== p.itemNote) payload.note = note;
-                if (!('name' in payload) && !('qty' in payload) && !('note' in payload)) { close(); return; }
+                const edited = 'name' in payload || 'qty' in payload || 'note' in payload;
+                const worn = wearSteps();
+                if (!edited && !worn.length) { close(); return; }
+                if (worn.length) { await runSteps([...(edited ? [{ command: p.command, payload }] : []), ...worn]); return; }
             } else if (p.kind === 'fields') {
                 const read = readFields();
                 if (read.error) { error.textContent = read.error; focusNode(read.input); return; }

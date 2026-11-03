@@ -3,6 +3,7 @@
 // Model-facing text, kept to the cue budget (names.js LIMITS.cueTokens).
 import { BATTLE_MARKER, LIMITS, RESOLVE, STAGES, stageWord } from './names.js';
 
+export const wearLine = ({ item, to }) => `${item} ${to === 'broken' ? 'breaks' : 'is worn'} (${to[0].toUpperCase() + to.slice(1)})`;
 export const OUTCOME_WORD = Object.freeze({ success: 'SUCCESS', cost: 'SUCCESS AT A COST', fail: 'FAIL' });
 
 /** Tokens as the prompt budget counts them (§5): about four characters each. */
@@ -146,6 +147,7 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
     }
     if (fight && parts.flow === 2) lines.push(flowEnd(rounds.at(-1).n, parts.end ?? null));
     else if (fight) lines.push(`Round ${rounds.at(-1).n} is ${decisive ? (rounds.at(-1).decisive || !std ? 'decisive' : 'the end of the fight') : 'the last rolled'}: stop there at the latest. ${STOP_POINTS}`);
+    for (const event of parts.wear ?? []) lines.push(`Round ${event.n}: ${wearLine(event)}.`);
     return lines.join('\n');
 }
 
@@ -195,7 +197,7 @@ export function cueOfResult(result, shape = 0) {
         const end = flow2 && ['won', 'lost', 'heavy'].includes(result.stop) ? result.stop : null;
         return cueText({
             checks: result.checks, rounds, refused: (result.refused ?? []).map(entry => entry.text), decisive,
-            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}),
+            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}), ...(result.wear ? { wear: result.wear } : {}),
         }, Number.isInteger(shape) ? shape : 0);
     } catch { return ''; }
 }

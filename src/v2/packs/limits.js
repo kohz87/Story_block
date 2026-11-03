@@ -42,10 +42,12 @@ export const ECONOMY_LIMITS = Object.freeze({ min: 0.001, max: 1000, note: 500 }
 // Item definitions follow Story Block's inventory def (SPEC §7).
 export const ITEM_KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
 export const RARITIES = Object.freeze(['common', 'uncommon', 'rare', 'epic', 'legendary']);
-export const ITEM_FIELDS = Object.freeze(['name', 'slug', 'aliases', 'kind', 'rarity', 'value', 'stack', 'slot', 'stats', 'effect', 'tags', 'note', 'carry']);
+export const ITEM_FIELDS = Object.freeze(['name', 'slug', 'aliases', 'kind', 'rarity', 'value', 'stack', 'slot', 'stats', 'effect', 'tags', 'note', 'carry', 'bonus']);
 // `carry`: the carry capacity an item adds while it is owned (worn, when it is equipment), a whole number
 // (PACKS.md "Carry capacity"). Only a pack (or the reader's settings in a carry module) sets it; the story never does.
 export const ITEM_CARRY = Object.freeze({ min: 1, max: 1000 });
+// `bonus`: the gear bonus an item gives while worn (0–6), instead of the one its rarity gives (`story-block.gear`). A pack sets it; the story never does.
+export const ITEM_BONUS = Object.freeze({ min: 0, max: 6 });
 export const EVENT_FIELDS = Object.freeze(['id', 'when', 'cue', 'once', 'after', 'then']);
 // The events part's own limits (src/v2/events), so a pack that passes here also runs there.
 export const EVENT_LIMITS = Object.freeze({ when: 500, cue: 500, then: 8 });
@@ -61,7 +63,7 @@ export const STAT_NAME = /^[A-Z]{2,12}$/;
 // `hidden: true` (or its alias `secret: true`): the map keeps the place off until the story goes there.
 // `market` and `tags` (PACKS.md "Markets"): the place's settlement type ('village', 'city') and environment
 // tags ('river', 'port') that set its prices.
-export const PLACE_FIELDS = Object.freeze(['name', 'slug', 'aliases', 'region', 'kind', 'layer', 'x', 'y', 'note', 'hidden', 'secret', 'market', 'tags']);
+export const PLACE_FIELDS = Object.freeze(['name', 'slug', 'aliases', 'region', 'kind', 'layer', 'x', 'y', 'note', 'hidden', 'secret', 'market', 'tags', 'loot']);
 export const ROUTE_FIELDS = Object.freeze(['slug', 'from', 'to', 'kind', 'km', 'hours', 'corridor', 'note']);
 // Display terms a pack suggests (MODULES §F25): `{ id?, name?, levelName?, xpName?, tiers? }`, `tiers`
 // being `true` or `{ size?, numerals?, enabled? }`. A term is a label in a module's blocks

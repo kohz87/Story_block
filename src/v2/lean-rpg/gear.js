@@ -1,0 +1,164 @@
+// Gear in the rolls (`story-block.gear`, docs/v2/GEAR.md "In the rolls"). Pure, apart from the questions put to `query`.
+//
+// What it does. While the switch is on, the planner (precall.js) asks the inventory what each party member has on and carries (`planGear`),
+// and the answer travels in the `rpg.resolve` payload as `gear: { v: 1, who: { <member key>: { own, add?, enc?, items? } } }`:
+//   own    the inventory owners the member's gear is filed under (their party actor, and `party` for the reader's lead: the first character);
+//   add    { str…cha: +n } what the worn pieces give (broken ones give none), summed;
+//   enc    the penalty (-2) to AGI and DEX while they carry more than they can;
+//   items  [{ name, stats }] the pieces that give something, for the log.
+// The roll reads the sheet through `applyGear`: effective stat = stat + add, held to 30, then AGI and DEX + enc (never under 1). The record is in the
+// payload, the guard's predicate and the result, so a Re-read, a rebuild and a reload roll with it, and equipping something later never moves a roll
+// that was made. A payload with no `gear` is read exactly as before. Off means no `gear`, and nothing here runs.
+//
+// Wear (`wearGear`): a decisive hit taken wears the member's body armour (else their off-hand) one step; a decisive miss wears their weapon one step
+// (inventory `gear.wear`, the same condition events as everything else, so the roll's receipt carries them and a swipe, a delete or a Re-read takes them back).
+import { fold } from './read.js';
+import { STATS } from './names.js';
+
+export const GEAR_VERSION = 1;
+/** A stat with gear added up may pass 20 but never this (GEAR.effectiveMax of the inventory side). */
+export const STAT_MAX = 30;
+/** The penalty to AGI and DEX while a member carries more than they can (the inventory's ENCUMBERED_PENALTY). */
+export const ENCUMBERED = -2;
+export const ENCUMBERED_STATS = Object.freeze(['agi', 'dex']);
+/** How many levels above the party's highest a foe group must stand for a win to earn a legendary find. */
+export const GAP = 10;
+const MEMBERS_MAX = 24, OWN_MAX = 3, ITEMS_MAX = 8, NAME_MAX = 80;
+
+const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const ask = (query, name, args) => { try { return query(name, args) ?? null; } catch { return null; } };
+const lower = stats => Object.fromEntries(Object.entries(isObject(stats) ? stats : {}).filter(([stat, n]) => STATS.includes(stat.toLowerCase()) && Number.isSafeInteger(n) && n !== 0).map(([stat, n]) => [stat.toLowerCase(), n]));
+
+/**
+ * The gear of every member of `sheet` (readSheet's), as the inventory reports it through `query(name, args)`: the record the payload carries, or null
+ * while gear is off (the inventory answers nothing) or there is no one to dress.
+ */
+export function planGear(sheet, query) {
+    if (typeof query !== 'function' || !sheet?.characters?.length) return null;
+    const party = ask(query, 'inventory.gear', { owner: 'party' });
+    if (!isObject(party) || party.on !== true) return null;
+    const actors = ask(query, 'party.actors', {});
+    const who = {};
+    for (const [at, character] of sheet.characters.slice(0, MEMBERS_MAX).entries()) {
+        const named = Array.isArray(actors) ? actors.find(actor => typeof actor?.id === 'string' && actor.id !== 'party' && fold(actor.name) === character.key) : null;
+        const own = [...(named ? [named.id] : []), ...(at === 0 ? ['party'] : [])];
+        const answers = own.map(owner => (owner === 'party' ? party : ask(query, 'inventory.gear', { owner })));
+        const add = {}, items = [];
+        let enc = party.carry?.encumbered === true ? (Number.isSafeInteger(party.carry.penalty) && party.carry.penalty < 0 ? party.carry.penalty : ENCUMBERED) : 0;
+        for (const answer of answers) {
+            if (!isObject(answer)) continue;
+            for (const [stat, n] of Object.entries(lower(answer.statBonus))) add[stat] = (add[stat] ?? 0) + n;
+            for (const piece of Object.values(isObject(answer.slots) ? answer.slots : {})) {
+                const stats = piece && piece.broken !== true ? lower(piece.stats) : {};
+                if (Object.keys(stats).length && typeof piece.name === 'string') items.push({ name: piece.name.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX), stats });
+            }
+            if (answer.carry?.encumbered === true && !enc) enc = Number.isSafeInteger(answer.carry.penalty) && answer.carry.penalty < 0 ? answer.carry.penalty : ENCUMBERED;
+        }
+        who[character.key] = { own: own.slice(0, OWN_MAX), ...(Object.keys(add).length ? { add } : {}), ...(enc ? { enc } : {}), ...(items.length ? { items: items.slice(0, ITEMS_MAX) } : {}) };
+    }
+    return { v: GEAR_VERSION, who };
+}
+
+/** Whether `gear` (from a payload, a record) is a record this version reads: damaged ones are not guessed at. */
+export function gearValid(gear) {
+    if (!isObject(gear) || gear.v !== GEAR_VERSION || !isObject(gear.who) || Object.keys(gear).some(key => !['v', 'who'].includes(key))) return false;
+    const entries = Object.entries(gear.who);
+    if (entries.length > MEMBERS_MAX) return false;
+    const stats = value => isObject(value) && Object.entries(value).every(([stat, n]) => STATS.includes(stat) && Number.isSafeInteger(n) && n >= -30 && n <= 30);
+    return entries.every(([key, entry]) => typeof key === 'string' && key.length > 0 && key.length <= NAME_MAX && isObject(entry)
+        && Array.isArray(entry.own) && entry.own.length <= OWN_MAX && entry.own.every(owner => typeof owner === 'string' && owner.length > 0 && owner.length <= NAME_MAX)
+        && (entry.add === undefined || stats(entry.add)) && (entry.enc === undefined || (Number.isSafeInteger(entry.enc) && entry.enc < 0 && entry.enc >= -10))
+        && (entry.items === undefined || (Array.isArray(entry.items) && entry.items.length <= ITEMS_MAX && entry.items.every(item => isObject(item) && typeof item.name === 'string' && item.name.length <= NAME_MAX && stats(item.stats)))));
+}
+
+/** The gear a payload carries when it is one this version reads, else undefined (a roll made before, or a damaged record, is rolled without it). */
+export const gearOf = value => (gearValid(value) ? value : undefined);
+
+/**
+ * The sheet with the gear laid over the stats: each member's stats are stat + gear (held to 30), AGI and DEX then + the encumbered penalty (never under 1).
+ * `base` keeps the stats as the block holds them (the bars' sizes follow those, never the gear). Without gear the sheet itself.
+ */
+export function applyGear(sheet, gear) {
+    if (!gear || !sheet?.characters) return sheet;
+    return {
+        ...sheet,
+        characters: sheet.characters.map(character => {
+            const entry = gear.who?.[character.key];
+            if (!entry || (!entry.add && !entry.enc)) return character;
+            const stats = { ...character.stats };
+            for (const [stat, n] of Object.entries(entry.add ?? {})) if (Number.isInteger(stats[stat])) stats[stat] = n > 0 ? Math.max(stats[stat], Math.min(STAT_MAX, stats[stat] + n)) : stats[stat] + n;
+            if (entry.enc) for (const stat of ENCUMBERED_STATS) if (Number.isInteger(stats[stat])) stats[stat] = Math.max(1, stats[stat] + entry.enc);
+            return { ...character, stats, base: character.base ?? character.stats };
+        }),
+    };
+}
+
+/** The stats a Line rolled with (Classic's one, Standard's pair). */
+const statsOfLine = line => [line.pc?.stat, line.pc?.second].filter((stat, at, all) => typeof stat === 'string' && all.indexOf(stat) === at);
+
+/**
+ * What the gear added to one Line, for the log: [{ name, stat, n }] ("Cane Sword", "dex", 2), with the encumbered penalty as { name: 'Encumbered', stat, n: -2 }.
+ * Only the stats the roll used are named. [] when there was none.
+ */
+export function gearOfLine(line, gear) {
+    const entry = gear?.who?.[fold(line?.pc?.who)];
+    if (!entry) return [];
+    const used = statsOfLine(line), out = [];
+    for (const item of entry.items ?? []) for (const [stat, n] of Object.entries(item.stats)) if (used.includes(stat)) out.push({ name: item.name, stat, n });
+    if (entry.enc) for (const stat of ENCUMBERED_STATS) if (used.includes(stat)) out.push({ name: 'Encumbered', stat, n: entry.enc });
+    return out;
+}
+
+/** Writes each Line's `pc.gear` (the gear that was in its roll), for the log; a line that had none is left as it is. */
+export function noteGear(lines, gear) {
+    for (const line of lines) {
+        if (!isObject(line?.pc)) continue;
+        const used = gearOfLine(line, gear);
+        if (used.length) line.pc = { ...line.pc, gear: used };
+    }
+}
+
+/** Whether a told Line was decisive: Standard's lines say so; a Classic line is a natural 1 or 20 on either die or a margin either way (resolve.js `rolled`). */
+export function isDecisive(line, rules) {
+    if (typeof line?.decisive === 'boolean') return line.decisive;
+    if (!line?.foe || !Number.isFinite(line.pc?.die) || !Number.isFinite(line.foe.die)) return false;
+    return [line.pc.die, line.foe.die].some(die => die === 1 || die === 20) || Math.abs(line.pc.total - line.foe.total) >= (rules?.decisiveMargin ?? Infinity);
+}
+
+/**
+ * The wear the told rounds cost: a decisive hit taken wears the one hit's body armour (else off-hand), a decisive miss of an act their weapon, one step each
+ * (`ctx.call('gear.wear')`; a piece already broken, or no piece, wears nothing). `opening` lines come before round 1. → [{ n, who, item, from, to }], recorded in the result.
+ * `condWord(cond)` names a condition. Nothing happens while the inventory answers no gear (the switch went off).
+ */
+export function wearGear(ctx, gear, { opening = [], rounds = [], rules, condWord }) {
+    const events = [];
+    if (!gear || !ctx.query('inventory.gear', { owner: 'party' })) return events;
+    const told = [...opening.map(line => ({ n: rounds[0]?.n ?? 1, line })), ...rounds.flatMap(round => round.lines.map(line => ({ n: round.n, line })))];
+    for (const { n, line } of told) {
+        if (!['act', 'foe'].includes(line.kind) || line.support || line.outcome !== 'fail' || !isDecisive(line, rules)) continue;
+        const slots = line.kind === 'foe' ? ['body', 'off-hand'] : ['weapon'];
+        for (const owner of gear.who?.[fold(line.pc.who)]?.own ?? []) {
+            const worn = ctx.query('inventory.gear', { owner })?.slots ?? {};
+            // (what a hit taken wears is the body armour, else the off-hand, as `gear.wear defence` picks it)
+            const place = line.kind === 'foe' ? (worn.body ? 'body' : worn['off-hand'] ? 'off-hand' : null) : (worn.weapon ? 'weapon' : null);
+            if (!place || worn[place].broken === true) continue;
+            const out = ctx.call('gear.wear', { owner, slot: line.kind === 'foe' ? 'defence' : 'weapon', steps: 1 });
+            const data = out?.data ?? {};
+            events.push({ n, who: line.pc.who, item: worn[place].name, from: condWord(data.before), to: condWord(data.now) });
+            break;
+        }
+    }
+    return events;
+}
+
+/**
+ * Whether this roll won a fight against a foe group at least 10 levels above the party's highest (`legend` in the result): what the narrator's legendary
+ * item lines wait for (`story.legendaryEarned`). Only a roll of the Levels rules (`levelled`) has levels to compare; the fight must have ended `won`.
+ */
+export function earnedLegend(dice, sheet, levelled) {
+    if (!levelled || dice.stop !== 'won') return false;
+    const party = Math.max(0, ...(sheet?.characters ?? []).map(character => character.level ?? 0));
+    const lines = [...(dice.opening ?? []), ...dice.rounds.flatMap(round => round.lines)];
+    const foes = Math.max(0, ...lines.filter(line => line.foe).map(line => line.foe.classValue ?? 0));
+    return party > 0 && foes >= party + GAP;
+}
