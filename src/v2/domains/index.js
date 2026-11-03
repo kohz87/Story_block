@@ -19,7 +19,7 @@ import { renderInventoryTab } from '../ui/inventory-tab.js';
 import { renderSceneTab } from '../ui/scene-tab.js';
 import { FEATURE_TEXT, createAssistPart } from '../assist/index.js';
 import { CORE_FEATURE } from '../features.js';
-import { EXTRA_KINDS, answeredReply, chatterTail, headChatter, sceneChatter } from '../extras.js';
+import { EXTRA_KINDS, CHATTER_LIMIT, answeredReply, chatterCap, chatterGrammar, chatterTail, headChatter, sceneChatter } from '../extras.js';
 import { createEvidenceQuery } from '../evidence.js';
 import { STRINGS } from '../strings.js';
 import { createEventsPart } from '../events/index.js';
@@ -121,7 +121,7 @@ export const CORE_FEATURES = Object.freeze([
 // never a second one.
 export const CORE_SETTINGS = Object.freeze({
     section: 'Story Block',
-    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', economyScale: '0', coins: Object.freeze([]), coinDisplay: 'mixed', chatterInPrompt: false }),
+    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', economyScale: '0', coins: Object.freeze([]), coinDisplay: 'mixed', chatterInPrompt: false, chatterMax: 3 }),
     schema: Object.freeze({
         currency: Object.freeze({ type: 'text', label: 'Currency (one coin: mark, crown, gold)', max: 24 }),
         currencyPlural: Object.freeze({ type: 'text', label: 'Currency, plural (blank: the name with an s)', max: 24 }),
@@ -146,6 +146,8 @@ export const CORE_SETTINGS = Object.freeze({
         }),
         // MODULES §F115: chatter stays out of later prompts unless the reader asks (it would steer the story).
         chatterInPrompt: Object.freeze({ type: 'bool', group: 'Inner chatter', label: STRINGS.extras.inPrompt, help: STRINGS.extras.inPromptHelp, feature: CORE_FEATURE.chatter }),
+        // The most `~ chatter` lines a reply may show; the grammar line asks for up to this many (one per NPC with something on their mind).
+        chatterMax: Object.freeze({ type: 'int', min: 1, max: CHATTER_LIMIT, group: 'Inner chatter', label: STRINGS.extras.chatterMax, help: STRINGS.extras.chatterMaxHelp, feature: CORE_FEATURE.chatter }),
     }),
 });
 
@@ -360,6 +362,8 @@ export function headMoved(tools, headIndex) {
  */
 export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null, extras = null, timeline = () => null, dataModules = {}, leanRpg = {} } = {}) {
     const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null), youRank: () => youRankOf(typeof packs.packs?.packs === 'function' ? packs.packs.packs() : []) });
+    // The reader's cap on Inner chatter lines a reply (1 to 10; 3 unless set).
+    const chatterCapNow = () => { try { return chatterCap(settings()?.chatterMax); } catch { return chatterCap(); } };
     const events = createEventsPart({
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),
@@ -405,7 +409,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         },
         capture: {
             // `you`'s grammar line is the part's function: it names a Rank only while an enabled pack gives one (youGrammar).
-            kinds: { ...CORE_KINDS, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
+            kinds: { ...CORE_KINDS, chatter: { ...CORE_KINDS.chatter, grammar: () => chatterGrammar(chatterCapNow()), display: Object.freeze({ noun: CORE_KINDS.chatter.display.noun, read: CORE_KINDS.chatter.display.read, get perReply() { return chatterCapNow(); } }) }, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
             apply(ctx, line) {
                 const kind = merged.kinds[line?.kind];
                 if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);

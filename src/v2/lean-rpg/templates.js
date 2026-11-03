@@ -98,6 +98,15 @@ const skills = {
         then: [{ op: 'add', path: [`rank${n}`], value: 1, bounds: 'clamp' }, { op: 'set', path: [`practice${n}`], value: 0 }] })),
 };
 
+// The Standard formula's Skills: Classic's block with one more guard (Classic's definition, and so its hash, never changes). A filled slot is never
+// overwritten: the host sends a `learn-N` line to the slot already holding that name (updating it) or to a free one (data-modules/part.js
+// skillRoute), so what reaches this condition is a free slot.
+const standardSkills = {
+    ...skills,
+    kinds: Object.fromEntries(Object.entries(skills.kinds).map(([name, kind]) => [name, /^learn-/u.test(name)
+        ? { ...kind, when: ['eq', get(`skill${name.slice(6)}`), ''], refusal: 'That slot holds a skill; use a free slot.' } : kind])),
+};
+
 const foes = {
     slug: 'foes', name: 'Foes', role: 'foes', schema: 1, stateVersion: 1, scope: 'chat',
     prompt: 'Up to four foe groups in the current fight. A group is one slot: its name, how many it has (count 0 means the slot is empty), its Soul Class from I to IX and its health. The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or has yielded.',
@@ -239,10 +248,10 @@ export const COMBAT_PROMPT_STANDARD = [
 
 const standardCombat = { ...combat, stateVersion: 2, prompt: COMBAT_PROMPT_STANDARD };
 
-/** The Standard formula's four templates, in the chooser's order. Skills are the same block as Classic's. */
+/** The Standard formula's four templates, in the chooser's order. Skills are Classic's block with the learn guard. */
 export const STANDARD_TEMPLATES = Object.freeze([
     { name: 'Character', definition: standardCharacter },
-    { name: 'Skills', definition: skills },
+    { name: 'Skills', definition: standardSkills },
     { name: 'Foes', definition: standardFoes },
     { name: 'Combat rules', definition: standardCombat },
 ]);
