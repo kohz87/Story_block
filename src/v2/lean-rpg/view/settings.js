@@ -43,9 +43,12 @@ export function rpgSection({ featureOn = () => true, ...deps } = {}) {
     });
 }
 
+// The level divisor row (Custom): 3 to 8, 5 unset; it replaces the Soul Class weight row, which a levelled roll no longer reads.
+const DIVISORS = Object.freeze(Array.from({ length: LEVEL.maxDivisor - LEVEL.minDivisor + 1 }, (_, n) => LEVEL.minDivisor + n));
+
 const NUMBER_FIELDS = Object.freeze([
     Object.freeze({ key: 'foeBase', label: S.foeBase, help: S.foeBaseHelp }),
-    Object.freeze({ key: 'classWeight', label: S.classWeight, help: S.classWeightHelp, options: Object.freeze([[1, '×1'], [2, '×2'], [3, '×3']]) }),
+    Object.freeze({ key: 'levelDivisor', label: S.levelDivisor, help: S.levelDivisorHelp, options: Object.freeze(DIVISORS.map(n => [n, `÷${n}`])) }),
     Object.freeze({ key: 'statDivisor', label: S.statDivisor, help: S.statDivisorHelp, options: Object.freeze([[2, S.statHalf], [3, S.statThird], [STAT_ABOVE, S.statAbove]]) }),
     Object.freeze({ key: 'costMargin', label: S.costMargin, help: S.costMarginHelp }),
     Object.freeze({ key: 'decisiveMargin', label: S.decisiveMargin, help: S.decisiveMarginHelp }),
@@ -56,7 +59,7 @@ const NUMBER_FIELDS = Object.freeze([
 const STANDARD_FIELDS = Object.freeze([
     Object.freeze({ key: 'foeBase', label: S.foeBase, help: S.foeBaseHelpStandard }),
     Object.freeze({ key: 'foeClassWeight', label: S.foeClassWeight, help: S.foeClassWeightHelp }),
-    Object.freeze({ key: 'classWeight', label: S.classWeight, help: S.classWeightHelp, options: Object.freeze([[1, '×1'], [2, '×2'], [3, '×3']]) }),
+    Object.freeze({ key: 'levelDivisor', label: S.levelDivisor, help: S.levelDivisorHelp, options: Object.freeze(DIVISORS.map(n => [n, `÷${n}`])) }),
     Object.freeze({ key: 'costMargin', label: S.costMargin, help: S.costMarginHelp }),
     Object.freeze({ key: 'decisiveMargin', label: S.decisiveMargin, help: S.decisiveMarginHelp }),
     Object.freeze({ key: 'roundCap', label: S.roundCap, help: S.roundCapHelp }),
@@ -162,8 +165,8 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         box.appendChild(scroll);
         const standard = isStandard(rules);
         const tiles = standard
-            ? [[rules.startStat, S.formulaNums.start], [rules.createPoints, S.formulaNums.points], [fill(S.formulaPoints, { n: LEVEL.pointEvery }), S.formulaNums.perSoul], [fill(S.formulaFoe, { base: rules.foeBase }), S.formulaNums.foe]]
-            : [[CREATION.start, S.formulaNums.start], [CREATION.budget, S.formulaNums.points], [fill(S.formulaPoints, { n: LEVEL.pointEvery }), S.formulaNums.perSoul], [fill(S.formulaFoeClassic, { base: rules.foeBase }), S.formulaNums.foe]];
+            ? [[rules.startStat, S.formulaNums.start], [rules.createPoints, S.formulaNums.points], [fill(S.formulaPoints, { n: LEVEL.pointEvery }), S.formulaNums.perSoul], [fill(S.formulaFoe, { base: rules.foeBase, divisor: rules.levelDivisor ?? LEVEL.divisor }), S.formulaNums.foe]]
+            : [[CREATION.start, S.formulaNums.start], [CREATION.budget, S.formulaNums.points], [fill(S.formulaPoints, { n: LEVEL.pointEvery }), S.formulaNums.perSoul], [fill(S.formulaFoeClassic, { base: rules.foeBase, divisor: rules.levelDivisor ?? LEVEL.divisor }), S.formulaNums.foe]];
         const nums = h(doc, 'div', 'rpg-formula-nums');
         for (const [value, label] of tiles) {
             const tile = h(doc, 'div', 'rpg-formula-num');
@@ -254,7 +257,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
                         option.textContent = text;
                         input.appendChild(option);
                     }
-                    input.value = String(custom[entry.key]);
+                    input.value = String(custom[entry.key] ?? LEVEL.divisor);
                 } else {
                     input = doc.createElement('input');
                     input.setAttribute('type', 'number');
@@ -271,7 +274,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
                     const have = customOf(values(), pack()), typed = Number(String(input.value).trim());
                     // A number outside its range is held to it; something that is not a number is put back.
                     // (A choice is one of its options, kept as it is.)
-                    const next = entry.options ? (entry.options.some(([value]) => value === typed) ? typed : have[entry.key])
+                    const next = entry.options ? (entry.options.some(([value]) => value === typed) ? typed : have[entry.key] ?? LEVEL.divisor)
                         : Number.isFinite(typed) && String(input.value).trim() !== '' ? Math.min(range.max, Math.max(range.min, Math.round(typed))) : have[entry.key];
                     input.value = String(next);
                     put(customKey, standard ? normalizeStandard({ ...have, [entry.key]: next }) : normalizeRules({ ...have, [entry.key]: next }));

@@ -99,11 +99,12 @@ test('Custom: six fields with their ranges, started from the numbers in force; t
     // (The Rolls card also holds the Practice per skill use number; the Custom numbers are the Difficulty card's.)
     const grid = card('difficulty').querySelector('.rpg-set-nums');
     assert.deepEqual(grid.querySelectorAll('.rpg-set-num > span').map(node => node.textContent),
-        ['Foe\'s base', 'Soul Class adds', 'Stat adds', '"At a cost" when short by', 'Decisive at a margin of', 'Most exchanges per reply']);
-    assert.deepEqual(grid.querySelectorAll('small').map(node => node.textContent), ['Gentle 3 · Standard 5 · Harsh 7', 'per class, both sides', 'rounded down', '0 turns it off', 'or a natural 1 or 20', '1 to 8']);
+        ['Foe\'s base', 'Level divisor', 'Stat adds', '"At a cost" when short by', 'Decisive at a margin of', 'Most exchanges per reply']);
+    assert.deepEqual(grid.querySelectorAll('small').map(node => node.textContent), ['Gentle 3 · Standard 5 · Harsh 7', 'a roll adds level ÷ this (3 to 8, 5 unset), both sides', 'rounded down', '0 turns it off', 'or a natural 1 or 20', '1 to 8']);
     const input = key => root.querySelector(`[data-rule="${key}"]`);
     assert.deepEqual(['foeBase', 'costMargin', 'decisiveMargin', 'roundCap'].map(key => [input(key).getAttribute('min'), input(key).getAttribute('max')]), [['0', '15'], ['0', '5'], ['4', '15'], ['1', '8']]);
-    assert.deepEqual(input('classWeight').querySelectorAll('option').map(node => node.textContent), ['×1', '×2', '×3']);
+    assert.deepEqual(input('levelDivisor').querySelectorAll('option').map(node => node.textContent), ['÷3', '÷4', '÷5', '÷6', '÷7', '÷8']);
+    assert.equal(input('levelDivisor').value, '5', 'the divisor starts at 5');
     assert.deepEqual(input('statDivisor').querySelectorAll('option').map(node => node.textContent), ['half the stat', 'a third of the stat', 'full above 10']);
     assert.equal(oddsText(root), 'Success 52%At a cost 5%Fail 43%', 'Harsh\'s numbers, so Harsh\'s odds');
     typeInto(input('foeBase'), '3');
@@ -122,13 +123,13 @@ test('Custom: six fields with their ranges, started from the numbers in force; t
     assert.equal(input('costMargin').value, '3');
     input('statDivisor').value = '3';
     input('statDivisor').dispatch('change');
-    input('classWeight').value = '3';
-    input('classWeight').dispatch('change');
-    assert.deepEqual([stored()[CUSTOM_SETTING].statDivisor, stored()[CUSTOM_SETTING].classWeight], [3, 3]);
+    input('levelDivisor').value = '3';
+    input('levelDivisor').dispatch('change');
+    assert.deepEqual([stored()[CUSTOM_SETTING].statDivisor, stored()[CUSTOM_SETTING].levelDivisor], [3, 3], 'the divisor is written to rpgCustom.levelDivisor');
     // Wessel: a third of 12 is 4, a Soul Class of I is 3, Adept 1: +8 against 15 + 3 = 18 at the foe's base of 15.
     assert.equal(root.querySelector('.rpg-odds-title').textContent.includes('Wessel'), true);
     // The numbers that roll are these, held to range, whatever was typed.
-    assert.deepEqual(Object.keys(stored()[CUSTOM_SETTING]), ['foeBase', 'classWeight', 'statDivisor', 'costMargin', 'decisiveMargin', 'roundCap']);
+    assert.deepEqual(Object.keys(stored()[CUSTOM_SETTING]), ['foeBase', 'classWeight', 'statDivisor', 'costMargin', 'decisiveMargin', 'roundCap', 'levelDivisor']);
 });
 
 test('the odds are for the persona\'s own character, else the first Character block; no character, no odds', async t => {
@@ -466,12 +467,12 @@ test('Levels and practice: Level cap 1 to 99 (99 unset), Practice, and XP rate 5
     assert.equal(stored().rpgXpRate, 150, 'empty: put back');
 });
 
-test('the roll table and the tiles say level: level ÷ 5 in every row, "1 per 3 levels", "4 + level ÷ 30"', async t => {
+test('the roll table and the tiles say level: level ÷ 5 in every row, "1 per 3 levels", "4 + level ÷ 5"', async t => {
     const { card, root } = await open(t);
     root.querySelector('[data-card="formula"] .rpg-chip[data-value="standard"]').click();
     const rows = root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-table tr').map(row => row.textContent);
     assert.ok(rows.length >= 6 && rows.every(row => /level ÷ 5/.test(row)), rows.join(' | '));
     assert.match(rows.find(row => row.startsWith('Turn order')), /d20 \+ level ÷ 5 \+ AGI\/2.*foes the same with their own level/);
-    assert.deepEqual(root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-num').slice(2).map(node => node.textContent), ['1 per 3 levelsStat points', '4 + level ÷ 30Foe\'s base']);
+    assert.deepEqual(root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-num').slice(2).map(node => node.textContent), ['1 per 3 levelsStat points', '4 + level ÷ 5Foe\'s base']);
     assert.doesNotMatch(root.querySelector('[data-card="formula"]').textContent, /Soul/i);
 });
