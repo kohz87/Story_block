@@ -69,6 +69,9 @@ export function youGrammar(label = '') {
     return `~ you ${label ? `rank: ${label} | ` : ''}wearing: what {{user}} has on | condition: how {{user}} is (only when one changes; each at most ${YOU_CHARS} characters)`;
 }
 
+/** Added to the `+ item` grammar line while `story-block.gear` is on (and only then): the gear words, short, static. */
+export const GEAR_ITEM_GRAMMAR = '; gear: kind: weapon|armour|shield|head|cloak|feet|accessory|bag | rarity: common|uncommon|rare|epic|legendary | DEX: +1 (at most 2 stats, held to rarity) | equipped: slot; ~ item Name | wear: scuff|tear|ruin | repair: mend|restore';
+
 export const CORE_KINDS = Object.freeze({
     item: Object.freeze({ grammar: '+ item Name | qty: 1 | note: short detail (- item Name | qty: 1 when used up or lost; ~ item Name | note: … when it changes)' }),
     coin: Object.freeze({ grammar: '+ coin 30 | from: who (- coin 5 | to: who when paid; whenever {{user}} is paid or pays in the story, even a few coins, write the coin line; one number, in the wallet\'s currency)' }),
@@ -196,7 +199,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         // The party's riders for `mounts.pace`: the RPG's characters who have not left, else the one reader.
         queries: { ...createInventoryQueries(env), ...sceneQueries, ...createMountsQueries({ riders: state => (rpgOn() ? Math.max(1, (rpgLib()?.partyOf(state) ?? []).filter(person => !person.left).length) : 1) }) },
         kinds: {
-            item: kind(CORE_KINDS.item.grammar, (ctx, line) => captureItem(ctx, line, env)),
+            item: kind(() => CORE_KINDS.item.grammar + (env.gearOn() ? GEAR_ITEM_GRAMMAR : ''), (ctx, line) => captureItem(ctx, line, env)),
             coin: kind(CORE_KINDS.coin.grammar, (ctx, line) => captureCoin(ctx, line, env)),
             place: kind(CORE_KINDS.place.grammar, (ctx, line) => capturePlace(ctx, line)),
             present: kind(CORE_KINDS.present.grammar, (ctx, line) => capturePresent(ctx, line)),
@@ -413,7 +416,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         },
         capture: {
             // `you`'s grammar line is the part's function: it names a Rank only while an enabled pack gives one (youGrammar).
-            kinds: { ...CORE_KINDS, chatter: { ...CORE_KINDS.chatter, grammar: () => chatterGrammar(chatterCapNow()), display: Object.freeze({ noun: CORE_KINDS.chatter.display.noun, read: CORE_KINDS.chatter.display.read, get perReply() { return chatterCapNow(); } }) }, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
+            kinds: { ...CORE_KINDS, chatter: { ...CORE_KINDS.chatter, grammar: () => chatterGrammar(chatterCapNow()), display: Object.freeze({ noun: CORE_KINDS.chatter.display.noun, read: CORE_KINDS.chatter.display.read, get perReply() { return chatterCapNow(); } }) }, item: { ...CORE_KINDS.item, grammar: merged.kinds.item.grammar }, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
             apply(ctx, line) {
                 const kind = merged.kinds[line?.kind];
                 if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);

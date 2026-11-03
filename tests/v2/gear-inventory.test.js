@@ -708,3 +708,54 @@ test('a place\'s loot.maxRarity lowers the ceiling for the area, by name or alia
     await host.send('Loot.', reply('Gear.', ['+ item Star Blade | rarity: rare']));
     assert.equal(rarity('Star Blade'), 'uncommon', 'found by alias');
 });
+
+// GR-P2a: the narrator's item words (kind, rarity, stats, equipped, wear, repair) in the static grammar, gear on only.
+const staticOf = host => host.st.promptLog.filter(entry => entry.key === 'story_suite_static' && entry.value).at(-1)?.value ?? '';
+const ITEM_LINE = '+ item Name | qty: 1 | note: short detail (- item Name | qty: 1 when used up or lost; ~ item Name | note: … when it changes)';
+
+test('gear on: the item grammar names the gear words (one short line) and stays byte-identical reply to reply', async t => {
+    const host = await fresh(t);
+    const first = staticOf(host);
+    const line = first.split('\n').find(text => text.startsWith('+ item Name'));
+    assert.ok(line, 'the item grammar line');
+    const added = line.slice(ITEM_LINE.length);
+    assert.ok(added.length <= 300, `the gear words take ${added.length} characters`);
+    for (const word of ['kind: weapon|armour|shield|head|cloak|feet|accessory|bag', 'rarity: common|uncommon|rare|epic|legendary', 'DEX: +1', 'at most 2', 'equipped: slot', 'wear: scuff|tear|ruin', 'repair: mend|restore']) assert.ok(added.includes(word), word);
+    await host.send('Loot.', reply('Gear.', ['+ item Iron Sword | rarity: rare | equipped: weapon']));
+    await host.send('Again.', reply('More.', ['+ item Rope']));
+    assert.equal(staticOf(host), first, 'the same bytes after two more replies');
+});
+
+test('gear off (or the RPG off): the item grammar line is the old one, and the static bytes carry no gear word', async t => {
+    for (const settings of [{}, { features: { 'story-block.gear': true } }]) {
+        t.mock.method(console, 'warn', () => {});
+        const host = await createHost({ modules: [], settings });
+        t.after(() => host.close());
+        await host.send('Hello.', 'The road.');
+        const text = staticOf(host);
+        assert.ok(text.split('\n').includes(ITEM_LINE), 'the old line, byte for byte');
+        assert.doesNotMatch(text, /rarity:|equipped: slot|repair: mend|accessory\|bag/);
+        const before = text;
+        await host.send('Loot.', reply('Gear.', ['+ item Rope']));
+        assert.equal(staticOf(host), before);
+    }
+});
+
+test('a reply written with the grammar\'s words applies slot, rarity, stats, equipped, wear and repair', async t => {
+    const host = await fresh(t);
+    await host.send('Loot.', reply('Gear.', ['+ item Plain Thing | kind: weapon | rarity: rare | DEX: +1 | AGI: +1 | equipped: weapon', '+ item Fur Mantle | kind: cloak | rarity: uncommon | AGI: +1 | equipped: cloak']));
+    const blade = defNamed(host, 'Plain Thing');
+    assert.deepEqual([blade.slot, blade.rarity], ['weapon', 'rare']);
+    const gear = host.sdk.query('inventory.gear', { owner: 'party' });
+    assert.deepEqual([gear.slots.weapon.name, gear.slots.cloak.name], ['Plain Thing', 'Fur Mantle']);
+    assert.deepEqual(gear.statBonus, { STR: 0, VIT: 0, AGI: 2, DEX: 1, INT: 0, LUK: 0, CHA: 0 });
+    await host.send('Fight.', reply('Torn.', ['~ item Plain Thing — struck | wear: ruin']));
+    await host.send('Fight.', reply('Torn.', ['~ item Plain Thing — struck again | wear: ruin']));
+    await host.send('Fight.', reply('Torn.', ['~ item Plain Thing — struck again | wear: ruin']));
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).slots.weapon.broken, true, 'three ruins break it');
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.DEX, 0, 'broken gives nothing');
+    await host.send('Smith.', reply('Mended.', ['~ item Plain Thing — reforged | repair: restore']));
+    const after = host.sdk.query('inventory.gear', { owner: 'party' });
+    assert.equal(after.slots.weapon.broken, false);
+    assert.equal(after.statBonus.DEX, 1, 'the stats are back');
+});
