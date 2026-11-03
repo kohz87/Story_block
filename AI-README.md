@@ -134,6 +134,9 @@ Story Block module settings (`CORE_SETTINGS`, assist, RPG; `sdk.settings('story-
 | `rpgRolls` | `automatic` or `off` | `automatic` |
 | `rpgJoin` | Companions who join: `ask`, `auto` or `off` | `ask` |
 | `rpgDifficulty` | `gentle`, `standard`, `harsh` or `custom`; also `rpgFormula` (`standard` default or `classic`), `rpgStandard`, `rpgCustom`, `rpgPlannerNote` | `standard` |
+| `rpgLevelCap` | Level cap, 1 to 99 (a pack's `rpg.levelCap` wins when it names one); a character keeps the cap it was made with | `99` |
+| `rpgXpRate` | XP rate in percent, 50 to 300 in steps of 25; scales the fight's XP and the narrator's XP lines | `100` |
+| `rpgPracticePerUse` | Practice one skill use gives, 1 to 5 (at most 20 per skill in a reply) | `3` |
 
 Features (ids; default on/off; Lean and Full say what the preset sets, "-" means outside presets):
 
