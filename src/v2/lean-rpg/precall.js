@@ -19,6 +19,7 @@ import { openFoes, vetOpen } from './open.js';
 import { averageLevel, foeLabel, foeRandom, partyLevels, pickLevel } from './foes.js';
 import { DICE_VERSION, FLOW_VERSION, claimKey, prepare } from './resolve.js';
 import { readSheet } from './read.js';
+import { plannerWanted } from './gate.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
 
 // The query that names a level's rank (LV-C: `rpg.rank { level }` → `{ name } | null`); without it a level has no rank.
@@ -232,7 +233,13 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         const held = info?.again === true ? hold.peek(where, key) : null;
         let planned;
         if (held) planned = { plan: held.plan };
-        else {
+        else if (!plannerWanted(sheet, text)) {
+            // (The planner gate, gate.js: a quiet message with no fight open asks nothing. The decision depends only on the sheet and the message, so a
+            // swipe or a retry reaches the same one; it is held like an answer of "none".)
+            hold.clear();
+            hold.put(where, key, null);
+            planned = { plan: null };
+        } else {
             hold.clear();
             const before = messages[index - 1];
             const excerpt = before && !before.is_user ? stripBlock(String(before.mes ?? '')) : '';

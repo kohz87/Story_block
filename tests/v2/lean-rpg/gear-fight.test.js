@@ -376,7 +376,7 @@ test('the legendary mark: the narrator\'s legendary line is held to epic, unless
     assert.deepEqual([resultOf(host).stop, resultOf(host).legend, rarity(1)], ['won', undefined, 'epic'], 'a won fight 9 levels above: not enough');
     await host.send('Ten above.', reply(group(11), fresh, '+ item Blade 2 | kind: weapon | rarity: legendary'));
     assert.deepEqual([resultOf(host).stop, resultOf(host).legend, rarity(2)], ['won', 1, 'legendary'], 'won 10 levels above: the line stands');
-    await host.send('Quiet.', reply('+ item Blade 3 | kind: weapon | rarity: legendary'));
+    await host.send('Quiet, I strike.', reply('+ item Blade 3 | kind: weapon | rarity: legendary'));
     assert.equal(rarity(3), 'legendary', 'this reply still fought the group the one before set');
     await host.send('Quiet.', reply('+ item Blade 4 | kind: weapon | rarity: legendary'));
     // (pinned change, G4: once earned it lasts, so a later reply with no fight keeps the legendary line; it used to be held again)

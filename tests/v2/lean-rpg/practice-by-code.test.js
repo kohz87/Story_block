@@ -25,7 +25,7 @@ const LEARN = (n, name) => `~ dm skills — learned | kind: learn-${n} | name: $
 const sheetFields = (host, slug) => host.head().domains.dataModules.instances[`pack.chat/${slug}`].chat.fields;
 
 async function world(t, { perUse, answers = [PLAN] } = {}) {
-    const model = createFakeModel(['none', ...answers]);
+    const model = createFakeModel([...answers]);
     const host = await createHost({ callModel: model, settings: { modules: { 'story-block': { rpgFormula: 'classic', ...(perUse === undefined ? {} : { [PRACTICE_SETTING]: perUse }) } } } });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
