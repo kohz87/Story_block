@@ -235,6 +235,8 @@ export function definitionProblems(def) {
                 // `grammar` may be a function answering the line when the static part is built (a line that depends on what is
                 // installed, such as an enabled pack: Story Block's `you`); it must answer one line of text.
                 if (typeof spec.grammar === 'function') { /* read where it is used (grammarOf) */ }
+                // (`heads`: a kind may send no grammar line and only name the heads a stray line of it is taken by, ['+ event', '~ event'].)
+                else if (typeof spec.grammar === 'string' && !spec.grammar.trim() && headsOf(spec).length) { /* no line in the prompt, only heads */ }
                 else if (typeof spec.grammar !== 'string' || !spec.grammar.trim()) problems.push(`capture kind "${kind}" has no grammar line`);
                 else if (/\n/.test(spec.grammar.trim())) problems.push(`capture kind "${kind}" grammar is more than one line`);
                 if (spec.aliases !== undefined && (!Array.isArray(spec.aliases) || spec.aliases.some(alias => typeof alias !== 'string' || !KIND.test(alias)))) {
@@ -400,6 +402,11 @@ function neededVersion(range, version) {
  * `requires.storyBlock`; null skips that check (a registry built outside the host).
  * `warn(message)`: where definition warnings and failed initial() calls go (default console.warn).
  */
+/** The heads a kind names for stray lines (`heads`: ['+ event', '- event']): only well-formed "op kind" strings; [] for none. */
+function headsOf(spec) {
+    return Array.isArray(spec?.heads) ? spec.heads.filter(head => typeof head === 'string' && /^[+\-~!?] \p{L}[\p{L}\p{N}_-]*$/u.test(head)) : [];
+}
+
 /** A capture kind's grammar line: its text, or what its function answers now (one line of text; '' when it answers anything else). */
 function grammarOf(spec) {
     let line = spec?.grammar;
@@ -969,7 +976,10 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
                 moduleId: def.id,
                 name: def.name ?? def.id,
                 domains: Object.keys(def.domains ?? {}),
-                kinds: Object.keys(def.capture?.kinds ?? {}).sort().filter(kind => def.capture.kinds[kind].enabled !== false && !off(def.capture.kinds[kind])).map(kind => ({ kind, grammar: grammarOf(def.capture.kinds[kind]) })).filter(entry => entry.grammar),
+                kinds: Object.keys(def.capture?.kinds ?? {}).sort().filter(kind => def.capture.kinds[kind].enabled !== false && !off(def.capture.kinds[kind])).map(kind => {
+                    const heads = headsOf(def.capture.kinds[kind]);
+                    return { kind, grammar: grammarOf(def.capture.kinds[kind]), ...(heads.length ? { heads } : {}) };
+                }).filter(entry => entry.grammar || entry.heads),
                 static: context.static,
                 tail: context.tail,
                 budget: def.context?.budget ?? null,

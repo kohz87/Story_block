@@ -87,7 +87,7 @@ export function tailOrder(contexts) {
  */
 export function staticParts(registry, problems = []) {
     const contexts = registry.contexts();
-    const kinds = contexts.flatMap(context => context.kinds.map(kind => kind.grammar));
+    const kinds = contexts.flatMap(context => context.kinds.map(kind => kind.grammar)).filter(Boolean);
     const header = kinds.length ? `${HEADER}\n${CHANGES_HEADER}\n${kinds.join('\n')}` : HEADER;
     const parts = [{ module: 'story-suite', label: 'Story Suite: instructions', place: 'static', text: header }];
     for (const context of contexts) {
