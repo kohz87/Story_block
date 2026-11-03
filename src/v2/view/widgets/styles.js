@@ -52,6 +52,7 @@ export const widgetCss = `
 :where(.ss-w-editable-item-wide, .ss-w-editable-item-pair) { grid-column: 1 / -1; }
 :where(.ss-w-editable-item-pair) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
 :where(.ss-w-editable-item-pair select) { width: 100%; min-width: 0; }
+:where(.ss-w-editable-item-hint) { grid-column: 1 / -1; margin: 0; font-size: 0.85em; color: var(--ss-w-muted); }
 :where(.ss-w-editable-item-pair .ss-w-editable-item-label:last-child) { grid-column: auto; }
 :where(.ss-w-editable-item-fields input, .ss-w-editable-record-fields input) { width: 100%; min-width: 0; color: var(--ss-w-fg); }
 /* a form with groups: a fieldset each (a heading and the boxes), side by side where the room is, the help line, the sentence, then Save and Cancel */

@@ -68,7 +68,7 @@ export const RPG_STRINGS = Object.freeze({
         empty: 'empty',
         slots: Object.freeze({ head: 'Head', body: 'Body', cloak: 'Cloak', feet: 'Feet', weapon: 'Weapon', 'off-hand': 'Off-hand', 'accessory-1': 'Accessory 1', 'accessory-2': 'Accessory 2' }),
         words: Object.freeze({ good: 'Good', worn: 'Worn', torn: 'Torn', broken: 'Broken' }),
-        noBonus: 'no bonus',
+        noBonus: 'no bonus', boundTile: 'Bound to {name}',
         note: 'Gear counts only while Gear in fights is on. Bonuses are stat points (+2 DEX); common gear has none. A broken item gives no bonus until repaired. Items you only carry are listed on the Inventory tab. The thin line under a slot shows condition: yellow Worn, orange Torn, red Broken; none when Good.',
     }),
     skills: Object.freeze({
