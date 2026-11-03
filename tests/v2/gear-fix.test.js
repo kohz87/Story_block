@@ -53,10 +53,10 @@ async function agrees(host) {
     assert.deepEqual(host.store.problems(), []);
 }
 
-test('R1: the roll carries only the gear mark in its payload; the record is worked out when it is rolled', { skip }, async t => {
+test('R1: the roll carries only the gear mark (version and the reader name) in its payload; the record is worked out when it is rolled', { skip }, async t => {
     const { host, gearAt } = await fightWorld(t);
     const first = gearAt + 2;
-    assert.deepEqual(payloadAt(host, first).gear, { v: 1 }, 'the mark and nothing else');
+    assert.deepEqual(payloadAt(host, first).gear, { v: 1, lead: 'You' }, 'the mark and the reader\'s name, no gear record');
     assert.deepEqual(resultAt(host, first).gear.who.astra.add, { vit: 1, dex: 2 }, 'the record in the result is what was worn when it was rolled');
     await agrees(host);
 });
@@ -91,6 +91,32 @@ test('R1: a later equip never moves a roll that was made', { skip }, async t => 
     const stack = host.sdk.query('inventory.items').find(item => item.name === 'Cane Sword').stack;
     await host.sdk.command('inventory.unequip', { stack });
     assert.equal(JSON.stringify(resultAt(host, gearAt + 2)), made, 'the stored roll is the roll');
+    await agrees(host);
+});
+
+test('R1: no party module, a companion who sorts first: the reader named in the user message gets the shared bag\'s bonus; live = rebuild = reload', { skip }, async t => {
+    t.mock.method(console, 'warn', () => {});
+    const plan = 'pace: all\nact Wessel | target: Mud Crawlers\nfoe Mud Crawlers | target: Wessel | defend: AGI';
+    const host = await createHost({ st: { user: 'Wessel' }, callModel: createFakeModel(Array(20).fill(plan)), settings: { features: { 'story-block.gear': true }, modules: { 'story-block': { rpgFormula: 'classic' } } } });
+    t.after(() => host.close());
+    host.features.set('story-block.rpg', true);
+    await host.send('Begin.', 'Opening.');
+    for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition) }));
+    const second = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Character').definition);
+    second.slug = 'wessel'; second.name = 'Wessel'; second.state.who.default = 'Wessel';
+    success(await host.sdk.command('dm.define', { definition: second }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 5 } }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/wessel', fields: { who: 'Wessel', level: 5 } }));
+    await host.send('Set.', reply(SET));
+    await host.send('Gear up.', reply(GEAR_LINES[0]));
+    await host.send('I strike.', 'The fight.');
+    const at = host.ctx.chat.length - 1;
+    assert.deepEqual(payloadAt(host, at).gear, { v: 1, lead: 'Wessel' });
+    const who = resultAt(host, at).gear.who;
+    assert.deepEqual(Object.keys(who).sort(), ['astra', 'wessel'], 'the companion sorts first');
+    assert.deepEqual([who.astra.own, who.wessel.own], [[], ['party']]);
+    assert.deepEqual(who.wessel.add, { dex: 2 });
+    assert.equal(who.astra.add, undefined);
     await agrees(host);
 });
 
@@ -157,12 +183,15 @@ const ITEMS = [
     { name: 'Oak Buckler', kind: 'equipment', slot: 'shield', rarity: 'common' },
 ];
 const person = (extra = {}) => ({ id: 'mara', name: 'Mara', aliases: [], about: 'Runs the night ferry.', look: 'Wiry.', start: { place: 'Docks', goal: 'Keep the ferry running.' }, ...extra });
-async function joinWorld(t, { list = [person({ gear: ['Cane Sword', 'Oak Buckler'] })], enabled = true } = {}) {
+// (a party module that lists Mara and Tam as actors: their pieces are theirs; without it they are the shared bag's)
+const ACTORS = { id: 'zz-party', version: '0.0.0', queries: { 'party.actors': () => [{ id: 'ac_mara0001', name: 'Mara' }, { id: 'ac_tam00001', name: 'Tam' }] } };
+async function joinWorld(t, { list = [person({ gear: ['Cane Sword', 'Oak Buckler'] })], enabled = true, actors = true } = {}) {
     t.mock.method(console, 'warn', () => {});
     const raw = pack({ content: { items: ITEMS, cast: list } });
     const built = validatePack(raw);
     assert.equal(built.ok, true, JSON.stringify(built.errors));
     const host = await createHost({
+        modules: actors ? [ACTORS] : [],
         settings: { features: { 'story-block.gear': true, 'story-block.rpg': true }, modules: { 'story-block': { rpgJoin: 'auto', rpgFormula: 'classic' } },
             packs: [{ id: built.pack.id, version: built.pack.version, enabled, source: 'file', origin: 'test', pack: raw }] },
     });
@@ -198,14 +227,16 @@ test('R3: a duplicate name (two defs called Cane Sword already) is no longer amb
     await host.send('Mara walks in.', reply('+ party Mara'));
     await host.send('Tam too.', reply('+ party Tam'));
     assert.equal(joined(host)?.summary.startsWith('Tam joined the party.'), true, 'the join stands');
-    assert.equal(rows(host).filter(row => row.def === 'pack.mini/cane-sword').length, 1, 'the pack\'s sword is in the bag once: Tam finds it there and it is not doubled');
+    assert.deepEqual(rows(host).filter(row => row.def === 'pack.mini/cane-sword').map(row => [row.owner, row.equipped]).sort(), [['ac_mara0001', 'weapon'], ['ac_tam00001', 'weapon']], 'each has the pack\'s own sword, by its ID');
     assert.deepEqual(host.store.problems(), []);
 });
 
 test('R3: a taken slot does not fail the join: the piece is carried, not worn, and a Problems line says so', { skip }, async t => {
     const host = await joinWorld(t);
     await host.send('An old blade.', reply('+ item Old Blade | kind: weapon | equipped: weapon'));
-    assert.equal(rows(host).find(row => row.name === 'Old Blade').equipped, 'weapon');
+    const blade = rows(host).find(row => row.name === 'Old Blade');
+    assert.equal((await host.sdk.command('inventory.transfer', { stack: blade.stack, to: 'ac_mara0001' })).ok, true);
+    assert.equal((await host.sdk.command('item.equip', { stack: blade.stack, owner: 'ac_mara0001', slot: 'weapon' })).ok, true);
     await host.send('Mara walks in.', reply('+ party Mara'));
     assert.equal(joined(host)?.summary.startsWith('Mara joined the party.'), true, 'the join stands');
     const sword = rows(host).find(row => row.def === 'pack.mini/cane-sword');
@@ -247,4 +278,31 @@ test('R5: packs.castGear counts "already in the party" the way sameWho does: by 
     assert.equal(host.sdk.query('packs.castGear', { name: 'Mara' }), null, 'Mara is Mara Quill: in the party');
     await define('mara-holt', 'Mara Holt');
     assert.ok(host.sdk.query('packs.castGear', { name: 'Mara' }), 'two Maras: not guessed, the line stands');
+});
+
+// ---- a join with no party roster, and the kind word of an item line --------------------------------------------------------------------------
+
+test('no party module: nothing is given to the party bag (its worn gear is the reader\'s), the join stands, and one Problems line says it stays with them', { skip }, async t => {
+    const host = await joinWorld(t, { actors: false });
+    await host.send('Mara walks in.', reply('+ party Mara'));
+    assert.deepEqual(rows(host), []);
+    assert.equal(joined(host)?.summary, 'Mara joined the party.');
+    assert.equal('gear' in joined(host).data, false);
+    assert.deepEqual(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus, { STR: 0, VIT: 0, AGI: 0, DEX: 0, INT: 0, LUK: 0, CHA: 0 }, 'the reader gains nothing');
+    assert.equal(host.turn.problems().filter(problem => /Mara's gear stays with Mara \(no party roster\)/.test(JSON.stringify(problem))).length, 1);
+    host.store.rebuild();
+    assert.deepEqual(rows(host), []);
+});
+
+test('an item line\'s kind word names the inventory kind: consumable (potion, draught, food), material, quest; a plain item stays goods', { skip }, async t => {
+    for (const gear of [false, true]) {
+        const host = await createHost({ settings: { features: gear ? { 'story-block.gear': true, 'story-block.rpg': true } : {} } });
+        t.after(() => host.close());
+        await host.send('Begin.', 'Opening.');
+        await host.send('Loot.', reply('+ item Healing Draught | kind: consumable', '+ item Red Potion | kind: potion', '+ item Pine Resin | kind: material', '+ item Brass Key | kind: quest', '+ item Odd Stone'));
+        const kind = name => host.sdk.query('inventory.definitions').find(def => def.name === name).kind;
+        assert.deepEqual(['Healing Draught', 'Red Potion', 'Pine Resin', 'Brass Key', 'Odd Stone'].map(kind), ['consumable', 'consumable', 'material', 'quest', 'goods'], `gear ${gear}`);
+        host.store.rebuild();
+        assert.deepEqual(host.sdk.query('inventory.definitions').find(def => def.name === 'Healing Draught').kind, 'consumable');
+    }
 });

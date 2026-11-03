@@ -540,7 +540,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         return giveGear(ctx, answer, request.name);
     }
     // A cast member's signature gear (cast.js `gear`, GEAR.md): with `story-block.gear` on, the joining person's pack items are added to the
-    // inventory owned by them (the party's actor of that name, else the party's bag) and put on, through the inventory's own commands, so
+    // inventory owned by them (the party's actor of that name; with none, nothing is given) and put on, through the inventory's own commands, so
     // the items are part of the join's one receipt. A command that fails inside another fails the whole receipt (the join with it), so everything that
     // could be refused is checked first here, never tried: each piece is looked up by its definition ID (a story item of the same name never gets in
     // the way), what they already own is not added again, a slot that is taken is left as it is (the piece is carried, not worn), and a piece that
@@ -556,6 +556,11 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             const actor = (Array.isArray(actors) ? actors : []).find(entry => typeof entry?.id === 'string' && fold(entry.name) === fold(name));
             if (actor) owner = actor.id;
         } catch { owner = 'party'; }
+        // No actor of their own (nothing answers `party.actors`): the shared bag's worn gear is the reader's Character's, so nothing is given at all; it stays with them.
+        if (owner === 'party') {
+            answer.problem = [answer.problem, `${found.name}'s gear stays with ${found.name} (no party roster).`].filter(Boolean).join(' ');
+            return answer;
+        }
         const inventory = ctx.read('inventory');
         const stacks = Object.values(inventory?.stacks ?? {}).filter(stack => stack.owner === owner);
         const taken = new Set(stacks.map(stack => stack.equipped).filter(Boolean));

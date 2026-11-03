@@ -120,11 +120,11 @@ test('a person whose pack lists no gear, or who is not in the cast, joins exactl
     assert.deepEqual(receipts(host).filter(entry => entry.type === 'capture.party').map(entry => entry.summary), ['Mara joined the party.', 'Pip joined the party.']);
 });
 
-test('an alias finds the person; without a party actor the gear goes to the party\'s bag and only free slots are filled', { skip }, async t => {
+test('an alias finds the person; without a party actor nothing is given (pinned change, 3 Nov: it used to be put on in the party\'s bag)', { skip }, async t => {
     const host = await world(t, { actors: false, list: [person({ gear: GEAR }), person({ id: 'tam', name: 'Tam', aliases: [], gear: ['Rusty Spear', 'Oak Buckler'] })] });
     await host.send('Both.', reply('+ party the ferrywoman', '+ party Tam'));
     const worn = Object.fromEntries(rows(host).filter(row => row.owner === 'party').map(row => [row.name, row.equipped ?? null]));
-    assert.deepEqual(worn, { 'Cane Sword': 'weapon', 'Oak Buckler': 'off-hand', 'Tin Ring': 'accessory-1', 'Rusty Spear': null });
+    assert.deepEqual(worn, {});
 });
 
 test('leaving and coming back does not duplicate what they still own', { skip }, async t => {

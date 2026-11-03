@@ -56,8 +56,15 @@ function dressOf(own, party, answerOf) {
     return { ...(Object.keys(add).length ? { add } : {}), ...(enc ? { enc } : {}), ...(items.length ? { items: items.slice(0, ITEMS_MAX) } : {}) };
 }
 
-/** The version mark a roll's payload carries while gear is on (`gear: { v: 1 }`), or undefined: the roll works its gear out itself (resolve.js). */
-export const gearMarkOf = value => (isObject(value) && value.v === GEAR_VERSION ? { v: GEAR_VERSION } : undefined);
+/**
+ * The mark a roll's payload carries while gear is on: `{ v: 1 }` or `{ v: 1, lead: '<reader name>' }`, or undefined. `lead` is a stable fact about the roll (who the
+ * shared bag `party` meant: the reader's name, used when no party module names the main character), not a gear record; the roll works its gear out itself (resolve.js).
+ */
+export function gearMarkOf(value) {
+    if (!isObject(value) || value.v !== GEAR_VERSION) return undefined;
+    const lead = typeof value.lead === 'string' ? value.lead.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX) : '';
+    return lead ? { v: GEAR_VERSION, lead } : { v: GEAR_VERSION };
+}
 
 /** Whether gear is on for a planner: the inventory answers (`query(name, args)`) and there is a Character to dress. */
 export function gearIsOn(sheet, query) {

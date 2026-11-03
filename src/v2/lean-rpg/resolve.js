@@ -428,7 +428,8 @@ export function resolve(ctx, payload = {}) {
     // roll (the inventory's `recorded` answers: the mark decides, not today's switch), are laid over the stats it rolls with (gear.js). The record is kept with the
     // roll, so a later change never moves it; a change before it is seen by the guard.
     const standing = readSheet({ domains: { dataModules: domain } });
-    const gear = gearMarkOf(payload.gear) ? planGear(standing, (name, args) => ctx.query(name, name === 'inventory.gear' ? { ...args, recorded: true } : args)) ?? undefined : undefined;
+    const mark = gearMarkOf(payload.gear);
+    const gear = mark ? planGear(standing, (name, args) => ctx.query(name, name === 'inventory.gear' ? { ...args, recorded: true } : args), mark.lead ?? '') ?? undefined : undefined;
     const sheet = applyGear(standing, gear);
     const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow, lv: Boolean(lv) });
     if (opening) prepared.witness = { ...prepared.witness, opened };

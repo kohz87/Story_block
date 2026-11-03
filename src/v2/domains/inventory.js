@@ -20,6 +20,8 @@ const E = STRINGS.editMessages;
 export const KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
 export const RARITIES = Object.freeze(['common', 'uncommon', 'rare', 'epic', 'legendary']);
 // The order kinds are listed in (prompt view and tab): what the story turns on first.
+/** The words of a story line's `kind:` that name an inventory kind. */
+const STORY_KIND = Object.freeze({ consumable: 'consumable', potion: 'consumable', draught: 'consumable', elixir: 'consumable', food: 'consumable', drink: 'consumable', material: 'material', ingredient: 'material', quest: 'quest' });
 export const KIND_ORDER = Object.freeze(['quest', 'equipment', 'consumable', 'material', 'goods', 'money']);
 
 const MAX_NAME = 120;
@@ -437,6 +439,10 @@ function hookScale(env) {
 
 function buildDef(def, env, about, keep = {}) {
     const id = def.id;
+    // The kind word of a story line (`+ item Healing Draught | kind: consumable`): a new plain item takes the inventory kind it names (consumable, material, quest);
+    // a gear word (weapon, cloak, ...) is not one and is read by the gear step below.
+    const saidKind = STORY_KIND[String(about.words?.kind ?? '').normalize('NFKC').toLowerCase().trim().split(/[^a-z]+/).find(word => Object.hasOwn(STORY_KIND, word))];
+    if (saidKind && def.kind === 'goods') def.kind = saidKind;
     // Gear (`story-block.gear`): the slot and rarity the line's words and the name give, before the modules' hooks.
     if (about.gear === true) {
         gearDefine(def, about.words ?? {}, {

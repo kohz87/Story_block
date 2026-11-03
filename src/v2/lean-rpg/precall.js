@@ -10,7 +10,7 @@
 // connection profile and time limit; the answer is a plan, never a number.
 import { SETTING, TIMEOUT_MS, clip, estimateTokens, hashText, normalizeType, withTimeout } from '../assist/common.js';
 import { stripBlock } from '../capture.js';
-import { GEAR_VERSION, gearIsOn } from './gear.js';
+import { GEAR_VERSION, gearIsOn, gearMarkOf } from './gear.js';
 import { CLASS_NAMES, LEAN_RPG_FEATURE, LV_VERSION, PRACTICE, PRACTICE_SETTING, RANK_NAMES, practiceOf, RESOLVE, ROLLS_SETTING, STAGES, STATS, stageWord } from './names.js';
 import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rules.js';
 import { NO_ROLLS_LINE, OPEN_FIGHT_LINE } from './cue.js';
@@ -243,9 +243,9 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         // A Standard fight keeps its turn order across replies: the nearest earlier reply's order goes on in the payload (resolve.js), so a swipe of
         // this reply rolls this reply's dice again and keeps the order the fight began with.
         const order = isStandard(rules) && planned.plan ? carriedOrder(view, index) : null;
-        // Gear in fights (gear.js): while the switch is on the roll carries only the version mark; `rpg.resolve` works out what each member has on and carries
+        // Gear in fights (gear.js): while the switch is on the roll carries only the version mark (and the reader's name as `lead`); `rpg.resolve` works out what each member has on and carries
         // from the state before the roll, so a change before it (a reply deleted or edited) changes its gear.
-        const gear = planned.plan && gearIsOn(sheet, (name, args) => view.query?.(name, args)) ? { v: GEAR_VERSION } : null;
+        const gear = planned.plan && gearIsOn(sheet, (name, args) => view.query?.(name, args)) ? gearMarkOf({ v: GEAR_VERSION, lead: String(last.name ?? '') }) : null;
         return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
     }
 

@@ -117,10 +117,9 @@ A pack's cast entry may list `gear` (PACKS.md "The cast"): up to 6 of the pack's
 checked when the pack is read. With the switch on:
 
 * **Joining.** When that person joins the party (a `+ party` line or the Ask card's Add to party; the name or an alias matches the
-  cast entry), each item is added to the inventory owned by them (the party's actor of that name when a party module lists one, else
-  the party's bag) and put on in its slot through `item.equip`, condition Good, as part of the join's own receipt: the summary ends
+  cast entry), each item is added to the inventory owned by them (the party's actor of that name; a party module must list one) and put on in its slot through `item.equip`, condition Good, as part of the join's own receipt: the summary ends
   "Gear: Cane Sword, Oak Buckler." and `data.gear` lists them. A swipe, a delete or a Re-read of the reply takes the join and the
-  gear away together; a rebuild gives the same. In the party's bag a slot already taken stays as it is and the piece is carried (a Problems line says so).
+  gear away together; a rebuild gives the same. With no actor of their own (no party module answers `party.actors`) **nothing is given**: the shared bag's worn gear counts for the reader's own Character, so the joiner's pieces would become the reader's. The join stands, one Problems line says "Harrak's gear stays with Harrak (no party roster)", and the narrator's `Gear:` line still describes them. Otherwise a slot already taken stays as it is and the piece is carried (a Problems line says so).
   Everything that could be refused is checked first, never tried: a piece is looked up and granted by its definition ID (a story item of the same name, or
   two of that name, cannot get in the way), so a join never fails for its gear.
 * **Coming back.** Someone who left and comes back (`- party`, then `+ party`) keeps what they own: only a piece no longer owned is
@@ -138,7 +137,7 @@ give the same answers (tests/v2/gear-inventory.test.js).
 
 ## In the rolls (part 2)
 
-While the switch is on, the roll's payload carries only the version mark, `gear: { v: 1 }`. `rpg.resolve` works the gear out itself from the state before the roll
+While the switch is on, the roll's payload carries only the mark, `gear: { v: 1, lead: '<reader name>' }` (`lead` is who the shared bag meant, used when no party module names the main character; a mark without it falls to the first block). `rpg.resolve` works the gear out itself from the state before the roll
 (lean-rpg/gear.js `planGear`, over the inventory's own answers) into the record `gear: { v: 1, who: { <member>: { own, add?, enc?, items? } } }`: `own` the owners
 the member's pieces are filed under (their party actor, and `party` for the lead), `add` the summed stat bonus (broken pieces give none), `enc` the encumbered
 penalty (-2), `items` the pieces that give something. The record is hashed with the roll (predicate and result), so a rebuild and a reload roll with it and
