@@ -237,7 +237,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         const held = info?.again === true ? hold.peek(where, key) : null;
         let planned;
         if (held) planned = { plan: held.plan };
-        else if (!plannerWanted(sheet, text)) {
+        else if (!plannerWanted(sheet, text, messages[index - 1] && !messages[index - 1].is_user ? stripBlock(String(messages[index - 1].mes ?? '')) : '')) {
             // (The planner gate, gate.js: a quiet message with no fight open asks nothing. The decision depends only on the sheet and the message, so a
             // swipe or a retry reaches the same one; it is held like an answer of "none".)
             hold.clear();

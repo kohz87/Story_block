@@ -139,7 +139,12 @@ export function grammarFor(state, quiet = null) {
     const lines = active.map(id => {
         const definition = activeDefinition(state, id);
         const only = quiet && definition?.role ? quiet[definition.role] : null;
-        return definition && !only?.skip ? moduleGrammar(definition, referenceOf(active, id), { seen, ...(only ?? {}) }) : '';
+        if (definition && only?.skip) {
+            // (A skipped block may keep one line of its text: the XP guide stays on a quiet reply, whatever words the pinned block holds it in.)
+            const kept = only.keep ? new RegExp(only.keep.source, 'u').exec(String(definition.prompt ?? ''))?.[0] : '';
+            return kept ? oneLine(kept) : '';
+        }
+        return definition ? moduleGrammar(definition, referenceOf(active, id), { seen, ...(only ?? {}) }) : '';
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
 }

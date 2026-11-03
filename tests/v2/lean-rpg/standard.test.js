@@ -203,7 +203,9 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
     const sheet = sheetOf(party());
     assert.match(PRECALL_HEAD_STANDARD, /type: physical\|magic\|social\|check/);
     assert.doesNotMatch(PRECALL_HEAD_STANDARD, /defend:/);
-    assert.ok(PRECALL_HEAD_STANDARD.length <= PRECALL_HEAD.length * 1.3, `${PRECALL_HEAD_STANDARD.length} against ${PRECALL_HEAD.length}`);
+    // Measured at 1.232 (1315 characters against 1067); a little margin, so a growing head is noticed.
+    const STANDARD_HEAD_RATIO_MAX = 1.25;
+    assert.ok(PRECALL_HEAD_STANDARD.length <= PRECALL_HEAD.length * STANDARD_HEAD_RATIO_MAX, `${PRECALL_HEAD_STANDARD.length} against ${PRECALL_HEAD.length}`);
     const input = { sheet, message: 'I attack.', excerpt: '' };
     assert.ok(precallPrompt({ ...input, standard: true }).startsWith(PRECALL_HEAD_STANDARD));
     assert.ok(precallPrompt(input).startsWith(PRECALL_HEAD));

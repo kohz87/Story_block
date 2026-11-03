@@ -2431,8 +2431,9 @@ export const createInventoryQueries = env => ({
 const condText = (item, gear) => { const word = gear && item.cond !== undefined ? condMark(item.cond) : ''; return word ? ` (${word})` : ''; };
 
 // Where a thing was found is on the screens, not in the prompt (prompt diet): "found at the drain", "picked up in the cellar" is left out of a note,
-// what else it says stays ("tarred hemp, found at the drain" → "tarred hemp"). The stored note is not touched.
-const PROVENANCE = /^(?:found|picked up|looted|salvaged|taken|bought|won|got|acquired)\s+(?:\p{L}+\s+)?(?:at|in|on|near|from|under|by|behind|inside|beside)\b/iu;
+// what else it says stays ("tarred hemp, found at the drain" → "tarred hemp"). Only "found" or "picked up" with a place word is left out; who it was taken
+// from, a debt, a clue, a duel, "found on the body of Captain Rell" all stay. The stored note is not touched.
+const PROVENANCE = /^(?:found|picked up)\s+(?:at|in|near|under|behind|inside|beside)\b/iu;
 export function promptNote(note) {
     const text = String(note ?? '');
     const parts = text.split(/\s*[;,]\s*/);

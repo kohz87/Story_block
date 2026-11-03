@@ -239,6 +239,13 @@ export function definitionProblems(def) {
                 else if (typeof spec.grammar === 'string' && !spec.grammar.trim() && headsOf(spec).length) { /* no line in the prompt, only heads */ }
                 else if (typeof spec.grammar !== 'string' || !spec.grammar.trim()) problems.push(`capture kind "${kind}" has no grammar line`);
                 else if (/\n/.test(spec.grammar.trim())) problems.push(`capture kind "${kind}" grammar is more than one line`);
+                // Heads take stray lines for a kind, so each must name that kind (or an alias of it): another kind's head would take its lines.
+                if (spec.heads !== undefined) {
+                    const own = new Set([kind, ...(Array.isArray(spec.aliases) ? spec.aliases : [])]);
+                    for (const head of Array.isArray(spec.heads) ? spec.heads : [spec.heads]) {
+                        if (!own.has(typeof head === 'string' ? head.split(' ')[1] : undefined)) problems.push(`capture kind "${kind}" has a head "${String(head)}" that does not name the kind itself`);
+                    }
+                }
                 if (spec.aliases !== undefined && (!Array.isArray(spec.aliases) || spec.aliases.some(alias => typeof alias !== 'string' || !KIND.test(alias)))) {
                     problems.push(`capture kind "${kind}" aliases must be a list of lowercase words`);
                 }

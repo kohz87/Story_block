@@ -102,15 +102,20 @@ export function fullModuleGrammar(definition, reference, { prompt: withPrompt = 
     return [prompt, ...familyLines(definition, names, reference, seen)].filter(Boolean).join('\n');
 }
 
-/** The lines a module adds to the static part, within its character budget (whole lines only). */
+/**
+ * The lines a module adds to the static part, within its character budget (whole lines only). A list of values written on a line that the budget cuts
+ * is not remembered in `seen`: a later module writes the words itself, never "same words as" a line that is not in the prompt.
+ */
 export function moduleGrammar(definition, reference, options = {}) {
     const lines = [];
     let used = 0;
-    for (const line of fullModuleGrammar(definition, reference, options).split('\n').filter(Boolean)) {
+    const local = options.seen ? new Map(options.seen) : null;
+    for (const line of fullModuleGrammar(definition, reference, { ...options, ...(local ? { seen: local } : {}) }).split('\n').filter(Boolean)) {
         const next = used + (lines.length ? 1 : 0) + [...line].length;
         if (next > L.staticCharacters) break;
         lines.push(line);
         used = next;
     }
+    if (local) for (const [values, where] of local) if (!options.seen.has(values) && lines.some(line => line.includes(values))) options.seen.set(values, where);
     return lines.join('\n');
 }

@@ -358,6 +358,44 @@ test('gate: a risky word in the message asks (attack, sneaking, hits, picks the 
     }
 });
 
+test('gate: the review phrases plan (draw, lunge, fire, aim, loose, flee, break, force, search, track, heal); calm "fire" does not, "listen" does (a "none" is cheap)', { skip }, async () => {
+    for (const message of ['I draw my sword and lunge at him.', 'I fire at the guard.', 'I aim at the bandit and loose an arrow.', 'I flee into the alley.', 'I try to break down the door.', 'I force the lock.', 'I search the room for traps.', 'I track the wolf.', 'I heal Mira.', 'He hid and then ran.', 'She leapt, he fled, it broke, I drew.', 'I sit by the fire and listen to the rain.']) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, 1, message);
+        host.close();
+    }
+    for (const message of ['I sit by the fire.', 'We rest by the fire.', 'We gather around the fires and eat.']) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, 0, message);
+        host.close();
+    }
+});
+
+test('gate: a party skill matches by any word of its name of 4 letters or more, not only by the whole name', { skip }, async () => {
+    for (const [message, calls] of [['I use my breath.', 1], ['The sparkling river.', 1], ['Nothing iron here.', 1], ['I sit down.', 0]]) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, calls, message);
+        host.close();
+    }
+});
+
+test('gate: a last narrator reply that reads as combat plans the next message even with no Foes line; a calm one does not', { skip }, async () => {
+    const hot = await setup({ ...QUIET, answers: ['none'] });
+    await hot.host.send('Hello.', 'A bandit steps out of the trees and draws a blade.');
+    assert.equal(hot.callModel.calls.length, 0, 'the first message is quiet');
+    await hot.host.send('Hmm.', 'Told.');
+    assert.equal(hot.callModel.calls.length, 1, 'the reply before reads as combat');
+    hot.host.close();
+    const calm = await setup({ ...QUIET, answers: ['none'] });
+    await calm.host.send('Hello.', 'The market is busy and the baker waves.');
+    await calm.host.send('Hmm.', 'Told.');
+    assert.equal(calm.callModel.calls.length, 0);
+    calm.host.close();
+});
+
 test('gate: an open fight asks whatever the message says; a fight whose groups are all Down does not', { skip }, async () => {
     const open = await setup({ answers: ['none'] });
     await open.host.send('Hello.', 'Told.');

@@ -92,6 +92,22 @@ test('the health words are told once: a later list that is the same is "same wor
     assert.match(text, /kind: hurt-N \| to: same words as character set-health/u);
 });
 
+test('"same words as" names only a line that is in the prompt: a first line the budget cuts leaves the words to the next module', () => {
+    const mood = { type: 'enum', values: ['calm and quiet', 'tense and watchful', 'angry and loud', 'afraid and small'] };
+    const kind = labels => ({ op: '+', labels, when: true, effects: [] });
+    const filler = Object.fromEntries(Array.from({ length: 60 }, (_, n) => [`filler${String.fromCharCode(97 + (n % 26))}${String.fromCharCode(97 + Math.floor(n / 26))}`, kind({ x: { type: 'enum', values: ['a', 'b'] } })]));
+    const first = { scope: 'chat', kinds: { ...filler, mood: kind({ mood }) }, state: {} };
+    const second = { scope: 'chat', kinds: { mood: kind({ mood }) }, state: {} };
+    const seen = new Map();
+    const cut = moduleGrammar(first, 'first', { seen });
+    assert.doesNotMatch(cut, /kind: mood/u, 'the budget cut the mood line');
+    assert.match(moduleGrammar(second, 'second', { seen }), /mood: calm and quiet\|tense and watchful\|angry and loud\|afraid and small$/u, 'the words in full');
+    // A first line that is in the prompt is still referred to.
+    const kept = new Map();
+    moduleGrammar({ scope: 'chat', kinds: { mood: kind({ mood }) }, state: {} }, 'first', { seen: kept });
+    assert.match(moduleGrammar(second, 'second', { seen: kept }), /mood: same words as first mood/u);
+});
+
 test('a quiet reply leaves out the combat text, the Foes description, hurt and clear; the party line and the opening Foes line stays', { skip }, async t => {
     const { host } = await world(t);
     const { request } = await host.send('I walk on.', 'The road is quiet.');
@@ -105,6 +121,20 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     assert.match(text, /kind: set-health/u);
     assert.match(text, /kind: learn-N/u);
     assert.match(text, /kind: practice-N/u);
+});
+
+test('the XP guide stays on a quiet reply (Standard and Classic), once, and the rest of the combat text does not', { skip }, async t => {
+    const expected = [[STANDARD_TEMPLATES, /XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\./u],
+        [LEAN_RPG_TEMPLATES, /XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\. Practice a skill 5 to 20 per use\./u]];
+    for (const [templates, guide] of expected) {
+        const { host } = await world(t, { templates });
+        const { request } = await host.send('I walk on.', 'The road is quiet.');
+        const text = staticOf(request);
+        assert.match(text, guide);
+        assert.equal(text.split('XP guide:').length - 1, 1, 'once');
+        assert.doesNotMatch(text, /\[COMBAT SYSTEM\]|No Plot Armor/u);
+        host.close();
+    }
 });
 
 test('a fight the narrator opens without a plan still parses; from the next reply the combat text and the whole grammar are told', { skip }, async t => {

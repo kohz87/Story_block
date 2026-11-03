@@ -54,6 +54,12 @@ test('Carried leaves out where a thing was found; the rest of the note stays; th
     assert.equal(promptNote('picked up near the gate; rusty'), 'rusty');
     assert.equal(promptNote('tarred hemp, sixty feet'), 'tarred hemp, sixty feet', 'a note with no provenance is the same text');
     assert.equal(promptNote('found a way to open it'), 'found a way to open it', 'only "found at/in/on/near…" is provenance');
+    // Owners, debts, clues and the rest stay: only "found/picked up" with a place word goes.
+    for (const note of ['taken from Mira, must return it', 'owes Hesk 10 silver', 'won in a duel with Kael', 'found on the body of Captain Rell', 'taken by the Watch as evidence', 'got in a trade for the map', 'looted from the vault', 'bought from Orla']) {
+        assert.equal(promptNote(note), note, note);
+    }
+    assert.equal(promptNote('found under the bridge, owes Hesk 10 silver'), 'owes Hesk 10 silver');
+    assert.equal(promptNote('picked up behind the inn; won in a duel with Kael'), 'won in a duel with Kael');
     const state = { domains: { inventory: { defs: { 'story/rope': { id: 'story/rope', name: 'Rope', kind: 'misc', tags: [] }, 'story/lamp': { id: 'story/lamp', name: 'Lamp', kind: 'misc', tags: [] } },
         stacks: { it_a: { stack: 'it_a', def: 'story/rope', qty: 1, owner: 'party', equipped: null, note: 'found at the drain' }, it_b: { stack: 'it_b', def: 'story/lamp', qty: 1, owner: 'party', equipped: null, note: 'brass, found at the drain' } }, wallets: {}, nextId: 3 } } };
     const { lines } = inventoryTail(state, { currency: { name: 'gold', plural: 'gold', short: '' }, chars: 800, optionalChars: 400 });

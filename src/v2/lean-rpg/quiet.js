@@ -1,6 +1,7 @@
 // The quiet reply (prompt diet, 3 Nov): the combat text, and the Foes grammar are told to the narrator only when they can be used,
 // that is while a fight is open or when the planner returned rolls for this reply. On any other reply they are left out of the static part:
-//   * the Combat rules block (role `rules`): its text is not told;
+//   * the Combat rules block (role `rules`): its text is not told, except its "XP guide:" line (what a deed is worth, that code gives XP for a won
+//     fight, Classic's practice range), which every reply keeps while the RPG is on;
 //   * the Foes block (role `foes`): its description and the hurt and clear kinds are not told; the set-slot kind is, in one line, because a fight the
 //     narrator opens on its own (the "No foes are set" note, cue.js OPEN_FIGHT_LINE) is written with it;
 //   The `+ party` line is told on every reply (companions join in calm scenes).
@@ -14,7 +15,7 @@ import { readSheet } from './read.js';
 
 /** What a quiet reply tells of a block, by its role: `skip` the whole block, else `prompt: false` leaves out its description and `only` keeps the kinds that match. */
 export const QUIET_GRAMMAR = Object.freeze({
-    rules: Object.freeze({ skip: true }),
+    rules: Object.freeze({ skip: true, keep: /XP guide:.*$/u }),
     foes: Object.freeze({ prompt: false, only: /^set-slot-\d+$/u }),
 });
 
