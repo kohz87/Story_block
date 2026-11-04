@@ -871,16 +871,17 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const stored = assistSections(String(chat[from]?.mes ?? '')).next;
         if (!stored.length) return [];
         const safe = parseChanges(stored.join('\n')).lines.filter(line => !refusedWhy(line, null, { late: true }));
-        const keep = new Set(notWritten(safe.map(line => line.raw), own));
+        const keep = new Set(notWritten(safe.map(line => line.raw), own, { late: true }));
         return safe.filter(line => keep.has(line.raw));
     }
 
-    // A reply's own safety-net lines (its <Changes-assist>), parsed, without the ones `own` already holds.
-    function nowLines(mes, own = []) {
+    // A reply's own safety-net lines (its <Changes-assist>), parsed, without the ones `own` already holds, nor
+    // a place, time or weather `block` (the reply's own block lines, raw) set (extractor.js SCENE_KINDS).
+    function nowLines(mes, own = [], block = own) {
         const stored = assistSections(String(mes ?? '')).now;
         if (!stored.length) return [];
         const parsed = parseChanges(stored.join('\n')).lines.filter(line => !refusedWhy(line, null));
-        const keep = new Set(notWritten(parsed.map(line => line.raw), own));
+        const keep = new Set(notWritten(parsed.map(line => line.raw), own, { scene: block }));
         return parsed.filter(line => keep.has(line.raw));
     }
 
@@ -1231,7 +1232,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // own, as the live capture ran them. Never a new model call.
         const own = lines.map(line => line.raw);
         const late = lateLines(index, own);
-        const extra = assistRoom(index, [...late.map(line => ({ line, mark: LATE })), ...nowLines(mes, [...own, ...late.map(line => line.raw)]).map(line => ({ line, mark: NOW }))], lines.length, problems);
+        const extra = assistRoom(index, [...late.map(line => ({ line, mark: LATE })), ...nowLines(mes, [...own, ...late.map(line => line.raw)], own).map(line => ({ line, mark: NOW }))], lines.length, problems);
         // A module held back (dormant, or a restore is pending) cannot read its lines again, and replacing the
         // reply's story without them would lose what it stored: nothing is replaced while one is involved.
         const waiting = heldInReply(message, [...lines, ...extra.map(item => item.line)]);
@@ -1499,9 +1500,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const heads = changeHeads();
         const mes = String(message.mes ?? '');
         const block = extractBlock(mes, 'Changes', null, { heads });
-        const own = [...(block === null ? [] : parseChanges(block).lines.map(line => line.raw)), ...lateLines(index, []).map(line => line.raw)];
+        const blockLines = block === null ? [] : parseChanges(block).lines.map(line => line.raw);
+        const own = [...blockLines, ...lateLines(index, []).map(line => line.raw)];
         const parsed = parseChanges(String(text ?? '')).lines;
-        const fresh = new Set(notWritten(parsed.map(line => line.raw), own));
+        const fresh = new Set(notWritten(parsed.map(line => line.raw), own, { scene: blockLines }));
         const kept = parsed.filter(line => fresh.has(line.raw) && !refusedWhy(line, null, { late: Boolean(session || replyBusy) }));
         const store1 = mes2 => {
             message.mes = mes2;

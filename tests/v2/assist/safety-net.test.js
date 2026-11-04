@@ -108,7 +108,8 @@ test('a line the block already has is never applied twice (C-1 matching, and the
 const BLUEWATCH = 'Osken pays out at the desk; Nelje takes the pork.\n<Changes>\n~ place Bluewatch — Guild Office | kind: settlement\n- present Osken\n+ present Nelje\n~ time CY611, Goldwane 12, 5:30 pm\n! time +2h 30m\n</Changes>';
 
 test('a place or time the block set is never set again by the safety net (another wording of the place is not a move); a kind it left out still is', { skip }, async () => {
-    const model = async () => '~ place Bluewatch Village / Guild Office\n! time +1h\n~ weather rain\n+ present Kettle-Maw Tam';
+    let calls = 0;
+    const model = async () => (++calls === 2 ? '~ place Bluewatch Village / Guild Office\n! time +1h\n~ weather rain\n+ present Kettle-Maw Tam' : 'none');
     const host = await hostWith(model);
     await host.send('I go to the desk.', 'Osken waits at the guild desk.\n<Changes>\n~ place Bluewatch — Guild Office\n+ present Osken\n</Changes>');
     const turn = new Promise(resolve => host.sdk.on('turn', item => { if (item.type === 'late') resolve(item); }));
@@ -134,5 +135,23 @@ test('Re-read of a reply that stored a reworded place from the safety net keeps 
     assert.ok(!again.receipts.some(receipt => receipt.assist === 'now'), 'the stored place line is not used');
     assert.equal(host.sdk.query('scene.place').name, 'Bluewatch');
     assert.deepEqual(host.sdk.query('scene.present'), ['Nelje']);
+    host.close();
+});
+
+test('a late place from the reply before never holds back the next reply\'s own safety-net place (the newer one wins)', { skip }, async () => {
+    const { model: held, release } = heldModel('~ place Market | kind: settlement');
+    let calls = 0;
+    const model = async prompt => (++calls === 1 ? held(prompt) : '~ place Tavern | kind: settlement');
+    const host = await hostWith(model);
+    await host.send('I go.', 'You head to the market.');
+    await wait(5);
+    const intercept = host.st.interceptor;
+    host.st.interceptor = async (...args) => { await intercept(...args); release(); await wait(20); };
+    const second = await host.send('I go on.', 'You step into the tavern.');
+    host.st.interceptor = intercept;
+    await wait(300);
+    // The reply before's late place is applied first, then this reply's own safety-net place, which is newer.
+    assert.deepEqual(assistSections(host.ctx.chat[second.index].mes).now, ['~ place Tavern | kind: settlement']);
+    assert.equal(host.sdk.query('scene.place').name, 'Tavern');
     host.close();
 });
