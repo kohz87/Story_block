@@ -27,9 +27,9 @@ static part); REVIEW.md risky part §5.
 - Quiet and impersonate generations get both slots emptied. A Continue or a dry run commits no cues.
 - Untold receipts are told once; a swipe of the reply that told them tells them again (its `narrated` starts empty).
 - The model never sees JSON: modules render compact text views.
-- The `Wallet (before this reply):` tail line says it is the purse before this reply (`WALLET_NOTE`, inventory.js), so a
+- The `Wallet (before this reply):` tail line says it is the purse before this reply (`WALLET_NOTE`, `domains/inventory/prompt.js`, exported by inventory.js), so a
   payment is not read as already counted; the ask for a coin line is said once, in the coin kind's grammar line.
-  The Carried line leaves out where a thing was found (`promptNote`, inventory.js); the stored note keeps it. The look
+  The Carried line leaves out where a thing was found (`promptNote`, `domains/inventory/prompt.js`); the stored note keeps it. The look
   is asked for once per chat, on the reply to the reader's first message (`view.chat.readers`, scene.js `askLook`). A receipt with a text
   in `data.told` (`TOLD`, inventory.js: a saved character's starting purse and kit, the reader's own corrections of
   the purse and the bag) is told under `[Happened]` as `summary (told)`; the reader's card shows the summary alone.
@@ -40,8 +40,9 @@ static part); REVIEW.md risky part §5.
 
 - `src/v2/prompt.js`: `assemble`, `staticParts`, `tailOrder`, `contextFit`, `contextNotice`, `estimateTokens`,
   `TAIL_ORDER`, `DEFAULT_TAIL_BUDGET`, `DEFAULT_CONTEXT_SHARE`, `MIN_TAIL_BUDGET`, `STATIC_MARKER`.
-- `src/v2/turn.js`: `interceptor`, `build`, `runCues`, `onPromptReady`, `onTextPromptReady`, `restoreMissing`,
-  `contextRoom`, `substituteNames`, `defuseMacros`, `flatName`, `previewFit`, `OWN_PROMPT_PARTS`, `OWN_PROMPT_CHARS`.
+- `src/v2/turn.js`: `interceptor`, `build`, `runCues`, `onPromptReady`, `onTextPromptReady`, `previewFit`, `OWN_PROMPT_PARTS`, `OWN_PROMPT_CHARS`.
+- `src/v2/turn/text.js`: the turn's pure text helpers (turn.js re-exports the public ones): `restoreMissing`, `contextRoom`, `substituteNames`,
+  `defuseMacros`, `flatName`, `stripBattleMarker`, `quietMark`, `mapContent`, `contentText`, `within`.
 - `src/v2/features.js`: `affectsStatic`, `PROMPT_HINT` (a feature that changes the static part says so).
 - `src/v2/extras.js`: `chatterTail` (the optional `chatterInPrompt` tail line).
 

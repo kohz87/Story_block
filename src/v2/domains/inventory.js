@@ -12,193 +12,23 @@ import {
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
 import { WALLET_KEY, coinValue, countedMoney, formatAmount, formatWallet, isCurrencyName, parseAmount, resolveCurrency } from './money.js';
 import { DEF_ID, isId } from '../check.js';
-import { GEAR, atLimit, condMark, createGearQueries, gearDefine, gearSlotOf, handDef, itemCarryOf, packBonus, placeOf, slotWordOf, statsFor, statsOf, stepDown, stepUp, valueByCond } from './gear.js';
+import {
+    GEAR, atLimit, createGearQueries, gearDefine, gearSlotOf, handDef, itemCarryOf, packBonus, placeOf,
+    slotWordOf, statsFor, statsOf, stepDown, stepUp, valueByCond,
+} from './gear.js';
 import { STRINGS, fill } from '../strings.js';
+import {
+    defErrors, isCount, nonBlank, COND_MAX, condLogErrors, keptErrors, gearOn, condOf, MAX_UNSTACKED, RARITIES,
+    STORY_KIND, packCarry, MAX_NAME, defaultDef, condWrite, RPG_MODULE, featureOn, FEATURE, KINDS, MAX_NOTE,
+    KIND_ORDER, CARRY_MAX, condEvents,
+} from './inventory/state.js';
+import { itemText, legendaryEarned, baseSlot, membersOf, pcOf, slotLimits, canWear, asking, legendEarned } from './inventory/validate.js';
+import { pack, owners, condText, WALLET_NOTE, itemPhrase } from './inventory/prompt.js';
+export { KINDS, RARITIES, KIND_ORDER, initialInventory, FEATURE, INVENTORY_FEATURES, gearOn, featureOn, COND_MAX, COND_LOG_MAX, condEvents, condOf, defaultDef, CARRY_MAX, packCarry } from './inventory/state.js';
+export { itemText, legendEarned, MANY_SLOTS, MAX_MANY, baseSlot, slotLimits, canWear } from './inventory/validate.js';
+export { promptNote, WALLET_NOTE } from './inventory/prompt.js';
 
 const E = STRINGS.editMessages;
-
-export const KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
-export const RARITIES = Object.freeze(['common', 'uncommon', 'rare', 'epic', 'legendary']);
-// The order kinds are listed in (prompt view and tab): what the story turns on first.
-/** The words of a story line's `kind:` that name an inventory kind. */
-const STORY_KIND = Object.freeze({ consumable: 'consumable', potion: 'consumable', draught: 'consumable', elixir: 'consumable', food: 'consumable', drink: 'consumable', material: 'material', ingredient: 'material', quest: 'quest' });
-export const KIND_ORDER = Object.freeze(['quest', 'equipment', 'consumable', 'material', 'goods', 'money']);
-
-const MAX_NAME = 120;
-const MAX_NOTE = 300;
-const MAX_UNSTACKED = 50;
-
-export function initialInventory() {
-    return { defs: {}, stacks: {}, wallets: {}, aliases: {} };
-}
-
-// The optional mechanics this domain owns (MODULES §F100), declared by the core module. A host without
-// the Features API ignores the list and every check below takes them as on.
-export const FEATURE = Object.freeze({ loot: 'story-block.loot', encumbrance: 'story-block.encumbrance', gear: 'story-block.gear' });
-export const INVENTORY_FEATURES = Object.freeze([
-    Object.freeze({
-        id: FEATURE.loot, label: 'Pick what you take', default: true, presets: Object.freeze({ lean: false }),
-        describe: 'The story can lay out loot (? loot A, B, C — where); the reply\'s card shows it as chips and you take the ones you want.',
-    }),
-    Object.freeze({
-        id: FEATURE.encumbrance, label: 'Encumbered', default: true, presets: false,
-        describe: 'What the story gives past the carry limit is kept, and the party is encumbered (a check penalty) until something is put down. Your own buys and takes are still refused.',
-    }),
-    Object.freeze({
-        id: FEATURE.gear, label: 'Gear in fights', default: false, presets: false,
-        describe: 'Worn gear adds a few points to the stats by rarity and wears down; what a member can carry follows their strength (and the party is encumbered past it).',
-    }),
-]);
-
-// The gear switch lives in Settings → RPG and counts only while the RPG is on.
-const RPG_FEATURE = 'story-block.rpg';
-/** The module whose `rpg.resolve` rolls the dice: the only caller `gear.wear { recorded: true }` accepts. */
-const RPG_MODULE = 'story-block';
-
-/** Whether the gear feature is on for this handler (or view): off unless the host says so (off by default, and only while the RPG is on). */
-export function gearOn(ctx) {
-    try {
-        return typeof ctx?.feature === 'function' && ctx.feature(FEATURE.gear) === true && ctx.feature(RPG_FEATURE) === true;
-    } catch {
-        return false;
-    }
-}
-
-/** Whether a feature is on for this handler (or view): on when the host has no Features API. */
-export function featureOn(ctx, id) {
-    try {
-        return typeof ctx?.feature === 'function' ? ctx.feature(id) !== false : true;
-    } catch {
-        return true;
-    }
-}
-
-// A stack's condition (gear wear): 0 (broken) to 100 (as new). It is never stored as the truth: each
-// wear or repair is an event of its own, `condLog[<stack>]['<sid>#<n>'] = { d, n }` (d: the change asked
-// for, −100…100; n: the rev it was written at), keyed by the reply that wrote it and only added (SPEC
-// §2.2). The condition is 100 (or an older chat's plain `stack.cond`, read as where it starts) folded
-// through the events in rev order, held to 0…100 at each step. Deleting a reply from the middle then
-// takes exactly its events away, and nothing can go out of range. `condLog` is scratch, like perReply:
-// on replay a missing piece of it is made and a drop of something gone is passed over.
-export const COND_MAX = 100;
-// The events one stack keeps before they are folded into one (the stack's own history is then the fold).
-export const COND_LOG_MAX = 40;
-const clampCond = value => Math.max(0, Math.min(COND_MAX, value));
-
-/** A stack's condition events in the order they apply: [{ key, d, n }]. */
-export function condEvents(inventory, stackId) {
-    const log = isPlainObject(inventory?.condLog) && typeof stackId === 'string' && Object.hasOwn(inventory.condLog, stackId) ? inventory.condLog[stackId] : null;
-    if (!isPlainObject(log)) return [];
-    return Object.entries(log)
-        .filter(([, event]) => isPlainObject(event) && Number.isSafeInteger(event.d) && Number.isSafeInteger(event.n))
-        .map(([key, event]) => ({ key, d: event.d, n: event.n }))
-        .sort((a, b) => a.n - b.n || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-}
-
-/** A stack's condition, 0…100: where it starts (100, or an older plain `cond`) folded through its events. */
-export function condOf(stack, inventory = null) {
-    let cond = Number.isSafeInteger(stack?.cond) ? clampCond(stack.cond) : COND_MAX;
-    for (const event of condEvents(inventory, stack?.id)) cond = clampCond(cond + event.d);
-    return cond;
-}
-
-// Adds one condition event (`d`) to a stack, as this reply's (or this receipt's) own key, and returns
-// the condition now. Back at 100 the stack's events (and an older plain `cond`) are dropped by key; past
-// COND_LOG_MAX events they are folded into one. Logs of stacks no longer there are dropped too (a stack a
-// deleted reply had dropped, back on replay, starts as new then).
-function condWrite(ctx, inv, stack, d) {
-    if (!isPlainObject(inv.condLog)) inv.condLog = {};
-    for (const id of Object.keys(inv.condLog)) if (!isPlainObject(inv.stacks[id])) delete inv.condLog[id];
-    if (!isPlainObject(inv.condLog[stack.id])) inv.condLog[stack.id] = {};
-    const log = inv.condLog[stack.id];
-    const owner = typeof ctx.carrier?.sid === 'string' && ctx.carrier.sid ? ctx.carrier.sid : String(ctx.receiptId ?? 'rc');
-    let k = 1;
-    while (Object.hasOwn(log, `${owner}#${k}`)) k += 1;
-    const n = Number.isSafeInteger(ctx.rev) ? ctx.rev : 0;
-    log[`${owner}#${k}`] = { d, n };
-    const now = condOf(stack, inv);
-    // Only keys go, never the records that hold them: a record a later reply finds missing is written
-    // whole, and replayed after a middle delete that whole write would put back or drop other replies'
-    // events. (A stack's whole log goes only once the stack itself is gone.)
-    if (now === COND_MAX) {
-        for (const key of Object.keys(log)) delete log[key];
-        delete stack.cond;
-    } else if (Object.keys(log).length > COND_LOG_MAX) {
-        const start = Number.isSafeInteger(stack.cond) ? clampCond(stack.cond) : COND_MAX;
-        for (const key of Object.keys(log)) delete log[key];
-        log[`${owner}#${k}`] = { d: now - start, n };
-    }
-    return now;
-}
-
-function condLogErrors(condLog) {
-    if (!isPlainObject(condLog)) return ['The condition log is not a record.'];
-    const errors = [];
-    for (const [stackId, log] of Object.entries(condLog)) {
-        if (!isPlainObject(log)) { errors.push(`The condition log of ${stackId} is not a record.`); continue; }
-        for (const [key, event] of Object.entries(log)) {
-            if (!isPlainObject(event) || !Number.isSafeInteger(event.d) || Math.abs(event.d) > COND_MAX || !Number.isSafeInteger(event.n)) {
-                errors.push(`The condition event ${key} of ${stackId} needs a change from -${COND_MAX} to ${COND_MAX} and its rev.`);
-            }
-        }
-    }
-    return errors;
-}
-
-/** A story-introduced item's definition before the `item.define` hooks (§7 defaults). */
-export function defaultDef(id, name) {
-    return {
-        id, name, kind: 'goods', rarity: 'common', value: 0, stack: true, slot: null,
-        stats: {}, effect: {}, tags: [], note: '',
-    };
-}
-
-const isCount = (value, min) => Number.isSafeInteger(value) && value >= min;
-const nonBlank = value => typeof value === 'string' && value.trim() !== '';
-
-function defErrors(key, def) {
-    if (!isPlainObject(def)) return [`Item definition ${key} is not a record.`];
-    const label = nonBlank(def.name) ? def.name : key;
-    const errors = [];
-    if (def.id !== key) errors.push(`Item definition ${key} is filed under the wrong ID.`);
-    if (!DEF_ID.test(key)) errors.push(`"${key}" is not a well-formed item definition ID (namespace/slug).`);
-    if (!nonBlank(def.name) || def.name.length > MAX_NAME) errors.push(`Item definition ${key} needs a name of 1 to ${MAX_NAME} characters.`);
-    if (!KINDS.includes(def.kind)) errors.push(`${label} has an unknown kind "${def.kind}".`);
-    if (!RARITIES.includes(def.rarity)) errors.push(`${label} has an unknown rarity "${def.rarity}".`);
-    if (!isCount(def.value, 0)) errors.push(`${label} has a value that is not a whole number of at least 0.`);
-    if (typeof def.stack !== 'boolean') errors.push(`${label} must say whether it stacks (true or false).`);
-    else if (def.kind === 'equipment' && def.stack) errors.push(`${label} is equipment, which never stacks.`);
-    if (def.slot !== null && !nonBlank(def.slot)) errors.push(`${label} has a slot that is neither empty nor a name.`);
-    if (!isPlainObject(def.stats)) errors.push(`${label} has stats that are not a record.`);
-    if (!isPlainObject(def.effect)) errors.push(`${label} has an effect that is not a record.`);
-    if (!Array.isArray(def.tags) || def.tags.some(tag => typeof tag !== 'string')) errors.push(`${label} has tags that are not a list of words.`);
-    if (typeof def.note !== 'string') errors.push(`${label} has a note that is not text.`);
-    if (def.carry !== undefined && !(isCount(def.carry, 1) && def.carry <= CARRY_MAX)) errors.push(`${label} adds a carry capacity of ${def.carry}; it is a whole number from 1 to ${CARRY_MAX}.`);
-    if (def.bonus !== undefined && !(isCount(def.bonus, 0) && def.bonus <= GEAR.bonusMax)) errors.push(`${label} has a gear bonus of ${def.bonus}; it is a whole number from 0 to ${GEAR.bonusMax}.`);
-    return errors;
-}
-
-// The carry capacity a def may add (PACKS.md "Carry capacity"): only a pack's item has one, so the story's
-// words never make or raise it (WAVE rule 1); a carry module (`items.carry`) reads it.
-export const CARRY_MAX = 1000;
-export const packCarry = (id, value) => (typeof id === 'string' && id.startsWith('pack.') && isCount(value, 1) && value <= CARRY_MAX ? value : null);
-
-/** §2.5 validator for the inventory slice: [] when fine, else plain sentences. */
-// `kept[<member>]`: the bound pieces of a member who left the party, set aside until they come back (`inventory.stow` / `inventory.restore`):
-// [{ def, qty, equipped, note, cond?, key?, story? }].
-function keptErrors(kept) {
-    if (!isPlainObject(kept)) return ['The kept gear is not a record.'];
-    const errors = [];
-    for (const [owner, list] of Object.entries(kept)) {
-        if (!OWNER_RE.test(owner) || owner === 'party') errors.push(`Kept gear belongs to "${owner}", who is not a party member's ID.`);
-        if (!Array.isArray(list)) { errors.push(`The gear kept for ${owner} is not a list.`); continue; }
-        for (const entry of list) {
-            if (!isPlainObject(entry) || typeof entry.def !== 'string' || !isCount(entry.qty, 1) || !(entry.equipped === null || nonBlank(entry.equipped)) || typeof entry.note !== 'string'
-                || (entry.by !== undefined && typeof entry.by !== 'string') || (entry.cond !== undefined && !(Number.isSafeInteger(entry.cond) && entry.cond >= 0 && entry.cond <= COND_MAX))) errors.push(`A piece kept for ${owner} is damaged.`);
-        }
-    }
-    return errors;
-}
 
 export function validateInventory(slice) {
     if (!isPlainObject(slice)) return ['The inventory is not a record.'];
@@ -266,8 +96,6 @@ const told = ctx => ctx.cause !== 'story';
 
 // The chat's currency comes from the reader's settings or the pack.
 const currencyIn = ctx => resolveCurrency(ctx.settings());
-
-export const itemText = (name, qty) => (qty === 1 ? name : `${name} ×${qty}`);
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 // Taking from several stacks of one item: loose ones before worn ones, the party's first, then by ID.
 const takeOrder = (a, b) => (a.equipped === null ? 0 : 1) - (b.equipped === null ? 0 : 1)
@@ -437,28 +265,6 @@ const freeId = (inv, base) => {
     for (let n = 2; inv.defs[id]; n += 1) id = `${base}-${n}`;
     return id;
 };
-
-// Legendary from the story's own words: only when the same reply also completes a quest or wins a fight against a group at least 10
-// levels above the party. Whoever knows that (the quests, the fights) answers `story.legendaryEarned` for the reply; nothing answering is no.
-function legendaryEarned(ctx) {
-    try { if (ctx.query('story.legendaryEarned', {}) === true) return true; } catch { /* nothing answers */ }
-    // The reply's own roll (the RPG, lean-rpg/gear.js earnedLegend): a won fight against a group 10+ levels above the party carries `legend: 1`.
-    try { if (ctx.query('rpg.rolls', {})?.result?.legend === 1) return true; } catch { /* no roll this reply */ }
-    // Once earned it lasts: any earlier roll of the chat's record with `legend: 1`, or a quest completed (`inventory.legendEarned`, derived from the record).
-    try { return ctx.query('inventory.legendEarned', {}) === true; } catch { return false; }
-}
-
-/** Whether legendary has been earned in this chat's record up to the reply asking: a roll with `legend: 1` at or before it, or a quest the Director's threads say ended `done`. */
-export function legendEarned(tools) {
-    const upTo = Number.isInteger(tools?.reply?.index) ? tools.reply.index : Infinity;
-    let entries = [];
-    try { entries = tools?.receipts?.() ?? []; } catch { entries = []; }
-    if (entries.some(entry => entry?.receipt?.type === 'rpg.resolve' && entry.receipt.data?.v2?.result?.legend === 1 && (!Number.isInteger(entry.index) || entry.index <= upTo))) return true;
-    try {
-        const threads = tools?.query?.('director.threads', { kind: 'quest' });
-        return Array.isArray(threads) && threads.some(thread => thread?.kind === 'quest' && thread.ended?.outcome === 'done');
-    } catch { return false; }
-}
 
 // The most a pack's place allows the story's items to be (`loot: { maxRarity }` on the place the party is at, by name or alias), or null.
 function placeCeiling(ctx) {
@@ -651,78 +457,6 @@ function pay(ctx, env, { owner, amount, note }) {
 }
 
 // ---------- equipment: who can wear what ----------
-
-// Slots that hold several pieces, each under its own key (`accessory-1`, `accessory-2`),
-// with the count when no module says otherwise. Every other slot holds one piece.
-// The counts come from the `items.slots` query ({ accessory, worn }, or
-// `accessories`), held to 0…MAX_MANY.
-export const MANY_SLOTS = Object.freeze({ accessory: 2, worn: 1 });
-export const MAX_MANY = 3;
-
-/** The slot a worn stack's key stands for: `accessory-2` → `accessory`. */
-export const baseSlot = key => (typeof key === 'string' ? key.trim().replace(/-\d+$/, '') : null);
-const keyNumber = key => Number(/-(\d+)$/.exec(String(key ?? ''))?.[1] ?? 0);
-
-function asking(query, name, args) {
-    try {
-        return query(name, args);
-    } catch {
-        return undefined;
-    }
-}
-
-/** The slot counts in force: { accessory, worn } from `items.slots`, else MANY_SLOTS. */
-export function slotLimits(query) {
-    const given = asking(query, 'items.slots', {});
-    const pick = name => {
-        const n = isPlainObject(given) ? given[name] ?? given[`${name === 'accessory' ? 'accessories' : `${name}s`}`] : undefined;
-        return Number.isSafeInteger(n) ? Math.max(0, Math.min(MAX_MANY, n)) : MANY_SLOTS[name];
-    };
-    return { accessory: pick('accessory'), worn: pick('worn') };
-}
-
-// The party's members, in the party module's order: `party.actors` when a module answers it, else the
-// `party` domain's actors (its `order` first). → [{ id, name }]
-function membersOf(query, party) {
-    const listed = asking(query, 'party.actors', {});
-    const raw = Array.isArray(listed)
-        ? listed
-        : [...(Array.isArray(party?.order) ? party.order : []), ...Object.keys(isPlainObject(party?.actors) ? party.actors : {}).sort()]
-            .filter((id, at, all) => all.indexOf(id) === at && isPlainObject(party.actors[id]))
-            .map(id => ({ ...party.actors[id], id }));
-    const seen = new Set();
-    return raw.filter(actor => typeof actor?.id === 'string' && OWNER_RE.test(actor.id) && actor.id !== 'party' && !seen.has(actor.id) && seen.add(actor.id))
-        .map(actor => ({ id: actor.id, name: trimText(typeof actor.name === 'string' && actor.name.trim() ? actor.name : actor.id, 60) }));
-}
-
-// The main character's id (`party.pc`, else the party domain's `pc`), or null: what the shared bag wears
-// is theirs when a party module identifies them.
-function pcOf(query, party) {
-    const pc = asking(query, 'party.pc', {});
-    const id = typeof pc?.id === 'string' ? pc.id : typeof party?.pc === 'string' ? party.pc : null;
-    return id && OWNER_RE.test(id) && id !== 'party' ? id : null;
-}
-
-const wearerOf = (stack, pc) => (stack.owner === 'party' ? pc ?? 'party' : stack.owner);
-
-/**
- * Can `actor` wear `def`? Equipment with a slot, a slot this chat's rules count (an accessory when
- * accessories count), and what a module answering `items.canWear({ actor, defId })` says
- * ({ ok: false, message } refuses). → { ok, message }
- */
-export function canWear(query, def, actor, limits, who = actor) {
-    if (def?.kind !== 'equipment') return { ok: false, message: `${def?.name ?? 'That'} is not equipment; it cannot be worn or wielded.` };
-    if (!nonBlank(def.slot)) return { ok: false, message: `${def.name} has no slot to be worn in.` };
-    const base = baseSlot(def.slot);
-    if (Object.hasOwn(MANY_SLOTS, base) && limits[base] === 0) {
-        return { ok: false, message: `In this chat's rules no ${base === 'accessory' ? 'accessories' : 'worn pieces'} count, so ${def.name} cannot be worn.` };
-    }
-    const said = asking(query, 'items.canWear', { actor, defId: def.id });
-    if (isPlainObject(said) && said.ok === false) {
-        return { ok: false, message: typeof said.message === 'string' && said.message ? said.message : `${capitalize(who)} cannot wear ${def.name}.` };
-    }
-    return { ok: true, message: '' };
-}
 
 function readParty(ctx) {
     try {
@@ -2626,62 +2360,6 @@ export const createInventoryQueries = env => ({
 });
 
 // ---------- prompt view (§5) ----------
-
-// With gear on, an item below Good shows its condition word after the name: "Cane Sword (worn)".
-const condText = (item, gear) => { const word = gear && item.cond !== undefined ? condMark(item.cond) : ''; return word ? ` (${word})` : ''; };
-
-// Where a thing was found is on the screens, not in the prompt (prompt diet): "found at the drain", "picked up in the cellar" is left out of a note,
-// what else it says stays ("tarred hemp, found at the drain" → "tarred hemp"). Only "found" or "picked up" with a place word is left out; who it was taken
-// from, a debt, a clue, a duel, "found on the body of Captain Rell" all stay. The stored note is not touched.
-const PROVENANCE = /^(?:found|picked up)\s+(?:at|in|near|under|behind|inside|beside)\b/iu;
-export function promptNote(note) {
-    const text = String(note ?? '');
-    const parts = text.split(/\s*[;,]\s*/);
-    const kept = parts.filter(part => !PROVENANCE.test(part.trim()));
-    return kept.length === parts.length ? text : kept.join(', ');
-}
-
-function itemPhrase(item, gear = false) {
-    const said = item.note ? promptNote(item.note) : '';
-    const note = said ? ` (${trimText(said, 40)})` : '';
-    return `${itemText(item.name, item.qty)}${condText(item, gear)}${note}`;
-}
-
-function owners(items) {
-    return [...new Set(items.map(item => item.owner))];
-}
-
-const LINE_MAX = 200;
-
-// Phrases packed into "Label: a, b, c" lines of at most LINE_MAX characters, using at most
-// `room` characters in all (a newline counted per line): { lines, taken, used }.
-function pack(label, phrases, room) {
-    const lines = [];
-    let current = '';
-    let used = 0;
-    let taken = 0;
-    while (taken < phrases.length) {
-        const piece = current ? `, ${phrases[taken]}` : `${label}: ${phrases[taken]}`;
-        if (current && current.length + piece.length > LINE_MAX) {
-            lines.push(current);
-            used += current.length + 1;
-            current = '';
-            continue;
-        }
-        if (used + current.length + piece.length + 1 > room) break;
-        current += piece;
-        taken += 1;
-    }
-    if (current) {
-        lines.push(current);
-        used += current.length + 1;
-    }
-    return { lines, taken, used };
-}
-
-// The wallet line says it is the purse BEFORE this reply, so a payment the story makes in this reply is not read as already counted.
-// (The ask for a coin line is the coin kind's grammar line alone, once.)
-export const WALLET_NOTE = 'before this reply';
 
 /**
  * The inventory's tail: what is worn and the wallet always; carried items in `lines` while
