@@ -46,6 +46,11 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
 
 - `src/v2/capture.js`: `parseChanges`, `lineBody`, `extractBlock`, `stripBlock`, `hideBlock`, `hasHidden`,
   `markOff`, `continuation`, `withoutReasoning`, `cutLine`, `grammarHeads`, `strayLines`, `STRAY_PARAGRAPHS`.
+  The entry points `extractBlock`, `stripBlock`, `hideBlock` live in this file; the rest is in `src/v2/capture/`
+  and re-exported from here: `lines.js` (`parseLine`, `parseChanges`, `lineBody`, `grammarHeads`), `blocks.js`
+  (`findBlocks`, `readBlocks`, `hasHidden`, `markOff`, `continuation`, `withoutReasoning`, `cutLine`, `defangMarker`),
+  `echo.js` (`assistSections`, `withAssist`, echoed lines, `readParts`), `legacy.js` (the v1 envelope),
+  `stray.js` (`strayLines`, `inOrder`, `dropLines`). Import order is one way: lines, blocks, echo, legacy / stray.
 - `src/v2/turn.js`: `onMessageReceived`, `captureLines`, `captureEach`, `afterCapture`, `captureLate`, `readBlock`,
   `strayProblems`, `capped`, `storySeeds`, `stepSeeds`, `reread`.
 - `src/v2/store.js`: `replaceStory(index, { ops, receipts })`, `append`, `setNarrated`.
