@@ -413,7 +413,7 @@ export function loadLevel(load, capacity) {
  *   where it is worn and by whom), owners: [{ value, label }] (who can wear: the main character first), slots: { [place]: { stack, name, rarity, bonus, cond, word, broken } | null } (what `owner` has on) }.
  * `names(id)` is how an owner is called ("Astra"); `owners` the wearers it offers. `who` (a name) picks the owner by name, `own` the main character's.
  */
-export function gearView(state, args, { condOf, carryOf, penalty, mounts, names, owners, kit = () => false }) {
+export function gearView(state, args, { condOf, carryOf, penalty, mounts, names, owners, kit = () => false, empty = () => false }) {
     const inventory = state?.domains?.inventory;
     const defs = isPlainObject(inventory?.defs) ? inventory.defs : {};
     const stacks = Object.values(isPlainObject(inventory?.stacks) ? inventory.stacks : {}).filter(stack => isPlainObject(stack) && isPlainObject(defs[stack.def]))
@@ -462,7 +462,7 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
     return {
         on: true, owner, owners: list, rows, slots,
         // The starting kit (the chat has no message from the reader yet): Rarity and Bonus may be set by hand.
-        kit: { open: kit() === true },
+        kit: { open: kit() === true, ...(empty() === true ? { empty: true } : {}) },
         carry: {
             load: shared.load, capacity: shared.capacity, pct: shared.capacity > 0 ? Math.round(shared.load * 100 / shared.capacity) : 0,
             level: loadLevel(shared.load, shared.capacity), lose: Math.abs(penalty), breakdown, away,
@@ -474,7 +474,7 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
  * The two gear queries: `inventory.gear` and `gear.carry` (`items.carry`'s answer from Story Block's own rules, asked only when no
  * carry module answers `items.carry`; a query of that name would clash with a carry module's). Both answer null while `on()` is false.
  */
-export function createGearQueries({ on, kit = () => false, condOf, carryOf, penalty, feature, names = () => '', owners = () => [] }) {
+export function createGearQueries({ on, kit = () => false, empty = () => false, condOf, carryOf, penalty, feature, names = () => '', owners = () => [] }) {
     // (`recorded: true`, asked by a roll that carries a gear record, answers whatever the switch says now: the record decides, gear.js `wearGear`)
     // (`inventory.gear` has no `feature`: the registry would answer null for it while the switch is off, and a roll that carries a gear record asks it then)
     const gate = (fn, recorded = false) => Object.assign((state, args, tools) => (on() || args?.recorded === true ? fn(state, args, tools) : null), recorded ? {} : { feature });
@@ -483,7 +483,7 @@ export function createGearQueries({ on, kit = () => false, condOf, carryOf, pena
     return {
         'inventory.statBonus': gate((state, args) => statBonus(state, typeof args?.owner === 'string' && args.owner ? args.owner : 'party', condOf)),
         'inventory.gear': gate((state, args, tools) => gearAnswer(state, args, { condOf, carryOf, penalty, mounts: mountsOf(tools) }), true),
-        'gear.view': gate((state, args, tools) => gearView(state, args, { kit, condOf, carryOf, penalty, mounts: mountsOf(tools), names: id => names(state, tools, id), owners: () => owners(state, tools) })),
+        'gear.view': gate((state, args, tools) => gearView(state, args, { kit, empty, condOf, carryOf, penalty, mounts: mountsOf(tools), names: id => names(state, tools, id), owners: () => owners(state, tools) })),
         'gear.carry': gate((state, args, tools) => carryAnswer(state, args, { carryOf, mounts: mountsOf(tools) })),
     };
 }

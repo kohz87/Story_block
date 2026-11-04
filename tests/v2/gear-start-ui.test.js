@@ -44,7 +44,7 @@ test('addFields: Item (Name, Count, Kind, Note) and Gear (Slot, Rarity, Bonus, p
     assert.deepEqual(open.find(f => f.key === 'equip').options.map(o => o.label), ['None', 'Astra (you)', 'Harrak']);
     assert.equal(open.find(f => f.key === 'rarity').disabled, undefined);
     const later = addFields({ kit: false, owners: OWNERS });
-    assert.deepEqual(later.filter(f => f.group === 'Gear').map(f => f.key), ['slot', 'rarity', 'equip', 'later']);
+    assert.deepEqual(later.filter(f => f.group === 'Gear').map(f => f.key), ['slot', 'rarity', 'equip', 'later', 'copy']);
     assert.equal(later.find(f => f.key === 'rarity').disabled, true);
     assert.equal(later.find(f => f.key === 'later').text, 'Rarity and bonuses come from the story after the first message.');
 });
@@ -89,7 +89,7 @@ test('"+ Add item", starting kit: opens the grouped form with the hint; the Gear
     const form = openAdd(el);
     assert.ok(form, 'the form is open');
     assert.equal(el.querySelector('.ss-w-inventory-add > button').hidden, true, 'the button gives way to the form');
-    assert.equal(text(form.querySelector('.ss-w-editable-intro')), 'Starting kit: rarity and bonuses can be set until your first message.');
+    assert.equal(text(form.querySelector('.ss-w-editable-intro')), 'Starting kit: rarity and bonuses can be set until your first message. Starting kit belongs to this greeting.');
     assert.deepEqual(groups(el), [{ name: 'Item', hidden: false }, { name: 'Gear', hidden: true }], 'Kind is not Equipment yet');
     change(labelled(el, 'Kind'), 'equipment');
     assert.deepEqual(groups(el), [{ name: 'Item', hidden: false }, { name: 'Gear', hidden: false }]);
@@ -183,7 +183,7 @@ test('Edit of a piece the reader added, starting kit: the same groups with its v
     const { el, calls } = draw(host);
     const row = rowOf(el, 'Lucky Bone Ring');
     row.querySelector('.ss-w-editable-pencil').click();
-    assert.equal(text(row.querySelector('.ss-w-editable-intro')), 'Starting kit: rarity and bonuses can be set until your first message.');
+    assert.equal(text(row.querySelector('.ss-w-editable-intro')), 'Starting kit: rarity and bonuses can be set until your first message. Starting kit belongs to this greeting.');
     assert.deepEqual(groups(row), [{ name: 'Item', hidden: false }, { name: 'Gear', hidden: false }]);
     assert.deepEqual(['Name', 'Count', 'Kind', 'Note', 'Slot', 'Rarity', 'Equipped by'].map(name => labelled(row, name).value), ['Lucky Bone Ring', '1', 'equipment', '', 'accessory-1', 'uncommon', '']);
     assert.equal(row.querySelectorAll('label').filter(node => node.querySelector('span')?.textContent === 'Bonus')[0].querySelector('select').value, 'LUK');
@@ -269,4 +269,69 @@ test('gear off: "+ Add item" is the inline row (Name, Count, Note) and Edit is t
     row.querySelector('.ss-w-editable-pencil').click();
     assert.equal(row.querySelectorAll('fieldset').length, 0);
     assert.equal(row.querySelectorAll('select').length, 0);
+});
+
+test('the 32 px control rule is only for a roomy screen with a fine pointer; a phone keeps the 44 px controls', () => {
+    const css = inventoryScreen.css;
+    const rule = css.indexOf('.ss-w-editable-group input, .ss-w-editable-group select');
+    assert.ok(rule > 0);
+    const media = css.lastIndexOf('@media', rule);
+    assert.ok(css.slice(media, rule).startsWith('@media (min-width: 760px) and (pointer: fine) {'), 'the rule sits inside the desktop media query');
+    assert.ok(!css.slice(media, rule).includes('}\n'), 'and that query has not closed before it');
+});
+
+test('controls inside a form group carry no host margin, so the Bonus select and its points box start on one line', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../../src/v2/view/widgets/styles.js', import.meta.url), 'utf8');
+    assert.match(css, /^\.ss-w-editable-group input, \.ss-w-editable-group select \{ margin: 0; \}$/m);
+});
+
+test('"+ Add item" groups as approved: Count and Kind share a row, Slot and Rarity share a row, the rarity word is coloured, the reader is "Astra (you)"', { skip }, async t => {
+    const host = await world(t);
+    const { el } = draw(host);
+    const form = openAdd(el);
+    change(labelled(el, 'Kind'), 'equipment');
+    const rowWith = name => form.querySelectorAll('.ss-w-editable-row').find(row => row.querySelectorAll('label').some(node => node.querySelector('span')?.textContent === name));
+    const names = row => row.querySelectorAll('label').map(node => node.querySelector('span')?.textContent);
+    assert.deepEqual(names(rowWith('Count')), ['Count', 'Kind']);
+    assert.deepEqual(names(rowWith('Slot')), ['Slot', 'Rarity']);
+    assert.equal(rowWith('Name'), undefined, 'Name has a row of its own');
+    change(labelled(el, 'Rarity'), 'rare');
+    const label = el.querySelectorAll('label').find(node => node.querySelector('span')?.textContent === 'Rarity').querySelector('span');
+    assert.deepEqual([label.getAttribute('data-tone'), label.getAttribute('data-word')], ['rare', 'Rare']);
+    const owners = host.sdk.query('gear.view').owners;
+    assert.deepEqual(addFields({ kit: true, owners }).find(f => f.key === 'equip').options.map(o => o.label), ['None', `${owners[0].label} (you)`, ...owners.slice(1).map(o => o.label)]);
+});
+
+test('Edit: Goods made Equipment while the kit is open saves the Rarity the form shows, touched or not; after the kit the form shows Common', { skip }, async t => {
+    const host = await world(t);
+    await host.sdk.command('inventory.add', { name: 'Lucky Stone', qty: 1, kind: 'goods', rarity: 'rare' });
+    const { el, calls } = draw(host);
+    const row = rowOf(el, 'Lucky Stone');
+    row.querySelector('.ss-w-editable-pencil').click();
+    change(labelled(row, 'Kind'), 'equipment');
+    change(labelled(row, 'Slot'), 'accessory-1');
+    assert.equal(labelled(row, 'Rarity').value, 'rare');
+    row.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.equal(calls[0][1].rarity, 'rare');
+    assert.equal(Object.values(host.head().domains.inventory.defs).find(item => item.name === 'Lucky Stone').rarity, 'rare');
+    const late = await world(t);
+    await late.sdk.command('inventory.add', { name: 'Lucky Stone', qty: 1, kind: 'goods', rarity: 'rare' });
+    await late.send('Hello.', 'The road.');
+    const shown = draw(late);
+    const lateRow = rowOf(shown.el, 'Lucky Stone');
+    lateRow.querySelector('.ss-w-editable-pencil').click();
+    change(labelled(lateRow, 'Kind'), 'equipment');
+    assert.equal(labelled(lateRow, 'Rarity').value, 'common');
+});
+
+test('an empty chat (no greeting): the kit reads closed and "+ Add item" says in one plain sentence why', { skip }, async t => {
+    const host = await createHost({ modules: [ACTORS], settings: { features: { 'story-block.gear': true, 'story-block.rpg': true } }, st: { chat: [] } });
+    t.after(() => host.close());
+    assert.deepEqual(host.sdk.query('gear.view').kit, { open: false, empty: true });
+    const { el } = draw(host);
+    el.querySelector('.ss-w-inventory-add button').click();
+    assert.equal(el.querySelector('.ss-w-editable-form'), null);
+    assert.equal(text(el.querySelector('.ss-w-inventory-add .inv-add-error')), 'This chat has no greeting yet, so there is nothing to add items to. Start the chat first.');
 });

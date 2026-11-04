@@ -28,6 +28,12 @@ export function createInventoryAddWidget() {
                 const error = h(doc, 'span', 'inv-add-error'); error.setAttribute('role', 'alert');
                 form.append(name, qty, note, save, cancel, error);
                 root.appendChild(open);
+                // Made only when a gear-on chat needs it, so the gear-off screen stays byte-for-byte as it was.
+                let notice = null;
+                const say = text => {
+                    if (!notice) { notice = h(doc, 'span', 'inv-add-error'); notice.setAttribute('role', 'alert'); root.appendChild(notice); }
+                    notice.textContent = text;
+                };
                 let alive = true;
                 const close = () => { form.remove(); open.hidden = false; open.focus?.(); };
                 // Gear in fights on (`q.gx` answers): the same grouped form as Edit (view/gear-form.js), full width under the button, in place of the inline row.
@@ -44,7 +50,7 @@ export function createInventoryAddWidget() {
                     const kit = view.kit?.open === true;
                     const slot = h(doc, 'span', 'inv-add-gear');
                     root.appendChild(slot);
-                    const props = { kind: 'fields', bare: true, open: true, always: true, label: S.addItem, intro: kit ? STRINGS.inventory.gear.form.kitHint : '',
+                    const props = { kind: 'fields', bare: true, open: true, always: true, label: S.addItem, intro: kit ? `${STRINGS.inventory.gear.form.kitHint} ${STRINGS.inventory.gear.form.kitGreeting}` : '',
                         fields: addFields({ kit, owners: view.owners }), plan: addPlan({ kit }), onClose: closeGear };
                     open.hidden = true;
                     gearForm = { slot, handle: editable.render(slot, props, api) };
@@ -53,6 +59,8 @@ export function createInventoryAddWidget() {
                 const begin = () => {
                     if (typeof api?.command !== 'function') return;
                     const view = gearView();
+                    if (view?.kit?.empty === true) { say(STRINGS.inventory.gear.form.noGreeting); return; }
+                    if (notice) say('');
                     if (view && !gearForm) { beginGear(view); return; }
                     name.value = ''; qty.value = '1'; note.value = ''; error.textContent = '';
                     open.hidden = true; root.appendChild(form); name.focus?.();

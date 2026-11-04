@@ -25,7 +25,8 @@ const kindOptions = () => FORM_KINDS.map(value => ({ value, label: F.kinds[value
 const rarityOptions = () => Object.keys(GEAR.budget).map(value => ({ value, label: N.rarities[value] }));
 const slotOptions = () => [{ value: '', label: G.none }, ...Object.entries(G.slots).map(([value, label]) => ({ value, label }))];
 const statOptions = () => [{ value: '', label: F.noStat }, ...GEAR.stats.map(value => ({ value, label: value }))];
-const wearerOptions = owners => [{ value: '', label: G.none }, ...(Array.isArray(owners) ? owners : []).map(entry => ({ value: String(entry?.value ?? ''), label: String(entry?.label ?? '') }))];
+// (the first owner is the main character: "Astra (you)")
+const wearerOptions = owners => [{ value: '', label: G.none }, ...(Array.isArray(owners) ? owners : []).map((entry, at) => ({ value: String(entry?.value ?? ''), label: `${String(entry?.label ?? '')}${at === 0 && entry?.label && !/\(you\)/.test(String(entry.label)) ? ` ${F.you}` : ''}` }))];
 const SHOWN = Object.freeze({ key: 'kind', in: Object.freeze(['equipment']) });
 
 // The Bonus lines (two), their stat and points boxes, and (when they can be changed) the live points line after them.
@@ -35,8 +36,8 @@ function bonusFields(stats, locked) {
     for (const at of [1, 2]) {
         const one = listed[at - 1];
         const extra = locked ? { disabled: true, title: F.laterTitle } : {};
-        out.push({ key: `stat${at}`, label: at === 1 ? F.bonus : F.stat, type: 'choice', options: statOptions(), value: one?.[0] ?? '', group: F.groupGear, row: `bonus${at}`, showWhen: SHOWN, ...extra });
-        out.push({ key: `points${at}`, label: F.amount, type: 'number', min: 1, max: 6, soft: true, value: one?.[1] ?? '', group: F.groupGear, row: `bonus${at}`, showWhen: SHOWN, ...extra });
+        out.push({ key: `stat${at}`, label: at === 1 ? F.bonus : F.stat, ...(at === 1 ? {} : { hideLabel: true }), type: 'choice', options: statOptions(), value: one?.[0] ?? '', group: F.groupGear, row: `bonus${at}`, showWhen: SHOWN, ...extra });
+        out.push({ key: `points${at}`, label: F.amount, hideLabel: true, type: 'number', min: 1, max: 6, soft: true, value: one?.[1] ?? '', group: F.groupGear, row: `bonus${at}`, showWhen: SHOWN, ...extra });
     }
     if (!locked) {
         out.push({ key: 'budget', type: 'points', group: F.groupGear, showWhen: SHOWN, rarity: 'rarity', lines: [['stat1', 'points1'], ['stat2', 'points2']],
@@ -48,15 +49,15 @@ function bonusFields(stats, locked) {
 /** The fields of "+ Add item". `kit`: the starting kit is open; `owners`: who can wear it, [{ value, label }]. */
 export function addFields({ kit = false, owners = [] } = {}) {
     const fields = [
-        { key: 'name', label: F.name, type: 'text', value: '', maxLength: NAME_MAX, group: F.groupItem, row: 'who' },
-        { key: 'count', label: F.count, type: 'number', min: 1, value: 1, group: F.groupItem, row: 'who' },
-        { key: 'kind', label: F.kind, type: 'choice', options: kindOptions(), value: 'goods', group: F.groupItem },
+        { key: 'name', label: F.name, type: 'text', value: '', maxLength: NAME_MAX, group: F.groupItem },
+        { key: 'count', label: F.count, type: 'number', min: 1, value: 1, group: F.groupItem, row: 'ck' },
+        { key: 'kind', label: F.kind, type: 'choice', options: kindOptions(), value: 'goods', group: F.groupItem, row: 'ck' },
         { key: 'note', label: F.note, type: 'text', value: '', maxLength: NOTE_MAX, group: F.groupItem },
-        { key: 'slot', label: F.slot, type: 'choice', options: slotOptions(), value: '', group: F.groupGear, showWhen: SHOWN },
-        { key: 'rarity', label: F.rarity, type: 'choice', options: rarityOptions(), value: 'common', group: F.groupGear, showWhen: SHOWN, ...(kit ? {} : { disabled: true, title: F.laterTitle }) },
+        { key: 'slot', label: F.slot, type: 'choice', options: slotOptions(), value: '', group: F.groupGear, row: 'sr', showWhen: SHOWN },
+        { key: 'rarity', label: F.rarity, tone: true, type: 'choice', options: rarityOptions(), value: 'common', group: F.groupGear, row: 'sr', showWhen: SHOWN, ...(kit ? {} : { disabled: true, title: F.laterTitle }) },
         ...(kit ? bonusFields({}, false) : []),
         { key: 'equip', label: F.equipOn, type: 'choice', options: wearerOptions(owners), value: '', group: F.groupGear, showWhen: SHOWN },
-        ...(kit ? [] : [{ key: 'later', type: 'note', text: F.laterHint, group: F.groupGear, showWhen: SHOWN }]),
+        ...(kit ? [] : [{ key: 'later', type: 'note', text: F.laterHint, group: F.groupGear, showWhen: SHOWN }, { key: 'copy', type: 'note', text: F.copyHint, group: F.groupGear, showWhen: SHOWN }]),
     ];
     return fields;
 }
@@ -108,12 +109,12 @@ export function editFields(p) {
     const kit = gear.kit === true;
     const equipment = gear.kind === 'equipment';
     const fields = [
-        { key: 'name', label: F.name, type: 'text', value: String(p?.value ?? ''), maxLength: 120, group: F.groupItem, row: 'who' },
-        { key: 'count', label: F.count, type: 'number', min: 1, value: Number(p?.itemCount ?? 1), group: F.groupItem, row: 'who' },
-        { key: 'kind', label: F.kind, type: 'choice', options: kindOptions(), value: gear.kind ?? 'goods', group: F.groupItem },
+        { key: 'name', label: F.name, type: 'text', value: String(p?.value ?? ''), maxLength: 120, group: F.groupItem },
+        { key: 'count', label: F.count, type: 'number', min: 1, value: Number(p?.itemCount ?? 1), group: F.groupItem, row: 'ck' },
+        { key: 'kind', label: F.kind, type: 'choice', options: kindOptions(), value: gear.kind ?? 'goods', group: F.groupItem, row: 'ck' },
         { key: 'note', label: F.note, type: 'text', value: String(p?.itemNote ?? ''), maxLength: NOTE_MAX, group: F.groupItem },
-        { key: 'slot', label: F.slot, type: 'choice', options: slotOptions(), value: String(row.defSlot ?? ''), group: F.groupGear, showWhen: SHOWN },
-        { key: 'rarity', label: F.rarity, type: 'choice', options: rarityOptions(), value: String(gear.rarity ?? 'common'), group: F.groupGear, showWhen: SHOWN,
+        { key: 'slot', label: F.slot, type: 'choice', options: slotOptions(), value: String(row.defSlot ?? ''), group: F.groupGear, row: 'sr', showWhen: SHOWN },
+        { key: 'rarity', label: F.rarity, tone: true, type: 'choice', options: rarityOptions(), value: equipment || kit ? String(gear.rarity ?? 'common') : 'common', group: F.groupGear, row: 'sr', showWhen: SHOWN,
             ...(kit ? {} : { disabled: true, title: F.laterTitle }) },
         ...bonusFields(equipment ? row.stats : {}, !kit),
         { key: 'by', label: F.equippedBy, type: 'choice', options: wearerOptions(gear.owners), value: String(gear.by ?? ''), group: F.groupGear, showWhen: SHOWN },
@@ -140,7 +141,8 @@ export function editPlan(p) {
             if (changed.kind !== undefined) payload.kind = all.kind;
             if (all.kind === 'equipment') {
                 if (changed.slot !== undefined) payload.slot = all.slot;
-                if (changed.rarity !== undefined) payload.rarity = all.rarity;
+                // (Goods made Equipment while the kit is open saves the Rarity the form shows, touched or not; later it is Common, which the form shows too)
+                if (changed.rarity !== undefined || (changed.kind !== undefined && gear.kit === true)) payload.rarity = all.rarity;
                 if (['stat1', 'points1', 'stat2', 'points2'].some(key => changed[key] !== undefined)) {
                     const read = statsOf(all);
                     if (read.error) return { error: read.error };
