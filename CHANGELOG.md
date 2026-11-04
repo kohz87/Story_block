@@ -819,6 +819,11 @@ For a pinned Ersveil adventure, start a fresh chat with **Setup → Pin Ersveil 
 
 ## Unreleased
 
+- RPG: the planner heads (Standard and Classic) show `then: <skill>? | else: <skill>? | guard: <skill>?` on the act line. `guard:` is the
+  skill a character defends with in the message (evade, dodge, parry, block); the plan copies it as `skill:` onto the foe lines aimed at
+  that character that name none, when the answer is read, so the recorded plan holds it. The `else:` rule line is shorter and the
+  defender-skill rule is now the guard rule (Standard head +28 bytes, Classic +50).
+
 - Host: a capture kind or query whose `enabled` reads false is not declared (its lines are unknown kinds again, not "feature off");
   a deferred domain may say `snapshot: 'when-present'` (no save-point trace until used); the Problems of a record a planned-again
   step was taken out of name its blocks as a full replay does; the testkit's `createHost` takes `storeOptions`.

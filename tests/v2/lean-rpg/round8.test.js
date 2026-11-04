@@ -114,7 +114,7 @@ test('B: the planner may write skill: on a foe line; the plan keeps it only when
 test('B: the planner is told the foe line takes a skill, and when', () => {
     assert.match(PRECALL_HEAD, /\nfoe <foe> \| target: <who> \| defend: <stat> \| skill: <skill>\?\n/);
     // (PINNED CHANGE: only when the message asks to defend with the skill)
-    assert.match(PRECALL_HEAD, /Name a defender's skill on a foe line only if the message asks to defend with it; else leave skill out\./);
+    assert.match(PRECALL_HEAD, /Defending with a skill \(evade, dodge, parry, block\): guard: that skill on the act; else leave it out\./);
 });
 
 test('B: the battle log names the defending skill; a foe line recorded before it reads as it did', () => {

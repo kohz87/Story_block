@@ -41,6 +41,7 @@ export const ABOUT_LIMIT = 70;
 const STAT_LIST = STATS.map(stat => stat.toUpperCase()).join('|');
 const DIFFICULTY = 'difficulty: easy|normal|hard|very hard';
 const EDGE = 'edge: <-3 to +3, reason>?';
+const THEN_ELSE = 'then: <skill>? | else: <skill>? | guard: <skill>?';
 // (Prompt diet: one line shape per kind and one short line per rule. The shapes are what plan.js reads; the words around them only tell the model when to use them.)
 const OPENING = 'Plan dice for one message of an interactive story. Reply with these lines only:';
 const SHARED_RULES = [
@@ -49,7 +50,7 @@ const SHARED_RULES = [
     '- A foe the message or scene names but the list lacks: new (never invent); level or rank only if the story says.',
 ];
 const TAIL_RULES = [
-    '- Name a defender\'s skill on a foe line only if the message asks to defend with it; else leave skill out.',
+    '- Defending with a skill (evade, dodge, parry, block): guard: that skill on the act; else leave it out.',
     '- Skills ordered "A, then B": skill: A, then: B (B from round 2).',
     '- pace: careful if the reader is careful, all if they fight it out. edge: trap -2.',
     '- A skill used before a fight to get the drop (hide, sneak, lure, distract, slip behind; judge by its description) is a check with that skill and ambush, in the same plan as the attack. No ambush edge without one.',
@@ -61,7 +62,7 @@ const FOE_NEW = 'foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name
 export const PRECALL_HEAD = [
     OPENING,
     'pace: careful|normal|all',
-    `act <who> | skill: <skill>? | stat: ${STAT_LIST}? | target: <foe> | ${EDGE}`,
+    `act <who> | skill: <skill>? | stat: ${STAT_LIST}? | target: <foe> | ${EDGE} | ${THEN_ELSE}`,
     'foe <foe> | target: <who> | defend: <stat> | skill: <skill>?',
     'foe <foe> | hold',
     FOE_NEW,
@@ -77,7 +78,7 @@ export const PRECALL_HEAD = [
 export const PRECALL_HEAD_STANDARD = [
     OPENING,
     'pace: careful|normal|all',
-    `act <who> | skill: <skill>? | type: physical|magic|social|check | target: <foe or ally> | ${EDGE} | area? | support: easy|normal|hard?`,
+    `act <who> | skill: <skill>? | type: physical|magic|social|check | target: <foe or ally> | ${EDGE} | area? | support: easy|normal|hard? | ${THEN_ELSE}`,
     'foe <foe> | target: <who> | skill: <skill>? | magic?',
     'foe <foe> | hold',
     FOE_NEW,
@@ -88,7 +89,7 @@ export const PRECALL_HEAD_STANDARD = [
     '- Use listed names only. A skill brings its own stat; leave the stat out.',
     '- type: physical (blades), magic (spells, mana), social (talk, bluff), check (rest). area: all foes. support: heals or helps. magic on a foe: a spell.',
     '- fit: the stat a check leans on (STR climb, AGI sneak, INT lore).',
-    '- A skill that spends Mana or Stamina may run out: add `else:` with the skill to use then.',
+    '- else: the skill to use when the first runs out of Mana or Stamina.',
     ...TAIL_RULES,
 ].join('\n');
 
