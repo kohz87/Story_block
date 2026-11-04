@@ -88,6 +88,7 @@ A field that holds a list of small records the story grows: a quest log, a roste
 kind of line (the Block editor writes them; a pack may write them by hand); a list is never read in an expression and never changed by a rule, a timer or a reward:
 
 ```jsonc
+// (a fragment of a definition: the "state" and "kinds" keys, not a complete pack)
 "state": { "quests": { "type": "entries", "max": 30, "label": "Quests",
   "of": { "title": { "type": "text", "max": 60, "default": "" },
           "status": { "type": "enum", "values": ["active", "done", "failed"], "default": "active" } } } },
@@ -101,10 +102,13 @@ kind of line (the Block editor writes them; a pack may write them by hand); a li
 
 - `entryAdd`, `entrySet` and `entryDrop` take only `path: [<field>]`; the line's labels are the parts (each the part's own type and no wider) and,
   for a change or a drop, `at`. A label with `"optional": true` may be left out: an add keeps that part at its default, a change leaves it as it is.
-- `at` is the entry's number (1 is the first) or its title (the first text part, case and spacing ignored). A missing entry, a title that two
-  entries share, and an add to a full list are refused with a plain sentence and change nothing.
+- `at` is the entry's number (1 is the first; also `#2` or `2.`) or its title (the title part: the part the block's `roles.title` names, else the first text part; case and spacing
+  ignored; one pair of quotes around it is ignored). A number means the entry as the list stood before the reply, so two drops by number in one reply drop the two the story
+  meant; an entry already dropped in the reply is refused. A missing entry, a title that two entries share, an add whose title another entry has, and an add to a full list
+  are refused with a plain sentence and change nothing.
 - Two lines that say exactly the same in one reply are one (the second is refused as already applied); two different ones both apply.
 - The prompt: each list adds three short lines; the tail names each entry by number and title with its choices and numbers (`quests: 1 "Find the key" active; 2 "Warn the mill" done`).
+  A block with a list gets 250 tokens of tail (100 otherwise). When the list does not fit, the open entries come first, an entry is never cut, and the line ends `+N more`.
 - A migration may add an `entries` field like any other (it starts empty).
 
 Display keys on a block, all optional and display-only (an older Story Block refuses them, so a pack that carries them needs `requires.storyBlock` `^2.22.0`):

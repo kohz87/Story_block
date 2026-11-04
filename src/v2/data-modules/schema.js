@@ -33,6 +33,8 @@ export const DM_LIMITS = freeze({
     stages: 10,
     // A List of entries field (`type: "entries"`): the sub-fields of one entry, the entries a story may add (default and most), and the longest `at` a line may write.
     entrySubs: 8, entriesDefault: 30, entriesMax: 50, entryAt: 60,
+    // A block with a List of entries says more in the tail (its open entries by number and title): 250 tokens instead of 100.
+    listTailTokens: 250,
 });
 
 export const DM_DIAGNOSTICS = freeze({
@@ -100,6 +102,8 @@ export const DM_DESCRIPTORS = freeze({
 
 /** The effects that work a List of entries field (the interpreter reads the line's labels itself). */
 export const DM_ENTRY_EFFECTS = Object.freeze(['entryAdd', 'entrySet', 'entryDrop']);
+/** The tone a status value has unless the author changed it: active, done and failed by name, anything else neutral. */
+export const dmDefaultTone = value => (['active', 'done', 'failed'].includes(value) ? value : 'neutral');
 export const dmObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 export const dmOwn = (value, key) => dmObject(value) && typeof key === 'string' && Object.hasOwn(value, key);
 export const dmSlug = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,39}$/.test(value)

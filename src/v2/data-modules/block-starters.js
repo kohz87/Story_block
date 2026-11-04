@@ -18,7 +18,7 @@ const keyed = draft => {
 const STARTERS = [
     { id: 'quest-log', name: 'Quest log', about: 'A list of quests the story adds to.',
         draft: () => ({ name: 'Quest log', prompt: 'The quests the party has taken: add one when it is given, change its step or status as it moves, drop one that no longer matters.',
-            fields: [{ key: 'quests', name: 'Quests', type: 'entries', max: 30, of: [
+            fields: [{ key: 'quests', name: 'Quests', type: 'entries', max: 25, of: [
                 text('Title', 60), text('Description', 240), text('Step', 120),
                 { name: 'Status', type: 'choice', values: ['active', 'done', 'failed'], default: 'active' }, text('Giver', 60), text('Reward', 60)] }],
             functions: [], layout: 'cards', roles: { field: 'quests', title: 'title', status: 'status', step: 'step' },

@@ -95,7 +95,7 @@ test('a layout that stops fitting falls back to the one the shape suggests, with
     assert.equal(e.root.querySelector('.ss-block-layout .ss-chip-on').textContent, S.layoutFields);
     assert.equal(e.text('.ss-block-layout-why')[0], 'Your block changed shape, so the layout is now Card of fields.');
     const definition = await e.save();
-    assert.equal(definition.layout, 'fields');
+    assert.equal(definition.layout, undefined, 'plain rows are the default: no layout key is written');
     assert.equal(definition.roles, undefined);
 });
 
@@ -213,7 +213,7 @@ test('the stored block: builder, draft and editable hash agree for entries, layo
     assert.equal(built.ok, true, JSON.stringify(built.errors));
     assert.deepEqual(built.definition.tones, { done: 'neutral', failed: 'active' });
     assert.equal(built.definition.show.into, 'goals');
-    assert.equal(built.definition.state.quests.max, 30);
+    assert.equal(built.definition.state.quests.max, 25, 'the starter\'s most is what the instance storage holds');
     const back = editableBlockDraft(built.checked);
     assert.ok(back, 'the editor can open the block it wrote');
     assert.deepEqual(back.roles, draft.roles);
@@ -261,7 +261,7 @@ test('templates keep the new keys and open in the editor; an export of them asks
     assert.equal(exportBlockPack(plain.checked).pack.requires.storyBlock, '^2');
 });
 
-test('an old block opens as it was; saving it gives it the layout its shape suggests, and its lines are the same', async t => {
+test('an old block opens as it was, shows the layout its shape suggests, and saving it again keeps its bytes (no layout is written)', async t => {
     const old = buildBlock({ name: 'Mood', fields: [{ name: 'Calm', type: 'number', min: 0, max: 5, default: 1 }, { name: 'Fear', type: 'number', min: 0, max: 5, default: 0 }],
         functions: [], prompt: 'How the party feels.', show: { tab: true, card: false, tabName: 'Mood', icon: 'ph-heart' } });
     assert.equal(old.definition.layout, undefined);
@@ -270,9 +270,24 @@ test('an old block opens as it was; saving it gives it the layout its shape sugg
     assert.equal(e.root.querySelector('.ss-block-layout .ss-chip-on').textContent, S.layoutBars, 'preselected from the shape');
     assert.equal(draft.layout, undefined, 'nothing is stored until Save');
     const definition = await e.save();
-    assert.equal(definition.layout, 'bars');
+    assert.equal(definition.layout, undefined, 'F8: an old block saved again is not given a layout');
+    assert.equal(JSON.stringify(definition), JSON.stringify(old.definition), 'the same bytes');
     assert.deepEqual(definition.kinds, old.definition.kinds);
     assert.deepEqual(definition.state, old.definition.state);
+});
+
+test('F8: an old block gets a layout only when the author picks one; the default (Card of fields) is never written', async t => {
+    const old = buildBlock({ name: 'Mood', fields: [{ name: 'Calm', type: 'number', min: 0, max: 5, default: 1 }, { name: 'Fear', type: 'number', min: 0, max: 5, default: 0 }],
+        functions: [], prompt: 'How the party feels.', show: { tab: true, card: false, tabName: 'Mood', icon: 'ph-heart' } });
+    const chosen = editor(t, { draft: editableBlockDraft(old.checked), starters: false });
+    chosen.buttonOf(S.layoutBars).click();
+    assert.equal((await chosen.save()).layout, 'bars', 'a layout the author picked is stored');
+    const fields = editor(t, { draft: editableBlockDraft(old.checked), starters: false });
+    fields.buttonOf(S.layoutFields).click();
+    assert.equal((await fields.save()).layout, undefined, 'the default is not written');
+    const explicit = buildBlock({ ...blockDraft(old.checked), layout: 'fields' });
+    const again = editor(t, { draft: editableBlockDraft(explicit.checked), starters: false });
+    assert.equal((await again.save()).layout, 'fields', 'a block that already carries the key keeps it');
 });
 
 test('layoutShape names the right suggestion for each shape', () => {
@@ -343,4 +358,89 @@ test('a migration may add a List of entries field; it starts empty', () => {
     assert.equal(target.ok, true, JSON.stringify(target.errors));
     assert.equal(validateDataMigration(old.definitions[0], target.definitions[0]).ok, true);
     assert.deepEqual(dataModuleDefaults(target.definitions[0].state).log, []);
+});
+
+// --- review 222 fixes (BE-FIX222) ---
+import { summaryOf } from '../../../src/v2/data-modules/part.js';
+import { entriesTooBig } from '../../../src/v2/data-modules/block-builder.js';
+const questView = host => host.sdk.query('dataModules.view', { module: 'pack.chat/quest-log' }).chat.quests;
+
+test('B2: adding, removing or renaming a part carries the list over part by part; the new part starts at its default', async t => {
+    const { host, built } = await hostWith(t);
+    await host.send('Help.', reply('+ dm quest-log — a | kind: add-quests | title: Find the key | giver: Widow Hale | status: done', '+ dm quest-log — b | kind: add-quests | title: Warn the mill | reward: 5 gold'));
+    const draft = blockDraft(built.checked);
+    draft.slug = 'quest-log';
+    const [field] = draft.fields;
+    field.of.push({ name: 'Place', type: 'text', max: 60, default: 'Ersveil', key: 'place' });
+    field.of = field.of.filter(part => part.key !== 'description');
+    field.of.find(part => part.key === 'step').name = 'Next step';
+    const again = buildBlock(draft);
+    assert.equal(again.ok, true, JSON.stringify(again.errors));
+    const result = await host.sdk.command('dm.redefine', { module: 'pack.chat/quest-log', definition: again.definition });
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.deepEqual(questView(host).map(entry => [entry.title, entry.giver, entry.status, entry.reward, entry.place, entry.description]),
+        [['Find the key', 'Widow Hale', 'done', '', 'Ersveil', undefined], ['Warn the mill', '', 'active', '5 gold', 'Ersveil', undefined]]);
+});
+
+test('B2: lowering Most entries below the entries the list holds refuses Save with one plain sentence, and the list stays', async t => {
+    const { host, built } = await hostWith(t);
+    await host.send('Help.', reply('+ dm quest-log — a | kind: add-quests | title: One', '+ dm quest-log — b | kind: add-quests | title: Two'));
+    const draft = blockDraft(built.checked);
+    draft.slug = 'quest-log';
+    draft.fields[0].max = 1;
+    const refused = await host.sdk.command('dm.redefine', { module: 'pack.chat/quest-log', definition: buildBlock(draft).definition });
+    assert.equal(refused.ok, false);
+    assert.match(refused.message, /The list Quests holds 2 entries now, so Most entries cannot go below 2/);
+    assert.deepEqual(questView(host).map(entry => entry.title), ['One', 'Two']);
+    draft.fields[0].max = 2;
+    assert.equal((await host.sdk.command('dm.redefine', { module: 'pack.chat/quest-log', definition: buildBlock(draft).definition })).ok, true);
+    assert.deepEqual(questView(host).map(entry => entry.title), ['One', 'Two']);
+});
+
+test('B3: a list whose title role is not its first text part takes the title in the add line and finds it in at', async t => {
+    const draft = starter('quest-log').draft();
+    draft.fields[0].of = [draft.fields[0].of.find(part => part.key === 'giver'), ...draft.fields[0].of.filter(part => part.key !== 'giver')];
+    const built = buildBlock(draft);
+    assert.equal(built.ok, true, JSON.stringify(built.errors));
+    assert.equal(built.definition.roles.title, 'title');
+    assert.deepEqual(Object.keys(built.definition.kinds['add-quests'].labels).filter(key => !built.definition.kinds['add-quests'].labels[key].optional), ['title']);
+    const { host } = await hostWith(t, draft);
+    await host.send('Help.', reply('+ dm quest-log — a | kind: add-quests | title: Find the key | giver: Widow Hale'));
+    assert.match(summaryOf(host.head(), 'pack.chat/quest-log'), /quests: 1 "Find the key" active/);
+    await host.send('Go.', reply('- dm quest-log — done | kind: drop-quests | at: "Find the key"'));
+    assert.deepEqual(questView(host), []);
+});
+
+test('F4: a change that gives an entry the title another entry has is refused', async t => {
+    const { host } = await hostWith(t);
+    await host.send('Help.', reply('+ dm quest-log — a | kind: add-quests | title: One', '+ dm quest-log — b | kind: add-quests | title: Two'));
+    await host.send('Go.', reply('~ dm quest-log — x | kind: set-quests | at: 2 | title: one'));
+    assert.deepEqual(questView(host).map(entry => entry.title), ['One', 'Two']);
+    assert.ok(host.turn.problems().some(problem => /already an entry with that title/.test(problem.message)));
+});
+
+test('F3: a list that cannot fit the instance storage is refused with one sentence at its Most entries; the Quest log starter fits', () => {
+    const draft = starter('quest-log').draft();
+    assert.equal(buildBlock(draft).ok, true, 'the starter fits');
+    assert.equal(entriesTooBig(buildBlock(draft).definition.state), null);
+    draft.fields[0].max = 50;
+    const refused = buildBlock(draft);
+    assert.equal(refused.ok, false);
+    assert.equal(refused.errors[0].path, 'fields.0.max');
+    assert.match(refused.errors[0].message, /^The list "Quests" cannot be stored at that size: 50 entries of up to 540 characters each come to about \d+ KB and a block keeps 16 KB\. Lower Most entries to \d+ or shorten the parts\.$/);
+    const fit = Number(/Lower Most entries to (\d+)/.exec(refused.errors[0].message)[1]);
+    draft.fields[0].max = fit;
+    assert.equal(buildBlock(draft).ok, true, 'the number it names fits');
+    draft.fields[0].max = fit + 1;
+    assert.equal(buildBlock(draft).ok, false);
+});
+
+test('F3: a full Quest log (the starter\'s most, every part at its longest) is stored', async t => {
+    const { host } = await hostWith(t);
+    const long = max => 'x'.repeat(max);
+    const lines = Array.from({ length: 25 }, (_, at) => `+ dm quest-log — a | kind: add-quests | title: ${String(at).padStart(2, '0')}${long(58)} | description: ${long(240)} | step: ${long(120)} | giver: ${long(60)} | reward: ${long(60)}`);
+    await host.send('Many.', reply(...lines.slice(0, 13)));
+    await host.send('More.', reply(...lines.slice(13)));
+    assert.equal(questView(host).length, 25);
+    assert.deepEqual(host.turn.problems().map(problem => problem.message), []);
 });

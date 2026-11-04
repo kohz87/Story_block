@@ -51,6 +51,14 @@ Draft for 2.22.0 (the lead integrates it). The block editor and a new field type
   shape changes the layout falls back to the suggested one with one line, and Save is never blocked); *Card roles* (Title,
   Status, Step) and *Status colours* for a list of cards; *Show in tab*; a live *Preview* under the layout that stays in view
   on a wide window. A block saved before has no layout and is drawn as it was until it is saved again.
+- **Fixes after review:** a number in `at` means the list as it stood before the reply (two drops by number drop the two meant; an
+  entry dropped earlier in the reply is refused); `at` also takes `#2`, `2.`, a title in quotes, and a numeric title; one title
+  part (the roles' title, else the first text part) is used by the add line, `at` and the tail; a duplicate title is refused;
+  editing a block carries a list over part by part and refuses a Most entries below the count; a list that cannot fit the
+  16 KB instance storage is refused in the editor (the Quest log starter's most is now 25); the tail of a block with a list
+  has 250 tokens (100 before), shows open entries first, never cuts an entry and ends "+N more"; deleting an earlier reply no
+  longer makes later adds stale (changes and drops still wait for a Re-read); a block saved again keeps its bytes (no `layout`
+  is written for the default or for an old block the author did not change).
 - The cards themselves are drawn by the block-layouts work; until it is merged the preview is a plain sketch and Show in tab is
   empty (the editor takes `tabs` and `renderPreview` from the host).
 
