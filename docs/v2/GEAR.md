@@ -33,7 +33,10 @@ While the feature is on, a `+ item` line that makes a new item gets (before any 
 * **slot** from the line's `kind:` or `slot:` word (weapon, body/armour/armor, off-hand/shield, head, cloak, feet, accessory),
   else from the name's last matching word: sword, blade, axe, hammer, club, bow, dagger, spear, staff, wand, tome are weapons;
   mail, leather, plate, cuirass, robe body; shield, buckler off-hand; helmet, helm, cap, hood head; cloak, cape, mantle cloak;
-  boot, shoe, sandal feet; ring, amulet, pendant, belt accessories (plurals too). A name ending in pack, satchel, bag or sack has
+  boot, shoe, sandal feet; ring, amulet, pendant, belt, gauntlet, glove, bracer, bracelet accessories (plurals too). A real compound word is read as a whole
+  word too, from a fixed list: longsword, shortsword, broadsword, greatsword, bastardsword, warhammer, battleaxe, greataxe, handaxe, warstaff, quarterstaff, longbow, shortbow,
+  crossbow, greatbow, warbow (weapons); breastplate, chainmail, platemail, ringmail (body). A word is never read by its ending, so Horseshoe, Snowshoes, Reboot, Windshield,
+  Crossword and Flagstaff stay goods. A name ending in pack, satchel, bag or sack has
   no slot. Goods that get a slot become equipment, so they can be worn.
 * **rarity** from a `rarity:` or `quality:` word: crude/poor/plain are common, fine/good/sturdy uncommon, superior/masterwork
   rare, heroic/magnificent epic, legendary/fabled legendary. Default common.
@@ -180,6 +183,14 @@ is as before; the new words are refused ("Gear in fights is not switched on.") a
   actor or a party member; it is granted to them and worn through `item.equip` inside the same command, so a refusal adds nothing). A new def gets the words as given
   (the name's own guess of a slot gives way; a Kind other than Equipment has no slot or bonus) and is marked `hand: true`. A def that already exists (a pack's, the
   story's) keeps its own words; Equip on still works.
+* **Kind = Equipment always makes equipment.** When the name already has a definition that is not equipment (or is the reader's own equipment with no slot, and a Slot is
+  chosen), the reader's choice wins and the def is remade as equipment inside the same add (so a replay does the same): kind equipment, not stacking, the Slot chosen (else its own,
+  else the name's), the Bonus chosen, marked `hand: true`. Allowed only for a `story/` def with no stack the story gave and none bound: a def marked `hand` while only the reader's stacks of
+  it are held (each of one piece), and an older def not marked `hand` (made before the mark existed) only when no stack of it is left (the reader has deleted it). Never a pack's def, never
+  one the story made while it is in use; those and a stack of two or more are refused: "<name> is already in your things as <kind>, … Remove it first and add it again, or give this one
+  another name." Items saved as goods (for example a character file's): Remove the piece, then add it again as Equipment (Equip on works in the same add).
+* **A slot is needed.** Equipment with no Slot chosen, no slot word in the name and no slot on its def is refused: "Choose a slot for <name>: its name does not say where it is worn."
+  (a saved character's starting things are not held to it).
 * **The budget** is the rarity's (common 0 … legendary 4), held by the command: "A rare piece gives at most 2 points." (common: "A common piece gives no bonus."). A rare piece with no
   stat chosen gives the usual pick (the name's or the slot's stat) over the whole budget, as for the story's items.
 * **The starting kit** is open while the line of history is only the opening greeting (`env.readers() === 0` and `env.greetingOnly() !== false`: no reader message and no other message after it; a swipe of the greeting keeps it open,

@@ -103,6 +103,15 @@ function uiCommand(r, host) {
         const stack = r.pick(stacks);
         choices.push(['inventory.edit', { stack: stack.id, group: true, kind: r.pick(['equipment', 'goods', 'quest']), slot: r.pick(['head', 'body', '', 'bogus']), rarity: r.pick(['common', 'epic']), stats: r.pick([{}, { AGI: 1 }, { LUK: 3 }]) }]);
     }
+    // Kind = Equipment on a name the chat already has as something else (inventory.js `remakeAsEquipment`): the reader's own item is remade, anything else refused. A whole stack
+    // is dropped now and then first (a burst of 1 to 3 commands often does both), so the definition is left with no stack.
+    const loose = Object.values(head?.domains?.inventory?.defs ?? {}).filter(def => def.id.startsWith('story/') && def.kind !== 'equipment').sort((a, b) => (a.id < b.id ? -1 : 1));
+    if (loose.length) {
+        const def = r.pick(loose);
+        choices.push(['inventory.add', { name: def.name, qty: 1, kind: 'equipment', slot: r.pick(['head', 'weapon', 'accessory-1', '']), ...(r.chance(0.4) ? { equip: 'party' } : {}) }]);
+        const own = stacks.find(stack => stack.def === def.id);
+        if (own) choices.push(['inventory.drop', { stack: own.id, qty: own.qty }]);
+    }
     choices.push(['inventory.drop', { stack: 'it_00000000', qty: 1 }]);
     const offers = Object.keys(head?.domains?.inventory?.loot ?? {}).sort();
     if (offers.length) choices.push(['inventory.lootTake', { sid: r.pick(offers), pick: [0, r.int(0, 1)] }]);
@@ -129,6 +138,8 @@ function bonusPaidOnLine(host) {
 }
 
 const tailOf = request => request.chat.filter(message => message.role === 'system').slice(1).map(message => message.content).join('\n');
+
+const remakes = { count: 0, runs: 0 };
 
 async function fuzz(t, seed, steps) {
     const restore = seedCrypto(seed);
@@ -178,7 +189,8 @@ async function fuzz(t, seed, steps) {
         if (kind !== 'continue') {
             const { owner } = checkInvariants(host, `${log.at(-1)} (told check)`);
             const lines = record.narrated.map(id => owner.get(id)?.receipt).filter(receipt => receipt && receipt.summary.trim())
-                .map(receipt => receipt.summary.trim().replace(/\s*\n\s*/g, ' '));
+                // (a receipt's own `data.told` note, such as a reader's correction, follows its line in parentheses: prompt.js)
+                .map(receipt => `${receipt.summary.trim().replace(/\s*\n\s*/g, ' ')}${typeof receipt.data?.told === 'string' && receipt.data.told.trim() ? ` (${receipt.data.told.trim()})` : ''}`);
             const tail = tailOf(result.request);
             if (lines.length) assert.ok(tail.startsWith([HAPPENED, ...lines].join('\n')), `${log.at(-1)}: [Happened] tells exactly what the reply records as told\n${tail}`);
             else assert.ok(!tail.includes(HAPPENED), `${log.at(-1)}: nothing to tell, no [Happened]`);
@@ -204,6 +216,7 @@ async function fuzz(t, seed, steps) {
             const [type, payload] = uiCommand(r, host);
             const before = JSON.stringify(ctx.chat);
             const head = plain(store.head());
+            const kindsBefore = Object.fromEntries(Object.values(head?.domains?.inventory?.defs ?? {}).map(def => [def.id, def.kind]));
             const paidBefore = bonusPaidOnLine(host);
             const claimed = Object.hasOwn(head?.meta?.claims ?? {}, BONUS_CLAIM);
             const saves = st.saves.length;
@@ -221,6 +234,9 @@ async function fuzz(t, seed, steps) {
                 continue;
             }
             ok++;
+            // The remake ran when this add changed a definition that was not equipment to equipment.
+            if (type === 'inventory.add' && payload.kind === 'equipment' && kindsBefore[result.receipt?.data?.def] !== undefined && kindsBefore[result.receipt.data.def] !== 'equipment'
+                && store.head()?.domains?.inventory?.defs?.[result.receipt.data.def]?.kind === 'equipment') remakes.count++;
             const record = readRecord(ctx.chat[store.headIndex()]);
             assert.equal(record.receipts.at(-1).id, result.receipt.id, `${label}: ${type}: the receipt is on the head carrier`);
             assert.ok(bonusPaidOnLine(host) <= 1, `${label}: the bonus is paid at most once on this line`);
@@ -357,5 +373,12 @@ async function fuzz(t, seed, steps) {
 for (const [seed, steps] of RUNS) {
     test(`fuzz seed ${seed}${steps === STEPS ? '' : ` (${steps} steps)`}: replay equals rebuild, rollback is exact, told once, claims once, saves per burst`, async t => {
         await fuzz(t, seed, steps);
+        remakes.runs++;
     });
 }
+
+test('the fuzz reaches the remake of an earlier-used name as equipment', t => {
+    if (remakes.runs < RUNS.length) return t.skip('only some seeds ran');
+    if (process.env.QA_FUZZ_STATS) console.log(`remakes executed across ${RUNS.length} seeds: ${remakes.count}`);
+    assert.ok(remakes.count > 0, 'no fuzz seed made an earlier-used name equipment (inventory.add kind equipment after a drop)');
+});

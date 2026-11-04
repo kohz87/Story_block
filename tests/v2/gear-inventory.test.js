@@ -768,10 +768,11 @@ test('a name\'s length never decides whether a piece can be equipped: 12 and 13+
     assert.equal(gearSlotOf(null, 'Thirteenletters'), null, 'a name with no slot word has none, at any length');
 });
 
-test('a compound name ends in its slot noun (Longsword, Warhammer, Breastplate, Iron Gauntlet); look-alike words do not', () => {
-    const slots = { 'Longsword': 'weapon', 'Steel Longsword': 'weapon', 'Warhammer': 'weapon', 'Oakheart Longbow of Bluewatch': 'weapon', 'Breastplate': 'body', 'Chainmail': 'body', 'Ironhelmet': 'head', 'Iron Gauntlet': 'accessory', 'Leather Gauntlets': 'accessory' };
+test('a real compound gear word is read as a whole word (Longsword, Warhammer, Breastplate, Iron Gauntlet); look-alikes are goods', () => {
+    const slots = { 'Longsword': 'weapon', 'Steel Longsword': 'weapon', 'Warhammer': 'weapon', 'Oakheart Longbow of Bluewatch': 'weapon', 'Breastplate': 'body', 'Chainmail': 'body', 'Steel Greatswords': 'weapon', 'Quarterstaff': 'weapon', 'Platemail': 'body', 'Iron Gauntlet': 'accessory', 'Leather Gauntlets': 'accessory' };
     for (const [name, slot] of Object.entries(slots)) assert.equal(gearSlotOf(null, name), slot, name);
-    for (const name of ['Password', 'Rainbow Trout', 'Elbow Grease', 'Overwhelm Draught', 'Template', 'Email', 'Wardrobe Key', 'Spring Water', 'Escape Plan']) assert.equal(gearSlotOf(null, name), null, name);
+    for (const name of ['Password', 'Rainbow Trout', 'Elbow Grease', 'Overwhelm Draught', 'Template', 'Email', 'Wardrobe Key', 'Spring Water', 'Escape Plan',
+        'Lucky Horseshoe', 'Snowshoes', 'Overshoes', 'Reboot Manual', 'Wineboot', 'Windshield Wiper', 'Heatshield', 'Bookshield', 'Crossword Puzzle', 'Crosswords', 'Flagstaff', 'Mainstaff', 'Ironhelmet']) assert.equal(gearSlotOf(null, name), null, name);
 });
 
 test('story lines and the hand form: a long or compound name becomes equipment and the card\'s Equip puts it on', async t => {

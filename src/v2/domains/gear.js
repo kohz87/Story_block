@@ -127,21 +127,18 @@ const NAME_SLOT = Object.freeze({
     ring: 'accessory', amulet: 'accessory', pendant: 'accessory', belt: 'accessory',
     gauntlet: 'accessory', glove: 'accessory', bracer: 'accessory', bracelet: 'accessory',
 });
-// Compound words ("Longsword", "Warhammer", "Breastplate", "Longbow") end in a slot noun. Only nouns that are safe as an ending are listed
-// (not bow, helm, plate, mail, robe, cape, ring: "rainbow", "overwhelm", "template", "email", "wardrobe", "escape", "spring"); "password" is no sword.
-const ENDS_IN = Object.freeze({
-    sword: 'weapon', blade: 'weapon', hammer: 'weapon', spear: 'weapon', staff: 'weapon', dagger: 'weapon',
-    longbow: 'weapon', shortbow: 'weapon', crossbow: 'weapon', greatbow: 'weapon', warbow: 'weapon', pickaxe: 'weapon', battleaxe: 'weapon', greataxe: 'weapon', handaxe: 'weapon',
-    chainmail: 'body', ringmail: 'body', breastplate: 'body', cuirass: 'body',
-    shield: 'off-hand', buckler: 'off-hand', helmet: 'head', cloak: 'cloak', mantle: 'cloak',
-    boot: 'feet', shoe: 'feet', sandal: 'feet', amulet: 'accessory', pendant: 'accessory', gauntlet: 'accessory', bracer: 'accessory', bracelet: 'accessory',
+// Real compound gear words ("Longsword", "Warhammer", "Breastplate", "Longbow"), each matched as a whole word (a plural s is allowed, as for the nouns above).
+// No word is read by its ending: "horseshoe", "reboot", "windshield", "crossword", "flagstaff" and "rainbow" are not gear.
+const COMPOUND_SLOT = Object.freeze({
+    longsword: 'weapon', shortsword: 'weapon', broadsword: 'weapon', greatsword: 'weapon', bastardsword: 'weapon', twohandedsword: 'weapon',
+    warhammer: 'weapon', battleaxe: 'weapon', greataxe: 'weapon', handaxe: 'weapon', warstaff: 'weapon', quarterstaff: 'weapon',
+    longbow: 'weapon', shortbow: 'weapon', crossbow: 'weapon', greatbow: 'weapon', warbow: 'weapon',
+    breastplate: 'body', chainmail: 'body', platemail: 'body', ringmail: 'body',
 });
-const NOT_COMPOUND = new Set(['password']);
 const slotOfWord = word => {
     if (Object.hasOwn(NAME_SLOT, word)) return { slot: NAME_SLOT[word] };
-    if (NOT_COMPOUND.has(word)) return null;
-    const end = Object.keys(ENDS_IN).find(noun => word.endsWith(noun));
-    return end ? { slot: ENDS_IN[end] } : null;
+    if (Object.hasOwn(COMPOUND_SLOT, word)) return { slot: COMPOUND_SLOT[word] };
+    return null;
 };
 const foldHand = text => String(text ?? '').normalize('NFKC').toLowerCase().replace(/off[\s-]*hand/g, 'offhand');
 

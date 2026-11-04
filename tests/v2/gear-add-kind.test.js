@@ -113,3 +113,56 @@ test('a def the story made that is in use is never changed', { skip }, async t =
     refused(await formAdd(host, { name: 'Tin Whistle', slot: 'accessory-1' }), /Remove it first/);
     assert.equal(JSON.stringify(defOf(host, 'Tin Whistle')), before);
 });
+
+// ---- the remake is part of its own recorded add: rebuild, reload, Re-read, swipe and a middle delete all agree with the live state ----
+const stable = inv => JSON.stringify({ ...inv, stacks: Object.fromEntries(Object.entries(inv.stacks).map(([id, s]) => [id, { ...s, from: undefined }])) });
+async function agrees(host, label) {
+    const live = stable(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.equal(stable(host.head().domains.inventory), live, `${label}: a rebuild gives the live state`);
+    const loaded = await createHost({ modules: [ACTORS], settings: { features: { 'story-block.gear': true, 'story-block.rpg': true } },
+        st: { chat: structuredClone(host.ctx.chat), extensionSettings: structuredClone(host.ctx.extensionSettings) } });
+    try { assert.equal(stable(loaded.head().domains.inventory), live, `${label}: a reload gives the live state`); } finally { loaded.close(); }
+    assert.deepEqual(host.store.problems(), [], `${label}: no problems`);
+}
+const text = (tag, ...lines) => reply(...lines).replace('The tide turns.', tag);
+
+test('the remake replays: rebuild, reload, Re-read (also of a reply that adds the name), swipe and a middle delete all agree', { skip }, async t => {
+    const host = await world(t);
+    assert.equal((await host.sdk.command('inventory.add', { name: 'Linen Clothes', qty: 1, kind: 'goods' })).ok, true);
+    await host.send('One.', text('A.', '+ coin 1'));
+    assert.equal((await formAdd(host, { name: 'Linen Clothes', slot: 'body', equip: READER })).ok, true);
+    await host.send('Two.', text('B.', '+ item Rope'));
+    await host.send('Three.', text('C.', '+ item Torch'));
+    assert.equal(defOf(host, 'Linen Clothes').kind, 'equipment');
+    await agrees(host, 'live');
+    const at = tag => host.ctx.chat.findIndex(message => message.mes.startsWith(tag));
+    assert.equal((await host.turn.reread(at('A.'))).ok, true);
+    await agrees(host, 'Re-read of the first reply');
+    assert.equal(defOf(host, 'Linen Clothes').kind, 'equipment');
+    await host.st.editMessage(at('B.'), text('B.', '+ item Linen Clothes | qty: 2'));
+    assert.equal((await host.turn.reread(at('B.'))).ok, true);
+    await agrees(host, 'Re-read of a reply edited to add the same name');
+    await host.swipe(text('C2.', '+ coin 2'));
+    await agrees(host, 'swipe of the last reply');
+    await host.st.deleteMessage(at('A.'));
+    await agrees(host, 'middle delete of the reply before the remake');
+});
+
+test('the remake of a story def with no stack left replays, also when its reply is re-read', { skip }, async t => {
+    const host = await world(t);
+    await host.send('One.', text('A.', '+ item Tin Whistle | kind: goods'));
+    assert.equal((await host.sdk.command('inventory.drop', { stack: rowOf(host, 'Tin Whistle').stack })).ok, true);
+    assert.equal((await formAdd(host, { name: 'Tin Whistle', slot: 'accessory-1' })).ok, true);
+    assert.equal(defOf(host, 'Tin Whistle').kind, 'equipment');
+    await agrees(host, 'live');
+    assert.equal((await host.turn.reread(host.ctx.chat.findIndex(message => message.mes.startsWith('A.')))).ok, true);
+    await agrees(host, 'Re-read');
+});
+
+test('look-alike names in a story line stay goods (a horseshoe is loot, not gear)', { skip }, async t => {
+    const host = await world(t);
+    const names = ['Lucky Horseshoe', 'Snowshoes', 'Windshield Wiper', 'Reboot Manual', 'Crossword Puzzle', 'Flagstaff'];
+    await host.send('Loot.', reply(...names.map(name => `+ item ${name}`)));
+    for (const name of names) assert.deepEqual([defOf(host, name).kind, defOf(host, name).slot], ['goods', null], name);
+});
