@@ -156,6 +156,9 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     // time whether its participants stand on the checkpoints of its selected head, whether or not an operation is running: a head
     // change met meanwhile raises the barrier at once, and the operation ends by reconciling (`reconcile`).
     function settle() {
+        // A read as other Features would have it (registry.withFeatures: the Features page counting a preset) is not the open chat as it
+        // is: it settles nothing, and works out no witness under switches the chat was not made with.
+        if (registry.hypothetical?.()) return;
         const holder = archive.holder();
         owed = owed.filter(each => each.holder === holder);
         if (barrierOwner !== null && barrierOwner !== holder) {

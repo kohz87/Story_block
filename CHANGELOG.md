@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.22.5
+
+Opening Settings no longer freezes the page.
+
+### Speed
+
+- **The Features page's prompt counts.** Settings counts the fixed prompt under each preset (Lean, Standard…). Counting asked the
+  modules' static text with that preset's switches, and NPC State Delta's text runs a query, which made the timeline check its
+  proof again for switches the chat was not made with, a full replay per preset, each time the window opened (0.9–1.3 s in a real
+  chat). A read under a preset's switches is only a count, so it no longer checks the timeline (`registry.hypothetical()`;
+  `settle()` returns at once), and the real cache stays as it was. The pack and data-module hashes the window shows are kept by
+  the exact text they hash. Opening Settings in a real chat: about 0.9–1.3 s → 0.25–0.45 s. No prompt change.
+
 ## 2.22.4
 
 Equipment you add as Equipment is equipment, and the Party card's buttons fit.

@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
-import { NATIVE, clone, nativeModule, reload, rulesModule, track } from './helpers/timeline.js';
+import { NATIVE, NPC, clone, nativeModule, reload, rulesModule, track } from './helpers/timeline.js';
 
 const featureModule = () => ({ id: 'qc-feat', name: 'Query cache feature', version: '1.0.0', features: [{ id: 'qc-feat.x', label: 'X', describe: 'A switch.', default: true }] });
 
@@ -291,4 +291,25 @@ test('inside witnessScope the memo is checked once, and a rebuild inside it stil
         assert.equal(walk(host, cursors).misses, 0);
     });
     assert.equal(host.store.witnessScope(() => 7), 7, 'the read\'s answer is handed back');
+});
+
+// "How much to track" reads the prompt as other Feature switches would send it (registry.withFeatures); a module's static text asks
+// queries while it is read. Those answer from the story as it is, they are not a read of the chat under other Features.
+test('a query asked inside withFeatures replays nothing and leaves the memo of the real Features as it was', async t => {
+    const { host } = await started(t);
+    host.sdk.query('savepoint.contract');
+    assert.equal(burst(host), 0, 'the memo is warm');
+    const kept = host.store.witnessMemoSize();
+    const ask = () => host.sdk.query('npc.identity', { id: NPC });
+    const plain = ask();
+    const before = host.store.work().witnessMisses;
+    const seen = host.registry.withFeatures({ 'qc-feat.x': false }, () => {
+        assert.equal(host.registry.featureOn('qc-feat.x'), false);
+        return [ask(), ask()];
+    });
+    assert.equal(host.store.work().witnessMisses - before, 0, 'no witness is worked out under the switches of a preset');
+    assert.equal(host.store.witnessMemoSize(), kept, 'the memo of the real Features is not replaced');
+    assert.deepEqual(seen[0], plain, 'the answer is the one the story gives');
+    assert.deepEqual(seen[1], plain);
+    assert.equal(burst(host), 0, 'the next real query still hits the memo');
 });
