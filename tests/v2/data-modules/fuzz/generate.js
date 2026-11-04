@@ -75,6 +75,13 @@ export function generate(r, slug, { scope = 'chat', clock = false, source = null
             if (r.chance(0.3)) kind.ui = true;
             definition.kinds[`k${i}`] = kind;
         }
+        // A List of entries: the story's three lines over a small list (the fuzz writes `true` for a text label, so `at: true` finds an entry added as `true`).
+        if (rich && r.chance(0.5)) {
+            definition.state.list = { type: 'entries', max: 4, of: { title: { type: 'text', max: 12, default: '' }, tier: { type: 'enum', values: TIERS, default: 'low' } } };
+            definition.kinds.ladd = { op: '+', labels: { title: { type: 'text', max: 12 }, tier: { type: 'enum', values: TIERS, optional: true } }, effects: [{ op: 'entryAdd', path: ['list'] }] };
+            definition.kinds.lset = { op: '~', labels: { at: { type: 'text', max: 12 }, tier: { type: 'enum', values: TIERS, optional: true } }, effects: [{ op: 'entrySet', path: ['list'] }] };
+            definition.kinds.ldrop = { op: '-', labels: { at: { type: 'text', max: 12 } }, effects: [{ op: 'entryDrop', path: ['list'] }] };
+        }
         if (offers && definition.rewards.prize) {
             definition.kinds.promise = { op: '+', labels: { tier: { type: 'enum', values: TIERS } }, effects: [{ op: 'offer', template: 'prize', key: 'promise', bind: { tier: ['arg', 'tier'] } }] };
             definition.kinds.fulfil = { op: '!', labels: {}, effects: [{ op: 'award', offer: 'promise' }] };

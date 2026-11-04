@@ -169,6 +169,28 @@ alias) and, for the lead, the party bag too: `own: [<actor>, 'party']`. The lead
 still finds them when nothing answers `party.pc`. The guard (`gearMatches`) also checks the owners: an owner that is another Character's actor than the entry's does not match,
 and the roll is rolled again on a Re-read; owners of a roster of another make cannot be told from the state and are not judged.
 
+## Your own gear: the starting kit
+
+With the switch on, the reader can set equipment up by hand. "+ Add item" opens the grouped form (Item: Name, Count, Kind, Note; and, when Kind is Equipment,
+Gear: Slot, Rarity, Bonus, Equip on) and the Edit of a piece the reader added shows the same fields. With the switch off "+ Add item" is the inline row and Edit
+is as before; the new words are refused ("Gear in fights is not switched on.") and nothing is marked.
+
+* **`inventory.add { name, qty, note?, kind?, slot?, rarity?, stats?, equip? }`** (the reader's): `slot` is one of the eight places (an accessory takes the place named
+  when free, else the other one), `stats` is `{ STR: 1 }` (at most 2 of the seven stats, whole numbers of at least 1), `equip` the owner who puts it on (the reader's
+  actor or a party member; it is granted to them and worn through `item.equip` inside the same command, so a refusal adds nothing). A new def gets the words as given
+  (the name's own guess of a slot gives way; a Kind other than Equipment has no slot or bonus) and is marked `hand: true`. A def that already exists (a pack's, the
+  story's) keeps its own words; Equip on still works.
+* **The budget** is the rarity's (common 0 … legendary 4), held by the command: "A rare piece gives at most 2 points." (common: "A common piece gives no bonus."). A rare piece with no
+  stat chosen gives the usual pick (the name's or the slot's stat) over the whole budget, as for the story's items.
+* **The starting kit** is open while the line of history is only the opening greeting (`env.readers() === 0` and `env.greetingOnly() !== false`: no reader message and no other message after it; a swipe of the greeting keeps it open,
+  deleting every message after it opens it again, deleting only the reader's messages while a reply stays does not; a chat with no greeting is closed). Closed: Rarity above Common and any Bonus are refused ("Rarity and bonuses come from the story after the first message.") by
+  `inventory.add` and `inventory.edit`. A saved character's starting things (`starting: true`, the wizard's import) keep the kind, rarity, slot and bonus of their file only while the kit is open; later they are Common with no bonus and a Problems line says so. After the kit a name that a non-hand story or pack piece has (equipment, or above Common) is made as the reader's own Common piece named "Your <name>". `gear.view` answers `kit: { open, empty? }` (`empty` for a chat with no message: "+ Add item" says why it cannot add).
+* **`inventory.edit { stack, kind?, slot?, rarity?, stats? }`** changes a def marked `hand: true` that has no story-given stack (and is not bound or a pack's: "Kind, slot and rarity come from the pack." /
+  "... the story."). Kind may change at any time: Equipment later means Common with no Bonus (or the words asked, while the kit is open) and a Count above 1 becomes separate pieces; leaving Equipment
+  drops slot and bonus and takes the piece off. A slot that no longer fits takes the piece off. Words as they stand are no change.
+* **Screens:** `gear.view` rows carry `hand`, `defSlot` and `stats` for such a piece; the item Edit takes `gear.row`, `gear.kit` and `gear.def`.
+  The form is `view/gear-form.js` over `ss.editable` kind `fields` (field `showWhen`, `disabled`, and the entries `note` and `points`).
+
 ## Replay
 
 Everything is derived from the inventory slice and its condition events; a swipe, a delete, a Re-read, a rebuild and a reload

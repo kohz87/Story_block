@@ -30,7 +30,7 @@ import { createCardSettings } from './packs/card-settings.js';
 import { XP_RATE_SETTING, xpRateFrom, xpRateOf } from './lean-rpg/levels.js';
 import { applyStart, createPacksPart } from './packs/index.js';
 import { MODEL_CALL_ERRORS, createCallQueue, createModelCalls, createOwnCalls, profileName, stModelCall } from './model-call.js';
-import { carryRecord } from './persist.js';
+import { carryRecord, readRecord } from './persist.js';
 import { createRegistry } from './registry.js';
 import { MAX_CHANGE_LINES, announceModules, createEvents, createSdk, createSettings, newId, runQuery } from './sdk.js';
 import { displayLines } from './extras.js';
@@ -42,8 +42,9 @@ import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
 import { createRpgLoader } from './rpg-lazy.js';
 import { createPublicApi } from './public-api.js';
+import { createPublicPaths } from './public-paths.js';
 
-export const VERSION = '2.21.2';
+export const VERSION = '2.22.0';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to
@@ -382,6 +383,31 @@ export function createRuntime({
     let sdk = null;
     let bus = null;
     let timeline = null;
+    // The reader's messages on the line of history (the timeline's `view.lastUser` reader leaves out the faded ones): the starting kit is open at 0.
+    const readersOf = () => {
+        const list = Array.isArray(ctx.chat) ? ctx.chat : null;
+        if (!list) return null;
+        const seen = typeof timeline?.active === 'function' ? timeline.active('view.lastUser').messages(list) : list;
+        return seen.filter(message => message?.is_user).length;
+    };
+    // Whether the line of history is still just the opening greetings: at least one message, none from the reader and none that carries a Story Block reply record (null: not known).
+    // A narrator or member that spoke on its own, or a reply, ends it, so deleting only the reader's messages does not reopen the starting kit; a group chat's several greetings do not.
+    const greetingOnlyOf = () => {
+        const list = Array.isArray(ctx.chat) ? ctx.chat : null;
+        if (!list) return null;
+        const seen = typeof timeline?.active === 'function' ? timeline.active('view.lastUser').messages(list) : list;
+        return seen.length > 0 && seen.every(message => {
+            if (!message || message.is_user) return false;
+            // A captured reply carries `reply: true` (turn.js); a record from before the mark (no `mv`) other than the head greeting's is taken for a reply, so old chats stay closed.
+            // A record with `mv` and no mark is the reader's own edits on a greeting (the kit's adds), and stays a greeting.
+            const record = readRecord(message);
+            if (!record) return true;
+            if (record.reply === true) return false;
+            // (whatever the mark: a story block or a receipt of the story is a reply's)
+            if ((record.spans ?? []).some(span => span?.story !== false) || (record.receipts ?? []).some(receipt => receipt?.cause !== 'ui')) return false;
+            return record.mv === 1 || (record.checkpoint !== undefined && message === seen[0]);
+        });
+    };
     let chatterReaders = null;   // the timeline's readers of earlier messages for the Inner chatter tail line and its two queries
     let assistCall = async () => { throw new Error('Story Block is not ready.'); };
     let turn = null;
@@ -406,7 +432,7 @@ export function createRuntime({
             // The chatter the reader may send back to the story (its setting): the replies and how to read one.
             // The head reply's index too, for `scene.moved` (the store is made below; asked only later).
             // Whether Story Director's World screen is there (it shows the chatter; else Scene does: `scene.chatter`).
-            extras: { promptChat: () => chatterReaders.prompt.messages(ctx.chat), headChat: () => chatterReaders.head.messages(ctx.chat), sceneChat: () => chatterReaders.scene.messages(ctx.chat), display, headIndex: () => store.headIndex(), proofs: () => store.proofs(), rpgOn: () => registry.featureOn(CORE_FEATURE.leanRpg), gearOn: () => registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg), persona: () => { try { return (live() ?? ctx)?.name1 ?? ''; } catch { return ctx?.name1 ?? ''; } }, worldShown: () => registry.screens().some(screen => screen.id === DEFAULT_HIDDEN[SCENE_SCREEN_ID]) },
+            extras: { promptChat: () => chatterReaders.prompt.messages(ctx.chat), headChat: () => chatterReaders.head.messages(ctx.chat), sceneChat: () => chatterReaders.scene.messages(ctx.chat), display, headIndex: () => store.headIndex(), proofs: () => store.proofs(), readers: () => readersOf(), greetingOnly: () => greetingOnlyOf(), chatEmpty: () => Array.isArray(ctx.chat) && ctx.chat.length === 0, rpgOn: () => registry.featureOn(CORE_FEATURE.leanRpg), gearOn: () => registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg), persona: () => { try { return (live() ?? ctx)?.name1 ?? ''; } catch { return ctx?.name1 ?? ''; } }, worldShown: () => registry.screens().some(screen => screen.id === DEFAULT_HIDDEN[SCENE_SCREEN_ID]) },
             version: VERSION,
             timeline: () => timeline,
             dataModules: { state: () => store.head(), lifecycle: id => registry.lifecycle(id), restore: () => registry.restore(), persona: () => { try { return (live() ?? ctx)?.name1 ?? ''; } catch { return ctx?.name1 ?? ''; } } },
@@ -470,7 +496,7 @@ export function createRuntime({
         }
     });
     const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page) });
-    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name) });
+    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
     saveOnUnload(store, page, { fits: saving.keepaliveFits });
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();
@@ -512,7 +538,8 @@ export function createRuntime({
         if (result.error === MODEL_CALL_ERRORS.EMPTY) return '';
         throw Object.assign(new Error(result.message), { code: result.error });
     };
-    const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
+    const publicPaths = createPublicPaths();   // the paths modules offer to the public API (sdk.registerPublicPaths)
+    const made = createSdk({ publicPaths, store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
         substitute: text => substituteNames(text, ctx), dialog: (screenId, opts) => dialogOpener?.(screenId, opts) ?? null,
         dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel, timeline, seed: () => turn?.seed(), cardSettings });
     sdk = made.sdk;
@@ -564,6 +591,8 @@ export function createRuntime({
         rpgOn: () => registry.featureOn(CORE_FEATURE.leanRpg),
         persona: apiPersona,
         events,
+        publicPaths,
+        latestIndex: () => { try { return Math.max(0, (ctx.chat?.length ?? 1) - 1); } catch { return 0; } },
         chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId) ?? '',
         // A reply's state is written before its events go out (a reply's idle save is brought forward only while a listener waits for it).
         saved: async () => { try { if (store.dirty?.() === true) await store.saveSoon?.(); } catch { /* a failed save is told and tried again by the store */ } },

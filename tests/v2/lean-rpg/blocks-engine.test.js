@@ -33,7 +33,8 @@ const bars = host => { const c = sheet(host, 'character'); return [c.health, c.s
 const CLASSIC_HASHES = {
     // (2.17.0: the Character block moved on purpose, Level / XP / Level cap and the level-up rule in place of the Soul Class; the other three are the same bytes.)
     Character: 'f606ded47bcf986ce150fd7bfa29807ed7e16629452b43b063af691d9c554e23', // (and the XP carry: the xp field to 9999, the hidden `rise`, the xp-cap rule)
-    Skills: '87692b232c660a4b13a45f81571c6d5e69002037f920c77c786b9fe6c6eba5c5',
+    // (pinned change, extra skill slots: the Skills template has eight slots and the signature mark; blocks already in a chat keep the pin they were made with)
+    Skills: '925e094cb288f01dc68c1e7cc931f22e690eb13ab7834e2e4351fd6e65443678',
     // (Foes changed on purpose in the Levels release: level1…level4, 1 to 99, replace class1…class4; the other three are as they were.)
     Foes: 'd9e0260b748561a22ebbc9424aeb5c1efe18ed6ba643fb7c398790671b67103e',
     'Combat rules': 'ca4d225eb36b9951e3b360ceb7702fb8370fc6abab2ff4fc1d11ddf759ff4267', // (2.17.0: the text says Level where it said Soul Class)
@@ -59,7 +60,7 @@ test('the Standard templates are the same four blocks, version 2, each passing t
         const checked = validateDataModules([structuredClone(definition)], CHECK);
         assert.equal(checked.ok, true, `${name}: ${JSON.stringify(checked.errors)}`);
         assert.ok(Buffer.byteLength(JSON.stringify(definition)) <= L.definitionBytes, name);
-        assert.ok(Object.keys(definition.state).length <= L.fields && Object.keys(definition.kinds).length <= L.kinds, name);
+        assert.ok(Object.keys(definition.state).length <= (definition.role === 'skills' ? L.skillsFields : L.fields) && Object.keys(definition.kinds).length <= L.kinds, name);
     }
     for (const name of ['Character', 'Foes', 'Combat rules']) assert.equal(standard(name).stateVersion, 2, name);
     assert.ok(COMBAT_PROMPT_STANDARD.length <= L.prompt, 'the Combat rules text fits the block\'s 1200');

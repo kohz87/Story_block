@@ -23,7 +23,7 @@ const BEFORE = {
 };
 // Classic's definitions are never changed (their hashes are those of the 2.17.x templates).
 const CLASSIC_HASHES = {
-    character: '5f4a3ecd42fa4d4c0ef6dd9dfcf2f50001d611e5e2e0df026500160f6f0713dc', skills: '06561cccc58ec08b31d8a74d3600cece5ecda26aa125fdb4f9d39d31c10761c1',
+    character: '5f4a3ecd42fa4d4c0ef6dd9dfcf2f50001d611e5e2e0df026500160f6f0713dc', skills: 'bde5bf79b35ef2f88dc8c20c981651d3219bd3e4932afba9fefa2cd4092b7a55', // (pinned change, extra skill slots: eight slots and the signature mark)
     foes: '8d2ad00f8019f5a9e3ab5c684010a95e1c6b23e144b0a529654f64978a508e20', rules: '00bc9f92c51b2623a32ae7ba2b622c50b43442877a799d3524fcd0865e805875',
 };
 const staticOf = request => request.chat[0].content;
@@ -47,14 +47,14 @@ test('a numbered family is one template line with N, and a closing line says wha
         const skills = moduleGrammar(definitionOf(templates, 'skills'), 'skills');
         assert.equal(skills.split('\n').filter(line => line.includes('kind: learn-N')).length, 1, label);
         assert.equal(skills.split('\n').filter(line => line.includes('kind: practice-N')).length, 1, label);
-        assert.ok(skills.includes('N = 1..5 for learn-N and practice-N.'), label);
-        assert.doesNotMatch(skills, /learn-[1-5]|practice-[1-5]/u, `${label}: no kind written five times`);
+        assert.ok(skills.includes('N = 1..8 for learn-N and practice-N.'), label);
+        assert.doesNotMatch(skills, /learn-[1-8]|practice-[1-8]/u, `${label}: no kind written eight times`);
         const foes = moduleGrammar(definitionOf(templates, 'foes'), 'foes');
         for (const kind of ['set-slot-N', 'hurt-N', 'clear-N']) assert.equal(foes.split('\n').filter(line => line.includes(`kind: ${kind}`)).length, 1, `${label} ${kind}`);
         assert.ok(foes.includes('N = 1..4 for set-slot-N, hurt-N and clear-N.'), label);
         // The kinds themselves are as they were: the template is the text the narrator reads, never the definition.
         assert.deepEqual(Object.keys(definitionOf(templates, 'foes').kinds), [1, 2, 3, 4].flatMap(n => [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]));
-        assert.equal(Object.keys(definitionOf(templates, 'skills').kinds).length, 10);
+        assert.equal(Object.keys(definitionOf(templates, 'skills').kinds).length, 16); // (pinned change, extra skill slots: 8 learn + 8 practice)
     }
 });
 
@@ -122,7 +122,7 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     assert.match(text, /kind: learn-N/u);
     // Practice comes only from rolled uses (the RPG on, Rolls automatic): no practice-N line is offered.
     assert.doesNotMatch(text, /practice-N/u);
-    assert.match(text, /N = 1\.\.5 for learn-N\./u);
+    assert.match(text, /N = 1\.\.8 for learn-N\./u);
 });
 
 test('with Rolls off the quiet reply still offers practice-N and the Classic XP guide keeps its practice sentence', { skip }, async t => {
@@ -130,7 +130,7 @@ test('with Rolls off the quiet reply still offers practice-N and the Classic XP 
     const { request } = await host.send('I walk on.', 'The road is quiet.');
     const text = staticOf(request);
     assert.match(text, /kind: practice-N/u);
-    assert.match(text, /N = 1\.\.5 for learn-N and practice-N\./u);
+    assert.match(text, /N = 1\.\.8 for learn-N and practice-N\./u);
     assert.match(text, /Practice a skill 5 to 20 per use\./u);
     assert.match(text, /and adds practice/u);
 });

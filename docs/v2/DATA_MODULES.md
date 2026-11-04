@@ -76,10 +76,45 @@ refuses a new action; its saved instance stays. No global persona state and no d
 | `enum` | 1–32 distinct literal `values`, `default` among them |
 | `text` | `max` 1–240, literal `default`; text may be compared to a literal with `eq` or `ne` |
 | `map` | 1–16 fixed enum `keys`, scalar `values` schema; each key gets that default |
+| `entries` | A list of entries (Story Block 2.22): `of` 1–8 named parts (`text`, `int` or `enum` schemas; a name is one lowercase word and is not `at`, `kind` or `who`), `max` 1–50 entries (default 30). Stored as an array of objects keyed by the parts, in order; starts empty. See "List of entries" below. |
 
 No growing authored arrays/maps, nullable arithmetic, coercion, floats or implicit field creation.
 Field/key slugs are at most 40 characters; unsafe prototype keys and Unicode-normalized collisions
 are refused. Names/reasons use the host's text safety rules. Fields not declared are invalid state.
+
+### List of entries (`type: "entries"`)
+
+A field that holds a list of small records the story grows: a quest log, a roster. It is changed only by three kinds of
+kind of line (the Block editor writes them; a pack may write them by hand); a list is never read in an expression and never changed by a rule, a timer or a reward:
+
+```jsonc
+// (a fragment of a definition: the "state" and "kinds" keys, not a complete pack)
+"state": { "quests": { "type": "entries", "max": 30, "label": "Quests",
+  "of": { "title": { "type": "text", "max": 60, "default": "" },
+          "status": { "type": "enum", "values": ["active", "done", "failed"], "default": "active" } } } },
+"kinds": {
+  "add-quests":  { "op": "+", "labels": { "title": { "type": "text", "max": 60 }, "status": { "type": "enum", "values": ["active", "done", "failed"], "optional": true } },
+                   "effects": [{ "op": "entryAdd", "path": ["quests"] }] },
+  "set-quests":  { "op": "~", "labels": { "at": { "type": "text", "max": 60 }, "status": { "type": "enum", "values": ["active", "done", "failed"], "optional": true } },
+                   "effects": [{ "op": "entrySet", "path": ["quests"] }] },
+  "drop-quests": { "op": "-", "labels": { "at": { "type": "text", "max": 60 } }, "effects": [{ "op": "entryDrop", "path": ["quests"] }] } }
+```
+
+- `entryAdd`, `entrySet` and `entryDrop` take only `path: [<field>]`; the line's labels are the parts (each the part's own type and no wider) and,
+  for a change or a drop, `at`. A label with `"optional": true` may be left out: an add keeps that part at its default, a change leaves it as it is.
+- `at` is the entry's number (1 is the first; also `#2` or `2.`) or its title (the title part: the part the block's `roles.title` names, else the first text part; case and spacing
+  ignored; one pair of quotes around it is ignored). A number means the entry as the list stood before the reply, so two drops by number in one reply drop the two the story
+  meant; an entry already dropped in the reply is refused. A missing entry, a title that two entries share, an add whose title another entry has, and an add to a full list
+  are refused with a plain sentence and change nothing.
+- Two lines that say exactly the same in one reply are one (the second is refused as already applied); two different ones both apply.
+- The prompt: each list adds three short lines; the tail names each entry by number and title with its choices and numbers (`quests: 1 "Find the key" active; 2 "Warn the mill" done`).
+  A block with a list gets 250 tokens of tail (100 otherwise). When the list does not fit, the open entries come first, an entry is never cut, and the line ends `+N more`.
+- A migration may add an `entries` field like any other (it starts empty).
+
+Display keys on a block, all optional and display-only (an older Story Block refuses them, so a pack that carries them needs `requires.storyBlock` `^2.22.0`):
+`layout` (`cards`, `bars` or `fields`); `roles` (`{ field, title, status?, step? }`, only with `cards`: the list and its parts: `title` and `step` text, `status` a choice);
+`tones` (`{ "<status value>": "active" | "done" | "failed" | "neutral" }`, only the values that differ from the default: `active`, `done` and `failed` by name, any other value neutral);
+and `show.into` (the id of a tab the block joins as a section; `show.tabName` is its heading; needs `show.tab`).
 
 Expressions are JSON AST arrays, not strings to execute. Literals are JSON scalars; every operation
 has fixed arity. The checker resolves field paths, checks types and interval bounds before import.
@@ -161,6 +196,33 @@ pack's own screens. Only chat blocks offer Edit fields, Save as template and Rem
 block is listed on Settings → Blocks, with or without `show`. Its **Show as** choice (its own tab, a card on Home, both,
 or Hidden) redefines the block with a new `show`, keeping its tab name and icon; the RPG's role blocks are marked and
 shown by the RPG's tabs while the feature is on.
+
+### How a block draws its values
+
+The block card and a pack module's tab draw values by the shape of the data, with no author work except the one hint below.
+
+- **A list of records** (quests): an `entries` field (a list of records the block keeps in one field) read through the block keys
+  `layout` (`cards`, `bars` or `fields`), `roles` (`{ field, title, status, step }`, the sub-keys of that field) and `tones`
+  (`{ <status value>: active | done | failed | neutral }`). `cards` draws each entry as a card: the title with a status chip,
+  the description (the first other text sub-field) clamped to two lines with a More button, the step with an icon; the open
+  entries come first and the rest sit under a collapsed "Finished (n)". A block without those keys draws plain rows.
+- **A map of numbers** (a map field whose values are whole numbers) has a header, a row for each key with its value and a bar
+  (from a centre line when the range runs below zero), highest first. Keys still at their default are listed under a
+  collapsed "Not known yet (n)", and their pencils still set them. One pencil sits at the end of every row.
+- **A record of fields** (`story-block.fields` with `as: "record"`) is a small card of label and value lines.
+- `show.into: "<tab>"` makes a block a section of the tab that pack screens name with `tab` (below), instead of a tab of its own.
+- A layout meter with no `max` takes its field's bounds ("18 / 100"); a number with no maximum shows its value, not a dash.
+
+A pack's data module screen asks for the map or the record with one layout node,
+`{ "type": "story-block.fields", "props": { "module": "<its own id>", "field": "<map field>" } }`, or `"fields": [...]`
+(whole-number fields listed together, or the fields of a record card), `"as": "map" | "record"`, `"title"`, `"names"`
+(`{ key: shown name }`), `"labels"`, `"units"` (a word after a value) and `"tones"` (a chip tone for each value of a choice).
+The node may show only its own module's fields.
+
+Screens (a pack's, or a module's) may carry `tab: "<id>"`, `tabTitle` (at most 24 characters) and `order`. Screens with the same
+`tab` are drawn as sections of one tab, in `order` then the order given, each under a header with the screen's `title`; the first
+`tabTitle` given names the tab. A section whose module is not enabled is absent. A pack that uses `tab` needs a Story Block that
+knows it (`requires.storyBlock` ^2.22.0).
 
 The editor generates one `set-<field>` story kind per field, including numbers; a numeric `to` label
 uses the field's bounds. A new or redefined block allows at most 16 fields and buttons combined, because

@@ -1,6 +1,6 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.6.1, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.7.0, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
@@ -35,11 +35,12 @@ SillyTavern profile.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
+2.7.0 lays Standing, Fame, Guild and Court favour out as sections of one Reputation tab and needs Story Block 2.22.0 (a running chat moves by migrating the four modules: see "Moving a running chat to 2.7.0" below).
 2.6.1 trims the always-on lore and makes Classification, Currency, Naming and Knowledge keyword entries (the story sends them when the topic comes up).
 2.6.0 adds sixteen signature items (each cast member's own gear, given and bound to them when they join the party while Gear in fights is on) and needs Story Block 2.18.0.
 2.5.0 adds the guild rank bands and the guild letter as the party's rank (§6, Ranks), turns the cast's Soul Class field into Level (each of the twelve set by role, 8 to 56), and needs Story Block 2.17.0.
 
-Importing 2.6.1 replaces an installed pack with the same id. Start a new chat to use its starting state.
+Importing 2.7.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
 2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import `examples/packs/ersveil.zip` (`pack.json` and `portraits/`; rebuild it with `node scripts/build-example-zip.mjs`) or pick `pack.json` and the twelve `.webp` files together; `pack.json` alone leaves the portraits unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
@@ -69,10 +70,10 @@ press **Enable for this chat**.
 
 | Module | What it keeps |
 |---|---|
-| Standing with the powers | Your standing, -100 to 100, with each of ten powers (kinds `gain` and `loss`). Screen: Standing. |
-| Fame by region | How well known you are, 0 to 100, in each of sixteen regions (kinds `deed` and `spread`). Screen: Fame. |
-| Adventurer Guild membership | Registration, your letter (F to S), dues and years as a member (kinds `register`, `dues`, `contract`, `promote`, `yearend`). Screen: Guild. |
-| Court favour | How much favour each claimant to Highmark's throne holds at court, 0 to 100 (kinds `back` and `undermine`, small or great). The narrator moves it only when your own deeds clearly help or hurt a claimant. No screen: it is the story's to keep, and the world's events read it when the throne is decided. Without it the throne goes as the law expects. |
+| Standing with the powers | Your standing, -100 to 100, with each of ten powers (kinds `gain` and `loss`). Section: Standing with the powers (Reputation tab). |
+| Fame by region | How well known you are, 0 to 100, in each of sixteen regions (kinds `deed` and `spread`). Section: Fame by region (Reputation tab). |
+| Adventurer Guild membership | Registration, your letter (F to S), dues and years as a member (kinds `register`, `dues`, `contract`, `promote`, `yearend`). Section: Adventurer Guild (Reputation tab). |
+| Court favour | How much favour each claimant to Highmark's throne holds at court, 0 to 100 (kinds `back` and `undermine`, small or great). The narrator moves it only when your own deeds clearly help or hurt a claimant. Section: Court favour (Reputation tab, three bars). The world's events read it when the throne is decided. Without it the throne goes as the law expects. |
 
 Once a module is enabled the narrator is told its `dm …` lines; a refused line changes nothing. See
 [DATA_MODULES.md](DATA_MODULES.md).
@@ -155,3 +156,16 @@ legendary 4; common none) and a piece raises two stats at most.
 Import the new file (same id `ersveil`: it replaces the old one and keeps its switch), then start a new
 chat. Changing values in the pack: keep this page, `tests/v2/packs/ersveil-pack.test.js`,
 `tests/v2/packs/ersveil-timeline.test.js` and the pack's version in step.
+
+### Moving a running chat to 2.7.0 (Reputation tab)
+
+Ersveil 2.7.0 lays Standing, Fame, Guild and Court favour out as sections of one Reputation tab and needs Story Block 2.22.0. A chat that is
+already running keeps its old modules and keeps working: nothing changes until you choose to migrate. To take the new layout in a running chat,
+migrate each of the four modules, one at a time:
+
+1. Import the 2.7.0 file (Settings → Tabs & Packs → Packs). The four modules show "Migration available".
+2. Open Settings → Tabs & Packs → Data modules.
+3. For each of Standing, Fame, Adventurer Guild membership and Court favour: **Migrate**, read the preview, then confirm. That is four times (two clicks each).
+
+A migration changes only how the module is drawn; its values stay as they are, and it is saved with the latest reply (a swipe or a delete of that
+reply takes it back). A new chat starts on 2.7.0 with nothing to migrate.

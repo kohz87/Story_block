@@ -45,9 +45,9 @@ Within API version 1 the names, arguments and payload shapes on this page do not
 | `party.<name>`, `party.<name>.<field>`, `party.<name>.stats.<stat>` | One member, one field, one stat (`str vit agi dex int luk cha`). |
 | `party.me`, `party.me.<field>` | The reader's own Character: the one named like the persona, else the only Character. `undefined` when it is not clear who the reader is. |
 | `blocks` | The ids of the data-module blocks in the chat (pack blocks included). |
-| `blocks.<blockId>`, `blocks.<blockId>.<field>` | A chat block's visible fields, or one field as it is stored (numbers as numbers, text as text, a `map` field as an object, and `….<field>.<key>` for one key). A block for characters is read by who: `blocks.<blockId>.<who>.<field>`. |
+| `blocks.<blockId>`, `blocks.<blockId>.<field>` | A chat block's visible fields, or one field as it is stored (numbers as numbers, text as text, a `map` field as an object, and `….<field>.<key>` for one key; a List of entries field as a list of objects). A block for characters is read by who: `blocks.<blockId>.<who>.<field>`. |
 
-`health`, `mana` and `stamina` are the words the Party card shows (`"Hurt"`, `"Fresh"`; a Standard block bar's word is spread over its blocks). `level` and `xp` are numbers. A name with dots in it (`items.Mr. Fox's Pie.qty`, `blocks.pack.chat/tracker.hope`) is fine: the path is matched against the names in the chat, not split at every dot. `npc.<name>.<meter>` for NPC State Delta is planned as an NPC State Delta change; it is not in this release.
+`health`, `mana` and `stamina` are the words the Party card shows (`"Hurt"`, `"Fresh"`; a Standard block bar's word is spread over its blocks). `level` and `xp` are numbers. A name with dots in it (`items.Mr. Fox's Pie.qty`, `blocks.pack.chat/tracker.hope`) is fine: the path is matched against the names in the chat, not split at every dot. `npc.<name>.<meter>` comes from NPC State Delta 1.10.0 and later (see [Paths from modules](#paths-from-modules)); without that module there are no `npc.*` paths.
 
 ### What is never returned
 
@@ -101,6 +101,14 @@ Story Block's own text in the prompt is not touched by macros: every `{{` in a n
 
 A ready-made example is in [examples/cards/status-bar](../../examples/cards/status-bar/README.md). A status bar as a regex script: find `\[STATUS\]`, replace with `{{sb::scene.place::somewhere}} · {{sb::money.text::0}} · HP {{sb::party.me.health::?}}`.
 
+## Paths from modules
+
+A module that keeps values of its own offers them to this API under one prefix. NPC State Delta 1.10.0 does this for `npc`: `npc.<name>.<meter>` for every tracked NPC's meters (trust, affection, desire, tension and the rest, as NPC State Delta names them), plus `npc.<name>.mood` and `npc.<name>.present`. They are read the same way as every other path: `api.get`, `api.paths()`, `{{sb::npc.Mira Vale.trust::unknown}}` and the change lists of `story:changed`. The same rules hold: a frozen plain copy, read-only, and a hidden meter or note is never returned (it reads as `undefined`, is not in `paths()` and is never in a change list). Names are matched the way Story Block matches names, not split at dots. A change that a module makes after the reply was saved (a scan that finishes late) is told as its own `story:changed`.
+
+For module authors (the internal `sdk`, which changes between releases): `sdk.registerPublicPaths({ owner, prefix, paths(), get(path), hidden(path), values()? })` returns `unregister()`; `unregister.changed()` tells the API that the values moved. One owner per prefix; the prefix is one lowercase word and may not be `scene`, `money`, `items`, `party` or `blocks`. `values()` is optional: every path and value in one call, for a module whose `get` is costly (it is used when the API compares for `story:changed`). A module that throws is read as having no paths. An older Story Block has no `registerPublicPaths`; a module checks for it and does nothing without it.
+
+Two limits of module paths. A name that contains `|` or `::` cannot be read by the `{{sb::…}}` macro (the macro splits on those marks for its fallback); read such a name with `api.get`. When a shown meter is hidden, the change list of `story:changed` reports one change of that path, to `null`; after that the path is not returned and not in `paths()`.
+
 ## Not in version 1
 
-Writes (an allow-list of commands may come in a version 2) and `npc.<name>.<meter>`. Blocks defined on a character card's worldbook are a separate follow-up. For a first walk-through, see [BUILD-A-CARD.md](BUILD-A-CARD.md).
+Writes (an allow-list of commands may come in a version 2). Blocks defined on a character card's worldbook are a separate follow-up. For a first walk-through, see [BUILD-A-CARD.md](BUILD-A-CARD.md).

@@ -16,7 +16,7 @@
 // it stays the one invalid event the events part makes of it (as before 2.11.3) and the rest of the pack keeps working. Install, import
 // and the authoring-kit checker leave it true.
 //
-import { YOU_FIELDS, YOU_RANK_FIELDS, YOU_RANK_LABEL_MAX, LEAN_RPG_FIELDS, LEAN_RPG_LIMITS, RPG_RANK_FIELDS, RPG_RANK_LIMITS, RPG_PLAYER_RANK_FIELDS, RPG_PLAYER_RANK_LIMITS, RPG_FORMULAS, RPG_NUMBER_KEYS, SKILL_SET_FIELDS, SKILL_SET_SKILL_FIELDS, RECORD_LIMITS, CALENDAR_FIELDS, CALENDAR_HOLIDAY_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, CRAFT_FIELDS, ECONOMY_FIELDS, ECONOMY_LIMITS, CRAFTS_LIMITS, DEFAULT_CRAFTS, METER_FIELDS, METER_LIMITS, METER_PRESET_FIELDS, METER_RESERVED, METER_STAGE_FIELDS, RECIPE_LIMITS, STAT_SUM, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, ITEM_CARRY, ITEM_BONUS, MARKET_FIELDS, MARKET_LIMITS, MARKET_WORD, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS, WEATHER_FIELDS, WEATHER_LIMITS, WEATHER_SEASON_FIELDS, WEATHER_TABLE_FIELDS } from './limits.js';
+import { YOU_FIELDS, YOU_RANK_FIELDS, YOU_RANK_LABEL_MAX, LEAN_RPG_FIELDS, LEAN_RPG_LIMITS, RPG_RANK_FIELDS, RPG_RANK_LIMITS, RPG_PLAYER_RANK_FIELDS, RPG_PLAYER_RANK_LIMITS, RPG_FORMULAS, RPG_NUMBER_KEYS, SKILL_SET_FIELDS, SKILL_SET_SKILL_FIELDS, RECORD_LIMITS, CALENDAR_FIELDS, CALENDAR_HOLIDAY_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, CRAFT_FIELDS, ECONOMY_FIELDS, ECONOMY_LIMITS, CRAFTS_LIMITS, DEFAULT_CRAFTS, METER_FIELDS, METER_LIMITS, METER_PRESET_FIELDS, METER_RESERVED, METER_STAGE_FIELDS, RECIPE_LIMITS, STAT_SUM, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, TAB_ID, TAB_TITLE_MAX, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, ITEM_CARRY, ITEM_BONUS, MARKET_FIELDS, MARKET_LIMITS, MARKET_WORD, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS, WEATHER_FIELDS, WEATHER_LIMITS, WEATHER_SEASON_FIELDS, WEATHER_TABLE_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
@@ -30,7 +30,7 @@ import { STRINGS } from '../strings.js';
 import { compile } from '../events/condition.js';
 import { checkCast } from './cast.js';
 
-export const HOST_VERSION = '2.21.2';
+export const HOST_VERSION = '2.22.0';
 
 /** A slug for a display name: "Iron Sword (old)" → "iron-sword-old". */
 export function slugify(name) {
@@ -1346,6 +1346,10 @@ export function checkScreens(list, packId, add) {
         else if (seen.has(screen.id)) say('id', 'two screens share this id.', 'DUPLICATE');
         else seen.add(screen.id);
         for (const field of ['title', 'icon']) if (screen[field] !== undefined && (typeof screen[field] !== 'string' || screen[field].length > LIMITS.name)) say(field, `${field} must be text of at most ${LIMITS.name} characters.`);
+        if (screen.tab !== undefined && (typeof screen.tab !== 'string' || !TAB_ID.test(screen.tab))) say('tab', 'tab must be a short lowercase id like "reputation" (letters, digits and -).');
+        if (screen.tabTitle !== undefined && (typeof screen.tabTitle !== 'string' || !screen.tabTitle.trim() || [...screen.tabTitle].length > TAB_TITLE_MAX)) say('tabTitle', `tabTitle must be text of 1 to ${TAB_TITLE_MAX} characters.`);
+        if (screen.tabTitle !== undefined && screen.tab === undefined) say('tabTitle', 'tabTitle needs a tab.');
+        if (screen.order !== undefined && !(typeof screen.order === 'number' && Number.isFinite(screen.order))) say('order', 'order must be a number (lower comes first).');
         if (screen.mounts !== undefined && (!Array.isArray(screen.mounts) || screen.mounts.some(mount => !MOUNTS.includes(mount)))) say('mounts', `mounts must be a list of ${MOUNTS.join(', ')}.`);
         if (screen.template === undefined && screen.layout === undefined) say('template', 'a screen needs a template or a layout.');
         if (screen.template !== undefined && typeof screen.template !== 'string') say('template', 'template must be text (an HTML template).');
