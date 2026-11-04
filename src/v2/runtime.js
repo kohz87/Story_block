@@ -28,7 +28,7 @@ import { SETTING as ASSIST_SETTING, TIMEOUT_MS as ASSIST_TIMEOUT_MS, createAssis
 import { CORE_FEATURE, createFeatureStore } from './features.js';
 import { applyStart, createPacksPart } from './packs/index.js';
 import { MODEL_CALL_ERRORS, createCallQueue, createModelCalls, createOwnCalls, profileName, stModelCall } from './model-call.js';
-import { carryRecord } from './persist.js';
+import { carryRecord, readRecord } from './persist.js';
 import { createRegistry } from './registry.js';
 import { MAX_CHANGE_LINES, announceModules, createEvents, createSdk, createSettings, newId, runQuery } from './sdk.js';
 import { displayLines } from './extras.js';
@@ -385,13 +385,18 @@ export function createRuntime({
         const seen = typeof timeline?.active === 'function' ? timeline.active('view.lastUser').messages(list) : list;
         return seen.filter(message => message?.is_user).length;
     };
-    // Whether the line of history is still just the opening greeting: exactly one message that is not the reader's, and none from the reader (null: not known).
-    // A narrator or member that spoke on its own, or a reply, ends it, so deleting only the reader's messages does not reopen the starting kit.
+    // Whether the line of history is still just the opening greetings: at least one message, none from the reader and none that carries a Story Block reply record (null: not known).
+    // A narrator or member that spoke on its own, or a reply, ends it, so deleting only the reader's messages does not reopen the starting kit; a group chat's several greetings do not.
     const greetingOnlyOf = () => {
         const list = Array.isArray(ctx.chat) ? ctx.chat : null;
         if (!list) return null;
         const seen = typeof timeline?.active === 'function' ? timeline.active('view.lastUser').messages(list) : list;
-        return seen.length > 0 && seen.filter(message => message?.is_user).length === 0 && seen.filter(message => message && !message.is_user).length === 1;
+        return seen.length > 0 && seen.every(message => {
+            if (!message || message.is_user) return false;
+            // (the opening greeting's own record is the chat's starting point: the one that carries the checkpoint at the head of the line; any other record is a reply)
+            const record = readRecord(message);
+            return !record || (record.checkpoint !== undefined && message === seen[0]);
+        });
     };
     let chatterReaders = null;   // the timeline's readers of earlier messages for the Inner chatter tail line and its two queries
     let assistCall = async () => { throw new Error('Story Block is not ready.'); };
