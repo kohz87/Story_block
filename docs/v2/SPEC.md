@@ -428,7 +428,11 @@ save).
    once per reply (claim `event:<id>:<reply index>`).
 4. Assemble the prompt (§5).
 
-Quiet and impersonate generations get nothing (both slots emptied) and capture nothing.
+Quiet and impersonate generations get nothing and capture nothing. A quiet generation whose instruction GENERATION_STARTED
+tells (`quiet_prompt`) is found by that instruction at its own prompt-ready, which loses Story Block's text; the slots stay
+set for a pending reply, whichever prompt is built first. Any other (an impersonation, a quiet one with no instruction) empties
+both slots, and the pending reply's prompt-ready fills them again. A prompt that holds neither slot's text while a reply is
+pending is another caller's (`generateRaw` runs no interceptor) and is left alone.
 
 ### 4.2 After the reply (MESSAGE_RECEIVED for the new carrier)
 

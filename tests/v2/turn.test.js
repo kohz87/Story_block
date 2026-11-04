@@ -4,7 +4,7 @@
 // the last test runs the same flow on the real runtime when it is in this checkout.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHost, hostAvailable, sharedPrefix, EXTENSION_PROMPT_TYPES } from '../../testkit/index.js';
+import { createHost, hostAvailable, sharedPrefix, EXTENSION_PROMPT_TYPES, MAIN_PROMPT } from '../../testkit/index.js';
 import { STATIC_KEY, TAIL_KEY, V1_KEYS, createTurn, restoreMissing } from '../../src/v2/turn.js';
 import { HAPPENED, STATIC_MARKER } from '../../src/v2/prompt.js';
 import { createRegistry } from '../../src/v2/registry.js';
@@ -251,6 +251,88 @@ test('a quiet prompt built while the reply is pending carries nothing; the reply
     assert.ok(!JSON.stringify(quiet.request).includes(STATIC_MARKER));
     assert.ok(host.st.prompt(STATIC_KEY).startsWith(STATIC_MARKER), 'filled again after the quiet prompt');
     assert.equal(host.st.prompt(TAIL_KEY), '[Bag] empty');
+    host.close();
+});
+
+test('another extension\'s generateRaw prompt while the reply is pending gets nothing; the reply\'s own prompt is still the one', async () => {
+    const host = await fakeHost();
+    const raw = { chat: [{ role: 'system', content: 'You are a scanner.' }, { role: 'user', content: 'RAW scan this.' }], dryRun: false };
+    // A scanner (NPC State Delta's dossier scan) calls generateRaw right after the reply's interceptor ran: SillyTavern runs no
+    // interceptor for it and tells its prompt-ready like the reply's own.
+    const real = host.turn.interceptor;
+    host.st.interceptor = async (...args) => {
+        await real(...args);
+        if (args[3] === 'normal') await host.st.eventSource.emit('chat_completion_prompt_ready', raw);
+    };
+    const { request } = await host.send('Hello.', 'Hi.\n<Changes>\n+ item Rope\n</Changes>');
+    assert.ok(!JSON.stringify(raw.chat).includes(STATIC_MARKER), 'the raw prompt carries none of Story Suite\'s text');
+    assert.ok(!JSON.stringify(raw.chat).includes('[Bag]'));
+    assert.equal(raw.chat.length, 2);
+    assert.ok(JSON.stringify(request.chat).includes(STATIC_MARKER), 'the reply\'s prompt has both');
+    assert.equal(request.chat.at(-1).content, '[Bag] empty');
+    assert.deepEqual(items(host), { Rope: 1 }, 'the reply is captured');
+    host.close();
+});
+
+test('a quiet generation is told by its instruction: its prompt loses Story Block\'s text, the reply\'s keeps it, whichever is built first', async () => {
+    const QUIET = 'Summarize {{char}}\'s day in one short line.';
+    const asked = 'Summarize Narrator\'s day in one short line.';
+    const has = (request, text) => JSON.stringify(request.chat ?? request.prompt).includes(text);
+    // The two prompts as SillyTavern builds them from the slots as they are when each is built (the reply's own, and the quiet one with
+    // its instruction last); `event` is that API's prompt-ready.
+    const built = (host, quiet) => {
+        const [main, tail] = [host.st.prompt(STATIC_KEY), host.st.prompt(TAIL_KEY)];
+        const instruction = quiet ? host.ctx.substituteParams(QUIET) : '';
+        if (host.ctx.mainApi === 'openai') {
+            const chat = [{ role: 'system', content: [MAIN_PROMPT, main].filter(Boolean).join('\n') }, { role: 'user', content: 'Hi.' }];
+            if (tail) chat.push({ role: 'system', content: tail });
+            if (instruction) chat.push({ role: 'system', content: instruction });
+            return { event: 'chat_completion_prompt_ready', request: { chat, dryRun: false } };
+        }
+        return { event: 'generate_after_combine_prompts', request: { prompt: [MAIN_PROMPT, main, 'You: Hi.', tail, instruction, 'Narrator:'].filter(Boolean).join('\n'), dryRun: false } };
+    };
+    for (const mainApi of ['openai', 'textgen']) {
+        for (const order of ['reply built first', 'quiet built first', 'quiet interceptor before the reply\'s']) {
+            const label = `${mainApi}, ${order}`;
+            const host = await fakeHost({ st: { mainApi } });
+            await host.st.addUser('Hi.');
+            const startQuiet = async () => {
+                await host.st.eventSource.emit('generation_started', 'quiet', { quiet_prompt: QUIET }, false);
+                await host.turn.interceptor([], 8192, () => {}, 'quiet');
+            };
+            if (order.startsWith('quiet interceptor')) await startQuiet();
+            await host.turn.interceptor([], 8192, () => {}, 'normal');
+            if (!order.startsWith('quiet interceptor')) await startQuiet();
+            const reply = built(host, false);
+            const quiet = built(host, true);
+            const both = order === 'quiet built first' ? [quiet, reply] : [reply, quiet];
+            for (const { event, request } of both) await host.st.eventSource.emit(event, request);
+            assert.ok(has(reply.request, STATIC_MARKER) && has(reply.request, '[Bag] empty'), `${label}: the reply's prompt was built with both`);
+            assert.equal(host.turn.session().restored, '', `${label}: nothing had to be put back`);
+            assert.equal(host.turn.session().prompted, true, `${label}: the reply's prompt is the reply's`);
+            assert.ok(!has(quiet.request, STATIC_MARKER) && !has(quiet.request, '[Bag]'), `${label}: the quiet prompt carries none of it`);
+            assert.ok(has(quiet.request, asked), `${label}: its instruction is kept`);
+            if (mainApi === 'openai') assert.deepEqual(quiet.request.chat.map(message => message.content), [MAIN_PROMPT, 'Hi.', asked], `${label}: the tail's message goes with it`);
+            host.close();
+        }
+    }
+    // A quiet generation run from inside the reply's interceptor (the order the fake runs it in): the slots are kept for the reply.
+    const host = await fakeHost();
+    const real = host.turn.interceptor;
+    let nested = null;
+    host.st.interceptor = async (...args) => {
+        await real(...args);
+        if (args[3] === 'normal') {
+            nested = await host.st.generate('quiet', { reply: 'A day.', quietPrompt: QUIET });
+            assert.ok(host.st.prompt(STATIC_KEY).startsWith(STATIC_MARKER), 'the slots were never emptied');
+        }
+    };
+    const { request } = await host.send('Hello.', 'Hi.\n<Changes>\n+ item Rope\n</Changes>');
+    assert.ok(!has(nested.request, STATIC_MARKER) && !has(nested.request, '[Bag]'));
+    assert.ok(has(nested.request, asked));
+    assert.ok(has(request, STATIC_MARKER));
+    assert.equal(request.chat.at(-1).content, '[Bag] empty');
+    assert.deepEqual(items(host), { Rope: 1 }, 'the reply is captured');
     host.close();
 });
 

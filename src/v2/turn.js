@@ -70,6 +70,12 @@ export const REPLY_BUSY_MAX_MS = 5 * 60_000;
 export const ASSIST_WAIT_MS = 1500;
 // How long the RPG's code (rpg-lazy.js) may take to load before a reply or a chat goes on without it: a stalled import never holds a generation or a chat open.
 export const RPG_LOAD_WAIT_MS = 4000;
+// A quiet generation is told apart by its instruction (GENERATION_STARTED's quiet_prompt): the longest line of it that holds no
+// macro, at least this long (a shorter one could be anywhere). At most QUIET_KEEP are remembered, each for QUIET_WAIT_MS after its
+// interceptor ran (its prompt is built well within that; one that never came, an aborted generation's, is forgotten).
+export const QUIET_MARK_MIN = 12;
+const QUIET_KEEP = 8;
+export const QUIET_WAIT_MS = 2 * 60_000;
 const TIMED_OUT = Symbol('timed out');
 
 // `value`, or TIMED_OUT when it is a promise that has not settled within `ms`.
@@ -189,6 +195,23 @@ function contentText(content) {
     return texts.join('\n');
 }
 const firstLine = text => String(text ?? '').split('\n').find(line => line.trim())?.trim() ?? '';
+
+/**
+ * What a quiet generation's instruction is found by in its prompt: its longest line without a macro (SillyTavern runs its macros over
+ * it after GENERATION_STARTED tells it, and NovelAI's form drops its brackets), or '' when no line of it is QUIET_MARK_MIN long.
+ */
+export function quietMark(text) {
+    const pieces = String(text ?? '').split(/\{\{[\s\S]*?\}\}|<(?:USER|BOT|CHAR|CHARIFNOTGROUP|GROUP)>|[[\]\r\n]/i).map(piece => piece.trim());
+    const best = pieces.reduce((longest, piece) => (piece.length > longest.length ? piece : longest), '');
+    return best.length >= QUIET_MARK_MIN ? best : '';
+}
+
+// `text` wherever it is in a prompt, however SillyTavern spaced it (it trims an extension prompt, and may collapse new lines).
+function textPattern(text) {
+    const words = String(text ?? '').trim().split(/\s+/).filter(Boolean).map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return words.length ? new RegExp(`\\s*${words.join('\\s+')}`, 'g') : null;
+}
+const holdsIn = chat => mark => chat.some(message => contentText(message?.content).includes(mark));
 const isCarrier = message => Boolean(message) && !message.is_user;
 
 /**
@@ -229,7 +252,7 @@ export function restoreMissing(chat, staticText, tailText) {
  * adds the packs' start, SPEC §2.6), ownPrompt?(eventData) → true for the prompt of Story Suite's own model
  * call on the chat's connection (model-call.js createOwnCalls().owns): never taken for the reply's }.
  * `settings` is createSettings() (settings() → host settings, settings(id) → a module's).
- * Returns { interceptor, install, uninstall, onPromptReady, onTextPromptReady, onMessageReceived,
+ * Returns { interceptor, install, uninstall, onGenerationStarted, onPromptReady, onTextPromptReady, onMessageReceived,
  * onChatChanged, seed, onChatRenamed, onTimelineChanged, onGenerationEnded, preview, report, problems, clearProblems, blocked, blockers, unblock,
  * session, replyBusy, whenIdle }.
  */
@@ -250,6 +273,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     const problemLog = [];
     const blocks = [];
     let lastSize = null;          // the context size the last interceptor call was handed
+    // Quiet generations told by GENERATION_STARTED: { mark, claimed (its interceptor ran, at this time) }, oldest first.
+    let quiets = [];
+    // What the two slots hold now (setPrompts).
+    let slots = { staticText: '', tailText: '' };
     const toldSmall = new Set();  // chats whose reader was told the context is too small
     const liveContext = () => {
         try { return live() ?? ctx; } catch { return ctx; }
@@ -287,6 +314,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         ctx.setExtensionPrompt(key, text, position(place), 0, false, roles().SYSTEM ?? ROLE_SYSTEM);
     }
     function setPrompts(staticText, tailText) {
+        slots = { staticText, tailText };
         setPrompt(STATIC_KEY, staticText, 'static');
         setPrompt(TAIL_KEY, tailText, 'tail');
     }
@@ -595,8 +623,12 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     async function interceptor(_chat, contextSize, abort, type) {
         const kind = normalizeType(type);
         if (!FOREGROUND.includes(kind)) {
-            // A quiet prompt built while the reply's own is pending must not carry its text; the
-            // reply's prompt gets it back at the quiet prompt's prompt-ready (below).
+            // A quiet generation whose instruction is known is told apart at its own prompt-ready, which loses Story Block's text
+            // there (quietPrompt, below): the slots keep the reply's text for the reply's own prompt, whichever of the two is built first.
+            const known = kind === 'quiet' && claimQuiet();
+            if (known && session && !session.prompted) return;
+            // Any other (an impersonation, a quiet generation with no instruction told): a prompt built while the reply's own is
+            // pending must not carry its text; the reply's prompt gets it back at that prompt's prompt-ready (below).
             // A reply already on its way keeps its session, so it is still captured.
             if (session && !session.prompted) session.background += 1;
             clearPrompts();
@@ -691,10 +723,60 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         return true;
     }
 
+    // Another caller's prompt built while the reply's own is pending (generateRaw: SillyTavern runs no interceptor for it and puts
+    // no extension prompt in it, yet tells its prompt-ready like the reply's): it holds neither of the slots' texts, which the
+    // reply's own prompt always does while they are set. It is left alone and the reply's own prompt is still waited for.
+    function foreignPrompt(holds) {
+        if (!session || session.prompted || session.background > 0) return false;
+        const marks = [session.staticText, session.tailText].map(firstLine).filter(Boolean);
+        return marks.length > 0 && !marks.some(holds);
+    }
+
+    /** GENERATION_STARTED: (type, { quiet_prompt, … }, dryRun). A quiet generation's instruction is remembered (claimQuiet). */
+    function onGenerationStarted(type, params, dryRun) {
+        if (dryRun === true || normalizeType(type) !== 'quiet') return;
+        const mark = quietMark(params?.quiet_prompt);
+        // (A group's generation starts again for its member: the same instruction is remembered once.)
+        if (!mark || quiets.some(entry => !entry.claimed && entry.mark === mark)) return;
+        quiets.push({ mark, claimed: 0 });
+        if (quiets.length > QUIET_KEEP) quiets = quiets.slice(-QUIET_KEEP);
+    }
+    // A quiet generation's interceptor: the oldest started one whose interceptor has not run is this one. True when there was one.
+    function claimQuiet() {
+        const now = Date.now();
+        quiets = quiets.filter(entry => !entry.claimed || now - entry.claimed < QUIET_WAIT_MS);
+        const entry = quiets.find(item => !item.claimed);
+        if (!entry) return false;
+        entry.claimed = now;
+        return true;
+    }
+    // A quiet generation's own prompt (it holds the instruction of one whose interceptor ran): forgotten once found, and true.
+    function quietPrompt(holds) {
+        const now = Date.now();
+        const at = quiets.findIndex(entry => entry.claimed && now - entry.claimed < QUIET_WAIT_MS && holds(entry.mark));
+        if (at < 0) return false;
+        quiets.splice(at, 1);
+        return true;
+    }
+    // Story Block's text as it is in the slots (and the pending reply's), each as a pattern: what a quiet prompt loses.
+    const ownPatterns = () => [...new Set([slots.staticText, slots.tailText, session?.staticText, session?.tailText].filter(Boolean))].map(textPattern).filter(Boolean);
+
     /** CHAT_COMPLETION_PROMPT_READY: { chat, dryRun }. */
     function onPromptReady(eventData) {
         if (!eventData || eventData.dryRun === true || !Array.isArray(eventData.chat) || isOwn(eventData)) return;
         stripHistory(eventData.chat);
+        if (quietPrompt(holdsIn(eventData.chat))) {
+            const patterns = ownPatterns();
+            for (let i = eventData.chat.length - 1; i >= 0; i -= 1) {
+                const message = eventData.chat[i];
+                const content = mapContent(message?.content, text => patterns.reduce((out, pattern) => out.replace(pattern, ''), text));
+                if (content === message?.content || contentText(content) === contentText(message.content)) continue;
+                if (contentText(content).trim()) message.content = content;
+                else eventData.chat.splice(i, 1);
+            }
+            return;
+        }
+        if (foreignPrompt(holdsIn(eventData.chat))) return;
         if (backgroundPrompt() || !session || session.prompted) return;
         session.prompted = true;
         session.restored = restoreMissing(eventData.chat, session.staticText, session.tailText);
@@ -708,6 +790,11 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         eventData.prompt = eventData.prompt.replace(hidden, '');
         if (HAS_LEGACY.test(eventData.prompt)) eventData.prompt = eventData.prompt.replace(LEGACY_IN_PROMPT, '');
         if (battleOn()) eventData.prompt = stripBattleMarker(eventData.prompt);
+        if (quietPrompt(mark => eventData.prompt.includes(mark))) {
+            for (const pattern of ownPatterns()) eventData.prompt = eventData.prompt.replace(pattern, '');
+            return;
+        }
+        if (foreignPrompt(mark => eventData.prompt.includes(mark))) return;
         if (backgroundPrompt() || !session || session.prompted) return;
         session.prompted = true;
         const missing = [session.staticText, session.tailText].filter(text => text && !eventData.prompt.includes(firstLine(text)));
@@ -1444,6 +1531,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     async function onChatChanged() {
         // The old chat's session and prompts go at once, before anything is awaited: a generation started while the RPG's code loads is the new chat's.
         session = null;
+        quiets = [];
         markIdle();
         clearPrompts();
         // The RPG's code, when this chat needs it (the feature is on, or it holds the RPG's records), before anything is replayed (rpg-lazy.js); a stalled
@@ -1557,6 +1645,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             source.on(event, fn);
             listeners.push([event, fn]);
         };
+        on(names.GENERATION_STARTED, onGenerationStarted);
         on(names.CHAT_COMPLETION_PROMPT_READY, onPromptReady);
         on(names.GENERATE_AFTER_COMBINE_PROMPTS, onTextPromptReady);
         on(names.MESSAGE_RECEIVED, onMessageReceived);
@@ -1589,6 +1678,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         interceptor,
         install,
         uninstall,
+        onGenerationStarted,
         onPromptReady,
         onTextPromptReady,
         onMessageReceived,
