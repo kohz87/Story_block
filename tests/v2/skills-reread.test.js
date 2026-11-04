@@ -277,3 +277,41 @@ test('F7: a refused line on an old block names only the learn kinds the block ha
     assert.ok(told(host).length > 0);
     assert.deepEqual(host.store.problems(), []);
 });
+
+// ---- R1, R2: the follow-ups of the re-check -------------------------------------------------------------------------------------------------------
+
+const RETURN_SKILLS = [{ name: 'Tide Step', about: 'Footwork.', stat: 'agi', rank: 'adept' }, { name: 'Ferry Spark', about: 'Magic.', stat: 'int', uses: 'mana' }];
+for (const later of ['learn', 'practice']) {
+    test(`R1: the pencil on a return reply, a later ${later}, then a Re-read of the return: no store problems, and the receipt keeps the seeded names`, { skip }, async t => {
+        const host = await world(t, { list: [person()] });
+        await host.send('In.', reply('+ party Mara'));
+        await host.send('Out.', reply('- party Mara'));
+        assert.equal((await host.packs.packs.install(rawPack([person({ skills: RETURN_SKILLS })]))).ok, true);
+        await host.send('Back.', reply('+ party Mara'));
+        const backAt = host.ctx.chat.length - 1;
+        const seeded = receiptsAt(host, backAt).find(entry => entry.data?.sigSkills)?.data.sigSkills;
+        assert.deepEqual(seeded.map(skill => [skill.name, skill.about]), [['Tide Step', 'Footwork.'], ['Ferry Spark', 'Magic.']], 'the receipt records what was seeded, with its words');
+        assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/mara-skills', fields: { skill1: 'Tide Dance', about1: 'Her words.' } })).ok, true);
+        await host.send('Next.', reply(later === 'learn' ? '~ dm mara-skills — taught | kind: learn-3 | name: Net Throw | about: Casts a net. | stat: dex | uses: stamina'
+            : '+ dm mara-skills — practised Ferry Spark | kind: practice-2 | amount: 15'));
+        const live = snapshot(host, 'mara-skills');
+        assert.equal((await host.turn.reread(backAt)).ok, true);
+        assert.equal(snapshot(host, 'mara-skills'), live);
+        assert.deepEqual(host.store.problems(), []);
+        assert.deepEqual(receiptsAt(host, backAt).find(entry => entry.data?.sigSkills)?.data.sigSkills, seeded, 'the receipt keeps the seeded names');
+        host.store.rebuild();
+        assert.equal(snapshot(host, 'mara-skills'), live);
+    });
+}
+
+test('R2: a Re-read does not send a learn-6 line to a free lower slot unless the reply, as it stood, held that skill there', { skip }, async t => {
+    const { host } = await opened(t, 'skills-2210-lv30-learns.json');
+    // a reply of 2.21 whose learn-6 was refused (the block had five slots): its words say learn-6 and it holds no Oar Sweep
+    const at = 6;
+    host.ctx.chat[at].mes = host.ctx.chat[at].mes.replace('kind: learn-2 | name: Tide Step | about: Footwork.', 'kind: learn-6 | name: Oar Sweep | about: Sweeps.');
+    assert.match(host.ctx.chat[at].mes, /learn-6/);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    const fields = fieldsOf(host, 'wessel-skills');
+    assert.equal(Object.keys(fields).some(key => /^skill\d$/.test(key) && fields[key] === 'Oar Sweep'), false, 'the line stays refused');
+    assert.ok(told(host).some(text => text.includes('kind must be')), told(host).join(' | '));
+});
