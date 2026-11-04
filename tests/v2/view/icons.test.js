@@ -7,6 +7,7 @@ import { ICON_SET } from '../../../src/v2/view/icons/set.js';
 import { TAB_ICONS, hasIcon, iconFor, svgIcon, tabIcon } from '../../../src/v2/view/icons/index.js';
 import { SVG_NS, iconNode } from '../../../src/v2/view/widgets/dom.js';
 import { icon } from '../../../src/v2/view/mounts/common.js';
+import { sourceOf } from '../../helpers/split-source.js';
 import { SUITE_NAV, HOME_ID } from '../../../src/v2/view/screens.js';
 import { installDom } from './widgets/fake-dom.js';
 
@@ -81,6 +82,6 @@ test('credits: ICONS-CREDITS.md has the MIT text and every id; README and Diagno
     assert.match(credits, /Copyright \(c\) \d{4} Phosphor Icons/);
     for (const id of Object.keys(ICON_SET)) assert.ok(credits.includes(`\`${id}\``), id);
     assert.match(readRepo('README.md'), /Phosphor Icons/);
-    assert.match(readRepo('src/v2/host-ui.js'), /credits: 'Icons: Phosphor Icons/);
+    assert.match(sourceOf('src/v2/host-ui.js'), /credits: 'Icons: Phosphor Icons/);
     assert.equal(JSON.parse(readRepo('package.json')).dependencies?.['@phosphor-icons/core'], undefined, 'inlined, not a dependency');
 });
