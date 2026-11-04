@@ -350,6 +350,13 @@ test('the kit is open while the chat holds only greetings: a group chat with two
     const host = await world(t);
     host.ctx.chat.splice(0, host.ctx.chat.length, { name: 'A', is_user: false, mes: 'First greeting.' }, { name: 'B', is_user: false, mes: 'Second greeting.' });
     assert.deepEqual(kit(host), { open: true });
+    for (const [name, stat] of [['Group Cap', 'VIT'], ['Group Ring', 'AGI']]) {
+        const made = await add(host, { name, kind: 'equipment', slot: name.endsWith('Cap') ? 'head' : 'accessory', rarity: 'rare', stats: { [stat]: 1 } });
+        assert.equal(made.ok, true, made.message);
+        assert.deepEqual(kit(host), { open: true });
+    }
+    await host.st.generate('normal', { reply: 'A voice answers.' });
+    assert.deepEqual(kit(host), { open: false });
     const closed = await world(t);
     await closed.send('Hello.', reply('+ item Ash-grey Longsword | kind: equipment | rarity: rare | slot: weapon | STR +2'));
     assert.deepEqual(kit(closed), { open: false });
