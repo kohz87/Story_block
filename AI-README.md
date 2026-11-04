@@ -1,4 +1,4 @@
-# AI-README: Story Block 2.20.0
+# AI-README: Story Block 2.21.0
 
 For AI assistants that read this repository. Plain facts, no marketing. For people, read [README.md](README.md). For rules
 every change must keep, read [CLAUDE.md](CLAUDE.md). Depth lives in `docs/`; this file points there instead of copying.
@@ -14,10 +14,10 @@ queries, screens and settings. Code sets every number; the story only proposes.
 
 | Repo | Module id | Version | Owns |
 |---|---|---|---|
-| kohz87/Story_block (this) | `story-block` | 2.20.0 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
+| kohz87/Story_block (this) | `story-block` | 2.21.0 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
 | kohz87/Story_director | `story-director` | 2.10.0 | Story clock and calendar, quests, threads, map, trips, World, Chronicle, arc planning, standalone checks, the living cast (meets people by place and routine). Needs Story Block (>= 2.12.0). |
-| kohz87/npc_state_delta | `npc-state-delta` | 1.7.4 | NPC dossiers, meters, stages, secrets, Cast and Dossiers screens, cast portraits. Needs Story Block; with Story Director it also follows the cast and Key people. |
-| kohz87/Story_studio | (not an extension) | 0.7.0 | An offline single HTML page that writes and checks packs with Story Block's own checker. No install. |
+| kohz87/npc_state_delta | `npc-state-delta` | 1.9.0 | NPC dossiers, meters, stages, secrets, Cast and Dossiers screens, cast portraits. Needs Story Block; with Story Director it also follows the cast and Key people. |
+| kohz87/Story_studio | (not an extension) | 0.8.0 | An offline single HTML page that writes and checks packs with Story Block's own checker. No install. |
 
 Data flows one way: Studio writes a pack file; Story Block validates and stores it; Story Director reads what Story Block holds and NPC State Delta reads both,
 through Story Block's queries (`packs.content`, `packs.calendar`, `packs.portrait`, ...). Story Block never calls a module
@@ -370,6 +370,8 @@ Queries:
 - `dataModules.offers` / `.view` / `.public` / `.replayInputs` / `.actors` / `.setup` / `.presentation`: blocks and data modules.
 - `rpg.joins` / `rpg.rolls`: the RPG's companion offers and a reply's rolls. `chatter.head` / `scene.chatter`: display-only thoughts.
 
+Card offer (internal sdk, not in the public api): `sdk.registerCardSettings({ owner, label, keys: { <key>: { label, valueText(v), valid(v) } }, read(key), apply(values) → Promise<{ applied: [key] }> })` → `unregister()`. Story Block registers its own owner `story-block` (rpg, gear, rpgXpRate); NPC State Delta registers `npc-state-delta`. A card's `[storysuite:pack]`, `[storysuite:portraits]` and `[storysuite:settings]` lorebook entries are offered at the top of the Story panel (`packs/card-offer.js`, `card.js`, `card-settings.js`); only the allow-listed settings, only the ones that differ, only with the player's click. `docs/v2/BUILD-A-CARD.md`, `docs/v2/PACKS.md`.
+
 Other sdk: `sdk.reread(index)`, `sdk.rewind`, `sdk.callModel(request)`, `sdk.timeline`, `sdk.dialog`, `sdk.features()`, `sdk.feature(id)`, `sdk.settings(id)`,
 `sdk.modules()`, `sdk.preflight`, `sdk.on('committed' | 'head' | 'turn' | 'feature' | 'modules', fn)`. Contracts: `docs/v2/SPEC.md` §3, §6;
 `docs/v2/MODULES.md`; `docs/v2/LIFECYCLE.md`.
@@ -429,5 +431,5 @@ prompt byte-identical, every optional mechanic a Feature, no markup from text, n
 
 ## Version
 
-Story Block 2.20.0 (`manifest.json`, `package.json`). Suite: Story Director 2.10.0, NPC State Delta 1.7.4, Story Studio 0.7.0.
+Story Block 2.21.0 (`manifest.json`, `package.json`). Suite: Story Director 2.10.0, NPC State Delta 1.9.0, Story Studio 0.8.0.
 Sample pack: Ersveil 2.6.1. History: `CHANGELOG.md`.

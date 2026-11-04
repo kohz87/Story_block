@@ -373,6 +373,21 @@ test('gate: the review phrases plan (draw, lunge, fire, aim, loose, flee, break,
     }
 });
 
+test('gate: cutting words open it (the gnasher message); a weapon, a bow or a wound as a noun in a message does not, they stay a cheap pass', { skip }, async () => {
+    for (const message of ['I bait the ditch with pork and cut the gnashers down with my cane-sword.', 'I slice through the rope.', 'I hack at the door.', 'I cleave the beam.', 'I butcher the pig.', 'I slaughter the hens.']) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, 1, message);
+        host.close();
+    }
+    for (const message of ['I hang my sword by the fire.', 'I bow to the innkeeper.', 'I polish my sword.', 'I bandage my old scars.', 'We buy arrows in the morning.', 'We pass the war memorial.']) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, 0, message);
+        host.close();
+    }
+});
+
 test('gate: a party skill matches by any word of its name of 4 letters or more, not only by the whole name', { skip }, async () => {
     for (const [message, calls] of [['I use my breath.', 1], ['The sparkling river.', 1], ['Nothing iron here.', 1], ['I sit down.', 0]]) {
         const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });

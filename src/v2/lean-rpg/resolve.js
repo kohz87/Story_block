@@ -51,6 +51,7 @@
 //     flow?: 2,                                                  the rule the rounds stopped by (FLOW_VERSION)
 //     checks: [Line], rounds: [{ n, decisive, lines: [Line] }],   the rounds TOLD to the narrator, in order
 //     refused: [{ who, text }],                              not rolled, or a skill refused (text is a plain sentence)
+//     ambush?: { who, skill, outcome, total, dc, success }  an ambush check's result (ambush.js); a success gave the party's round-1 acts +2
 //     summary: { exchanges, acts: [{ kind, who, target, skill, stat, outcomes: ['success'|'cost'|'fail', …] }], refused: n } }
 // and a Line is
 //   { kind: 'act' | 'foe' | 'check', outcome: 'success'|'cost'|'fail', skill: string|null, why?: string,
@@ -70,12 +71,13 @@ import { prepareStandard, rollStandard, summaryStd } from './standard.js';
 import { cueOfResult, fitCue } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from './read.js';
 import { validatePlan } from './plan.js';
-import { openFoes } from './open.js';
+import { openFoes, FIX_VERSION } from './open.js';
 import { levelBonus } from './formula.js';
 import { applyGear, earnedLegend, gearMarkOf, gearMatches, gearValid, noteGear, planGear, wearGear } from './gear.js';
 import { condWord, stepDown } from '../domains/gear.js';
 import { partyLevels, averageLevel, settleOpen } from './foes.js';
 import { rng as seededRandom } from '../rng.js';
+import { ambushOf, ambushRecord, ambushedClassic, carriedFrom } from './ambush.js';
 
 export const RESULT_VERSION = 1;
 /** The version of the dice scheme a payload asks for (`dice` in the payload of `rpg.resolve`): 2 = dice per action position. */
@@ -197,7 +199,7 @@ export function prepare(plan, sheet, rules = STANDARD, options = {}) {
         const stat = statOf(actor.character, skill.stat, skill.statHidden);
         if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`, `${label}: not rolled (${stat.plain ?? stat.refusal}).`); continue; }
         if (skill.refused) refuse(check.who, skill.refused, skill.refusedPlain);
-        out.checks.push({ at, kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules, skill.statHidden) });
+        out.checks.push({ at, kind: 'check', skill: skill.skill, ...(check.ambush === true ? { ambush: true } : {}), difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules, skill.statHidden) });
     }
     // (From a roll of the Levels rules, `options.lv`, a foe adds floor(level / divisor); else classWeight × class, as it did.)
     const foeSide = foe => (options.lv
@@ -234,7 +236,7 @@ function classicRoster(sheet) {
 
 const rolled = (entry, pcDie, foeDie, rules) => {
     const pcTotal = pcDie + entry.pc.statBonus + entry.pc.classBonus + entry.pc.rank + entry.pc.edge;
-    const line = { kind: entry.kind, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), pc: { ...entry.pc, die: pcDie, total: pcTotal } };
+    const line = { kind: entry.kind, skill: entry.skill, ...(entry.ambush === true ? { ambush: true } : {}), ...(entry.why ? { why: entry.why } : {}), pc: { ...entry.pc, die: pcDie, total: pcTotal } };
     if (entry.kind === 'check') return { ...line, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeOf(pcDie, pcTotal, entry.dc, rules) };
     const foeTotal = foeDie + entry.foe.base + entry.foe.classBonus;
     const decisive = [pcDie, foeDie].some(die => die === 1 || die === FORMULA.die) || Math.abs(pcTotal - foeTotal) >= rules.decisiveMargin;
@@ -262,8 +264,9 @@ export function positionalDice(base) {
  * are dropped). `rules` are the numbers in force (default: Standard); the most rounds is `rules.roundCap`. `earlier`: the cue is fitted as it
  * was for a roll of the earlier scheme (cue.js fitCue), so that its rounds and stop never change.
  */
-export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier = false, carried = null, flow = 1, wearOf = null } = {}) {
-    if (isStandard(rules)) return rollStandard(plan, prepared, source, rules, { carried, flow, wearOf });
+export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier = false, carried = null, flow = 1, wearOf = null, drop = null, opened = null, fix = false } = {}) {
+    // (`fix`: a roll of stage 65, FIX_VERSION; without it the cue is told exactly as before, because its length decides how many rounds are told)
+    if (isStandard(rules)) return rollStandard(plan, prepared, source, rules, { carried, flow, wearOf, drop, opened, fix });
     const own = new Map();
     const diceOf = entry => {
         if (source.positional !== true) return source;
@@ -272,36 +275,38 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
     };
     const checks = prepared.checks.map(entry => { const roll = diceOf(entry); return rolled(entry, roll(), 0, rules); });
     const fight = [...prepared.acts, ...prepared.foes];
-    if (flow === FLOW_VERSION && source.positional === true && prepared.roster) return rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf);
+    if (flow === FLOW_VERSION && source.positional === true && prepared.roster) return rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf, drop, opened, fix);
     const most = fight.length ? Math.min(PACE[plan.pace], rules.roundCap) : 0;
     const all = [];
+    const ambush = ambushOf(checks, drop, fight.some(entry => entry.kind === 'act'));
     for (let n = 1; n <= most; n += 1) {
-        const lines = fight.map(entry => { const roll = diceOf(entry); return rolled(entry, roll(), roll(), rules); });
+        const lines = fight.map(entry => { const roll = diceOf(entry); return rolled(ambushedClassic(entry, n, ambush), roll(), roll(), rules); });
         const decisive = lines.some(line => line.decisive);
         all.push({ n, decisive, lines: lines.map(({ decisive: _, ...line }) => line) });
         if (decisive) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && all.at(-1).decisive, ...(wearOf ? { wearOf } : {}) }, undefined, { earlier });
+    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && all.at(-1).decisive, ...(wearOf ? { wearOf } : {}), ...(fix && opened?.length && !earlier ? { opened } : {}), ...(fix && ambush?.carried ? { carriedDrop: true } : {}), ...(fix ? {} : { legacy: true }) }, undefined, { earlier });
     const fits = cue.count;
     const rounds = all.slice(0, fits);
     const decisive = rounds.length > 0 && rounds.at(-1).decisive;
     const stop = !rounds.length ? 'none' : fits < all.length ? 'budget' : decisive ? 'decisive' : rounds.length === PACE[plan.pace] ? 'pace' : 'cap';
     const text = cue.text;
-    return { checks, rounds, stop, text, shape: cue.shape, summary: summaryOf(checks, rounds, prepared.refused) };
+    return { checks, rounds, stop, text, shape: cue.shape, summary: summaryOf(checks, rounds, prepared.refused), ...ambushRecord(ambush, checks, fight) };
 }
 
 // Classic under the flow of stage 49: the rounds go on until the fight is won, lost or heavy, the cap or the careful pace (see the top). `checks` and `fight`
 // are already made; `diceOf` gives an action's stream. The bars are a count for the stop only (nothing is written): a hit by the party member (success or at
 // a cost) takes 1 stage from the foe group, one by the foe (the defender fails) 1 from the defender, 2 when the winner's natural 20, the loser's natural 1 or
 // a lead of the decisive margin made it (Standard's judge). An action whose party member or foe group is Down does not act (its dice are drawn all the same).
-function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = null) {
+function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = null, drop = null, opened = null, fix = false) {
     const bars = new Map([...prepared.roster.characters, ...prepared.roster.foes].map(bar => [bar.id, { ...bar }]));
     const chars = prepared.roster.characters, foesHere = prepared.roster.foes;
     const charOf = who => chars.find(bar => bar.name === who);
     const standing = id => (bars.get(id)?.value ?? 0) > 0;
     const most = fight.length ? (plan.pace === 'careful' ? 1 : rules.roundCap) : 0;
     const all = [];
+    const ambush = ambushOf(checks, drop, fight.some(entry => entry.kind === 'act'));
     for (let n = 1; n <= most; n += 1) {
         const lines = [], idle = [];
         const said = (id, who, kind, why) => { if (!idle.some(item => item.id === id && item.why === why)) idle.push({ n, id, who, kind, why }); };
@@ -316,7 +321,7 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = 
                 if (!standing(theirs.id)) { said(theirs.id, theirs.name, 'foe', 'beaten'); continue; }
                 if (!standing(mine.id)) { said(theirs.id, theirs.name, 'foe', 'no-target'); continue; }
             }
-            const line = rolled(entry, pcDie, foeDie, rules);
+            const line = rolled(ambushedClassic(entry, n, ambush), pcDie, foeDie, rules);
             const pcTotal = line.pc.total, foeTotal = line.foe.total;
             const hit = entry.kind === 'act' ? line.outcome !== 'fail' : line.outcome === 'fail';
             if (hit) {
@@ -334,11 +339,11 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = 
         if (end) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: false, flow: FLOW_VERSION, end: all.at(-1)?.end ?? null, ...(wearOf ? { wearOf } : {}) });
+    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: false, flow: FLOW_VERSION, end: all.at(-1)?.end ?? null, ...(wearOf ? { wearOf } : {}), ...(fix && opened?.length ? { opened } : {}), ...(fix && ambush?.carried ? { carriedDrop: true } : {}), ...(fix ? {} : { legacy: true }) });
     const told = all.slice(0, cue.count);
     const rounds = told.map(({ end: _, ...round }) => round);
     const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : told.at(-1).end ?? (plan.pace === 'careful' ? 'pace' : 'cap');
-    return { checks, rounds, stop, text: cue.text, shape: cue.shape, summary: summaryStd(checks, rounds, prepared.refused) };
+    return { checks, rounds, stop, text: cue.text, shape: cue.shape, summary: summaryStd(checks, rounds, prepared.refused), ...ambushRecord(ambush, checks, fight) };
 }
 
 // "Rolled for you: N exchanges": one entry per action of the plan with its outcome in each round told.
@@ -407,6 +412,8 @@ export function resolve(ctx, payload = {}) {
     if (!checked.ok) ctx.fail('INVALID', `That is not a plan: ${checked.errors[0]}`);
     const plan = payload.plan;
     const order = orderOf(payload.order);
+    // A drop an earlier reply's ambush check gave (precall.js carries it in the payload, as it does a fight's turn order): spent on this roll's acts.
+    const drop = carriedFrom(payload.ambush);
     // The numbers this roll is made with are the ones the payload carries (chosen when it was planned, from the settings of that
     // moment); a Re-read, a rebuild and a reload run the same payload, so they roll with them again. The settings are never read here.
     const rules = levelledRules(rulesOfPayload(payload.rules), payload.lv);
@@ -423,7 +430,8 @@ export function resolve(ctx, payload = {}) {
     const opening = Array.isArray(plan.open) && plan.open.length > 0;
     const domain = opening ? ctx.draft('dataModules') : ctx.read('dataModules');
     const settled = opening && lv ? settleOpen(plan.open, averageLevel(partyLevels(readSheet({ domains: { dataModules: domain } }))), base) : null;
-    const opened = opening ? openFoes(domain, settled ?? plan.open) : null;
+    const fix = payload.fix === FIX_VERSION ? FIX_VERSION : undefined;
+    const opened = opening ? openFoes(domain, settled ?? plan.open, { fix: fix ?? 1 }) : null;
     // From a roll that carries the gear mark (precall.js, while `story-block.gear` is on) the worn pieces and the load, worked out here from the state before the
     // roll (the inventory's `recorded` answers: the mark decides, not today's switch), are laid over the stats it rolls with (gear.js). The record is kept with the
     // roll, so a later change never moves it; a change before it is seen by the guard.
@@ -431,14 +439,14 @@ export function resolve(ctx, payload = {}) {
     const mark = gearMarkOf(payload.gear);
     const gear = mark ? planGear(standing, (name, args) => ctx.query(name, ['inventory.gear', 'party.actors', 'party.pc'].includes(name) ? { ...args, recorded: true } : args), mark.lead ?? '') ?? undefined : undefined;
     const sheet = applyGear(standing, gear);
-    const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow, lv: Boolean(lv) });
+    const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow, lv: Boolean(lv), fix: fix === FIX_VERSION });
     if (opening) prepared.witness = { ...prepared.witness, opened };
     if (!prepared.acts.length && !prepared.foes.length && !prepared.checks.length) ctx.fail('NO_LONGER_DONE', 'Nothing is left to roll on this sheet.');
     if (!ctx.claim(claimKey(key))) ctx.fail('CLAIMED', 'This message has already been rolled for.');
     // A roll that asks for the dice version draws one number from the seed, and each action's dice come from that and its place in
     // the plan; one made before has no version and draws its dice in one sequence, as it did.
     const source = positional ? positionalDice(base) : () => ctx.roll(`d${FORMULA.die}`).total;
-    const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, flow, wearOf: gear ? (rounds, opening) => wearGear(ctx, gear, { opening, rounds, rules, condWord, stepDown }) : null });
+    const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, drop, opened: opened ?? null, fix: fix === FIX_VERSION, flow, wearOf: gear ? (rounds, opening) => wearGear(ctx, gear, { opening, rounds, rules, condWord, stepDown }) : null });
     // From stage 50 a payload may carry the practice per skill use (practice.js); a roll made before has none and gives none.
     const practice = practiceOf(payload.practice) ?? undefined;
     // Gear: each told line names what it rolled with, and a decisive hit taken or miss made wears a piece (gear.js); the wear is part of the roll's receipt.
@@ -448,11 +456,11 @@ export function resolve(ctx, payload = {}) {
         wear = wearGear(ctx, gear, { opening: dice.opening ?? [], rounds: dice.rounds, rules, condWord });
         legend = earnedLegend(dice, sheet, lv === LV_VERSION);
     }
-    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: ctx.hash(levelsOf(settled)) } : {}), ...(gear ? { gear: ctx.hash(gear) } : {}) };
-    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
+    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(drop ? { ambush: ctx.hash(drop) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: ctx.hash(levelsOf(settled)) } : {}), ...(gear ? { gear: ctx.hash(gear) } : {}) };
+    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
     const result = {
-        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(gear ? { gear } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
-        refused: prepared.refused, summary: dice.summary, ...(opening ? { opened } : {}), ...(wear.length ? { wear } : {}), ...(legend ? { legend: 1 } : {}),
+        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(gear ? { gear } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
+        refused: prepared.refused, summary: dice.summary, ...(dice.ambush ? { ambush: dice.ambush } : {}), ...(opening ? { opened } : {}), ...(wear.length ? { wear } : {}), ...(legend ? { legend: 1 } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
     if (std) writeBars(ctx, dice.hurts);
@@ -487,8 +495,14 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         // The flow it stopped by is hashed with it; a roll of the earlier flow has none.
         const flow = recorded.flow === undefined && predicate.flow === undefined ? 1 : recorded.flow === FLOW_VERSION && predicate.flow === FLOW_VERSION ? FLOW_VERSION : null;
         if (flow === null) return bad('The roll\'s flow was damaged.');
+        // The stage-65 rules mark (foe slots, spent-skill fallback) is hashed with the roll; a roll made before has none and keeps the earlier rules.
+        if (recorded.fix !== predicate.fix || (recorded.fix !== undefined && recorded.fix !== FIX_VERSION)) return bad('The roll\'s rules mark was damaged.');
         // Practice by code is hashed with the roll that asked for it; a roll made before has none.
         if (recorded.practice !== predicate.practice || (recorded.practice !== undefined && practiceOf(recorded.practice) === null)) return bad('The roll\'s practice mark was damaged.');
+        // The drop an earlier reply's ambush check gave is hashed with the roll that spent it.
+        if (predicate.ambush !== undefined || recorded.ambush !== undefined) {
+            if (carriedFrom(recorded.ambush) === null || hash(recorded.ambush) !== predicate.ambush) return bad('The roll\'s ambush was damaged.');
+        }
         // The turn order a Standard roll was given (carried from the fight's earlier reply) is hashed with it; Classic has none.
         if (predicate.order !== undefined || recorded.order !== undefined) {
             if (orderOf(recorded.order) === null || hash(recorded.order) !== predicate.order) return bad('The roll\'s turn order was damaged.');
@@ -507,8 +521,8 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         const opening = Array.isArray(recorded.plan.open) && recorded.plan.open.length > 0;
         if (opening && lv && (!levels || levels.length !== recorded.plan.open.length)) return bad('The roll\'s foe levels were damaged.');
         const domain = opening ? structuredClone(state.domains?.dataModules) : state.domains?.dataModules;
-        const opened = opening ? openFoes(domain, lv ? recorded.plan.open.map((entry, at) => ({ name: entry.name, count: entry.count, level: levels[at] })) : recorded.plan.open) : null;
-        const witness = prepare(recorded.plan, applyGear(readSheet(opening ? { domains: { dataModules: domain } } : state), gear), rules, { maxOf: fieldMax(domain), flow, lv }).witness;
+        const opened = opening ? openFoes(domain, lv ? recorded.plan.open.map((entry, at) => ({ name: entry.name, count: entry.count, level: levels[at] })) : recorded.plan.open, { fix: recorded.fix ?? 1 }) : null;
+        const witness = prepare(recorded.plan, applyGear(readSheet(opening ? { domains: { dataModules: domain } } : state), gear), rules, { maxOf: fieldMax(domain), flow, lv, fix: recorded.fix === FIX_VERSION }).witness;
         if (opening) witness.opened = opened;
         if (hash({ source, predicate, witness }) !== guard.inputHash) return bad('The sheet before this roll changed; Re-read this reply.');
         return { ok: true };

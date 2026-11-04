@@ -47,6 +47,16 @@ Rules packs for RPG Battle cannot be imported. Keep existing RPG Battle chats on
 
 Portraits are kept outside settings, as SillyTavern user files (`user/files/storysuite-portrait-<pack>-<hash>.<ext>`; the hash makes a changed picture a new file, so no browser shows an old one). The pack is stored on the server, so its portraits are too, and follow it to every device; SillyTavern's Data Maid lists them as unused files, so do not delete them there. A portrait file that has gone missing shows as no portrait until the pack is imported with it again. A module reads one with the query `packs.portrait({ pack, file })`: a safe image URL (`/user/files/…`), or null when the pack is not installed, does not name the file, no picture was imported or the file is gone.
 
+### In a character card
+
+A card can carry a pack, its portraits and recommended settings in disabled lorebook entries tagged in their Title/Memo; Story Block offers them when a chat opens (BUILD-A-CARD.md, "Ship your whole world inside the card"). The formats (JSON, plain or in a ```json fence):
+
+- `[storysuite:pack]`: the pack, as `pack.json`. Installed through the same checker and limits as an import (`source: lorebook`); an offer shows for a pack that is not installed or is a newer version than the installed one.
+- `[storysuite:portraits]`: `{ "v": 1, "pack": "<id>", "version": "<version>", "files": { "<file>": "data:image/<webp|png|jpeg>;base64,…" } }`. `pack` and `version` must equal the pack's. At most 24 files, 200 KB each, 3 MB together (decoded); each name must be a portrait the pack's cast names and the bytes must be the picture type the address says. They go to the same portrait store as a zip import (so the 150 KB stored limit and the shrinking apply). A file that fails is skipped with a Diagnostics line; more than 24 files or more than 3 MB refuses the entry.
+- `[storysuite:settings]`: `{ "v": 1, "settings": { "<owner>.<key>": value } }`, from the allow-list `story-block.rpg`, `story-block.gear`, `story-block.rpgXpRate` (50 to 300, steps of 25), `npc-state-delta.portraitPromptFormat`, `npc-state-delta.scanEvery`. Each owner checks its own values; an unknown key or a value that fails is skipped with a Diagnostics line.
+
+In the Packs list, a pack of data modules and nothing else countable reads "N data modules".
+
 ### As a zip
 
 A pack `.zip` holds `pack.json` at its top and the images in `portraits/`, nothing else: a file that is neither is refused and nothing is imported. Also refused, in plain words: encrypted, zip64 or multi-disk zips, a path with `..` (or starting with `/` or `\`), a zip over 322 MB (32 portraits of 10 MB and a pack), more than 322 MB unpacked, a file in it over 10 MB, a `pack.json` over 512 KB, a deflated file over 256 KB that unpacks to more than 100 times its packed size, or more than 40 entries. Stored and deflate are supported; the browser's own decompression unpacks them.

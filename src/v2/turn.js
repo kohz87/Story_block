@@ -33,7 +33,10 @@ import { STATIC_MARKER, assemble, contextNotice, estimateTokens } from './prompt
 import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 import { cutAt } from '../text.js';
 import { CORE_FEATURE } from './features.js';
-import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
+import { LEAN_RPG_FEATURE, RESOLVE as RPG_RESOLVE, practiceFromRollsOnly } from './lean-rpg/names.js';
+
+// A story line that practises a skill (`practice-N`, data-modules/part.js): the lines a reply is marked for (see captureEach).
+const PRACTICE_LINE = /\|\s*kind\s*:\s*practice-[1-5]\b/iu;
 import { NO_ROLLS_LINE, receiptCue, receiptWithCue } from './lean-rpg/cue.js';
 
 export const STATIC_KEY = 'story_suite_static';
@@ -965,6 +968,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const message = ctx?.chat?.[index];
         // `sid`: the reply's record ID, which stays with the reply when earlier messages are deleted.
         const carrier = { index, swipe: Number.isInteger(message?.swipe_id) ? message.swipe_id : 0, sid: store.carrierSid?.(index) ?? null };
+        // The practice rule recorded with the reply: skill practice comes only from rolls (data-modules/part.js refuses a story practice-N line). A reply
+        // captured live under the rule (the RPG on, Rolls automatic) that has such a line is marked; a Re-read or an edit goes by the mark the reply
+        // already has, so an older reply keeps the practice lines it was told with.
+        if (readRecord(message)?.practiceRule === 'rolls') carrier.practiceRule = 'rolls';
+        else if (base === null && lines.some(line => PRACTICE_LINE.test(line.raw ?? '')) && practiceFromRollsOnly(registry.featureOn?.(LEAN_RPG_FEATURE) === true, settings?.('story-block'))) {
+            try { store.setPracticeRule?.(index); carrier.practiceRule = 'rolls'; } catch { /* an unmarked reply is judged as before */ }
+        }
         // The message right before the reply (system messages aside), and only when it is the reader's: a reply that
         // follows another reply has no message of the reader's to quote (proof, EVIDENCE.md).
         const before = (ctx?.chat ?? []).slice(0, index).findLast(item => !item?.is_system);

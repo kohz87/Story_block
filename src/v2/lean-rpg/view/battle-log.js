@@ -173,7 +173,10 @@ export function readResolve(result, { soulOf = () => null } = {}) {
         ...(rolledAt.has(fold(words(item.name, 40))) && Number.isFinite(rolledAt.get(fold(words(item.name, 40)))) ? { level: rolledAt.get(fold(words(item.name, 40))) } : {}) })).filter(item => item.name);
     const order = entries.length ? entries.map(item => item.name) : [...new Set(rounds[0]?.lines.map(line => line.who) ?? [])];
     const quickStart = list(result.quickStart).filter(isRecord).map(item => ({ who: words(item.who, 40), against: words(item.against, 40) })).filter(item => item.who && item.against);
-    return { rounds, checks, refused, order, ...(entries.length ? { orderEntries: entries } : {}), ...(quickStart.length ? { quickStart } : {}), ...(opening.length ? { opening } : {}), ended: '' };
+    // An ambush check's result (ambush.js): told in one line before Round 1.
+    const ambush = isRecord(result.ambush) && words(result.ambush.who, 40) && typeof result.ambush.success === 'boolean'
+        ? { who: words(result.ambush.who, 40), what: words(result.ambush.skill, 40) ? `${words(result.ambush.skill, 40)} check` : 'check', success: result.ambush.success, half: result.ambush.outcome === 'cost', drop: result.ambush.drop === true, total: Number.isFinite(result.ambush.total) ? result.ambush.total : '?', dc: Number.isFinite(result.ambush.dc) ? result.ambush.dc : '?' } : null;
+    return { rounds, checks, refused, order, ...(ambush ? { ambush } : {}), ...(entries.length ? { orderEntries: entries } : {}), ...(quickStart.length ? { quickStart } : {}), ...(opening.length ? { opening } : {}), ended: '' };
 }
 
 /** The recorded rolls of a reply's record: the result of its `rpg.resolve` receipt that the replay kept, or null. */
@@ -232,7 +235,9 @@ export function panelModel({ resolve, state, before = null, roleOf, ranks = [] }
     const involved = party.filter(character => names.has(character.name));
     model.status = (involved.length ? involved : party).map(character => ({ name: character.name,
         rows: BARS.map(key => ({ key, ...character.bars[key], label: character.definition.state?.[key]?.label ?? RPG_STRINGS.bars[key] })) }));
-    model.foes = model.rounds.length ? foes.map(foe => ({ text: `${foe.count > 1 ? `${foe.name} ${fill(B.count, { n: foe.count })}` : foe.name} · ${foe.levelText}: ${foe.hurt === 0 ? B.down : foe.word}` })) : [];
+    // The Foes line lists the groups that took part in this reply's rolls (a group left on the block from an earlier fight is not this reply's).
+    const rolledFoes = new Set([...(model.opening ?? []), ...model.rounds.flatMap(round => round.lines)].filter(line => line.foe).map(line => fold(line.who)).concat([...(model.opening ?? []), ...model.rounds.flatMap(round => round.lines)].filter(line => !line.foe && line.target).map(line => fold(line.target))));
+    model.foes = model.rounds.length ? foes.filter(foe => !rolledFoes.size || rolledFoes.has(fold(foe.name))).map(foe => ({ text: `${foe.count > 1 ? `${foe.name} ${fill(B.count, { n: foe.count })}` : foe.name} · ${foe.levelText}: ${foe.hurt === 0 ? B.down : foe.word}` })) : [];
     return model;
 }
 
@@ -343,6 +348,10 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
     if (model.order.length) body.appendChild(el(doc, 'p', 'rpg-bl-order', `${B.turnOrder} ${(model.orderEntries ?? model.order.map(name => ({ name, total: null }))).map(item => { const name = item.level ? fill(RPG_STRINGS.blocks.orderNameLevel, item) : item.name; return item.total === null ? name : `${name} ${item.total}`; }).join(' > ')}`));
     for (const item of model.quickStart ?? []) body.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-quick', fill(RPG_STRINGS.blocks.quickStartLine, item)));
     for (const check of model.checks) body.appendChild(lineNode(doc, check, { check: true }));
+    if (model.ambush && (model.rounds.length || model.ambush.drop)) {
+        const a = model.ambush, which = a.success ? (a.drop ? 'ambushDrop' : 'ambushWon') : a.half ? 'ambushHalf' : 'ambushLost';
+        body.appendChild(el(doc, 'p', `rpg-bl-note rpg-bl-ambush rpg-bl-ambush-${a.success ? 'won' : 'lost'}`, fill(RPG_STRINGS.blocks[which], a)));
+    }
     if (model.opening?.length) {
         const box = el(doc, 'div', 'rpg-bl-round rpg-bl-opening');
         box.appendChild(el(doc, 'p', 'rpg-bl-round-title', B.opening));

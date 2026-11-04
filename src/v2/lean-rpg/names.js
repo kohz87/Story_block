@@ -83,6 +83,8 @@ export const LIMITS = Object.freeze({
  */
 export const ROLLS_SETTING = 'rpgRolls';
 export const ROLLS = Object.freeze(['automatic', 'off']);
+/** Skill practice comes only from rolled uses while the RPG is on and Rolls is automatic (the narrator's `practice-N` line is not offered and is refused). */
+export const practiceFromRollsOnly = (rpgOn, values) => rpgOn === true && values?.[ROLLS_SETTING] !== 'off';
 
 /**
  * XP for a won fight (fight.js), worked out for each party member who has not Left, group by group from the member's level against the group's:
@@ -134,3 +136,6 @@ export const CREATION = Object.freeze({
 export const JOIN_SETTING = 'rpgJoin';
 export const JOINS = Object.freeze(['ask', 'auto', 'off']);
 export const PARTY_MAX = 8;
+
+/** A roll's rules mark (`fix` in the `rpg.resolve` payload, stage 65): without it a roll replays as before. */
+export const FIX_VERSION = 2;

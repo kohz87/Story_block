@@ -136,8 +136,8 @@ test('Classic output is byte-identical to the build before the Standard formula:
     }, {
         // (Changed on purpose in the prompt diet (stage 59): the planner head is shorter, so `prompt` and `head` moved; the sheet, cue, rounds and witness are the same bytes.)
         // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
-        prompt: '453a9ac02ca10d32', head: 'e875787a7ea273c2', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
-        parsed: 'b0eedb0e4d7e0c16', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
+        prompt: '372eaf02ee8b2607', head: '6f9c48ac48d6220d', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        parsed: 'f3d9eb8728e780eb', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
     });
 });
 
@@ -180,7 +180,8 @@ test('the planner\'s Standard lines read into a plan against the sheet; a Classi
     assert.deepEqual(plan, {
         formula: 'standard', pace: 'all',
         acts: [
-            { who: 'Wessel', skill: 'Iron Breath', type: 'physical', target: 'Sluice Rats', edge: 2, why: 'ambush' },
+            // (PRACTICE-FIX 4: an act's own "+2 ambush" edge is dropped when the plan has no ambush check)
+            { who: 'Wessel', skill: 'Iron Breath', type: 'physical', target: 'Sluice Rats' },
             { who: 'Ren', skill: 'Spark', type: 'magic', area: true, target: 'Sluice Rats' },
             { who: 'Ren', skill: 'Mend', type: 'magic', support: true, difficulty: 'hard', target: 'Wessel' },
             { who: 'Wessel', type: 'social', target: 'Sluice Rats' },
@@ -204,7 +205,8 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
     assert.match(PRECALL_HEAD_STANDARD, /type: physical\|magic\|social\|check/);
     assert.doesNotMatch(PRECALL_HEAD_STANDARD, /defend:/);
     // Measured at 1.232 (1315 characters against 1067); a little margin, so a growing head is noticed.
-    const STANDARD_HEAD_RATIO_MAX = 1.25;
+    // (PINNED CHANGE, PRACTICE-FIX and FIGHT-FIX: the heads grew by the ambush rule, the `ambush?` flag and the Standard-only `else:` rule; measured at 1.274, 1631 against 1280.)
+    const STANDARD_HEAD_RATIO_MAX = 1.3;
     assert.ok(PRECALL_HEAD_STANDARD.length <= PRECALL_HEAD.length * STANDARD_HEAD_RATIO_MAX, `${PRECALL_HEAD_STANDARD.length} against ${PRECALL_HEAD.length}`);
     const input = { sheet, message: 'I attack.', excerpt: '' };
     assert.ok(precallPrompt({ ...input, standard: true }).startsWith(PRECALL_HEAD_STANDARD));

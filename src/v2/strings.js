@@ -163,6 +163,7 @@ export const STRINGS = deepFreeze({
         label: 'Story Suite',
         story: 'Story',
         storyTitle: 'Open the story panel',
+        storyOffer: 'Story (a card offer is waiting)',
         game: 'Game view',
         gameTitle: 'Open the game view (Alt+G)',
         suite: 'Suite',

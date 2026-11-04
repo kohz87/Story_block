@@ -26,6 +26,10 @@ export const RPG_STRINGS = Object.freeze({
         orderLine: 'Turn order: {list}',
         quickStart: '{who} gets an opening action against {against}: 10 or more ahead in the turn order.',
         quickStartLine: 'Quick start: {who} acts first against {against}.',
+        ambushWon: 'Ambush: {who}\'s {what} — Success ({total} vs {dc}): the party strikes first, +2 this round',
+        ambushLost: 'Ambush: {who}\'s {what} — Failed: no surprise',
+        ambushHalf: 'Ambush: {who}\'s {what} — Success at a cost ({total} vs {dc}): ambush only half works: no surprise',
+        ambushDrop: 'Ambush: {who}\'s {what} — Success ({total} vs {dc}): you have the drop; +2 on the next reply\'s fight',
         // Why a group or character does not act (the record's `idle`).
         idle: Object.freeze({
             beaten: '{who} does not act: beaten before its turn.',
@@ -73,7 +77,6 @@ export const RPG_STRINGS = Object.freeze({
     }),
     skills: Object.freeze({
         title: '{name}\'s skills',
-        slots: '{n} of {max} slots',
         mastery: 'Mastery',
         legend: 'Mastery:',
         legendEnd: 'to rolls with that skill',
@@ -87,6 +90,8 @@ export const RPG_STRINGS = Object.freeze({
         rollsNoStat: 'Rolls with the stat the story picks: {rank} +{n} · Lv {level} ÷ {divisor} +{bonus}',
         empty: 'Empty slot · filled when the story has {name} learn a new skill',
         back: 'Back to the party',
+        // (Rolls automatic: practice comes only from rolled uses; with Rolls off the story adds it, as before.)
+        noteRolled: 'Practice comes from rolled skill uses: fights and checks. At 100 the rank rises by itself and shows in "Changed this reply". Rank and practice only move through play (a swipe takes them back); the pencil fixes a name or what it does.',
         note: 'The story adds practice when a skill is used; at 100 the rank rises by itself and shows in "Changed this reply". Rank and practice only move through play (a swipe takes them back); the pencil fixes a name or what it does.',
         edit: 'Edit {name}\'s name or description',
         editName: 'Name',
@@ -425,6 +430,9 @@ export const RPG_STRINGS = Object.freeze({
         fightXp: '{who} +{xp} XP (fight won)',
         fightXpSummary: '{who} +{xp} XP',
         fightXpNote: 'given by code for the fight',
+        practice: '{who}\'s {skill} +{amount} practice (rolled)',
+        practiceSummary: '{who}\'s {skill} +{amount}',
+        practiceNote: 'given by code for the skill\'s rolled use',
         joined: '{who} joined the party',
         joinedSummary: '{who} joined',
         joinedNote: 'a Character and a Skills block were made',

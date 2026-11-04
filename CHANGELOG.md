@@ -1,5 +1,63 @@
 # Changelog
 
+## 2.21.0
+
+The card offer: a character card can bring its whole world, and Story Block offers it with one click.
+- **Card entries:** besides `[storysuite:pack]`, a card's disabled lorebook entries may be tagged `[storysuite:portraits]`
+  (the pack's portraits as base64, at most 24 files, 200 KB each, 3 MB together) and `[storysuite:settings]` (recommended
+  settings from a fixed list: RPG, Gear, XP rate, and NPC State Delta's portrait prompt format and Scan every). Anything
+  rejected or skipped writes a line to Settings → Diagnostics (Card offers).
+- **The offer:** when a single-character chat opens, one notice per pack the card brings (at most three) sits at the top of
+  the Story panel, with a dot on the Story button until it is answered. **Install** installs the pack with its portraits,
+  turns its data modules on in this chat at once (the tab shows without a reload or a reply; the chat is saved straight
+  away), applies the ticked settings, and says exactly what was done. **Not now** is remembered per card, pack id and version.
+  An update offer keeps the chat's own module choice. A pack that needs a missing module (for example Story Director for
+  world events) shows why and Install stays off; a missing NPC State Delta only drops its settings.
+- **Recommended settings** list only what differs from yours, ticked by default and applied only with the click. Story Block
+  never writes another extension's settings: they register through `sdk.registerCardSettings` (internal sdk, not the public api).
+- **Packs list:** a pack of data modules alone reads "4 data modules" instead of "no content".
+- **Docs:** BUILD-A-CARD.md "Ship your whole world inside the card", PACKS.md "In a character card".
+- **Skills card:** the "N of 5 slots" pill is gone from its header (it repeated the list); the level pill stays. (It briefly had the gear card's slot-grid class, which made it a tall oval.)
+- **Fix:** Install saves SillyTavern's settings at once, before it pins anything in the chat and before it says "Installed", so a quick reload cannot leave pinned modules for a pack that was not kept; if that save fails the notice says so.
+- **Fight gate fix (a 2.19.0 regression):** the planner gate also opens when the reader's message reads as combat (a sword, a foe named), and
+  cut, slice, cleave, hack, slaughter and butcher count as risky words, so "cut the gnashers down with my cane-sword" is planned.
+- **Practice comes only from rolls:** with the RPG on and Rolls automatic, skill practice comes only from a skill's rolled use. The narrator is
+  offered `learn-N` only (no `practice-N`), the XP guide and the Skills text no longer ask it to practise skills, and a story `practice-N` line is
+  refused with a Problems line ("Practice comes from rolled skill uses"), and the Skills card's footer says so. A quiet RPG-on reply's instructions are about 90 to 120 characters
+  shorter. With Rolls off everything is as before.
+- **Practice line on the reply card:** "Astra's Shadow Cut +6 practice (rolled)", beside the fight XP line.
+- **Ambush check:** a skill used before a fight to gain the drop on the foes (hiding, sneaking, luring, slipping behind them, judged from the skill's
+  description) is a planner `check` with `ambush`. A successful one gives the party's round-1 acts +2 (and, under Standard, the quick start); a
+  failed one gives nothing. The battle log says it in one line before Round 1. Without such a check there is no ambush edge (the planner head no
+  longer offers a free "edge +2" for an ambush). The planner now sees each skill's description (cut at 70 characters) and its head is about 200
+  characters longer.
+- **Install and a chat switch:** modules are pinned only in the chat the click was made in. If the chat changed during the install nothing is pinned
+  anywhere else; the notice, a toast and Diagnostics say to turn the modules on in Settings → Data modules for that chat.
+- **A failed settings save no longer ends Install:** the install goes on and the notice warns that settings may not have been saved (and where to import
+  the pack if it is missing after a reload). The settings save no longer waits for ever.
+- **Card reading:** the card's embedded pack is offered when its version is higher than the linked world's copy; a linked world that cannot be loaded still
+  lets the embedded book offer; a portrait's size is checked before it is decoded; only Story Block registers the `story-block` card-settings owner.
+- **FAQ:** docs/FAQ.md answers the questions players ask most (a missing item, skill practice, ambush, skill slots, cards that bring a world); the README links to it.
+- **Practice and old replies:** a reply captured under the "practice only from rolls" rule is marked on its record (only when it has a story practice
+  line); only marked replies refuse such a line on Re-read, edit, rebuild and reload. Replies made before keep the practice lines they were told with.
+- **Ambush, finished:** a successful ambush check in a reply with no attack is kept as a drop and spent once on the very next reply's roll that has
+  acts (the cue says "you have the drop"); a success at a cost counts as no ambush ("ambush only half works: no surprise"); the planner is told to put
+  the check in the same plan as the attack when the message also attacks.
+- **Gate:** a weapon, a bow or a wound as a noun in the reader's message no longer opens the planner by itself (cut, slice, cleave, hack, slaughter and butcher still do).
+- **Fights in a row (Down groups no longer block foe slots):** a beaten (Down) group no longer holds its slot. A new group of the same name replaces it, else the
+  first empty or Down slot takes the new group; a new fight clears the Down groups left from earlier replies in the same step, so the Foes block, the log's Status
+  and the prompts show only this fight's foes (a group that goes Down in a reply stays until the next fight opens, so its XP is still paid, and a stale Down group
+  is never paid again). The planner is shown standing groups only. A block of Down groups alone is a won fight, not an open one: the next quiet reply drops the
+  combat text again (about 1,300 characters shorter). The battle log's Foes line lists only the groups that rolled in that reply.
+- **A skill that runs out falls back properly (Standard):** the plain roll is a physical, single-target attack (never a magic or area one planned for the
+  skill's Mana). An act may name `else: <skill>`: when the first skill's Mana or Stamina is spent it goes on with that skill (its own type and stat, its own
+  resource, practice only for the skill rolled), else with the plain attack. The planner head asks for `else:` in one line (about 90 characters).
+- **Old chats replay as they were played:** a roll now carries a rules mark (`fix: 2`). A roll made before it opens foes and falls back for a spent skill exactly as it did, so loading or Re-reading an older reply leaves its saved results unchanged; new rolls use the rules above, also when the Mana is already empty at the start of the reply (the `else:` skill, else a plain physical single-target attack). The cue wording (head, verdict first, spent-skill text, "New foes") is told only for these rolls: a roll without the mark is told in the earlier bytes, so its cue length and the rounds it tells never change. A roll that spends a carried ambush drop says "Ambush from last time: the party strikes first."; the log says the drop gives "+2 on the next reply's fight".
+- **Cue wording:** a fallback line says why ("no skill: Shadow Cut's Mana is spent; a plain weapon attack — name no skill", or "…; Iaijutsu instead"); the
+  verdict word comes first ("DECISIVE SUCCESS", "FAIL, DECISIVE"); the head adds "Name only the skill a line names."; and one line tells the groups a roll
+  opened ("New foes: rats ×12 (Lv 2)").
+- Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
+
 ## 2.20.0
 
 Story Block as a platform, part 1: a small public API for scripts and cards.

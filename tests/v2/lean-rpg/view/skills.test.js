@@ -29,7 +29,7 @@ function draw(extra = {}, skills) {
     doc.body.appendChild(el);
     const calls = [], back = [];
     const api = { command: async (type, payload) => { calls.push([type, payload]); return extra.result ?? { ok: true }; } };
-    const view = renderSkills(el, { character: wessel(skills), api: extra.noCommand ? {} : api, onBack: () => back.push(1), session: extra.session });
+    const view = renderSkills(el, { character: wessel(skills), api: extra.noCommand ? {} : api, onBack: () => back.push(1), session: extra.session, ...(extra.rolled ? { rolled: () => true } : {}) });
     return { doc, el, view, calls, back };
 }
 const rows = el => el.querySelectorAll('.rpg-skill');
@@ -64,7 +64,8 @@ test('the roll: d20 + half the stat + rank + level ÷ 5 (rounded down), worked o
 test('the view: a card per skill with the rank pill, STAT · Uses, what it does, the mastery bar and the roll line', () => {
     const { el } = draw();
     assert.equal(el.querySelector('.rpg-sheet-name').textContent, 'Wessel\'s skills');
-    assert.deepEqual(el.querySelectorAll('.rpg-pills .ss-pill').map(node => node.textContent), ['Lv 2', '4 of 5 slots']);
+    // (PINNED CHANGE: the pills were Lv 2 and 4 of 5 slots; the slots pill is gone)
+    assert.deepEqual(el.querySelectorAll('.rpg-pills .ss-pill').map(node => node.textContent), ['Lv 2']);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-skill-name').textContent), ['Iron Breath', 'Short blade', 'Rope work', 'River swimming']);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-rank').textContent), ['Expert', 'Novice', 'Adept', 'Master']);
     assert.deepEqual(rows(el).map(row => ['neutral', 'info', 'accent', 'good'].find(tone => row.querySelector('.rpg-rank').classList.contains(`rpg-tone-${tone}`)) ?? 'neutral'), ['accent', 'neutral', 'info', 'good']);
@@ -106,7 +107,18 @@ test('an empty slot is a dashed line, one per slot, and a skill-less character h
     const bare = draw({}, { who: 'Wessel' });
     assert.equal(bare.el.querySelectorAll('.rpg-skill-empty').length, 5);
     assert.equal(rows(bare.el).length, 0);
-    assert.equal(bare.el.querySelector('.rpg-slots').textContent, '0 of 5 slots');
+    // (PINNED CHANGE: this was the "0 of 5 slots" pill test. The USER found the pill redundant with the list, so the Skills card has no slots pill; the Lv pill stays.)
+    assert.equal(bare.el.querySelector('.rpg-skill-slots'), null, 'the Skills card has no slots pill');
+    assert.equal(bare.el.querySelector('.rpg-slots'), null);
+    assert.ok(!/of 5 slots/.test(bare.el.textContent));
+    assert.ok(bare.el.querySelector('.rpg-level-pill'), 'the Lv pill stays');
+});
+
+test('the footer note follows the rule: with Rolls automatic practice comes from rolled uses, with Rolls off the story adds it', () => {
+    const rolled = draw({ rolled: true }).el.querySelector('.rpg-skill-note').textContent;
+    assert.match(rolled, /^Practice comes from rolled skill uses: fights and checks\./);
+    assert.doesNotMatch(rolled, /The story adds practice/);
+    assert.match(draw().el.querySelector('.rpg-skill-note').textContent, /^The story adds practice when a skill is used;/);
 });
 
 test('a skill from a block with no stat of its own says what it can: the stat is the story\'s pick', () => {
@@ -258,7 +270,8 @@ test('on the real page: Skills opens the view, the pencil saves one dm.set, rank
     assert.equal(edits.length, 1, 'one action for both fields');
     assert.match(edits[0].summary, /Skill 1 .* → "Iron Breath II"/);
     rebuilt(host);
-    // The story practises the skill and it rises; the view shows it live.
+    // The story practises the skill and it rises; the view shows it live. (With Rolls automatic practice comes only from rolled uses: Rolls is off for this step.)
+    host.settings.set('story-block', 'rpgRolls', 'off');
     await host.send('Train.', reply('+ dm skills-1 — drills | kind: practice-1 | amount: 20'.replace('skills-1', 'wessel-skills')));
     assert.equal(fieldsOf(host, skills).practice1, 50);
     rebuilt(host);

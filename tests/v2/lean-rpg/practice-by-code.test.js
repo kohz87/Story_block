@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING } from '../../../src/v2/lean-rpg/index.js';
+import { practiceLines, rpgReplyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { PRACTICE_HELD, usesOf } from '../../../src/v2/lean-rpg/practice.js';
 import { PRECALL_HEAD, PRECALL_HEAD_STANDARD } from '../../../src/v2/lean-rpg/precall.js';
 import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
@@ -110,26 +111,94 @@ test('the cap: six uses of one skill at 5 are held to 20; an untrained roll (no 
     assert.deepEqual(practice(host), [20, 0, 0], '4 uses × 5 = 20; Dodge was not named; Fencing is lacked');
 });
 
-test('the narrator\'s practice line for a rolled skill is not used in that reply (one Problems line), is used in another, and for a skill not rolled stands', { skip }, async t => {
+const REFUSED = 'Practice comes from rolled skill uses';
+const refusals = host => host.turn.problems().filter(problem => problem.message.includes(REFUSED));
+
+test('with the RPG on and Rolls automatic the narrator\'s practice line is refused, with a Problems line, for a rolled skill and for one not rolled; only the code practises', { skip }, async t => {
     const { host } = await world(t, { perUse: 3, answers: [PLAN, 'none'] });
     await host.send('I strike.', reply('+ dm skills — practised Iron Breath | kind: practice-1 | amount: 20', '+ dm skills — practised Spark | kind: practice-3 | amount: 10'));
-    assert.deepEqual(practice(host), [3, 3, 10], 'code 3 for Iron Breath, not 23; Spark was not rolled, so its 10 stands');
-    assert.equal(told(host).length, 1);
+    assert.deepEqual(practice(host), [3, 3, 0], 'code 3 for Iron Breath and for Dodge; the narrator\'s 20 and 10 changed nothing');
+    assert.equal(refusals(host).length, 2, 'one Problems line for each refused line');
+    assert.equal(told(host).length, 0, 'nothing to put back: the lines never applied');
     await host.send('Training.', reply('+ dm skills — practised Iron Breath | kind: practice-1 | amount: 15'));
-    assert.deepEqual(practice(host), [18, 3, 10], 'another reply: the narrator\'s line is the narrator\'s');
-    assert.equal(told(host).length, 1);
+    assert.deepEqual(practice(host), [3, 3, 0], 'a reply with no roll: the line is refused too (no farming)');
+    assert.equal(refusals(host).length, 3);
     agree(host);
     await reloads(host);
 });
 
+test('with Rolls off the narrator\'s practice line works exactly as before', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3, answers: [] });
+    host.settings.set('story-block', 'rpgRolls', 'off');
+    await host.send('I strike.', reply('+ dm skills — practised Iron Breath | kind: practice-1 | amount: 20', '+ dm skills — practised Spark | kind: practice-3 | amount: 10'));
+    assert.deepEqual(practice(host), [20, 0, 10]);
+    assert.equal(refusals(host).length, 0);
+    agree(host);
+});
+
+const LINE20 = '+ dm skills — practised Iron Breath | kind: practice-1 | amount: 20';
+
+test('a reply captured before the rule (Rolls off) keeps its accepted practice line on Re-read, an edit, a rebuild and a reload, even after Rolls goes automatic', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3, answers: ['none', 'none'] });
+    host.settings.set('story-block', 'rpgRolls', 'off');
+    await host.send('Training.', reply(LINE20));
+    const at = host.ctx.chat.length - 1;
+    assert.equal(sheetFields(host, 'skills').practice1, 20);
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, undefined, 'no mark: it was not captured under the rule');
+    host.settings.set('story-block', 'rpgRolls', 'automatic');
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(sheetFields(host, 'skills').practice1, 20, 'a Re-read keeps the practice the player had');
+    await host.st.editMessage(at, reply(LINE20.replace('amount: 20', 'amount: 12')));
+    assert.equal(sheetFields(host, 'skills').practice1, 20, 'an edit of the old message does not take its practice away either');
+    agree(host);
+    await reloads(host);
+    assert.equal(sheetFields(host, 'skills').practice1, 20);
+    assert.equal(refusals(host).length, 0);
+});
+
+test('a reply captured under the rule is marked on its record; its Re-read, an edit, a rebuild and a reload keep refusing the line, and the mark survives', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3, answers: ['none', 'none'] });
+    await host.send('Training.', reply(LINE20));
+    const at = host.ctx.chat.length - 1;
+    assert.equal(sheetFields(host, 'skills').practice1, 0);
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, 'rolls');
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(sheetFields(host, 'skills').practice1, 0, 'a Re-read refuses it again');
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, 'rolls');
+    await host.st.editMessage(at, reply(LINE20.replace('amount: 20', 'amount: 7')));
+    assert.equal(sheetFields(host, 'skills').practice1, 0, 'an edit of it too');
+    agree(host);
+    await reloads(host);
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, 'rolls', 'the mark is saved with the reply');
+    // a reply with no practice line is not marked (nothing is written for it)
+    await host.send('Walking.', reply('~ place Docks'));
+    assert.equal(host.ctx.chat.at(-1).extra?.storySuite?.practiceRule, undefined);
+});
+
 test('rank-up: practice past 100 by code raises the rank by the block\'s rule and starts again', { skip }, async t => {
-    const { host } = await world(t, { perUse: 5, answers: ['none', 'none', 'none', 'none', 'none', PLAN] });
+    const { host } = await world(t, { perUse: 5, answers: [PLAN] });
+    // (the practice is brought to 98 with Rolls off, where the narrator's line still works; then Rolls goes automatic and a roll gives the last 5)
+    host.settings.set('story-block', 'rpgRolls', 'off');
     for (const amount of [20, 20, 20, 20, 18]) await host.send('Training.', reply(`+ dm skills — practised Iron Breath | kind: practice-1 | amount: ${amount}`));
     assert.equal(sheetFields(host, 'skills').practice1, 98);
+    host.settings.set('story-block', 'rpgRolls', 'automatic');
     await host.send('I strike.', reply());
     const f = sheetFields(host, 'skills');
     assert.deepEqual([f.rank1, f.practice1], [1, 0], '98 + 5 = 103: Adept, practice starts again');
     agree(host);
+});
+
+test('the reply card tells the practice code gave, in the fight XP line\'s style, from the step\'s receipt; a swipe takes it away', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3, answers: [PLAN, PLAN] });
+    await host.send('I strike.', reply());
+    const record = host.ctx.chat.at(-1).extra.storySuite;
+    assert.deepEqual(practiceLines(record).map(line => line.text), ['Astra\'s Dodge +3 practice (rolled)', 'Astra\'s Iron Breath +3 practice (rolled)']);
+    assert.equal(practiceLines(record)[0].summary, 'Astra\'s Dodge +3');
+    assert.deepEqual(rpgReplyLines({ state: host.head(), before: null, record }).map(line => line.text).filter(text => /practice/.test(text)), ['Astra\'s Dodge +3 practice (rolled)', 'Astra\'s Iron Breath +3 practice (rolled)'], 'the card shows them beside the rolls');
+    assert.deepEqual(practiceLines({ receipts: [] }), []);
+    assert.deepEqual(practiceLines({ receipts: [{ type: 'rpg.practice', id: 'x', data: { v2: { result: { practice: { skills: [{ who: 'A', skill: 'S', amount: 0 }, { who: '', skill: 'S', amount: 2 }] } } } } }] }), [], 'nothing without a name or an amount');
+    await host.swipe('Again.');
+    assert.equal(practiceLines(host.ctx.chat.at(-1).extra.storySuite).length, 2, 'the swiped reply has its own');
 });
 
 test('a roll made before practice by code has no mark and gives nothing, byte for byte as it was', { skip }, async t => {

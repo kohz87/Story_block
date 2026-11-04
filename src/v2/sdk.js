@@ -11,6 +11,8 @@ import { MODEL_CALL_ERRORS, MODEL_CALL_TEXT, profileName } from './model-call.js
 import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
 import { receiptCue, entriesWithCue } from './lean-rpg/cue.js';
 
+import { createCardSettings } from './packs/card-settings.js';
+
 // sdk.check comes from check.js (SB-commands); the sdk still loads without it.
 const checkModule = await import('./check.js').catch(() => null);
 
@@ -464,7 +466,7 @@ export function preflight({ store, registry, chat = () => [], apiVersion = 2 }, 
  * Returns { sdk, events, markReady }:
  * `sdk.ready` resolves to the sdk once the host calls markReady().
  */
-export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? ''), dialog = null, dialogCurrent = null, reread = null, callModel = null, timeline = null, seed = null }) {
+export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? ''), dialog = null, dialogCurrent = null, reread = null, callModel = null, timeline = null, seed = null, cardSettings = createCardSettings() }) {
     let markReady;
     const ready = new Promise(resolve => { markReady = () => resolve(sdk); });
     const refused = message => ({ ok: false, code: 'REFUSED', message });
@@ -605,6 +607,11 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
          */
         timeline: timeline ? timeline.api : Object.freeze(Object.fromEntries(['head', 'make', 'list', 'status', 'history', 'forget', 'registerParticipant', 'prepare', 'activate', 'abort', 'recover', 'nativeEvent', 'nativeMutation'].map(name => [name, noTimeline]))),
         id: newId,
+        /**
+         * The settings a character card may recommend (packs/card-settings.js): `registerCardSettings({ owner, label, keys: { <key>: { label,
+         * valueText(v), valid(v) } }, read(key), apply(values) → Promise<{ applied: [key] }> })` → `unregister()`. Internal: not in the public api.
+         */
+        registerCardSettings: spec => cardSettings.register(spec),
         check: check ? Object.freeze({ ...check }) : null,
         settings: id => settings(id),
         /** Whether the reader has feature `id` on (MODULES §F100); false for an id no module declares. */

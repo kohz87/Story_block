@@ -120,12 +120,24 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     // What the narrator needs on every reply stays.
     assert.match(text, /kind: set-health/u);
     assert.match(text, /kind: learn-N/u);
+    // Practice comes only from rolled uses (the RPG on, Rolls automatic): no practice-N line is offered.
+    assert.doesNotMatch(text, /practice-N/u);
+    assert.match(text, /N = 1\.\.5 for learn-N\./u);
+});
+
+test('with Rolls off the quiet reply still offers practice-N and the Classic XP guide keeps its practice sentence', { skip }, async t => {
+    const { host } = await world(t, { templates: LEAN_RPG_TEMPLATES, settings: { modules: { 'story-block': { rpgRolls: 'off' } } } });
+    const { request } = await host.send('I walk on.', 'The road is quiet.');
+    const text = staticOf(request);
     assert.match(text, /kind: practice-N/u);
+    assert.match(text, /N = 1\.\.5 for learn-N and practice-N\./u);
+    assert.match(text, /Practice a skill 5 to 20 per use\./u);
+    assert.match(text, /and adds practice/u);
 });
 
 test('the XP guide stays on a quiet reply (Standard and Classic), once, and the rest of the combat text does not', { skip }, async t => {
     const expected = [[STANDARD_TEMPLATES, /XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\./u],
-        [LEAN_RPG_TEMPLATES, /XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\. Practice a skill 5 to 20 per use\./u]];
+        [LEAN_RPG_TEMPLATES, /XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\.(?! Practice)/u]];
     for (const [templates, guide] of expected) {
         const { host } = await world(t, { templates });
         const { request } = await host.send('I walk on.', 'The road is quiet.');
@@ -153,11 +165,12 @@ test('a fight the narrator opens without a plan still parses; from the next repl
     assert.match(text, /\+ party /u);
     assert.deepEqual(host.store.problems(), []);
     assert.ok(fieldsOf(host).hurt2 < 4, 'the hurt line was read');
-    // A Down group that is not cleared yet is still an open fight: the narrator needs the clear kind to take it off.
+    // (PINNED CHANGE, FIGHT-FIX 1: a block of Down groups alone is a won fight, not an open one: the next reply is quiet and the combat text is not told; a
+    // new fight takes the Down group's slot, so the narrator no longer needs the clear kind. A clear line written all the same still parses.)
     const { request: down } = await host.send('I finish it.', reply('~ dm foes — it falls | kind: hurt-2 | to: Down'));
-    assert.match(staticOf(down), /kind: clear-N/u);
+    assert.match(staticOf(down), /kind: clear-N/u, 'the reply that wrote the Down line was told the full grammar');
     const { request: cleared } = await host.send('I move on.', reply('- dm foes — it is down | kind: clear-2 | why: down'));
-    assert.match(staticOf(cleared), /kind: clear-N/u, 'the clear line was written under the full grammar');
+    assert.doesNotMatch(staticOf(cleared), /\[COMBAT SYSTEM\]|kind: clear-N/u, 'Down groups alone are no open fight: the quiet reply');
     assert.equal(fightIsOpen(host.head()), false);
     assert.equal(fieldsOf(host).count2, 0);
     assert.deepEqual(host.store.problems(), []);

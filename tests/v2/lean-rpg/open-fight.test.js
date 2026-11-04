@@ -60,7 +60,8 @@ test('an empty Foes block and a reader message naming crawlers: the slot is fill
     const result = receipt.data.v2.result;
     assert.deepEqual(result.opened, [{ slot: 1, module: 'pack.chat/foes', name: 'Mud-Scale Crawlers', count: 6, level: 5 }]);
     assert.ok(result.rounds.length >= 1 && result.rounds[0].lines.some(line => line.kind === 'act' && line.foe.name === 'Mud-Scale Crawlers'));
-    assert.equal(result.rounds[0].lines[0].pc.edge === 2 || result.rounds[0].lines.some(line => line.pc.edge === 2), true, 'the ambush edge');
+    // (PRACTICE-FIX 4: the answer's "+2 ambush" has no ambush check behind it, so no edge)
+    assert.equal(result.rounds[0].lines.some(line => line.pc.edge === 2), false, 'no ambush edge without an ambush check');
     const model = readResolve(result);
     assert.ok(model && model.rounds.length >= 1, 'the [battle] panel model');
     assert.ok(tailOf(request).includes(`[Happened]\n${cueOf(receipt)}`));
