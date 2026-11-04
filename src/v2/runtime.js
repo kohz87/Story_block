@@ -393,13 +393,12 @@ export function createRuntime({
         const seen = typeof timeline?.active === 'function' ? timeline.active('view.lastUser').messages(list) : list;
         return seen.length > 0 && seen.every(message => {
             if (!message || message.is_user) return false;
-            // (the opening greeting's own record is the chat's starting point: the one that carries the checkpoint at the head of the line; any other record is a reply)
+            // A captured reply carries `reply: true` (turn.js); a record from before the mark (no `mv`) other than the head greeting's is taken for a reply, so old chats stay closed.
+            // A record with `mv` and no mark is the reader's own edits on a greeting (the kit's adds), and stays a greeting.
             const record = readRecord(message);
-            if (!record || (record.checkpoint !== undefined && message === seen[0])) return true;
-            // (a greeting that carries only the reader's own edits, receipts of cause `ui` and no story block, is still a greeting: the kit's own adds are recorded on it)
-            const receipts = Array.isArray(record.receipts) ? record.receipts : [];
-            return receipts.length > 0 && receipts.every(receipt => receipt?.cause === 'ui') && !(record.narrated?.length)
-                && (record.spans ?? []).every(span => span?.story === false);
+            if (!record) return true;
+            if (record.reply === true) return false;
+            return record.mv === 1 || (record.checkpoint !== undefined && message === seen[0]);
         });
     };
     let chatterReaders = null;   // the timeline's readers of earlier messages for the Inner chatter tail line and its two queries
@@ -490,7 +489,7 @@ export function createRuntime({
         }
     });
     const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page) });
-    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name) });
+    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
     saveOnUnload(store, page, { fits: saving.keepaliveFits });
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();

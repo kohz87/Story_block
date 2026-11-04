@@ -363,3 +363,33 @@ test('the kit is open while the chat holds only greetings: a group chat with two
     await closed.st.deleteMessage(1);
     assert.deepEqual(kit(closed), { open: false });
 });
+
+test('a captured reply keeps the kit closed even when the only record on it is a reader edit: plain reply, AI-only plain reply, and a "+ 3 silver" reply, each with a reader add, then deleting your own message', { skip }, async t => {
+    for (const text of ['The road.', reply('+ 3 silver')]) {
+        const host = await world(t);
+        await host.send('Hello.', text);
+        assert.equal((await add(host, { name: 'Trail Bread' })).ok, true);
+        assert.deepEqual(kit(host), { open: false });
+        await host.st.deleteMessage(1);
+        assert.equal(host.ctx.chat.length, 2);
+        assert.deepEqual(kit(host), { open: false });
+        await refused(add(host, { name: 'Crown', kind: 'equipment', slot: 'head', rarity: 'legendary', stats: { STR: 2, DEX: 2 } }), /after the first message/);
+    }
+    const alone = await world(t);
+    await alone.st.generate('normal', { reply: 'A voice answers.' });
+    assert.deepEqual(kit(alone), { open: false });
+    assert.equal((await add(alone, { name: 'Trail Bread' })).ok, true);
+    assert.deepEqual(kit(alone), { open: false });
+});
+
+test('a chat written before the reply mark (records without it) stays closed once a non-head message holds a record', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', 'The road.');
+    assert.equal((await add(host, { name: 'Trail Bread' })).ok, true);
+    for (const message of host.ctx.chat) {
+        const records = [message.extra?.storySuite, ...(message.swipe_info ?? []).map(info => info?.extra?.storySuite)];
+        for (const record of records) if (record) { delete record.reply; delete record.mv; }
+    }
+    await host.st.deleteMessage(1);
+    assert.deepEqual(kit(host), { open: false });
+});

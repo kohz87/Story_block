@@ -1288,7 +1288,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             // (B-b2-timeline-9: read through readRecord, and only receipt IDs, whatever the chat holds.)
             const told = current.type === 'continue' ? readRecord(message)?.narrated ?? [] : [];
             const before = told.filter(id => typeof id === 'string');
-            store.setNarrated(id, [...new Set([...before, ...current.untold, ...result.steps.filter(receipt => receipt.beforeGenerate === true).map(receipt => receipt.id)])]);
+            store.setNarrated(id, [...new Set([...before, ...current.untold, ...result.steps.filter(receipt => receipt.beforeGenerate === true).map(receipt => receipt.id)])], { reply: !(current.type === 'swipe' && !ctx.chat.slice(0, id).some(item => item?.is_user)) });   // (a swipe of an opening greeting is still a greeting: no reader message before it)
 
             // Also with no block: the change lines left in the story are listed in the hidden comment, so a
             // Re-read leaves them too (B-a1-3, B-a1-10).
