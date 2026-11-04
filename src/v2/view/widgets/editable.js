@@ -162,7 +162,11 @@ function render(el, input, api) {
             const input = h(doc, type === 'choice' ? 'select' : 'input', type === 'choice' ? 'ss-select' : 'ss-input');
             input.setAttribute('aria-label', label);
             const node = h(doc, 'label', 'ss-w-editable-item-label');
-            node.append(h(doc, 'span', '', label), input);
+            const caption = h(doc, 'span', spec.hideLabel === true ? 'ss-w-editable-sr' : '', label);
+            node.append(caption, input);
+            // `tone`: the chosen option's word follows the label in its colour (the rarity word), kept current by refresh().
+            const tone = spec.tone === true ? caption : null;
+            if (tone) tone.classList.add('ss-w-editable-tone');
             if (type === 'choice') {
                 for (const item of options) {
                     const option = h(doc, 'option', '', item.label);
@@ -189,7 +193,7 @@ function render(el, input, api) {
                 input.disabled = true;
                 if (spec.title) input.setAttribute('title', String(spec.title));
             }
-            return { spec, input, node, type, label, options };
+            return { spec, input, node, type, label, options, tone };
         }
         // Without groups the boxes are the record grid; with them, a fieldset each (a legend and the boxes, side by side where they share a row).
         function layFields(list) {
@@ -236,6 +240,12 @@ function render(el, input, api) {
             }
             for (const group of groupList) group.node.hidden = group.entries.every(entry => entry.hidden);
             for (const entry of inputs) {
+                if (!entry.tone || !entry.input) continue;
+                const value = String(entry.input.value);
+                entry.tone.setAttribute('data-word', entry.options.find(item => String(item.value) === value)?.label ?? '');
+                entry.tone.setAttribute('data-tone', value);
+            }
+            for (const entry of inputs) {
                 if (entry.type !== 'points' || entry.hidden) continue;
                 const spec = entry.spec;
                 const rarity = valueOf(String(spec.rarity));
@@ -266,7 +276,7 @@ function render(el, input, api) {
             const handForm = p.kind === 'item' && p.gear?.row?.hand === true && !(typeof p.gear.bound === 'string' && p.gear.bound);
             formFields = handForm ? editFields(p) : p.kind === 'fields' ? p.fields : null;
             formPlan = handForm ? editPlan(p) : p.plan;
-            introLine.textContent = handForm ? (p.gear.kit === true ? STRINGS.inventory.gear.form.kitHint : '') : p.intro;
+            introLine.textContent = handForm ? (p.gear.kit === true ? `${STRINGS.inventory.gear.form.kitHint} ${STRINGS.inventory.gear.form.kitGreeting}` : '') : p.intro;
             if (p.kind === 'item' && !handForm) {
                 field = h(doc, 'input', 'ss-input');
                 itemCount = h(doc, 'input', 'ss-input');

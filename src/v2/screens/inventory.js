@@ -196,7 +196,10 @@ const CSS = `${BASE_CSS}
 /* Gear in fights: "+ Add item" opens the grouped form full width under the button; while a row is being edited on a phone it takes the whole row. */
 .wallet-and-add:has(.inv-add-gear) { display: flex; width: 100%; }
 .wallet-and-add:has(.inv-add-gear) > :has(.inv-add-gear) { flex: 1 1 100%; min-width: 0; }
-.ss-w-editable-group input, .ss-w-editable-group select { box-sizing: border-box !important; min-height: 32px !important; height: 32px !important; }
+/* the slim 32px boxes only where there is room and a fine pointer; a phone keeps size.css's 44px controls */
+@media (min-width: 760px) and (pointer: fine) {
+  .ss-w-editable-group input, .ss-w-editable-group select { box-sizing: border-box !important; min-height: 32px !important; height: 32px !important; }
+}
 .ss-w-inventory-add:has(.inv-add-gear), .inv-add-gear, .inv-add-gear > .ss-w-editable { display: block; width: 100%; min-width: 0; }
 .inv.gear .item:has(.ss-w-editable-gear) > .body > .actions { display: none; }
 @media (max-width: 600px) {

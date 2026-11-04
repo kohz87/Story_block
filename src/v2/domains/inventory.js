@@ -1276,11 +1276,11 @@ function byModule(ctx, why) {
 //
 // With Gear in fights on, the reader's "+ Add item" and the Edit of a piece they added can set Kind, Slot, Rarity and a Bonus. The full
 // setup (Rarity, Bonus) is the starting kit's: allowed only while the chat has no message from the reader yet (a swipe of the greeting keeps it
-// open; `env.readers()` counts the reader's messages on the line of history, so a rewind back to the greeting opens it again). After that Rarity
+// open; `env.readers()` counts the reader's messages on the line of history and `env.greetingOnly()` is false once anything but the greeting is there, so only a rewind back to the greeting opens it again). After that Rarity
 // stays Common with no Bonus. A def the reader made is marked `hand: true`; the story's, a pack's and a bound piece's are not theirs to change.
-/** Whether the starting kit is open: the chat is at its first message (no message from the reader yet). Unknown counts as closed. */
+/** Whether the starting kit is open: the chat is at its first message (only the opening greeting: no message from the reader and no reply after it). Unknown counts as closed. */
 export function kitOpen(env) {
-    try { return env?.readers?.() === 0; } catch { return false; }
+    try { return env?.readers?.() === 0 && env?.greetingOnly?.() !== false; } catch { return false; }
 }
 
 const article = word => (/^[aeiou]/i.test(word) ? 'An' : 'A');
@@ -1525,7 +1525,7 @@ export function createInventoryCommands(env) {
             const qty = count(ctx, payload.qty, 1);
             // Hand-set gear (gear on): `slot`, `stats` ({ STR: 1 }) and `equip` (the owner who puts it on) join `kind` and `rarity`. The starting kit rule is held here.
             const gearWords = ['slot', 'stats', 'equip'].filter(key => payload[key] !== undefined && payload[key] !== null && payload[key] !== '' && !(key === 'stats' && isPlainObject(payload.stats) && !Object.keys(payload.stats).length));
-            if (gearWords.length && !gearOn(ctx)) ctx.fail('REFUSED', E.gearOff);
+            if (gearWords.length && !gearOn(ctx) && payload.starting !== true) ctx.fail('REFUSED', E.gearOff);
             const equipOn = gearWords.includes('equip') ? ownerArg(ctx, payload.equip) : null;
             const owner = receiverArg(ctx, equipOn ?? payload.owner);
             const note = textArg(ctx, payload.note, MAX_NOTE, 'note');
@@ -1544,6 +1544,23 @@ export function createInventoryCommands(env) {
             const slot = handSlot(ctx, payload.slot);
             // The starting kit: Rarity above Common and a Bonus only while the chat is at its first message (an imported character's `starting: true` things are the file's own).
             const open = kitOpen(env);
+            // A character file's things (`starting: true`) come as written only while the kit is open; later they come in as Common with no bonus, and the Problems list says so.
+            let written = name;
+            const imported = gear && payload.starting === true && !open;
+            if (imported && (keep.rarity ?? 'common') !== 'common' || imported && (slot || Object.keys(stats).length)) {
+                env.problem?.({ module: 'story-block', code: 'HELD', message: fill(E.importLate, { name }) });
+                delete keep.rarity;
+            }
+            // After the kit a name that a story or pack piece already has never copies its rarity or bonus: the reader's own Common piece of it is made (named "Your …").
+            if (gear && payload.starting !== true && !open) {
+                const found = resolveDef(inv, name);
+                const same = found.status === 'found' ? inv.defs[found.id] : null;
+                if (same && !handDef(inv, same) && (same.kind === 'equipment' || same.rarity !== 'common')) {
+                    written = `Your ${[...name].slice(0, 60 - 'Your '.length).join('')}`;
+                    keep.kind ??= same.kind;
+                    if (same.kind === 'equipment' && !slot && same.slot) keep.slot = baseSlot(same.slot);
+                }
+            }
             if (gear && payload.starting !== true && !open && ((keep.rarity ?? 'common') !== 'common' || Object.keys(stats).length)) ctx.fail('REFUSED', E.kitClosed);
             if (gear && payload.starting !== true && (gearWords.length || keep.kind !== undefined)) {
                 holdBudget(ctx, keep.rarity ?? 'common', stats);
@@ -1555,7 +1572,13 @@ export function createInventoryCommands(env) {
                     Object.assign(keep, { slot: null, stats: {}, stack: true });
                 }
             }
-            const { def, created } = defineByName(ctx, inv, name, env, { note, owner }, true, keep);
+            // A saved character's piece the reader set by hand keeps its own slot and bonus (still held to the rarity's points); with gear off the words are left out.
+            if (gear && payload.starting === true && open && keep.kind === 'equipment' && (slot || Object.keys(stats).length)) {
+                holdBudget(ctx, keep.rarity ?? 'common', stats);
+                if (slot) keep.slot = baseSlot(slot);
+                if (Object.keys(stats).length) keep.stats = stats;
+            }
+            const { def, created } = defineByName(ctx, inv, written, env, { note, owner }, true, keep);
             // (slot, bonus and putting on are for equipment: judged on the def the name means, which may be a pack's or the story's own)
             if (gear && payload.starting !== true && (slot || Object.keys(stats).length) && def.kind !== 'equipment') ctx.fail('INVALID', E.gearNeedsEquipment);
             if (created && gear && def.id.startsWith('story/')) inv.defs[def.id].hand = true;
@@ -2317,6 +2340,8 @@ export function listItems(inventory, owner = null, carry = null, gear = false, n
                 ...(condOf(stack, inventory) < COND_MAX ? { cond: condOf(stack, inventory) } : {}),
                 ...(stack.key === true ? { key: true } : {}),
                 ...(stack.story === true ? { story: true } : {}),
+                // (gear on, a piece the reader made by hand: marked, with its own bonus, so a saved character keeps it exactly)
+                ...(gear && handDef(inventory, def) ? { hand: true, ...(def.kind === 'equipment' ? { stats: statsFor(def) } : {}) } : {}),
                 // (a cast member's signature piece, with gear on: whose it is, for the screens' chip)
                 ...(gear && typeof stack.bound === 'string' && stack.bound ? { bound: { who: nameOf?.(stack.bound) ?? stack.bound } } : {}),
                 ...(carryOfStack(stack, def, carry) ? { carry: carryOfStack(stack, def, carry) } : {}),
@@ -2547,7 +2572,7 @@ export const createInventoryQueries = env => ({
     // `story-block.gear`: { owner } → { on, owner, weapon, armour, shield: { name, bonus, cond, broken } | null, carry: { load, capacity,
     // encumbered, penalty } } (part 2's rolls read it), and `gear.carry`, `items.carry`'s answer when no carry module gives one.
     ...createGearQueries({
-        on: () => gearIsOn(env), kit: () => kitOpen(env),
+        on: () => gearIsOn(env), kit: () => kitOpen(env), empty: () => { try { return env?.chatEmpty?.() === true; } catch { return false; } },
         condOf, carryOf: defCarry, penalty: ENCUMBERED_PENALTY, feature: FEATURE.gear,
         names: (state, tools, id) => gearWearers(state, tools, env).names.get(id) ?? (id === 'party' ? 'The party' : String(id)),
         owners: (state, tools) => gearWearers(state, tools, env).owners,

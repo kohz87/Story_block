@@ -95,6 +95,14 @@ function uiCommand(r, host) {
         const twin = stacks.find(other => other !== stack && other.def === stack.def);
         if (twin) choices.push(['inventory.merge', { stack: stack.id, into: twin.id }]);
     }
+    // The reader's own gear (gear on, docs/v2/GEAR.md "Your own gear"): add with kind, slot, rarity, bonus and Equip on, and the Edit of kind, slot, rarity and bonus, kit open or not.
+    const GEAR_NAMES = ['Wolfskin Cap', 'Lucky Bone', 'Oak Shield', 'Rope', 'Torch'];
+    choices.push(['inventory.add', { name: r.pick(GEAR_NAMES), qty: r.int(1, 2), kind: r.pick(['equipment', 'equipment', 'goods', 'consumable']), slot: r.pick(['head', 'weapon', 'accessory-1', 'accessory-2', '', 'bogus']),
+        rarity: r.pick(['common', 'rare', 'legendary', 'mythic']), stats: r.pick([{}, { VIT: 1 }, { STR: 2, DEX: 2 }, { WIS: 1 }, { STR: 1, DEX: 1, INT: 1 }]), ...(r.chance(0.4) ? { equip: 'party' } : {}) }]);
+    if (stacks.length) {
+        const stack = r.pick(stacks);
+        choices.push(['inventory.edit', { stack: stack.id, group: true, kind: r.pick(['equipment', 'goods', 'quest']), slot: r.pick(['head', 'body', '', 'bogus']), rarity: r.pick(['common', 'epic']), stats: r.pick([{}, { AGI: 1 }, { LUK: 3 }]) }]);
+    }
     choices.push(['inventory.drop', { stack: 'it_00000000', qty: 1 }]);
     const offers = Object.keys(head?.domains?.inventory?.loot ?? {}).sort();
     if (offers.length) choices.push(['inventory.lootTake', { sid: r.pick(offers), pick: [0, r.int(0, 1)] }]);
@@ -128,7 +136,7 @@ async function fuzz(t, seed, steps) {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     t.mock.method(console, 'warn', () => {});
     const r = prng(seed);
-    const host = await createHost({ modules: [probeModule({ cues: true })] });
+    const host = await createHost({ modules: [probeModule({ cues: true })], settings: { features: { 'story-block.gear': true, 'story-block.rpg': true } } });
     // A pack that gives Your look a Rank, so the fuzz's `~ you rank:` lines are read (without one they are refused).
     await host.packs.packs.install({ id: 'guild', version: '1.0.0', requires: { storyBlock: '^2' }, content: { you: { rank: { label: 'Guild rank' } } } });
     t.after(() => host.close());

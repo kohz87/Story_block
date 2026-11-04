@@ -385,6 +385,14 @@ export function createRuntime({
         const seen = typeof timeline?.active === 'function' ? timeline.active('view.lastUser').messages(list) : list;
         return seen.filter(message => message?.is_user).length;
     };
+    // Whether the line of history is still just the opening greeting: exactly one message that is not the reader's, and none from the reader (null: not known).
+    // A narrator or member that spoke on its own, or a reply, ends it, so deleting only the reader's messages does not reopen the starting kit.
+    const greetingOnlyOf = () => {
+        const list = Array.isArray(ctx.chat) ? ctx.chat : null;
+        if (!list) return null;
+        const seen = typeof timeline?.active === 'function' ? timeline.active('view.lastUser').messages(list) : list;
+        return seen.length > 0 && seen.filter(message => message?.is_user).length === 0 && seen.filter(message => message && !message.is_user).length === 1;
+    };
     let chatterReaders = null;   // the timeline's readers of earlier messages for the Inner chatter tail line and its two queries
     let assistCall = async () => { throw new Error('Story Block is not ready.'); };
     let turn = null;
@@ -409,7 +417,7 @@ export function createRuntime({
             // The chatter the reader may send back to the story (its setting): the replies and how to read one.
             // The head reply's index too, for `scene.moved` (the store is made below; asked only later).
             // Whether Story Director's World screen is there (it shows the chatter; else Scene does: `scene.chatter`).
-            extras: { promptChat: () => chatterReaders.prompt.messages(ctx.chat), headChat: () => chatterReaders.head.messages(ctx.chat), sceneChat: () => chatterReaders.scene.messages(ctx.chat), display, headIndex: () => store.headIndex(), proofs: () => store.proofs(), readers: () => readersOf(), rpgOn: () => registry.featureOn(CORE_FEATURE.leanRpg), gearOn: () => registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg), persona: () => { try { return (live() ?? ctx)?.name1 ?? ''; } catch { return ctx?.name1 ?? ''; } }, worldShown: () => registry.screens().some(screen => screen.id === DEFAULT_HIDDEN[SCENE_SCREEN_ID]) },
+            extras: { promptChat: () => chatterReaders.prompt.messages(ctx.chat), headChat: () => chatterReaders.head.messages(ctx.chat), sceneChat: () => chatterReaders.scene.messages(ctx.chat), display, headIndex: () => store.headIndex(), proofs: () => store.proofs(), readers: () => readersOf(), greetingOnly: () => greetingOnlyOf(), chatEmpty: () => Array.isArray(ctx.chat) && ctx.chat.length === 0, rpgOn: () => registry.featureOn(CORE_FEATURE.leanRpg), gearOn: () => registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg), persona: () => { try { return (live() ?? ctx)?.name1 ?? ''; } catch { return ctx?.name1 ?? ''; } }, worldShown: () => registry.screens().some(screen => screen.id === DEFAULT_HIDDEN[SCENE_SCREEN_ID]) },
             version: VERSION,
             timeline: () => timeline,
             dataModules: { state: () => store.head(), lifecycle: id => registry.lifecycle(id), restore: () => registry.restore(), persona: () => { try { return (live() ?? ctx)?.name1 ?? ''; } catch { return ctx?.name1 ?? ''; } } },

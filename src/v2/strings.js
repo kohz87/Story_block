@@ -127,6 +127,7 @@ export const STRINGS = deepFreeze({
         kitBudget: '{a} {rarity} piece gives at most {max} {points}.', kitNoBonus: 'A common piece gives no bonus.',
         kitStats: 'Choose at most {max} different stats, each worth a whole number of at least 1.',
         kitSlot: 'The slot is one of {slots}.', kitNeedSlot: 'Choose a slot to put it on.', kitNotEquipment: '{name} is not equipment, so it cannot be put on.',
+        importLate: '{name} came in as a Common piece with no bonus: a saved character\'s gear is kept as written only before your first message.',
         kitPack: 'Kind, slot and rarity come from the pack.', kitStory: 'Kind, slot and rarity come from the story.',
         kitMany: 'Equipment is one piece each; at most {max} pieces.',
         itemKind: 'The kind of an item is one of {kinds}.', itemRarity: 'The rarity of an item is one of {rarities}.',
@@ -409,8 +410,11 @@ export const STRINGS = deepFreeze({
             // The hand-set gear form (view/gear-form.js): "+ Add item" and the Edit of a piece the reader added.
             form: {
                 groupItem: 'Item', groupGear: 'Gear', name: 'Name', count: 'Count', note: 'Note', kind: 'Kind', slot: 'Slot', rarity: 'Rarity', bonus: 'Bonus',
-                stat: 'Stat', amount: 'Points', equipOn: 'Equip on', equippedBy: 'Equipped by', noStat: 'No stat', choose: 'Choose\u2026',
+                stat: 'Stat', amount: 'Points', equipOn: 'Equip on', you: '(you)', equippedBy: 'Equipped by', noStat: 'No stat', choose: 'Choose\u2026',
                 kitHint: 'Starting kit: rarity and bonuses can be set until your first message.',
+                copyHint: 'A piece named like one from the story or a pack is added as your own Common piece.',
+                noGreeting: 'This chat has no greeting yet, so there is nothing to add items to. Start the chat first.',
+                kitGreeting: 'Starting kit belongs to this greeting.',
                 laterHint: 'Rarity and bonuses come from the story after the first message.',
                 packHint: 'Kind, slot and rarity come from the pack.',
                 laterTitle: 'Fixed after your first message',

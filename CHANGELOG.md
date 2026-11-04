@@ -12,7 +12,14 @@ Your own equipment, set up by hand (gear on).
   rarity's budget, and Rarity or Bonus after your first message, are refused.
 - **Edit of a piece you added** shows the same fields; Kind can change (Equipment later is Common with no Bonus). A pack's item gets one hint ("Kind, slot and rarity
   come from the pack"); the story's pieces and bound gear are unchanged.
-- Style: equal 32 px controls in a form row, groups stacked below 600 px for any grouped form, and the editing row using the full width on a phone.
+- **The kit is only the opening greeting:** it is open while the chat holds the greeting and nothing else. Deleting only your own messages while a reply stays, a narrator or
+  member speaking on its own (group auto mode), or a chat with no greeting at all, keep it closed. The form says "Starting kit belongs to this greeting."
+- **Why is my added item Common?** After the kit, "+ Add item" always makes a Common piece with no bonus. A name that a story or pack piece already has never copies its
+  rarity or bonus: you get your own Common piece ("Your Ash-grey Longsword"); adding to a piece you made yourself still stacks. A saved character's gear (`starting: true`)
+  is kept as written only while the kit is open; after it, it comes in as Common with no bonus and the Problems list says so.
+- A saved character file keeps a hand-set piece's slot and bonus exactly (`slot`, `stats` on the item).
+- Style: the 32 px controls only on a roomy screen with a fine pointer (a phone keeps 44 px); groups as in the mockup (Count and Kind, Slot and Rarity share a row, the rarity
+  word in its colour, "Astra (you)"), stacked below 600 px, and the editing row using the full width on a phone. Goods made Equipment in the kit saves the Rarity shown.
 
 ## 2.20.0
 

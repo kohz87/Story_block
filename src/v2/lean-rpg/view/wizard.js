@@ -553,7 +553,8 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const owner = ownerFor(draftNow), failed = [];
                 for (const item of file.items ?? []) {
                     const added = await call('inventory.add', { name: item.name, qty: item.qty, owner, starting: true, ...(item.note ? { note: item.note } : {}),
-                        ...(item.kind ? { kind: item.kind } : {}), ...(item.rarity ? { rarity: item.rarity } : {}) });
+                        ...(item.kind ? { kind: item.kind } : {}), ...(item.rarity ? { rarity: item.rarity } : {}),
+                        ...(item.slot ? { slot: item.slot } : {}), ...(item.stats ? { stats: item.stats } : {}) });
                     if (!added.ok) failed.push(fill(W.notAdded, { what: `${item.name}${item.qty === 1 ? '' : ` ×${item.qty}`}`, why: refusalText(added, W.generic) }));
                 }
                 if (file.money > 0) {

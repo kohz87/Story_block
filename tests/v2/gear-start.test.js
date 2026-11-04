@@ -111,6 +111,26 @@ test('deleting every message from the reader on reopens the kit (a restart); a p
     assert.equal((await add(host, { name: 'Second Cap', kind: 'equipment', slot: 'head', rarity: 'rare', stats: { AGI: 2 } })).ok, true);
 });
 
+test('the kit stays shut while the story has moved on: deleting only the reader\'s message keeps a reply, a speaking narrator or member closes it, deleting the reply too opens it', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', reply('+ item Ash-grey Longsword | kind: equipment | rarity: rare | slot: weapon | STR +2'));
+    assert.deepEqual(kit(host), { open: false });
+    await host.st.deleteMessage(1);
+    assert.equal(host.ctx.chat.length, 2);
+    assert.deepEqual(kit(host), { open: false });
+    await refused(add(host, { name: 'Crown of Deletion', kind: 'equipment', slot: 'head', rarity: 'legendary', stats: { STR: 2, DEX: 2 } }), /after the first message/);
+    assert.equal(defOf(host, 'Crown of Deletion'), undefined);
+    await host.st.deleteMessage(1);
+    assert.equal(host.ctx.chat.length, 1);
+    assert.deepEqual(kit(host), { open: true });
+    assert.equal((await add(host, { name: 'Crown of Deletion', kind: 'equipment', slot: 'head', rarity: 'legendary', stats: { STR: 2, DEX: 2 } })).ok, true);
+    // a narrator or member that speaks with no message from the reader (group auto mode) also ends the kit
+    const group = await world(t);
+    await group.st.generate('normal', { reply: 'A second voice speaks.' });
+    assert.deepEqual(kit(group), { open: false });
+    await refused(add(group, { name: 'Late Crown', kind: 'equipment', slot: 'head', rarity: 'legendary' }), /after the first message/);
+});
+
 test('Equip on: the reader or a party member wears it in the slot; a second accessory goes to Accessory 2', { skip }, async t => {
     const host = await world(t);
     assert.equal((await add(host, { name: 'Lucky Bone Ring', kind: 'equipment', slot: 'accessory-1', equip: READER })).ok, true);
@@ -230,12 +250,30 @@ test('unknown kind, rarity or stats are refused as malformed', { skip }, async t
     await refused(host.sdk.command('inventory.edit', { stack: rowOf(host, 'Y').stack, group: true, kind: 'weapon' }), /The kind of an item is one of/);
 });
 
-test('a saved character\'s starting things (starting: true) keep the kind and rarity the file gave, after the first message too', { skip }, async t => {
+test('a saved character\'s gear (starting: true) comes as written while the kit is open (slot and bonus kept); after it, Common with no bonus and a Problems line says so', { skip }, async t => {
     const host = await world(t);
+    const first = await add(host, { name: 'Family Blade', kind: 'equipment', rarity: 'epic', slot: 'weapon', stats: { STR: 2, DEX: 1 }, starting: true });
+    assert.equal(first.ok, true, first.message);
+    assert.deepEqual([defOf(host, 'Family Blade').rarity, defOf(host, 'Family Blade').slot, defOf(host, 'Family Blade').stats], ['epic', 'weapon', { STR: 2, DEX: 1 }]);
     await host.send('Hello.', 'The road.');
-    const out = await add(host, { name: 'Family Blade', kind: 'equipment', rarity: 'epic', starting: true });
+    const out = await add(host, { name: 'Late Blade', kind: 'equipment', rarity: 'epic', slot: 'weapon', stats: { STR: 2 }, starting: true });
     assert.equal(out.ok, true, out.message);
-    assert.equal(defOf(host, 'Family Blade').rarity, 'epic');
+    assert.deepEqual([defOf(host, 'Late Blade').kind, defOf(host, 'Late Blade').rarity, defOf(host, 'Late Blade').stats], ['equipment', 'common', {}]);
+    assert.match(JSON.stringify(host.turn.problems()), /Late Blade came in as a Common piece with no bonus/);
+});
+
+test('after the kit, "+ Add item" with the name of a story or pack piece makes the reader\'s own Common piece, never a copy of its rarity or bonus; a hand piece still stacks', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', reply('+ item Ash-grey Longsword | kind: equipment | rarity: rare | slot: weapon | STR +2'));
+    const out = await add(host, { name: 'Ash-grey Longsword', qty: 2, kind: 'equipment', equip: READER });
+    assert.equal(out.ok, true, out.message);
+    assert.equal(defOf(host, 'Ash-grey Longsword').rarity, 'rare');
+    const own = defOf(host, 'Your Ash-grey Longsword');
+    assert.deepEqual([own.kind, own.slot, own.rarity, own.stats, own.hand], ['equipment', 'weapon', 'common', {}, true]);
+    assert.equal(host.sdk.query('inventory.items').filter(item => item.name === 'Ash-grey Longsword').length, 1);
+    const again = await add(host, { name: 'Your Ash-grey Longsword', kind: 'equipment' });
+    assert.equal(again.ok, true, again.message);
+    assert.equal(Object.values(host.head().domains.inventory.defs).filter(def => def.name.includes('Ash-grey')).length, 2);
 });
 
 test('gear off: "+ Add item" is today\'s (name, count, note, and kind and rarity as before); the gear words are refused and nothing is marked', { skip }, async t => {
@@ -261,4 +299,21 @@ test('replay equals live: the state the add left is what a rebuild of the chat g
     await host.turn.onChatChanged();
     assert.equal(JSON.stringify(host.head().domains.inventory.defs), before, 'after a reload of the chat');
     assert.deepEqual(kit(host), { open: false });
+});
+
+test('a saved character keeps a hand-set piece exactly: the file carries its slot and bonus, and importing it back gives the same piece', { skip }, async t => {
+    const { itemsForFile, parseCharacterFile, buildCharacterFile, fileText } = await import('../../src/v2/lean-rpg/charfile.js');
+    const host = await world(t);
+    await add(host, { name: 'Wolfskin Cap', kind: 'equipment', slot: 'head', rarity: 'rare', stats: { VIT: 1, AGI: 1 } });
+    await add(host, { name: 'Lucky Bone', kind: 'equipment', slot: 'accessory-2', rarity: 'common' });
+    const items = itemsForFile(host.sdk.query('inventory.items'));
+    const stats = { str: 10, vit: 10, agi: 10, dex: 10, int: 10, luk: 10, cha: 10 };
+    const parsed = parseCharacterFile(fileText(buildCharacterFile({ level: 1, points: 0, stats, items })));
+    assert.equal(parsed.ok, true, parsed.message);
+    assert.deepEqual(parsed.file.items.find(item => item.name === 'Wolfskin Cap'), { name: 'Wolfskin Cap', qty: 1, kind: 'equipment', rarity: 'rare', slot: 'head', stats: { VIT: 1, AGI: 1 } });
+    const fresh = await world(t);
+    for (const item of parsed.file.items) assert.equal((await add(fresh, { ...item, starting: true })).ok, true);
+    assert.deepEqual([defOf(fresh, 'Wolfskin Cap').slot, defOf(fresh, 'Wolfskin Cap').stats, defOf(fresh, 'Wolfskin Cap').rarity], ['head', { VIT: 1, AGI: 1 }, 'rare']);
+    assert.equal(defOf(fresh, 'Lucky Bone').slot, 'accessory');
+    assert.equal(defOf(fresh, 'Wolfskin Cap').hand, true);
 });
