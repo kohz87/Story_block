@@ -165,11 +165,12 @@ test('a fight the narrator opens without a plan still parses; from the next repl
     assert.match(text, /\+ party /u);
     assert.deepEqual(host.store.problems(), []);
     assert.ok(fieldsOf(host).hurt2 < 4, 'the hurt line was read');
-    // A Down group that is not cleared yet is still an open fight: the narrator needs the clear kind to take it off.
+    // (PINNED CHANGE, FIGHT-FIX 1: a block of Down groups alone is a won fight, not an open one: the next reply is quiet and the combat text is not told; a
+    // new fight takes the Down group's slot, so the narrator no longer needs the clear kind. A clear line written all the same still parses.)
     const { request: down } = await host.send('I finish it.', reply('~ dm foes — it falls | kind: hurt-2 | to: Down'));
-    assert.match(staticOf(down), /kind: clear-N/u);
+    assert.match(staticOf(down), /kind: clear-N/u, 'the reply that wrote the Down line was told the full grammar');
     const { request: cleared } = await host.send('I move on.', reply('- dm foes — it is down | kind: clear-2 | why: down'));
-    assert.match(staticOf(cleared), /kind: clear-N/u, 'the clear line was written under the full grammar');
+    assert.doesNotMatch(staticOf(cleared), /\[COMBAT SYSTEM\]|kind: clear-N/u, 'Down groups alone are no open fight: the quiet reply');
     assert.equal(fightIsOpen(host.head()), false);
     assert.equal(fieldsOf(host).count2, 0);
     assert.deepEqual(host.store.problems(), []);

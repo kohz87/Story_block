@@ -118,7 +118,8 @@ export function sheetText(sheet, { standard = false, rankAt = null } = {}) {
             .filter(([key]) => shown(key)).map(([key, label, words]) => `${label} ${barWord(key, words, entry)}`).join(', ');
         return `${entry.who}${head || down ? ` (${head}${down})` : ''}: ${[stats, bars].filter(Boolean).join('; ')}; skills: ${skills}`;
     });
-    const foes = sheet.foes.filter(foe => foe.filled).map(foe => {
+    // (Down groups are beaten and left out: the planner lists a new group of that name as new, and it takes the slot, open.js)
+    const foes = sheet.foes.filter(foe => foe.filled && foe.hurt > 0).map(foe => {
         const shown = part => !(foe.hidden ?? []).includes(part);
         const about = [(foe.levelled ? shown('level') : shown('class')) ? foeLabel(foe.level, rankAt) : '', shown('hurt') ? (foe.size ? stageWord(STAGES.health, foe.hurt, foe.size) : word(STAGES.health, foe.hurt)) : ''].filter(Boolean).join(', ');
         return `${foe.slot}. ${foe.name}${foe.count > 1 && shown('count') ? ` x${foe.count}` : ''}${about ? ` (${about})` : ''}`;
@@ -183,11 +184,12 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
     const skip = (sheet, message) => {
         try { problem?.({ module: moduleId, code: 'ROLLS_SKIPPED', quiet: true, message: `Rolls skipped for this reply: ${message} Swipe to try again.` }); } catch { /* the Problems list is optional */ }
         // While a fight is on the narrator is told to keep it undecided; outside one there is nothing to hold back.
-        if (sheet.foes.some(foe => foe.filled)) return { lines: [NO_ROLLS_LINE] };
+        if (sheet.foes.some(foe => foe.filled && foe.hurt > 0)) return { lines: [NO_ROLLS_LINE] };
         return noFight(sheet);
     };
     // No foe is filled in and nothing was rolled: if a fight starts in this reply, the narrator sets the Foes line and stops at the first clash.
-    const noFight = sheet => (sheet.foes.length && !sheet.foes.some(foe => foe.filled) ? { lines: [OPEN_FIGHT_LINE] } : null);
+    // (a block of Down groups only is a won fight: no fight is on)
+    const noFight = sheet => (sheet.foes.length && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) ? { lines: [OPEN_FIGHT_LINE] } : null);
 
     async function plan(view, sheet, message, excerpt, rules) {
         const values = readSettings(view, moduleId);

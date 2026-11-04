@@ -44,6 +44,11 @@ The card offer: a character card can bring its whole world, and Story Block offe
   acts (the cue says "you have the drop"); a success at a cost counts as no ambush ("ambush only half works: no surprise"); the planner is told to put
   the check in the same plan as the attack when the message also attacks.
 - **Gate:** a weapon, a bow or a wound as a noun in the reader's message no longer opens the planner by itself (cut, slice, cleave, hack, slaughter and butcher still do).
+- **Fights in a row (Down groups no longer block foe slots):** a beaten (Down) group no longer holds its slot. A new group of the same name replaces it, else the
+  first empty or Down slot takes the new group; a new fight clears the Down groups left from earlier replies in the same step, so the Foes block, the log's Status
+  and the prompts show only this fight's foes (a group that goes Down in a reply stays until the next fight opens, so its XP is still paid, and a stale Down group
+  is never paid again). The planner is shown standing groups only. A block of Down groups alone is a won fight, not an open one: the next quiet reply drops the
+  combat text again (about 1,300 characters shorter). The battle log's Foes line lists only the groups that rolled in that reply.
 - Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
 
 ## 2.20.0
