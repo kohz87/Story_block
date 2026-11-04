@@ -565,6 +565,15 @@ function defineByName(ctx, inv, written, env, about = {}, route = true, keep = {
 // The `item.resolve(name)` hooks (packs, MODULES §E): a pack's def for a name the inventory does
 // not know yet, taken as the pack wrote it (its numbers are the rules; item.define does not run),
 // with the written name kept as an alias. The first hook that answers wins.
+function peekPackDef(env, name) {
+    for (const hook of env.hooks('item.resolve')) {
+        let found;
+        try { found = hook(name); } catch { found = null; }
+        if (isPlainObject(found) && typeof found.id === 'string' && DEF_ID.test(found.id) && cleanName(found.name)) return found;
+    }
+    return null;
+}
+
 function packDef(ctx, inv, name, env, route = true) {
     for (const hook of env.hooks('item.resolve')) {
         let found;
@@ -1559,6 +1568,18 @@ export function createInventoryCommands(env) {
                     written = `Your ${[...name].slice(0, 60 - 'Your '.length).join('')}`;
                     keep.kind ??= same.kind;
                     if (same.kind === 'equipment' && !slot && same.slot) keep.slot = baseSlot(same.slot);
+                }
+            }
+            // The same for a pack piece not held yet: the `item.resolve` hooks are asked, and equipment or a piece above Common is never copied at the pack's words.
+            if (gear && !open && written === name && resolveDef(inv, name).status === 'none') {
+                const asked = peekPackDef(env, name);
+                if (asked && (asked.kind === 'equipment' || (asked.rarity ?? 'common') !== 'common')) {
+                    written = `Your ${[...name].slice(0, 60 - 'Your '.length).join('')}`;
+                    if (payload.starting !== true) {
+                        keep.kind ??= asked.kind;
+                        if (asked.kind === 'equipment' && !slot && asked.slot) keep.slot = baseSlot(asked.slot);
+                    }
+                    delete keep.rarity;
                 }
             }
             if (gear && payload.starting !== true && !open && ((keep.rarity ?? 'common') !== 'common' || Object.keys(stats).length)) ctx.fail('REFUSED', E.kitClosed);

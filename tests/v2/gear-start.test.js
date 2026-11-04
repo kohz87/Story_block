@@ -13,11 +13,11 @@ const reply = (...lines) => `The tide turns.\n<Changes>\n${lines.join('\n')}\n</
 const ACTORS = { id: 'zz-party', version: '0.0.0', queries: { 'party.actors': () => [{ id: 'ac_astra001', name: 'Astra', pc: true }, { id: 'ac_harrak01', name: 'Harrak' }], 'party.pc': () => ({ id: 'ac_astra001' }) } };
 const ITEMS = [{ name: 'Rain-Veil Hood', kind: 'equipment', slot: 'head', rarity: 'rare' }];
 
-async function world(t, { gear = true, packs = false } = {}) {
+async function world(t, { gear = true, packs = false, items = ITEMS } = {}) {
     t.mock.method(console, 'warn', () => {});
     const settings = { features: gear ? { 'story-block.gear': true, 'story-block.rpg': true } : {} };
     if (packs) {
-        const raw = pack({ content: { items: ITEMS } });
+        const raw = pack({ content: { items } });
         const built = validatePack(raw);
         assert.equal(built.ok, true, JSON.stringify(built.errors));
         settings.packs = [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }];
@@ -316,4 +316,43 @@ test('a saved character keeps a hand-set piece exactly: the file carries its slo
     assert.deepEqual([defOf(fresh, 'Wolfskin Cap').slot, defOf(fresh, 'Wolfskin Cap').stats, defOf(fresh, 'Wolfskin Cap').rarity], ['head', { VIT: 1, AGI: 1 }, 'rare']);
     assert.equal(defOf(fresh, 'Lucky Bone').slot, 'accessory');
     assert.equal(defOf(fresh, 'Wolfskin Cap').hand, true);
+});
+
+test('after the kit, a pack piece not held yet (equipment or above Common) added by name makes the reader\'s own Common "Your <name>" with no bonus, worn; the same by a starting: true import', { skip }, async t => {
+    const items = [...ITEMS, { name: 'Storm Hood', kind: 'equipment', slot: 'head', rarity: 'epic', stats: { VIT: 2 } }];
+    const host = await world(t, { packs: true, items });
+    await host.send('Hello.', 'The road.');
+    const out = await add(host, { name: 'Rain-Veil Hood', equip: READER });
+    assert.equal(out.ok, true, out.message);
+    const own = defOf(host, 'Your Rain-Veil Hood');
+    assert.deepEqual([own.kind, own.slot, own.rarity, own.stats, own.hand], ['equipment', 'head', 'common', {}, true]);
+    assert.equal(defOf(host, 'Rain-Veil Hood'), undefined);
+    assert.equal(rowOf(host, 'Your Rain-Veil Hood').equipped, 'head');
+    const two = await add(host, { name: 'Storm Hood', qty: 2 });
+    assert.equal(two.ok, true, two.message);
+    const storm = defOf(host, 'Your Storm Hood');
+    assert.deepEqual([storm.rarity, storm.stats, defOf(host, 'Storm Hood')], ['common', {}, undefined]);
+    assert.equal(host.sdk.query('inventory.items').filter(item => item.name === 'Your Storm Hood').reduce((n, item) => n + item.qty, 0), 2);
+    const late = await add(host, { name: 'Storm Hood', kind: 'equipment', slot: 'head', starting: true });
+    assert.equal(late.ok, true, late.message);
+    assert.equal(defOf(host, 'Storm Hood'), undefined);
+    assert.deepEqual([storm.rarity, defOf(host, 'Your Storm Hood').stats], ['common', {}]);
+    const fresh = await world(t, { packs: true, items });
+    await fresh.send('Hello.', 'The road.');
+    const imp = await add(fresh, { name: 'Rain-Veil Hood', starting: true });
+    assert.equal(imp.ok, true, imp.message);
+    assert.equal(defOf(fresh, 'Rain-Veil Hood'), undefined);
+    const mine = defOf(fresh, 'Your Rain-Veil Hood');
+    assert.deepEqual([mine.rarity, mine.stats], ['common', {}]);
+});
+
+test('the kit is open while the chat holds only greetings: a group chat with two member greetings opens it; a reader message or a Story Block reply closes it; deleting only your own messages after replies keeps it closed', { skip }, async t => {
+    const host = await world(t);
+    host.ctx.chat.splice(0, host.ctx.chat.length, { name: 'A', is_user: false, mes: 'First greeting.' }, { name: 'B', is_user: false, mes: 'Second greeting.' });
+    assert.deepEqual(kit(host), { open: true });
+    const closed = await world(t);
+    await closed.send('Hello.', reply('+ item Ash-grey Longsword | kind: equipment | rarity: rare | slot: weapon | STR +2'));
+    assert.deepEqual(kit(closed), { open: false });
+    await closed.st.deleteMessage(1);
+    assert.deepEqual(kit(closed), { open: false });
 });
