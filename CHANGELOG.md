@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.21.2
+
+The planner now writes follow-up and defence skills, and a Re-read keeps the blocks you set up yourself.
+- **Planner act line:** both planner heads (Standard and Classic) show `then: <skill>? | else: <skill>? | guard: <skill>?` on the act
+  line, so the model sees where a follow-up, a backup and a defence skill go (2.21.1 only had them as rules at the end, which models skipped).
+- **`guard:`** is the skill a character defends with in the message (evade, dodge, parry, block). When the answer is read, the plan copies it
+  as `skill:` onto every foe line aimed at that character that names none (a foe line that names a skill, and `hold`, are left alone; a skill
+  the character lacks is ignored; a guard on an act dropped for a bad target still applies). The recorded plan holds it, so a replay never
+  works it out again. It replaces the 2.21.1 defender-skill rule. Each rolled defence with it is a use of that skill (practice) and spends its
+  resource. Planner heads: Standard +28 bytes, Classic +50; RPG-off prompts unchanged; old rolls replay identically.
+- **Re-read keeps your own block setup:** blocks made by your clicks on a reply (the creation wizard mid-chat, Settings → Blocks, the card
+  offer's Install on an existing chat, Add to party or Edit first on a join card, pins, migrations) are no longer removed when that reply is
+  Re-read; they are replayed as stored with their checks asked again (a check that fails skips them with a Problems line until the text is
+  restored). A swipe or a delete of that reply still removes them. Other modules' reply-bound blocks still go on Re-read. Before, such a
+  Re-read deleted the blocks and their values for good.
+  - After Add to party, editing the join line out (or renaming the companion) and Re-reading keeps the companion; remove them by hand.
+
 ## 2.21.1
 
 Follow-up skills, defence skills only when asked, and clearer Mana and Stamina notes.
@@ -818,11 +835,6 @@ For a pinned Ersveil adventure, start a fresh chat with **Setup → Pin Ersveil 
 - If an extension stops responding during recovery, the chat can remain on hold until it responds.
 
 ## Unreleased
-
-- RPG: the planner heads (Standard and Classic) show `then: <skill>? | else: <skill>? | guard: <skill>?` on the act line. `guard:` is the
-  skill a character defends with in the message (evade, dodge, parry, block); the plan copies it as `skill:` onto the foe lines aimed at
-  that character that name none, when the answer is read, so the recorded plan holds it. The `else:` rule line is shorter and the
-  defender-skill rule is now the guard rule (Standard head +28 bytes, Classic +50).
 
 - Host: a capture kind or query whose `enabled` reads false is not declared (its lines are unknown kinds again, not "feature off");
   a deferred domain may say `snapshot: 'when-present'` (no save-point trace until used); the Problems of a record a planned-again

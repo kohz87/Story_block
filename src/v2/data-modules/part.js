@@ -203,7 +203,7 @@ export function dataModuleGuard(view, info) {
             const chatBlock = (pin, module) => pin?.packId === 'chat' && pin.packVersion === '0' && pin.packHash === null && pin.definition?.pack === 'chat'
                 && module === `pack.chat/${pin.definition.slug}` && pin.definition.scope === 'chat';
             if ((predicate.kind !== 'dm.pin' && (!chatBlock(recorded.pin, predicate.module) || blockCount(domain) + more.length >= L.definitions))) return { ok: false, reason: 'Block selection or chat limit changed.' };
-            // A companion joined a story that had blocks: if every one of them is gone (a Re-read of the reply that made them), the join is skipped
+            // A companion joined a story that had blocks: if every one of them is gone (a delete or swipe of the reply that made them), the join is skipped
             // with its own reason instead of failing to find the place it was written in.
             if (join && recorded.decision?.base === true && !domain) return { ok: false, reason: 'The blocks this story had when the companion joined are gone; Re-read this action.' };
             checkedTarget(recorded.pin.definition, view.state);
