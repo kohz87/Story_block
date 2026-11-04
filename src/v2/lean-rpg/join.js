@@ -121,18 +121,20 @@ export function checkJoin(state, request) {
 }
 
 /** The wizard's draft for a joining companion (the card's Edit first opens it): name, about, class, the best stat raised to 14 (under the Standard formula `rules`: formula.js companionStats). */
-export function joinDraft({ name = '', about = '', soul = 1, best = '' } = {}, rules = null) {
+export function joinDraft({ name = '', about = '', soul = 1, best = '', skills = [] } = {}, rules = null) {
+    // (a cast member's signature skills, as the pack wrote them: they fill the slots in order, at the rank written, marked `sig` so the story never renames or replaces them)
+    const signed = (Array.isArray(skills) ? skills : []).map(skill => ({ name: skill.name, about: skill.about, stat: skill.stat, uses: skill.uses, start: 0, rank: skill.rank, sig: true }));
     if (isStandard(rules)) {
         // Standard: every stat 5 and the best 9, then a point for every third level the class stands for (formula.js companionStats); the draft's budget is
         // exactly what they cost, so "Edit first" can move points around but is not handed more.
         const stats = companionStats(best, levelOfClass(soul), rules), creation = creationOf(rules);
         const spent = STATS.reduce((sum, stat) => sum + stats[stat] - creation.start, 0);
-        return readDraft({ name, about, soul, stats, kind: 'companion', skills: [], set: '', creation: { ...creation, budget: spent, max: creation.statMax } });
+        return readDraft({ name, about, soul, stats, kind: 'companion', skills: signed, set: '', creation: { ...creation, budget: spent, max: creation.statMax } });
     }
     const draft = newDraft({ hasYou: true });
     const stats = { ...draft.stats };
     if (STATS.includes(best)) stats[best] = 14;
-    return readDraft({ ...draft, name, about, soul, stats, kind: 'companion' });
+    return readDraft({ ...draft, name, about, soul, stats, kind: 'companion', skills: signed });
 }
 
 /**

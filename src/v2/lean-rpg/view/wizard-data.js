@@ -15,7 +15,7 @@ import { DM_LIMITS } from '../../data-modules/schema.js';
 import { activeDefinition } from '../../data-modules/adapters.js';
 import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
-import { LEVEL, CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
+import { LEVEL, CREATION, RANK_NAMES, SKILL_SLOTS_MAX, STATS, USES, skillSlots } from '../names.js';
 import { isStandard } from '../rules.js';
 import { classOfLevel, levelOfClass } from '../formula.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS, templatesFor } from '../templates.js';
@@ -55,6 +55,12 @@ function readCreation(raw) {
     return { ...CREATION, start, budget, min, max, statMax, perSoul, standard: true };
 }
 
+/** The level a draft starts at (a new character 1; a companion who joins or an imported one, the level their class or file stands for). */
+export const draftLevel = draft => (Number.isSafeInteger(draft?.level) && draft.level > 1 ? clamp(draft.level, 1, LEVEL.max)
+    : Number.isSafeInteger(draft?.soul) && draft.soul >= 1 ? clamp(levelOfClass(clamp(draft.soul, 1, 9)), 1, LEVEL.max) : 1);
+/** How many skills a draft may hold: 5, and one more at Lv 20, 40 and 60 for a draft that starts that high (names.js skillSlots). Creation still starts at 5. */
+export const draftSlots = draft => skillSlots(draftLevel(draft));
+
 const blankSkill = () => ({ name: '', about: '', stat: STATS[0], uses: USES[0], start: 0 });
 
 /** The draft a wizard opens with: the persona's name and You, every stat at its start. When the story already has a You it starts as a companion with no name (the persona's is taken). */
@@ -89,22 +95,25 @@ export function readDraft(raw) {
         const value = Number.isSafeInteger(given.stats?.[stat]) ? given.stats[stat] : (from?.stats[stat] ?? draftCreation({ creation }).start);
         return [stat, clamp(value, ...statBounds({ from, creation }, stat))];
     }));
+    // (`level` is the starting level; a draft from a companion's `+ party` line or an older file says `soul`, the class, which stands for the level 10n - 5.)
+    const startLevel = Number.isSafeInteger(given.level) && given.level > 1 ? clamp(given.level, 1, LEVEL.max) : Number.isSafeInteger(given.soul) && given.soul >= 1 ? clamp(levelOfClass(clamp(given.soul, 1, 9)), 1, LEVEL.max) : 1;
     let adept = 0;
-    const skills = (Array.isArray(given.skills) ? given.skills : []).slice(0, CREATION.skills).map(entry => {
+    // (a signature skill, which a pack's cast member brought, is kept whatever the level says)
+    const wanted = Array.isArray(given.skills) ? given.skills : [];
+    const room = Math.max(skillSlots(startLevel), Math.min(SKILL_SLOTS_MAX, wanted.filter(entry => isRecord(entry) && entry.sig === true).length));
+    const skills = wanted.slice(0, room).map(entry => {
         const skill = isRecord(entry) ? entry : {};
         // A rank the file gave: kept as it is, and it is not the one Adept a new skill may start at.
-        const ranked = from && Number.isSafeInteger(skill.rank);
+        const ranked = (from || skill.sig === true) && Number.isSafeInteger(skill.rank);
         const wantsAdept = !ranked && skill.start === 1 && adept < CREATION.adept;
         if (wantsAdept) adept += 1;
         return {
             name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout),
             // An imported skill may have no stat (''): the reader picks one, and Create waits for it.
             stat: STATS.includes(skill.stat) ? skill.stat : (ranked ? '' : STATS[0]), uses: USES.includes(skill.uses) ? skill.uses : USES[0], start: wantsAdept ? 1 : 0,
-            ...(ranked ? { rank: clamp(skill.rank, 0, FILE_LIMITS.rank) } : {}),
+            ...(ranked ? { rank: clamp(skill.rank, 0, FILE_LIMITS.rank) } : {}), ...(skill.sig === true ? { sig: true } : {}),
         };
     });
-    // (`level` is the starting level; a draft from a companion's `+ party` line or an older file says `soul`, the class, which stands for the level 10n - 5.)
-    const startLevel = Number.isSafeInteger(given.level) && given.level > 1 ? clamp(given.level, 1, LEVEL.max) : Number.isSafeInteger(given.soul) && given.soul >= 1 ? clamp(levelOfClass(clamp(given.soul, 1, 9)), 1, LEVEL.max) : 1;
     return { name: oneLine(given.name, CREATION.name), kind: given.kind === 'companion' ? 'companion' : 'you',
         about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '',
         ...(startLevel > 1 ? { level: startLevel } : {}), ...(from ? { from } : {}), ...(creation ? { creation } : {}) };
@@ -126,9 +135,9 @@ export const adeptCount = draft => draft.skills.filter(skill => skill.start === 
 /** Whether the skill at `index` may offer Adept: only when it is the Adept one, or nobody is yet. */
 export const mayStartAdept = (draft, index) => draft.skills[index]?.start === 1 || adeptCount(draft) < CREATION.adept;
 
-/** A skill set put into the draft: its skills (up to five), every one at Novice. */
+/** A skill set put into the draft: its skills (up to the draft's slots), every one at Novice. */
 export function withSet(draft, set) {
-    const skills = (set?.skills ?? []).slice(0, CREATION.skills).map(skill => ({
+    const skills = (set?.skills ?? []).slice(0, draftSlots(draft)).map(skill => ({
         name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout),
         stat: STATS.includes(skill.stat) ? skill.stat : STATS[0], uses: USES.includes(skill.uses) ? skill.uses : USES[0], start: 0,
     }));
@@ -136,7 +145,7 @@ export function withSet(draft, set) {
 }
 
 /** A new blank skill added to the draft, when there is room. */
-export const withSkill = draft => (draft.skills.length >= SKILL_SLOTS ? draft : { ...draft, skills: [...draft.skills, blankSkill()] });
+export const withSkill = draft => (draft.skills.length >= draftSlots(draft) ? draft : { ...draft, skills: [...draft.skills, blankSkill()] });
 
 /** One skill changed (`patch`: any of name, about, stat, uses, start); a second Adept is refused. */
 export function withSkillPatch(draft, index, patch) {
@@ -159,7 +168,7 @@ export function withImport(draft, file) {
     const { level: _level, from: _from, ...rest } = draft;
     const next = {
         ...rest, stats: { ...file.stats }, set: '', from: { stats: { ...file.stats }, points: file.points },
-        skills: file.skills.slice(0, CREATION.skills).map(skill => ({ name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout), stat: skill.stat ?? '', uses: skill.uses, start: 0, rank: skill.rank })),
+        skills: file.skills.slice(0, skillSlots(file.level)).map(skill => ({ name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout), stat: skill.stat ?? '', uses: skill.uses, start: 0, rank: skill.rank })),
         ...(file.level > 1 ? { level: file.level } : {}),
     };
     return { draft: next, before };
@@ -326,6 +335,8 @@ export function buildDefinitions(draft, { used = [], points = null, cap = null }
         skills.state[`stat${n}`].default = skill.stat;
         skills.state[`uses${n}`].default = skill.uses;
         skills.state[`rank${n}`].default = Number.isSafeInteger(skill.rank) ? skill.rank : skill.start;
+        // (a skill a pack's cast member brought: marked in the Skills block's `sig`, so the story never renames or replaces it)
+        if (skill.sig === true && skills.state.sig) skills.state.sig.default += 2 ** (n - 1);
     });
     return { character, skills };
 }

@@ -28,7 +28,7 @@ import { stepper } from '../../view/widgets/stepper.js';
 import { refusalText } from '../../strings.js';
 import { DEFAULT_CURRENCY } from '../../domains/money.js';
 import { FILE_LIMITS, moneyText, parseCharacterFile, skillLine, thingsWord } from '../charfile.js';
-import { LEVEL, CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
+import { LEVEL, CREATION, RANK_NAMES, STATS, USES } from '../names.js';
 import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { readParty } from './party-data.js';
@@ -36,7 +36,7 @@ import { joinDraft } from '../join.js';
 import { growthOf } from '../blocks.js';
 import { growthText } from './party-data.js';
 import { rankOf as bandRank } from '../levels.js';
-import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, draftCreation, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, pointsLeft, problemsOf, rankOf, readDraft, setLine, skillSetsOf,
+import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, draftCreation, draftSlots, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, pointsLeft, problemsOf, rankOf, readDraft, setLine, skillSetsOf,
     START_RANKS, startStats, statBounds, statsLine, withImport, withoutImport, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
 const W = RPG_STRINGS.wizard;
@@ -180,7 +180,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 part(W.skillsHead, now.skills.filter(skill => skill.name).map(skill => (Number.isSafeInteger(skill.rank) ? skillLine({ name: skill.name, rank: skill.rank }) : skill.name)).join(', ') || W.noSkills);
                 const left = pointsLeft(now), count = now.skills.length;
                 const pill = h(doc, 'span', 'ss-pill rpg-wiz-push', step === 'who' || step === 'stats' ? fill(W.pointsLeft, { n: left })
-                    : fill(count === 1 ? W.skillCountOne : W.skillCount, { n: count, max: SKILL_SLOTS }));
+                    : fill(count === 1 ? W.skillCountOne : W.skillCount, { n: count, max: draftSlots(now) }));
                 pill.setAttribute('role', 'status');
                 summary.appendChild(pill);
             }
@@ -403,7 +403,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     button(ask, W.replaceKeep, 'ss-button rpg-wiz-replace-keep', () => { current().pendingSet = null; redraw(); });
                     body.appendChild(ask);
                 }
-                body.appendChild(h(doc, 'p', 'rpg-wiz-p', fill(W.skillsIntro, { max: SKILL_SLOTS })));
+                body.appendChild(h(doc, 'p', 'rpg-wiz-p', fill(W.skillsIntro, { max: draftSlots(draft()) })));
                 body.appendChild(h(doc, 'h3', 'rpg-wiz-h', W.templates));
                 const grid = h(doc, 'div', 'rpg-wiz-grid');
                 body.appendChild(grid);
@@ -463,7 +463,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     remove.appendChild(h(doc, 'span', '', '×'));
                     rows.appendChild(row);
                 });
-                const left = SKILL_SLOTS - now.skills.length;
+                const left = draftSlots(now) - now.skills.length;
                 const add = h(doc, 'div', 'rpg-wiz-add');
                 const addButton = button(add, W.add, 'ss-button rpg-wiz-add-button', () => { put(withSkill(draft())); drawSummary(); redraw(); });
                 addButton.disabled = left <= 0;

@@ -7,7 +7,7 @@
 import { h, iconNode } from '../../view/widgets/dom.js';
 import { meter } from '../../view/widgets/meter.js';
 import { refusalText } from '../../strings.js';
-import { LEVEL, FORMULA, RANK_NAMES, SKILL_SLOTS } from '../names.js';
+import { LEVEL, FORMULA, RANK_NAMES, SKILL_SLOTS_BASE, skillSlots } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { classTerm, hasLevels, isStandard, statShare } from '../rules.js';
 import { levelBonus, statPart } from '../formula.js';
@@ -46,6 +46,12 @@ export function rollOf(skill, character, rules = FORMULA) {
     }
     const half = entry ? statShare(entry.value, rules) : 0;
     return { total: half + skill.rank + bonus, stat: entry?.label ?? null, value: entry?.value ?? 0, half, rank: skill.rank, bonus };
+}
+
+/** How many slots the character's skills card shows: the slots the Skills block has, as far as the level opens them (names.js skillSlots), never fewer than the skills it holds. */
+export function slotsShown(character) {
+    const capacity = Object.keys(character.skillsBlock?.definition?.state ?? {}).filter(key => /^skill\d+$/u.test(key)).length || SKILL_SLOTS_BASE;
+    return Math.max(character.skills.length, Math.min(capacity, skillSlots(character.level)));
 }
 
 /** The record the Party tab keeps for an open Skills view (outside the DOM: the page draws a screen again on every change of the story). */
@@ -169,6 +175,11 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
         const top = h(doc, 'div', 'rpg-skill-top');
         top.appendChild(h(doc, 'p', 'rpg-skill-name', skill.name));
         top.appendChild(h(doc, 'span', `ss-pill rpg-rank rpg-tone-${mastery.tone}`, skill.rankName));
+        // A signature skill (a pack's cast member brought it, the Skills block's `sig`): the lock the bound gear wears, after the rank pill.
+        if (skill.signature) {
+            const lock = iconNode(doc, 'ph-lock-simple:fill', 'rpg-skill-lock');
+            if (lock) { lock.setAttribute('title', K.signatureTitle); lock.setAttribute('aria-label', K.signatureTitle); lock.removeAttribute('aria-hidden'); lock.setAttribute('role', 'img'); top.appendChild(lock); }
+        }
         const uses = skill.stat ? fill(K.usesStat, { stat: roll.stat ?? skill.stat.toUpperCase(), uses: cap(skill.uses ?? 'stamina') }) : '';
         if (uses) top.appendChild(h(doc, 'span', 'rpg-skill-uses', uses));
         if (typeof api.command === 'function' && block) pencil(top, skill);
@@ -197,24 +208,33 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
         head.appendChild(h(doc, 'h3', 'rpg-sheet-name', fill(K.title, { name: character.name })));
         const pills = h(doc, 'div', 'rpg-pills');
         pills.appendChild(h(doc, 'span', 'ss-pill rpg-level-pill', character.levelText));
-        pills.appendChild(h(doc, 'span', 'ss-pill rpg-slots', fill(K.slots, { n: character.skills.length, max: SKILL_SLOTS })));
+        pills.appendChild(h(doc, 'span', 'ss-pill rpg-slots', fill(K.slots, { n: character.skills.length, max: slotsShown(character) })));
         head.appendChild(pills);
         root.appendChild(head);
         const legend = h(doc, 'div', 'rpg-skill-legend');
         legend.appendChild(h(doc, 'span', '', K.legend));
         RANK_NAMES.forEach((rank, at) => legend.appendChild(h(doc, 'span', `ss-pill rpg-tone-${RANK_TONES[at]}`, fill(K.legendPill, { rank, n: at }))));
         legend.appendChild(h(doc, 'span', '', K.legendEnd));
+        // (the lock is explained only where one is drawn)
+        const signed = character.skills.some(skill => skill.signature);
+        if (signed) {
+            const key = h(doc, 'span', 'rpg-skill-legend-lock');
+            const mark = iconNode(doc, 'ph-lock-simple:fill', 'rpg-skill-lock');
+            if (mark) key.appendChild(mark);
+            key.appendChild(doc.createTextNode(` ${K.legendSignature}`));
+            legend.appendChild(key);
+        }
         root.appendChild(legend);
         const list = h(doc, 'div', 'rpg-skill-list');
         root.appendChild(list);
         for (const skill of character.skills) skillRow(list, skill);
-        for (let empty = character.skills.length; empty < SKILL_SLOTS; empty += 1) list.appendChild(h(doc, 'div', 'rpg-skill-empty', fill(K.empty, { name: character.name })));
+        for (let empty = character.skills.length; empty < slotsShown(character); empty += 1) list.appendChild(h(doc, 'div', 'rpg-skill-empty', fill(K.empty, { name: character.name })));
         const foot = h(doc, 'div', 'rpg-skill-foot');
         const back = h(doc, 'button', 'ss-button ss-button-primary rpg-skills-back', K.back);
         back.setAttribute('type', 'button');
         back.addEventListener('click', () => { if (!run.busy) onBack(); });
         foot.appendChild(back);
-        foot.appendChild(h(doc, 'p', 'rpg-skill-note', K.note));
+        foot.appendChild(h(doc, 'p', 'rpg-skill-note', signed ? `${K.note} ${K.noteSignature}` : K.note));
         noteNode = h(doc, 'p', 'rpg-skill-status', words());
         noteNode.setAttribute('role', 'status');
         foot.appendChild(noteNode);

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Extra skill slots and cast signature skills.
+- **Extra skill slots:** a sixth skill at Lv 20, a seventh at Lv 40, an eighth at Lv 60 (five to start). The `learn-N` and `practice-N` lines run 1..8, character files hold up to eight skills, a level drop keeps every skill. New Skills blocks have eight slots; blocks made earlier keep five. Static prompt: the Skills block's description grows by 49 characters (Classic; 47 Standard); tail: up to about 45 tokens for each skill past five.
+- **Cast signature skills:** a pack's cast entry may list `skills` (name, about, stat, uses, rank). They fill the member's free slots when they join (never retroactively, never twice), carry a lock mark, cannot be renamed or replaced by the story (one Problems line), keep rank and practice when the member leaves and returns, and show as one tile each in the join's receipt. Ersveil gives its 12 cast members 2 to 4 skills each.
+
 ## 2.20.0
 
 Story Block as a platform, part 1: a small public API for scripts and cards.
