@@ -85,3 +85,14 @@ test('pack entries are merged by pack id and the higher version wins: a stale li
     const other = await read(t, { linked: 'World', book: { name: 'Embedded', entries: [withPack('Q [storysuite:pack]', 'other-pack', '1.0.0')] }, load: async () => ({ entries: { 0: { uid: 0, comment: 'P [storysuite:pack]', content: pack('ersveil', '2.6.1'), key: [] } } }) });
     assert.deepEqual(titles(other), ['World:P [storysuite:pack]', 'Embedded:Q [storysuite:pack]'], 'a different pack id is a second pack');
 });
+
+test('when the embedded pack wins over a stale linked world its portraits and settings entries win too (they belong to its version); with no embedded ones the linked stay', async t => {
+    const world2 = { entries: { 0: { uid: 0, comment: 'P [storysuite:pack]', content: pack('ersveil', '2.6.1'), key: [] }, 1: { uid: 1, comment: 'Pics [storysuite:portraits]', content: '{"v":1,"pack":"ersveil","version":"2.6.1","files":{}}', key: [] }, 2: { uid: 2, comment: 'S [storysuite:settings]', content: '{"v":1,"settings":{}}', key: [] } } };
+    const embeddedBook = { name: 'Embedded', entries: [withPack('P [storysuite:pack]', 'ersveil', '2.7.0'), { id: 1, comment: 'Pics [storysuite:portraits]', content: '{"v":1,"pack":"ersveil","version":"2.7.0","files":{}}', keys: [] }, { id: 2, comment: 'S [storysuite:settings]', content: '{"v":1,"settings":{"story-block.rpg":true}}', keys: [] }] };
+    const won = await read(t, { linked: 'World', book: embeddedBook, load: async () => world2 });
+    assert.deepEqual(titles(won), ['Embedded:P [storysuite:pack]', 'Embedded:Pics [storysuite:portraits]', 'Embedded:S [storysuite:settings]']);
+    const noOwn = await read(t, { linked: 'World', book: { name: 'Embedded', entries: [withPack('P [storysuite:pack]', 'ersveil', '2.7.0')] }, load: async () => world2 });
+    assert.deepEqual(titles(noOwn), ['World:Pics [storysuite:portraits]', 'World:S [storysuite:settings]', 'Embedded:P [storysuite:pack]'], 'the linked ones stay where the embedded book has none');
+    const notWon = await read(t, { linked: 'World', book: { name: 'Embedded', entries: [withPack('P [storysuite:pack]', 'ersveil', '2.6.1'), embeddedBook.entries[1]] }, load: async () => world2 });
+    assert.deepEqual(titles(notWon), ['World:P [storysuite:pack]', 'World:Pics [storysuite:portraits]', 'World:S [storysuite:settings]'], 'an equal pack: the linked world is as it was');
+});

@@ -18,7 +18,7 @@
 // `area`, `support` (target = the one healed) and `opening` mark those lines. The result adds `order` = [{ id, name, total, die, bonus,
 // agi, party, fresh }] (the turn order for the fight), `quickStart` = [{ who, against }], `opening` = [Line], `idle` = [{ n, id, who,
 // kind, why }] and `hurts` = [{ id, kind, name, module, field, from, to, size }].
-import { ambushOf, ambushedStandard } from './ambush.js';
+import { ambushOf, ambushRecord, ambushedStandard } from './ambush.js';
 import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, levelBonus, luckWindow, quickStart, statPart, turnOrder } from './formula.js';
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
@@ -232,7 +232,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -262,7 +262,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const [line] = spent(entry, [{ kind: 'check', type: entry.type, skill: entry.skill, ...(entry.ambush === true ? { ambush: true } : {}), pc: { ...entry.pc, die, total }, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeStd(die, total, entry.dc, rules) }]);
         return line;
     });
-    const ambush = ambushOf(checks);
+    const ambush = ambushOf(checks, drop, fight.some(entry => entry.kind === 'act'));
     const most = fight.length ? Math.min(flow === 2 && plan.pace !== 'careful' ? rules.roundCap : PACE[plan.pace], rules.roundCap) : 0;
 
     // The turn order: kept when the fight goes on (a foe of the carried order is still there), else rolled here. A late arrival rolls on entry.
@@ -401,7 +401,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const toldIdle = told.flatMap(round => round.idle ?? []);
     return {
         checks, rounds, stop, text: cue.text, shape: cue.shape, opening, order, quickStart: quick, idle: toldIdle, hurts,
-        summary: summaryStd(checks, rounds, prepared.refused), ...(ambush && fight.length ? { ambush } : {}),
+        summary: summaryStd(checks, rounds, prepared.refused), ...ambushRecord(ambush, checks, fight),
     };
 }
 

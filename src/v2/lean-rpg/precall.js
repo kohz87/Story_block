@@ -18,6 +18,7 @@ import { openLinesOf, parsePlanAnswer } from './plan.js';
 import { openFoes, vetOpen } from './open.js';
 import { averageLevel, foeLabel, foeRandom, partyLevels, pickLevel } from './foes.js';
 import { DICE_VERSION, FLOW_VERSION, claimKey, prepare } from './resolve.js';
+import { dropOf } from './ambush.js';
 import { readSheet } from './read.js';
 import { plannerWanted } from './gate.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
@@ -50,7 +51,7 @@ const SHARED_RULES = [
 const TAIL_RULES = [
     '- A defender\'s fitting skill (dodge, parry, ward) goes on the foe line.',
     '- pace: careful if the reader is careful, all if they fight it out. edge: trap -2.',
-    '- A skill used before a fight to gain the drop on the foes (hide, sneak, lure, distract, slip behind them; judge by its description) is a check with that skill and ambush. No ambush edge without one.',
+    '- A skill used before a fight to gain the drop on the foes (hide, sneak, lure, distract, slip behind them; judge by its description) is a check with that skill and ambush, in the same plan as the attack when the message also attacks. No ambush edge without one.',
     '- Outside a fight a risky attempt (sneak, persuade, climb) is a check.',
 ];
 const FOE_NEW = 'foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?';
@@ -136,6 +137,17 @@ export function precallPrompt({ sheet, message, excerpt = '', note = '', standar
 
 // How far back a fight's turn order is looked for, in messages.
 const ORDER_LOOKBACK = 12;
+
+/**
+ * The drop a successful ambush check gave in the reply right before this one, when that reply's roll had no fight to use it in (ambush.js): read from that
+ * reply's own receipt, so a replay and a swipe see the same. It goes on in the payload and is spent on this roll's acts, once; if this reply has no roll
+ * the next one looks at a reply without a drop, so it is gone.
+ */
+export function carriedDrop(view, index) {
+    let found = null;
+    try { found = view.query?.(ROLLS_QUERY, { index: index - 1 }) ?? null; } catch { found = null; }
+    return dropOf(found?.result);
+}
 
 /**
  * The turn order of the fight this reply goes on with: the order recorded by the nearest earlier reply that has rolls (a roll with no order,
@@ -262,8 +274,9 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         const order = isStandard(rules) && planned.plan ? carriedOrder(view, index) : null;
         // Gear in fights (gear.js): while the switch is on the roll carries only the version mark (and the reader's name as `lead`); `rpg.resolve` works out what each member has on and carries
         // from the state before the roll, so a change before it (a reply deleted or edited) changes its gear.
+        const drop = planned.plan ? carriedDrop(view, index) : null;
         const gear = planned.plan && gearIsOn(sheet, (name, args) => view.query?.(name, args)) ? gearMarkOf({ v: GEAR_VERSION, lead: String(last.name ?? '') }) : null;
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
+        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether

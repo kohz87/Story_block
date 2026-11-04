@@ -109,6 +109,16 @@ function mergeStorysuite(linkedEntries, embedded) {
         }
         if (TAGS.some(test => test(entry.title) && !linkedEntries.some(other => test(other.title)))) extra.push(entry);
     }
+    // An embedded pack that won (a newer card over a stale linked world) brings its own portraits and settings: the linked ones belong to the older
+    // version (portraits are for one pack version), so they give way to the embedded ones where the embedded book has some.
+    if (dropped.size) {
+        for (const test of [isPortraitsTitle, isSettingsTitle]) {
+            const own = embedded.filter(entry => test(entry.title));
+            if (!own.length) continue;
+            for (const entry of linkedEntries) if (test(entry.title)) dropped.add(entry);
+            for (const entry of own) if (!extra.includes(entry)) extra.push(entry);
+        }
+    }
     return { entries: linkedEntries.filter(entry => !dropped.has(entry)), extra };
 }
 

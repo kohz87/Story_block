@@ -6,7 +6,8 @@ import { hostAvailable } from '../../../testkit/index.js';
 import { parsePlanAnswer, prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
 import { EARLIER_RULES } from '../../../src/v2/lean-rpg/rules.js';
 import { STANDARD_FORMULA as STANDARD } from '../../../src/v2/lean-rpg/rules.js';
-import { PRECALL_HEAD, PRECALL_HEAD_STANDARD, sheetText } from '../../../src/v2/lean-rpg/precall.js';
+import { carriedDrop, PRECALL_HEAD, PRECALL_HEAD_STANDARD, sheetText } from '../../../src/v2/lean-rpg/precall.js';
+import { carriedFrom, dropOf } from '../../../src/v2/lean-rpg/ambush.js';
 import { cueOfResult } from '../../../src/v2/lean-rpg/cue.js';
 import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
 import { buildPanel, panelModel, readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
@@ -107,7 +108,7 @@ test('without an ambush check the roll has no ambush record and no edge (a plan 
 
 test('the planner heads carry the ambush rule (any skill that sets up a fight, judged from its description) and the shorter stat wording', () => {
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.includes('is a check with that skill and ambush. No ambush edge without one.'));
+        assert.ok(head.includes('is a check with that skill and ambush, in the same plan as the attack when the message also attacks. No ambush edge without one.'));
         assert.ok(head.includes('lure, distract, slip behind them; judge by its description'));
         assert.ok(!head.includes('edge: ambush +2'));
         assert.ok(head.includes('| ambush?'));
@@ -132,4 +133,84 @@ test('on the real host: a planner answer with an ambush check for the shadow ski
     assert.equal(typeof result.ambush.success, 'boolean');
     assert.ok(result.rounds.length >= 1);
     host.close();
+});
+
+const NO_FIGHT = 'check Wessel | skill: Shadow Step | difficulty: easy | ambush';
+
+test('A3: a success at a cost counts as no ambush: no edge, and the cue and the log say "ambush only half works: no surprise"', () => {
+    const plan = parsePlanAnswer(['pace: normal', AMBUSH, ACT, 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n'), sheet()).plan;
+    const prepared = prepare(plan, sheet(), EARLIER_RULES);
+    // total 10 + die; DC normal 12: die 1 fails outright, so a die that leaves the total 1 to 3 short is "at a cost"
+    const half = [2, 3, 4].map(die => rollPrepared(plan, prepared, dice({ check0: [die] }), EARLIER_RULES)).find(result => result.checks[0].outcome === 'cost');
+    assert.ok(half, 'a roll at a cost');
+    assert.equal(half.ambush.success, false);
+    assert.equal(half.rounds[0].lines.find(line => line.kind === 'act').pc.edge, 0);
+    const record = { v: 1, key: 'k', pace: 'normal', stop: half.stop, checks: half.checks, rounds: half.rounds, refused: [], summary: half.summary, ambush: half.ambush };
+    assert.match(cueOfResult(record), /; ambush only half works: no surprise/);
+    const doc = setupDom();
+    const panel = buildPanel(doc, panelModel({ resolve: readResolve(record), state: { domains: {} }, roleOf: () => null }));
+    assert.match(panel.querySelectorAll('.rpg-bl-ambush')[0].textContent, /^Ambush: Wessel's Shadow Step check — Success at a cost \(\d+ vs \d+\): ambush only half works: no surprise$/);
+});
+
+test('A2: a successful ambush check in a roll with no act is kept as a drop (the cue says "you have the drop"), spent once on the next roll that has acts (+2 in round 1, marked spent), and not twice', () => {
+    const only = parsePlanAnswer(['pace: normal', NO_FIGHT].join('\n'), sheet()).plan;
+    const first = rollPrepared(only, prepare(only, sheet(), EARLIER_RULES), dice({ check0: [20] }), EARLIER_RULES);
+    assert.equal(first.rounds.length, 0, 'a check alone');
+    assert.equal(first.ambush.success, true);
+    assert.equal(first.ambush.drop, true);
+    assert.equal(first.checks[0].ambushDrop, true);
+    const record = { v: 1, key: 'k', pace: 'normal', stop: first.stop, checks: first.checks, rounds: [], refused: [], summary: first.summary, ambush: first.ambush };
+    assert.match(cueOfResult(record), /; ambush works: you have the drop/);
+    assert.doesNotMatch(cueOfResult(record), /strikes first/);
+    assert.match(panelText(readResolve(record)), /Ambush: Wessel's Shadow Step check — Success \(\d+ vs \d+\): you have the drop; \+2 on the next fight/);
+    // the pre-call reads it from the previous reply's receipt into the payload
+    const carried = carriedDrop({ query: (name, args) => (args.index === 4 ? { result: record } : null) }, 5);
+    assert.deepEqual(carried, { who: 'Wessel', skill: 'Shadow Step', total: first.ambush.total, dc: first.ambush.dc });
+    assert.equal(carriedDrop({ query: () => ({ result: record }) }, 9) !== null, true);
+    assert.equal(carriedDrop({ query: () => null }, 5), null, 'no roll in the reply before: gone');
+    // the next reply's roll with acts spends it
+    const attack = parsePlanAnswer(['pace: normal', ACT, 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n'), sheet()).plan;
+    const second = rollPrepared(attack, prepare(attack, sheet(), EARLIER_RULES), dice(), EARLIER_RULES, { drop: carried });
+    assert.deepEqual(second.rounds.slice(0, 2).map(round => round.lines.find(line => line.kind === 'act').pc.edge), [2, 0]);
+    assert.equal(second.ambush.spent, true);
+    assert.equal(dropOf({ ambush: second.ambush }), null, 'a spent drop is not carried again');
+    // a roll with no act to strike with does not spend it
+    const checksOnly = rollPrepared(only, prepare(only, sheet(), EARLIER_RULES), dice({ check0: [1] }), EARLIER_RULES, { drop: carried });
+    assert.notEqual(checksOnly.ambush?.carried, true);
+    assert.equal(carriedFrom({ who: 'A', skill: 5, total: 1, dc: 1 }), null);
+});
+
+function panelText(model) {
+    const doc = setupDom();
+    return buildPanel(doc, panelModel({ resolve: model, state: { domains: {} }, roleOf: () => null })).querySelectorAll('.rpg-bl-ambush').map(node => node.textContent).join('|');
+}
+
+test('A2 on the real host: the drop crosses replies in the payload, is spent on the next reply that attacks, and a rebuild, a reload and a Re-read give the same record', { skip }, async () => {
+    const strong = () => ({ ...blocks(), wessel: { role: 'character', fields: character('Wessel', { health: 6, str: 10, vit: 10, agi: 20, dex: 6, int: 5, luk: 9, cha: 5, soul: 2 }) } });
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        const attack = ['pace: normal', ACT, 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n');
+        const { host } = await setup({ blocks: strong(), answers: [['pace: normal', NO_FIGHT].join('\n'), attack, attack] });
+        await host.send('I slip behind the rats with Shadow Step.', 'The rats do not see.');
+        const first = rollReceipt(host, 2).data.v2.result;
+        if (first.ambush?.success !== true) { host.close(); continue; }
+        assert.equal(first.ambush.drop, true);
+        await host.send('Now I strike.', 'Steel.');
+        const secondReceipt = rollReceipt(host, 4);
+        const second = secondReceipt.data.v2.result;
+        assert.equal(second.ambush.spent, true);
+        assert.equal(second.rounds[0].lines.find(line => line.kind === 'act').pc.edge, 2);
+        // the replay guard recorded what the roll was given
+        assert.ok(secondReceipt.data.v2.guard?.predicate?.ambush, 'the drop is part of the guarded inputs');
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live, 'a rebuild gives the live story');
+        const sameAgain = rollReceipt(host, 4).data.v2.result;
+        assert.equal(JSON.stringify(sameAgain), JSON.stringify(second), 'the record is the same after the rebuild');
+        // a third reply: the drop is gone (the reply before it has none)
+        await host.send('Again.', 'More steel.');
+        assert.equal(rollReceipt(host, 6).data.v2.result.ambush, undefined);
+        host.close();
+        return;
+    }
+    assert.fail('the ambush check never succeeded in 8 tries');
 });

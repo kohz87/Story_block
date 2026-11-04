@@ -136,7 +136,7 @@ test('Classic output is byte-identical to the build before the Standard formula:
     }, {
         // (Changed on purpose in the prompt diet (stage 59): the planner head is shorter, so `prompt` and `head` moved; the sheet, cue, rounds and witness are the same bytes.)
         // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
-        prompt: 'd4c34c3bea6686e7', head: 'bfc6e45fa7f1b0b4', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        prompt: 'f4a116ac9aa01f3b', head: '73223fa876e2ea2c', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
         parsed: 'f3d9eb8728e780eb', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
     });
 });

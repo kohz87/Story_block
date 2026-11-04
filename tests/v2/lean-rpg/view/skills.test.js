@@ -64,7 +64,8 @@ test('the roll: d20 + half the stat + rank + level ÷ 5 (rounded down), worked o
 test('the view: a card per skill with the rank pill, STAT · Uses, what it does, the mastery bar and the roll line', () => {
     const { el } = draw();
     assert.equal(el.querySelector('.rpg-sheet-name').textContent, 'Wessel\'s skills');
-    assert.deepEqual(el.querySelectorAll('.rpg-pills .ss-pill').map(node => node.textContent), ['Lv 2', '4 of 5 slots']);
+    // (PINNED CHANGE: the pills were Lv 2 and 4 of 5 slots; the slots pill is gone)
+    assert.deepEqual(el.querySelectorAll('.rpg-pills .ss-pill').map(node => node.textContent), ['Lv 2']);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-skill-name').textContent), ['Iron Breath', 'Short blade', 'Rope work', 'River swimming']);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-rank').textContent), ['Expert', 'Novice', 'Adept', 'Master']);
     assert.deepEqual(rows(el).map(row => ['neutral', 'info', 'accent', 'good'].find(tone => row.querySelector('.rpg-rank').classList.contains(`rpg-tone-${tone}`)) ?? 'neutral'), ['accent', 'neutral', 'info', 'good']);
@@ -106,9 +107,11 @@ test('an empty slot is a dashed line, one per slot, and a skill-less character h
     const bare = draw({}, { who: 'Wessel' });
     assert.equal(bare.el.querySelectorAll('.rpg-skill-empty').length, 5);
     assert.equal(rows(bare.el).length, 0);
-    // (pinned selector changed from `.rpg-slots`: that class is the gear card's 2×4 slot grid and made this pill a tall oval)
-    assert.equal(bare.el.querySelector('.rpg-skill-slots').textContent, '0 of 5 slots');
-    assert.equal(bare.el.querySelector('.rpg-slots'), null, 'the skills pill does not carry the gear grid class');
+    // (PINNED CHANGE: this was the "0 of 5 slots" pill test. The USER found the pill redundant with the list, so the Skills card has no slots pill; the Lv pill stays.)
+    assert.equal(bare.el.querySelector('.rpg-skill-slots'), null, 'the Skills card has no slots pill');
+    assert.equal(bare.el.querySelector('.rpg-slots'), null);
+    assert.ok(!/of 5 slots/.test(bare.el.textContent));
+    assert.ok(bare.el.querySelector('.rpg-level-pill'), 'the Lv pill stays');
 });
 
 test('the footer note follows the rule: with Rolls automatic practice comes from rolled uses, with Rolls off the story adds it', () => {

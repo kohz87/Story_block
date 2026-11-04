@@ -17,7 +17,7 @@ The card offer: a character card can bring its whole world, and Story Block offe
   never writes another extension's settings: they register through `sdk.registerCardSettings` (internal sdk, not the public api).
 - **Packs list:** a pack of data modules alone reads "4 data modules" instead of "no content".
 - **Docs:** BUILD-A-CARD.md "Ship your whole world inside the card", PACKS.md "In a character card".
-- **Fix:** the Skills card's "of 5 slots" pill no longer takes the gear card's slot-grid class, so it is a pill again and not a tall grey oval.
+- **Skills card:** the "N of 5 slots" pill is gone from its header (it repeated the list); the level pill stays. (It briefly had the gear card's slot-grid class, which made it a tall oval.)
 - **Fix:** Install saves SillyTavern's settings at once, before it pins anything in the chat and before it says "Installed", so a quick reload cannot leave pinned modules for a pack that was not kept; if that save fails the notice says so.
 - **Fight gate fix (a 2.19.0 regression):** the planner gate also opens when the reader's message reads as combat (a sword, a foe named), and
   cut, slice, cleave, hack, slaughter and butcher count as risky words, so "cut the gnashers down with my cane-sword" is planned.
@@ -38,6 +38,12 @@ The card offer: a character card can bring its whole world, and Story Block offe
 - **Card reading:** the card's embedded pack is offered when its version is higher than the linked world's copy; a linked world that cannot be loaded still
   lets the embedded book offer; a portrait's size is checked before it is decoded; only Story Block registers the `story-block` card-settings owner.
 - **FAQ:** docs/FAQ.md answers the questions players ask most (a missing item, skill practice, ambush, skill slots, cards that bring a world); the README links to it.
+- **Practice and old replies:** a reply captured under the "practice only from rolls" rule is marked on its record (only when it has a story practice
+  line); only marked replies refuse such a line on Re-read, edit, rebuild and reload. Replies made before keep the practice lines they were told with.
+- **Ambush, finished:** a successful ambush check in a reply with no attack is kept as a drop and spent once on the very next reply's roll that has
+  acts (the cue says "you have the drop"); a success at a cost counts as no ambush ("ambush only half works: no surprise"); the planner is told to put
+  the check in the same plan as the attack when the message also attacks.
+- **Gate:** a weapon, a bow or a wound as a noun in the reader's message no longer opens the planner by itself (cut, slice, cleave, hack, slaughter and butcher still do).
 - Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
 
 ## 2.20.0

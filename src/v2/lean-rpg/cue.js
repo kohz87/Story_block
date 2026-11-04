@@ -10,7 +10,9 @@ export const OUTCOME_WORD = Object.freeze({ success: 'SUCCESS', cost: 'SUCCESS A
 export const cueTokens = text => Math.ceil(String(text ?? '').length / 4);
 
 // An ambush check (ambush.js) tells the narrator what it did: the party has the drop, or there is no surprise.
-const ambushNote = line => (line.ambush === true ? (line.outcome === 'success' ? '; ambush works, the party strikes first' : '; ambush fails, no surprise') : '');
+const ambushNote = line => (line.ambush !== true ? ''
+    : line.outcome === 'success' ? (line.ambushDrop === true ? '; ambush works: you have the drop' : '; ambush works, the party strikes first')
+        : line.outcome === 'cost' ? '; ambush only half works: no surprise' : '; ambush fails, no surprise');
 const numbers = line => `(${line.pc.total} vs ${line.kind === 'check' ? line.dc : line.foe.total})`;
 
 // Names are cut at this many characters only as the last way to fit the cue (shape 3 below).

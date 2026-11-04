@@ -10,7 +10,7 @@ Practice comes only from a skill's rolled use, in a fight or in a check. It show
 
 ## Can I get an ambush or a first strike?
 
-Yes. When you use a skill before a fight to get the drop on the foes (hide, sneak, lure, slip behind them), it becomes a check with that skill. If it succeeds, your party strikes first and gets +2 that round. If it fails, there is no surprise. The battle log says which in one line before Round 1.
+Yes. When you use a skill before a fight to get the drop on the foes (hide, sneak, lure, slip behind them), it becomes a check with that skill, in the same reply as your attack or in the reply just before it. If it succeeds, your first attack gets +2 that round (with the Standard rules the party also strikes first). If it only succeeds at a cost, or fails, there is no surprise. A drop you win in one reply is used once, on the very next reply that attacks, and is gone after that. The battle log says which in one line.
 
 ## How many skills can a character have?
 

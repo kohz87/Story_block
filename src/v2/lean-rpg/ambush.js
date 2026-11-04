@@ -10,10 +10,39 @@ import { FORMULA } from './names.js';
 export const AMBUSH_EDGE = 2;
 
 /** The ambush the roll's checks made: `{ who, skill, outcome, total, dc, success }`, or null when no check of the roll carries `ambush`. */
-export function ambushOf(checks) {
+export function ambushOf(checks, drop = null, acts = true) {
     const line = (Array.isArray(checks) ? checks : []).find(item => item?.ambush === true);
-    if (!line) return null;
+    // With no act to strike with in this roll the check's line says the party has the drop (for the next reply), not that it strikes first.
+    if (line && !acts) line.ambushDrop = true;
+    if (!line) return drop && acts ? { ...drop, outcome: 'success', success: true, carried: true } : null;
     return { who: line.pc.who, skill: line.skill ?? null, outcome: line.outcome, total: line.pc.total, dc: line.dc, success: line.outcome === 'success' };
+}
+
+/**
+ * The ambush a roll with no fight left for the next reply (A2): a successful ambush check made in a reply whose roll had no acts is spent once, on the very
+ * next reply's roll that has acts. The pre-call reads it from the previous reply's receipt (`drop: true` in its `result.ambush`) into the payload, so a replay
+ * rolls with what the payload recorded. → `{ who, skill, total, dc }` or null (a damaged value is no ambush).
+ */
+export function carriedFrom(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+    const { who, skill, total, dc } = value;
+    if (typeof who !== 'string' || !who || who.length > 60 || !(skill === null || (typeof skill === 'string' && skill.length <= 60)) || !Number.isSafeInteger(total) || !Number.isSafeInteger(dc)) return null;
+    return { who, skill, total, dc };
+}
+/** The drop a previous roll's record left (`result.ambush` of a reply with no fight in it), as `carriedFrom` takes it, or null. */
+export function dropOf(result) {
+    const ambush = result?.ambush;
+    return ambush && ambush.success === true && ambush.drop === true && ambush.carried !== true ? carriedFrom({ who: ambush.who, skill: ambush.skill ?? null, total: ambush.total, dc: ambush.dc }) : null;
+}
+
+/**
+ * The ambush part of a roll's result: `{ ambush }` or nothing. A roll with a fight tells it (a carried one is marked `spent`); a roll with no acts
+ * to strike with and a successful ambush check keeps it as `drop: true` for the next reply (ambush.js carriedFrom), and its check line says the party has the drop.
+ */
+export function ambushRecord(ambush, _checks, fight) {
+    if (!ambush) return {};
+    if (fight.some(entry => entry.kind === 'act')) return { ambush: { ...ambush, ...(ambush.carried ? { spent: true } : {}) } };
+    return { ambush: { ...ambush, ...(ambush.success ? { drop: true } : {}) } };
 }
 
 /** Classic: the act as it rolls in round 1 of an ambush that worked (its edge up by AMBUSH_EDGE, at most the edge limit). Other entries and rounds as they are. */
