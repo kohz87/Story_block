@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.21.1
 
 Follow-up skills, defence skills only when asked, and clearer Mana and Stamina notes.
 - **Follow-up skill `then:`:** an act line may carry `then: <skill>`. Round 1 (and an opening or quick-start action) uses `skill:`, rounds 2 on use
