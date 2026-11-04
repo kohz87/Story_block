@@ -50,7 +50,8 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
   `keepsCopy` / `mirrorCopy` / `restoreCopy` / `dropCopy`, `trimReceipts`, `carryRecord`, `createSaver`,
   `IDLE_MS`, `IDLE_MAX_MS`, `RECHECK_MS`.
 - `src/v2/store.js`: `createStore` (`head`, `at`, `append`, `replaceStory`, `rebuild`, `scheduleSave`,
-  `saveSoon`, `flush`, `saveIdle`, `truncate`, `work`), checkpoint constants, `deepFreeze`.
+  `saveSoon`, `flush`, `saveIdle`, `truncate`, `work`), re-exporting the checkpoint constants and `deepFreeze` that now live in
+  `src/v2/store/constants.js`; `src/v2/store/digest.js`: the pure hashes (`payloadHashOf`, `hasMeta`).
 - `src/v2/chat-file.js`: `createChatFile`, `utf8Bytes`, `KEEPALIVE_MAX` (mirrors SillyTavern 1.19's save body).
 - `src/v2/runtime.js`: `storeSaving`, `saveOnUnload`, `markUsed`, `SAVE_SEQ_KEY`, `MEMO_PREFIX`.
 - `src/v2/ops.js`: `diff`, `apply`, `checkOps`. `src/v2/rewind.js`: rewinds and save points (ST branches).

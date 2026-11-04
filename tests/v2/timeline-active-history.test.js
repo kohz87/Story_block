@@ -10,6 +10,7 @@ import { createHost } from '../../testkit/index.js';
 import { withAssist } from '../../src/v2/capture.js';
 import { ACTIVE_READERS, createTimeline } from '../../src/v2/timeline/index.js';
 import { rulesModule, restore, clone, reload } from './helpers/timeline.js';
+import { sourceOf } from '../helpers/split-source.js';
 
 const ALPHA = 'SECRET-ALPHA-the-vault-is-under-the-mill';
 const BETA = 'SECRET-BETA-the-reader-confesses';
@@ -268,7 +269,7 @@ test('savepoint.contract reports retainedChatRestore only once every reader of e
 });
 
 test('one rule says what is faded, one mechanism keeps it out of a request, and nothing else filters prompts', async () => {
-    const read = async path => readFile(new URL(`../../src/v2/${path}`, import.meta.url), 'utf8');
+    const read = async path => sourceOf(`src/v2/${path}`);
     const coordinator = await read('timeline/coordinator.js');
     assert.equal((coordinator.match(/function activeLine\(/g) ?? []).length, 1);
     assert.equal((coordinator.match(/\.faded\b/g) ?? []).length, 1, 'the faded intervals are read in one place');

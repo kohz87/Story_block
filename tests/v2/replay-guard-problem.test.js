@@ -97,7 +97,8 @@ test('a thrown replacement guard is reported even when the valid old block is ke
 
 test('thrown guard diagnostics have one formatting and recording site', async () => {
     const {readFile} = await import('node:fs/promises');
-    const store = await readFile(new URL('../../src/v2/store.js', import.meta.url), 'utf8');
+    const { sourceOf } = await import('../helpers/split-source.js');
+    const store = sourceOf('src/v2/store.js');
     const commands = await readFile(new URL('../../src/v2/commands.js', import.meta.url), 'utf8');
     assert.equal((store.match(/function thrownGuard\(/g) ?? []).length, 1);
     assert.equal((store.match(/return thrownGuard\(/g) ?? []).length, 1);

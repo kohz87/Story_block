@@ -379,7 +379,7 @@ The hand-built surfaces of Story Block's own UI, moved onto the glass design (Ma
 are the approved mockups; the spacing, type and glass are the tokens above, no new colours). Each keeps its markup, its ids,
 its data attributes, its keys and its commands; what changed is how it is drawn and the few places named below.
 
-- **The story panel** (`ui-host.js` `openPanel`, `host-ui.js` `createTabHost`). The tab bar is the **`ss.tabs` block**: a `nav`
+- **The story panel** (`ui-host.js` `openPanel`, `host-ui/tab-host.js` `createTabHost`, exported by `host-ui.js`). The tab bar is the **`ss.tabs` block**: a `nav`
   of buttons (`.ss-tabs-item`, aria-current on the chosen tab, one Tab stop, the arrows, Home and End, a click chooses; the
   choice runs `story-suite.tab` with `{ tabs: id }`, which the host takes as its own `select`). The host draws the block with
   `renderTabStrip({ max: 100, labelMax: 200 })` (`view/widgets/nav.js`, the same render with the host's limits) and keeps the names
@@ -605,7 +605,7 @@ their states, the plates, the class-level exceptions and their specificity), `te
 
 - `src/v2/view/screens.js`: `validateScreen`, `resolveData`, `screenOrder`, `byNavOrder`, `DEFAULT_ORDER`,
   `DEFAULT_HIDDEN`, `SUITE_NAV`, `HOME_ID`.
-- `src/v2/view/template/` (`render.js`, `sanitize.js`, `html.js`), `view/bind.js` (paths, `ratio`, `pct`, `len`),
+- `src/v2/view/template/` (`render.js` with `render/dom.js` and `render/page-ids.js`, `sanitize.js`, `html.js`), `view/bind.js` (paths, `ratio`, `pct`, `len`),
   `view/css.js` (`scopeCss`, `filterDeclarations`, `isSafeCssUrl`, `themeVars`), `view/render-screen.js`.
 - `src/v2/view/mounts/` (`tab`, `screen`, `card`, `hud`, `dialog`), `view/widgets/`, `view/tab-order.js`.
 - `src/v2/view/theme.js` (`themeTokens`, `themeCss`, `decideScheme`, `createThemeBridge`), `view/glass.css`,
@@ -615,8 +615,8 @@ their states, the plates, the class-level exceptions and their specificity), `te
 - `src/v2/layout/`: JSON layouts (Studio's format) and their checks.
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
   The changes card also draws modules' own lines for its reply (`hooks.replyCard`, `replyCardLines`, MODULES §F125).
-- `src/v2/ui-host.js` (`mountUi`: bar, panel, drawer, mounts), `src/v2/host-ui.js` (`renderSettingsHost`: the settings folds, drawn into the settings window's sections), `src/v2/view/settings/window.js` (the window).
-- Step 4a: `src/v2/host-ui.js` `createTabHost` (the story panel's tab bar, on `renderTabStrip` in `view/widgets/nav.js`), `src/v2/extras-ui.js` (the Choices strip), `src/v2/reply-notes.js` (the notes), `src/v2/screens/changes-card.js` (the card's CSS), `src/v2/view/mounts.css` and `host.css` (the frames and the furniture).
+- `src/v2/ui-host.js` (`mountUi`: bar, panel, drawer, mounts), `src/v2/host-ui.js` (`renderSettingsHost`: the settings folds, drawn into the settings window's sections; the field controls, wording and fold ids are in `src/v2/host-ui/controls.js`, `text.js`, `sent.js`), `src/v2/view/settings/window.js` (the window).
+- Step 4a: `src/v2/host-ui/tab-host.js` `createTabHost` (exported by `src/v2/host-ui.js`) (the story panel's tab bar, on `renderTabStrip` in `view/widgets/nav.js`), `src/v2/extras-ui.js` (the Choices strip), `src/v2/reply-notes.js` (the notes), `src/v2/screens/changes-card.js` (the card's CSS), `src/v2/view/mounts.css` and `host.css` (the frames and the furniture).
 - `testkit/purify.js`: `stPurify`, stands in for SillyTavern's DOMPurify (drops controls' `type` as the real one does).
 
 ## Tests that guard it

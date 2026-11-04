@@ -5,6 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { sourceOf } from '../../helpers/split-source.js';
 
 const FILES = [
     'host-ui.js', 'ui-host.js', 'extras-ui.js', 'reply-notes.js', 'screens/changes-card.js',
@@ -15,7 +16,7 @@ const FORBIDDEN = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval
 
 test('no innerHTML, outerHTML, insertAdjacentHTML, document.write, eval or randomness in the surfaces\' sources', () => {
     for (const file of FILES) {
-        const source = readFileSync(new URL(`../../../src/v2/${file}`, import.meta.url), 'utf8');
+        const source = sourceOf(`src/v2/${file}`);
         const code = source.split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
         assert.doesNotMatch(code, FORBIDDEN, file);
     }
@@ -25,7 +26,7 @@ test('the tab strip built from a hostile title: the title is text, and the strip
     // host-ui.js passes the tab's title as the block's label (textContent in nav.js); the card and the notes do the same.
     const nav = readFileSync(new URL('../../../src/v2/view/widgets/nav.js', import.meta.url), 'utf8');
     assert.match(nav, /h\(doc, 'span', `ss-\$\{kind\}-label`, item\.label\)/, 'the label is text');
-    const hostUi = readFileSync(new URL('../../../src/v2/host-ui.js', import.meta.url), 'utf8');
+    const hostUi = sourceOf('src/v2/host-ui.js');
     assert.match(hostUi, /label: tab\.title,/);
     assert.doesNotMatch(hostUi.slice(hostUi.indexOf('function decorate()'), hostUi.indexOf('function draw()')), /innerHTML/);
 });

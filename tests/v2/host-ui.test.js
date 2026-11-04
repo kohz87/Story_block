@@ -12,6 +12,7 @@ import { EVENTS_NOTE } from '../../src/v2/events/index.js';
 import { packsFor } from '../../src/v2/runtime.js';
 import { estimateTokens } from '../../src/v2/prompt.js';
 import { STRINGS } from '../../src/v2/strings.js';
+import { sourceOf } from '../helpers/split-source.js';
 
 const doc = installFakeDom();
 
@@ -677,7 +678,7 @@ const coreFor = () => createCoreModule({ packs: packsFor({ extensionSettings: {}
 const report = { report: () => 'REPORT' };
 
 test('the legacy story-suite-slider is gone: no code or rule draws it (the form engine has the slider)', () => {
-    const hostUi = readFileSync(new URL('../../src/v2/host-ui.js', import.meta.url), 'utf8');
+    const hostUi = sourceOf('src/v2/host-ui.js');
     const css = readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8');
     assert.doesNotMatch(hostUi, /story-suite-slider|sliderControl/);
     assert.doesNotMatch(css, /story-suite-slider/);
