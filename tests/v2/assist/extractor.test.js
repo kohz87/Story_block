@@ -3,7 +3,7 @@
 // hands them to the host's capture marked as its.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_KINDS, EXTRACTOR_HEAD, MAX_LINES, SETTING, allowedKinds, createAssistPart, extractorPrompt, grammarKind, parseExtractorAnswer, refusedWhy } from '../../../src/v2/assist/index.js';
+import { DEFAULT_KINDS, EXTRACTOR_HEAD, MAX_LINES, SETTING, allowedKinds, createAssistPart, extractorPrompt, grammarKind, notWritten, parseExtractorAnswer, refusedWhy } from '../../../src/v2/assist/index.js';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { NEVER, fakeModel, flush, manualTimer, on } from './helpers/fakes.js';
 
@@ -219,4 +219,14 @@ test('settings default to the sdk\'s when no view is given', async () => {
     } finally {
         globalThis.StoryBlock = previous;
     }
+});
+
+test('notWritten: a place, time or weather the block set is not set again; a late time advance still adds', () => {
+    const block = ['~ place Bluewatch — Guild Office | kind: settlement', '! time +2h 30m'];
+    // The same reply: another wording of the place, a second advance, are not used; a kind the block left out is.
+    assert.deepEqual(notWritten(['~ place Bluewatch Village / Guild Office', '! time +1h', '~ weather rain'], block), ['~ weather rain']);
+    // Only `scene` lines count for the scene kinds (an older reply's late lines never do); names still match against all.
+    assert.deepEqual(notWritten(['~ place Tavern', '+ present Elula'], ['~ place Market', '+ present Elula'], { scene: [] }), ['~ place Tavern']);
+    // Late lines on the next reply: a place or a set time it set again is older and dropped; time that passed still adds.
+    assert.deepEqual(notWritten(['~ place Market', '~ time CY611, Goldwane 12, 1:00 pm', '! time +1h'], ['~ place Tavern', '! time +20m'], { late: true }), ['! time +1h']);
 });

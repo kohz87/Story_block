@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.22.2
+
+The safety net no longer moves the scene somewhere the reply did not go.
+
+### Fixes
+
+- **Who is here after a reworded place.** When Assist's safety net was on, it could write the place the reply's own block
+  had just set in other words (`~ place Bluewatch Village / Guild Office` after the block's `~ place Bluewatch — Guild
+  Office`). Applied after the block, that read as a move to another place, and a move leaves everyone present behind: the
+  block's `- present` / `+ present` lines seemed not to work, in People here and in NPC State Delta. Now a safety-net
+  place, time or weather line is not used when the reply's own block already set that kind, so a second `! time` no longer
+  moves the clock twice either (tests/v2/assist/safety-net.test.js).
+- **Late lines.** The safety net's lines that arrive after the reader sent are applied on the next reply, after its own
+  lines. A late place, weather or set time that the next reply set again is older and is not used; time that passed in the
+  reply before (`! time +1h`) still adds. A late line never holds back the next reply's own safety-net lines
+  (tests/v2/assist/extractor.test.js).
+- **Repairing a saved reply.** Re-read of a reply saved with such a reworded place keeps who the block made present.
+
 ## 2.22.1
 
 Story Block's notes stay out of other extensions' prompts, and stay in the reply's.

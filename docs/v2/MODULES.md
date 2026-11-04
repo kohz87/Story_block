@@ -525,7 +525,10 @@ These settle questions agents raised; the host changes they need are made at int
     `heal:`/`reward:`/`price:` label. A quest the story finished (`- quest`) is recorded by Story Director, which
     pays nothing for it; `- item` only moves or removes what the party holds (the owner
     refuses the rest). *No duplicates:* a line the reply's lines already hold (C-1's matching, capture.js
-    `sameChangeLine`, or the same op, kind and name) is dropped. *How it applies:* as story lines on that
+    `sameChangeLine`, or the same op, kind and name) is dropped, and so is a `place`, `time` or `weather` line
+    when the reply's lines already set that kind (extractor.js `SCENE_KINDS`: another wording of the same place
+    would read as a move and leave everyone present behind; a second `! time` would move the clock twice). This
+    holds for the late lines too, against the next reply's own. *How it applies:* as story lines on that
     reply after its own (cause `story`, same capture rules, claims and the reply's `maxChangeLines` cap),
     receipt `assist: 'now'` and `assistLine`; Problems they meet are marked `assist` and start "(assist)";
     the reply's changes card lists them with "(assist)" and its folded header counts them ("1 line from the safety net (assist)"; before, a reply whose only change was the safety net's said "No item, coin or place changes", the final live check's FL-3). *Stored with the reply:* the lines go to the hidden
