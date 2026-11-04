@@ -1,6 +1,8 @@
 # Story Block 2.21.0
 
 Story Block is a SillyTavern extension for stories with a narrator. It keeps your inventory, your purse, the place you are in and who is with you. The narrator writes what changed at the end of each reply. Story Block checks those lines, keeps the result with the reply and shows it to you in plain words.
+Questions? See [docs/FAQ.md](docs/FAQ.md).
+
 
 <img src="docs/images/game-view-home.png" alt="The Game view's Home screen: the hero Wessel with the story clock, place, weather, who is here, guild rank, what is worn, condition and travel, then cards for the purse and the quests." width="100%">
 
