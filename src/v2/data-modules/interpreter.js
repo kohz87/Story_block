@@ -4,7 +4,7 @@
 import { DM_LIMITS as L, dmInt, dmLabelNames, dmObject, dmOwn, dmValueOfName } from './schema.js';
 import { hashJson } from '../replay.js';
 import { oneLine } from '../../text.js';
-import { STRINGS } from '../strings.js';
+import { STRINGS, fill } from '../strings.js';
 
 export const copy = value => structuredClone(value);
 export const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
@@ -31,6 +31,50 @@ export function scalarHolds(schema, value) {
 const entriesHold = (schema, value) => Array.isArray(value) && value.length <= (schema.max ?? L.entriesDefault) && value.every(entry => dmObject(entry)
     && Object.keys(entry).length === Object.keys(schema.of).length
     && Object.entries(schema.of).every(([key, sub]) => dmOwn(entry, key) && (sub.type === 'text' ? typeof entry[key] === 'string' && [...entry[key]].length <= sub.max : scalarHolds(sub, entry[key]))));
+
+/**
+ * The part of a List of entries that names an entry (its title): the one the block's roles call the title, else the first text part. null when the entry has no
+ * text part. One answer for the add line's required label, the `at` matcher and the prompt's tail.
+ */
+export function titlePart(definition, field) {
+    const schema = definition?.state?.[field];
+    if (schema?.type !== 'entries') return null;
+    const { roles } = definition;
+    if (roles?.field === field && dmOwn(schema.of, roles.title) && schema.of[roles.title].type === 'text') return roles.title;
+    return Object.keys(schema.of).find(key => schema.of[key].type === 'text') ?? null;
+}
+
+// What a story line writes in `at`: the entry's number ("2", "#2", "2.") or its title, with one pair of surrounding quotes (the tail writes titles in quotes) removed.
+const QUOTES = [['"', '"'], ["'", "'"], ['\u201c', '\u201d'], ['\u2018', '\u2019']];
+export function entryAt(value) {
+    let at = oneLine(String(value ?? ''));
+    for (const [open, close] of QUOTES) if (at.length >= 2 && at.startsWith(open) && at.endsWith(close)) { at = at.slice(1, -1).trim(); break; }
+    return at;
+}
+const sameTitle = (a, b) => oneLine(a).toLowerCase() === oneLine(b).toLowerCase();
+
+// Why an entry cannot be added to the list as it stands (null when it can): the list is full, or an entry already has that title.
+export function entryAddProblem(definition, field, list, parts) {
+    const schema = definition.state[field], title = titlePart(definition, field);
+    if (list.length >= (schema.max ?? L.entriesDefault)) return { code: 'DM_BUDGET', path: field, message: STRINGS.blocks.entriesFull };
+    if (title && typeof parts?.[title] === 'string' && list.some(entry => sameTitle(entry[title], parts[title]))) return { code: 'DM_BOUNDS', path: title, message: STRINGS.blocks.entryDuplicate };
+    return null;
+}
+
+/**
+ * A List of entries carried over to a changed definition, part by part: a part that is still there keeps its value (a text longer than the new limit is cut to it;
+ * a number or choice that no longer holds goes back to the part's default), a new part starts at its default, a removed part is dropped. Never empties the list.
+ * → the new list, or null when the new `max` is lower than the number of entries (the caller refuses with a sentence).
+ */
+export function carryEntries(schema, list) {
+    if (!Array.isArray(list)) return [];
+    if (list.length > (schema.max ?? L.entriesDefault)) return null;
+    return list.map(entry => Object.fromEntries(Object.entries(schema.of).map(([key, sub]) => {
+        const value = dmOwn(entry, key) ? entry[key] : undefined;
+        if (sub.type === 'text' && typeof value === 'string') return [key, [...value].slice(0, sub.max).join('')];
+        return [key, value !== undefined && scalarHolds(sub, value) ? value : sub.default];
+    })));
+}
 
 /** "guild, watch or compact" */
 export const orList = values => {
@@ -80,7 +124,7 @@ export function parseLabels(definition, kind, labels, { text = false } = {}) {
     return args;
 }
 
-export function createEvaluation(definition, instance, { inputs = {}, source, cursor, subject = 'chat', lookup = null } = {}) {
+export function createEvaluation(definition, instance, { inputs = {}, source, cursor, subject = 'chat', lookup = null, lists = {} } = {}) {
     const original = copy(instance), reads = new Map(), notes = [], decisions = [], conds = [], fired = [], written = new Set();
     let visits = 0, frame = null;
     const charge = (n = 1) => {
@@ -171,44 +215,61 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
             || (schema.type === 'map' && !schema.keys.includes(path[1]))) refuse('DM_SCHEMA', path.join('.'), 'Undeclared field path.');
         return schema.type === 'map' ? schema.values : schema;
     }
-    function write(path, value) {
+    function write(path, value, { witness = true } = {}) {
         const schema = field(path);
         if (schema.list === true) value = cleanList(value, schema.max);
         if (!scalarHolds(schema, value)) refuse('DM_BOUNDS', path.join('.'), 'Field value is outside its schema.');
         // Saved ops omit no-ops. Witness the ORIGINAL destination even then: later conditions may
         // use this root's internal value, which is valid only while its starting value is unchanged.
-        read(['fields', ...path]);
+        // (an entry added to a List of entries witnesses the answers it depended on instead, see entryEffect)
+        if (witness) read(['fields', ...path]);
         const parent = path.length === 1 ? instance.fields : instance.fields[path[0]];
         parent[path.at(-1)] = value;
         written.add(JSON.stringify(path));
     }
-    // A List of entries line. The entry is found by `at`: its number in the list (1 is the first), else its title (the first text part, matched with case and
-    // spacing ignored). An add keeps a part the line leaves out at its default, and a list that is full refuses.
+    // A List of entries line. The entry is found by `at`: its number in the list as it stood before this reply (1 is the first; an entry dropped earlier in the
+    // reply keeps its number and is refused), else its title (the title part, case and spacing ignored). An add keeps a part the line leaves out at its default.
+    // An add does not witness the whole list (a deleted earlier reply would make every later add stale): it records what it asked, that the list has room and no
+    // entry has that title, and the guard asks the same again on the prefix; the add itself is an append.
     function entryEffect(effect, env) {
         const [name] = effect.path, schema = field([name]), args = env.arg ?? {};
         const list = [...(atPath(instance.fields, [name]) ?? [])];
-        const titleKey = Object.keys(schema.of).find(key => schema.of[key].type === 'text');
+        const parts = Object.fromEntries(Object.keys(schema.of).filter(key => dmOwn(args, key)).map(key => [key, args[key]]));
+        // (where each entry stood when the reply began: null for one added since)
+        const was = lists[name] = lists[name]?.at?.length === list.length ? lists[name] : { size: list.length, at: list.map((_, index) => index) };
+        const titleKey = titlePart(definition, name);
+        if (effect.op === 'entryAdd') {
+            const problem = entryAddProblem(definition, name, list, parts);
+            if (problem) refuse(problem.code, problem.path, problem.message);
+            list.push(Object.fromEntries(Object.entries(schema.of).map(([key, sub]) => [key, dmOwn(parts, key) ? parts[key] : sub.default])));
+            was.at.push(null);
+            const fresh = !written.has(JSON.stringify([name]));
+            if (fresh) conds.push({ ref: ['entryAdd', name], env: { arg: copy(parts) }, outcome: true, internal: {} });
+            write([name], list, { witness: !fresh });
+            return;
+        }
         const find = () => {
-            const at = String(args.at ?? '').trim();
-            if (/^\d+$/.test(at)) {
-                const n = Number(at);
-                if (n >= 1 && n <= list.length) return n - 1;
-                refuse('DM_BOUNDS', 'at', STRINGS.blocks.entryMissing);
+            const at = entryAt(args.at);
+            const number = /^#?(\d+)\.?$/.exec(at);
+            if (number) {
+                const n = Number(number[1]);
+                if (n >= 1 && n <= was.size) {
+                    const index = was.at.indexOf(n - 1);
+                    if (index < 0) refuse('DM_BOUNDS', 'at', fill(STRINGS.blocks.entryDropped, { n }));
+                    return index;
+                }
             }
-            const wanted = oneLine(at).toLowerCase();
-            const hits = titleKey ? list.map((entry, index) => (oneLine(entry[titleKey]).toLowerCase() === wanted ? index : -1)).filter(index => index >= 0) : [];
+            // (not a number in range: a title, so that an entry called "1999" can be reached)
+            const hits = titleKey ? list.map((entry, index) => (sameTitle(entry[titleKey], at) ? index : -1)).filter(index => index >= 0) : [];
             if (hits.length > 1) refuse('DM_BOUNDS', 'at', STRINGS.blocks.entryAmbiguous);
             if (!hits.length) refuse('DM_BOUNDS', 'at', STRINGS.blocks.entryMissing);
             return hits[0];
         };
-        const parts = Object.fromEntries(Object.keys(schema.of).filter(key => dmOwn(args, key)).map(key => [key, args[key]]));
-        if (effect.op === 'entryAdd') {
-            if (list.length >= (schema.max ?? L.entriesDefault)) refuse('DM_BUDGET', name, STRINGS.blocks.entriesFull);
-            list.push(Object.fromEntries(Object.entries(schema.of).map(([key, sub]) => [key, dmOwn(parts, key) ? parts[key] : sub.default])));
-        } else {
-            const at = find();
-            if (effect.op === 'entryDrop') list.splice(at, 1);
-            else list[at] = { ...list[at], ...parts };
+        const at = find();
+        if (effect.op === 'entryDrop') { list.splice(at, 1); was.at.splice(at, 1); }
+        else {
+            if (titleKey && dmOwn(parts, titleKey) && list.some((entry, index) => index !== at && sameTitle(entry[titleKey], parts[titleKey]))) refuse('DM_BOUNDS', titleKey, STRINGS.blocks.entryDuplicate);
+            list[at] = { ...list[at], ...parts };
         }
         write([name], list);
     }
@@ -303,7 +364,7 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         finish() {
             for (const [key, schema] of Object.entries(definition.state)) if (!scalarHolds(schema, instance.fields[key])) refuse('DM_BOUNDS', key, 'Invalid instance field.');
             if (bytes(instance) > L.instanceBytes) refuse('DM_BUDGET', '', 'Instance storage exhausted.');
-            return { reads: [...reads.values()], visits, notes, decisions, conds, fired };
+            return { reads: [...reads.values()], visits, notes, decisions, conds, fired, lists };
         },
     };
 }
@@ -315,6 +376,11 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
  */
 export function conditionHolds(definition, record, prefixFields, inputs = {}) {
     const [kind, name] = Array.isArray(record?.ref) ? record.ref : [];
+    // An entry added to a List of entries asked whether the list has room and no entry has its title.
+    if (kind === 'entryAdd') {
+        if (definition.state?.[name]?.type !== 'entries' || typeof record.outcome !== 'boolean' || !dmObject(record.env)) refuse('DM_SCHEMA', '', 'A recorded condition is damaged.');
+        return (entryAddProblem(definition, name, Array.isArray(prefixFields?.[name]) ? prefixFields[name] : [], record.env.arg) === null) === record.outcome;
+    }
     const expression = kind === 'kind' ? definition.kinds?.[name]?.when : kind === 'rule' ? definition.rules?.find(rule => rule.id === name)?.when
         : kind === 'reward' ? definition.rewards?.[name]?.when : kind === 'reply-end' ? definition.replyEnd?.[name]?.when : undefined;
     if (expression === undefined || !dmObject(record.internal) || typeof record.outcome !== 'boolean') refuse('DM_SCHEMA', '', 'A recorded condition is damaged.');

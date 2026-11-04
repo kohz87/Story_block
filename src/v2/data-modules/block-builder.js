@@ -1,9 +1,9 @@
 // Build ordinary data-module definitions from the small in-chat editor; the interpreter is shared with packs.
 import { oneLine } from '../../text.js';
 import { slugify } from '../packs/validate.js';
-import { DM_LIMITS as L } from './schema.js';
-import { validateDataModules } from './check.js';
-import { cleanList } from './interpreter.js';
+import { DM_LIMITS as L, dmDefaultTone } from './schema.js';
+import { validateDataModules, dataModuleDefaults } from './check.js';
+import { bytes, cleanList, titlePart } from './interpreter.js';
 import { STRINGS, fill } from '../strings.js';
 import { hashJson } from '../replay.js';
 
@@ -11,7 +11,7 @@ const B = STRINGS.blocks;
 const problem = (path, message) => ({ ok: false, errors: [{ code: 'DM_SCHEMA', path, message }] });
 const keyFor = (name, max = 40) => slugify(name).slice(0, max).replace(/-+$/, '');
 /** The tone a status value has unless the author changed it. */
-export const defaultTone = value => (['active', 'done', 'failed'].includes(value) ? value : 'neutral');
+export const defaultTone = dmDefaultTone;
 const number = value => typeof value === 'number' ? value
     : typeof value === 'string' && value.trim() ? Number(value) : NaN;
 // (a field hidden from the story has no line the story can write, so it uses no kind)
@@ -117,8 +117,8 @@ function entriesSchema(field, path, label) {
     return { schema: { type: 'entries', of, max, label } };
 }
 // The three lines of a List of entries: add an entry (its title is required), change one by `at` (its number or title; any part), drop one by `at`.
-function entryKinds(key, schema) {
-    const parts = Object.entries(schema.of), title = (parts.find(([, part]) => part.type === 'text') ?? parts[0])[0];
+function entryKinds(key, schema, roles) {
+    const parts = Object.entries(schema.of), title = titlePart({ state: { [key]: schema }, roles }, key) ?? parts[0][0];
     const label = part => (part.type === 'int' ? { type: 'int', min: part.min, max: part.max } : part.type === 'enum' ? { type: 'enum', values: part.values } : { type: 'text', max: part.max });
     const labels = optional => Object.fromEntries(parts.map(([name, part]) => [name, { ...label(part), ...(optional || name !== title ? { optional: true } : {}) }]));
     const at = { type: 'text', max: L.entryAt };
@@ -129,6 +129,27 @@ function entryKinds(key, schema) {
     };
 }
 
+// What one entry of a List of entries takes in the stored instance at worst: every text at its longest (one byte a character; other scripts need more), every
+// number at its widest, every choice as its longest word.
+const worstEntry = schema => bytes(Object.fromEntries(Object.entries(schema.of).map(([key, sub]) => [key, sub.type === 'text' ? 'x'.repeat(sub.max)
+    : sub.type === 'int' ? (String(sub.min).length > String(sub.max).length ? sub.min : sub.max)
+        : [...sub.values].sort((a, b) => b.length - a.length)[0]])));
+/** → null when every List of entries can hold its `max` entries in the instance storage, else { key, fit }: the first list that cannot and the most entries that would fit. */
+export function entriesTooBig(state) {
+    const lists = Object.entries(state).filter(([, schema]) => schema.type === 'entries');
+    if (!lists.length) return null;
+    const base = bytes({ fields: dataModuleDefaults(state), timers: {}, offers: {}, settled: {} });
+    const sizes = lists.map(([, schema]) => worstEntry(schema) + 1);
+    const total = lists.reduce((sum, [, schema], at) => sum + (schema.max ?? L.entriesDefault) * sizes[at], base);
+    if (total <= L.instanceBytes) return null;
+    for (const [at, [key, schema]] of lists.entries()) {
+        const others = total - (schema.max ?? L.entriesDefault) * sizes[at];
+        const fit = Math.floor((L.instanceBytes - others) / sizes[at]);
+        if (fit < (schema.max ?? L.entriesDefault)) return { key, fit: Math.max(1, fit), chars: Object.values(schema.of).reduce((sum, sub) => sum + (sub.type === 'text' ? sub.max : 0), 0), kb: Math.round((others + (schema.max ?? L.entriesDefault) * sizes[at]) / 1024) };
+    }
+    return null;
+}
+
 /** The draft is plain form data; errors point at the field or function to show beside its control. */
 export function buildBlock(draft, { used = [], definitions = [] } = {}) {
     const name = oneLine(draft?.name);
@@ -137,6 +158,9 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
     if (!slug) return problem('name', B.blockName);
     if (!Array.isArray(draft.fields)) return problem('fields', B.fieldName);
     if (blockKindCount(draft) > L.kinds) return problem('fields', B.kindLimit);
+    // How the block is drawn (display only). Roles and tones belong to the cards layout; the roles also say which part of an entry is its title.
+    const layout = ['cards', 'bars', 'fields'].includes(draft.layout) ? draft.layout : null, rolesOf = layout === 'cards' && draft.roles?.field && draft.roles?.title
+        ? Object.fromEntries(['field', 'title', 'status', 'step'].filter(part => draft.roles[part]).map(part => [part, draft.roles[part]])) : null;
     const state = {}, kinds = {};
     for (const [index, field] of draft.fields.entries()) {
         const path = `fields.${index}`, label = oneLine(field?.name), key = keyFor(field?.key || label, 32);
@@ -156,7 +180,7 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
         // A field hidden from the story gets no line the story can write; the reader and the rules still change it.
         if (schema.prompt === false) continue;
         if (schema.type === 'entries') {
-            for (const [name, kind] of Object.entries(entryKinds(key, schema))) {
+            for (const [name, kind] of Object.entries(entryKinds(key, schema, rolesOf))) {
                 if (Object.hasOwn(kinds, name)) return problem(`${path}.name`, B.fieldName);
                 kinds[name] = kind;
             }
@@ -213,9 +237,8 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
     const show = { ...(draft.show ?? { tab: true, card: false, tabName: '', icon: 'ph-bookmark-simple' }) };
     // (joining another tab needs a tab of its own to join with: `into` is dropped otherwise, and when empty)
     if (!show.tab || !show.into) delete show.into;
-    // How the block is drawn (display only). Roles and tones belong to the cards layout; a tone is kept only where it differs from the default.
-    const layout = ['cards', 'bars', 'fields'].includes(draft.layout) ? draft.layout : null, roles = layout === 'cards' && draft.roles?.field && draft.roles?.title
-        ? Object.fromEntries(['field', 'title', 'status', 'step'].filter(part => draft.roles[part]).map(part => [part, draft.roles[part]])) : null;
+    // (a tone is kept only where it differs from the default)
+    const roles = rolesOf;
     const tones = roles?.status ? Object.fromEntries(Object.entries(draft.tones ?? {}).filter(([value, tone]) => tone !== defaultTone(value))) : {};
     const output = { slug, name, schema: 1, stateVersion: 1, scope: 'chat', state, kinds,
         prompt: String(draft.prompt ?? ''), show: { ...show, tabName: oneLine(show.tabName) || [...name].slice(0, 24).join('') },
@@ -223,6 +246,14 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
         ...(draft.role ? { role: draft.role } : {}), ...(cards.length ? { cards } : {}), ...(replyEnd.length ? { replyEnd } : {}),
         rules, timers, ...(timers.length ? { imports: { clock: { query: 'director.time', mode: 'prefix', projection: ['minutes'] } } } : {}) };
     const checked = validateDataModules([output], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions });
+    if (checked.ok) {
+        // A list that cannot hold its Most entries in the storage a block has is refused here, at the list's own Most entries, in one sentence.
+        const big = entriesTooBig(output.state);
+        if (big) {
+            const at = draft.fields.findIndex(field => keyFor(field?.key || oneLine(field?.name), 32) === big.key);
+            return problem(`fields.${at}.max`, fill(B.listTooBig, { name: `"${output.state[big.key].label ?? big.key}"`, max: output.state[big.key].max ?? L.entriesDefault, chars: big.chars, kb: big.kb, limit: L.instanceBytes / 1024, fit: big.fit }));
+        }
+    }
     return checked.ok ? { ok: true, definition: output, checked: checked.definitions[0] } : { ...checked, definition: output };
 }
 

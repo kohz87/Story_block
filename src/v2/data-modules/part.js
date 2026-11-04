@@ -1,8 +1,8 @@
 // Trusted host glue for checked data, merged into story-block. Library discovery is read-only;
 // every game-state write is a bus transaction, using detached pins and prefix witnesses.
-import { DM_LIMITS as L, dmOwn, dmObject, dmHidden, dmKindWritesHidden, dmNameOf } from './schema.js';
+import { DM_LIMITS as L, dmOwn, dmObject, dmHidden, dmKindWritesHidden, dmNameOf, dmDefaultTone } from './schema.js';
 import { validateDataModules, validateDataMigration, dataModuleDefaults, dataModuleHash, dataModulesPackHash } from './check.js';
-import { copy, bytes, refuse, DataModuleError, createEvaluation, parseLabels, atPath, scalarHolds, cleanList, orList, conditionHolds } from './interpreter.js';
+import { copy, bytes, refuse, DataModuleError, createEvaluation, parseLabels, atPath, scalarHolds, cleanList, orList, conditionHolds, titlePart, carryEntries } from './interpreter.js';
 import { activeDefinition, actorsOf, inputsOf, instanceOf, publicView, projectImport, resolveActor } from './adapters.js';
 import { hashJson } from '../replay.js';
 import { diff } from '../ops.js';
@@ -243,12 +243,27 @@ export function dataModuleGuard(view, info) {
 
 const valueText = value => (typeof value === 'string' ? JSON.stringify(oneLine(value)) : Array.isArray(value) ? `${value.length} ${value.length === 1 ? 'entry' : 'entries'}` : String(value));
 // A List of entries in the tail, short: each entry by its number and title and then its choices and numbers ("1 \"Find the key\" active; 2 \"Meet Wren\" done"),
-// never its longer texts. The story needs the numbers and titles to name an entry, and what is still open.
-const entriesText = (definition, key, list) => {
-    const schema = definition.state[key], parts = Object.entries(schema.of);
-    const title = (dmOwn(schema.of, definition.roles?.title) && definition.roles.field === key ? definition.roles.title : null) ?? parts.find(([, sub]) => sub.type === 'text')?.[0];
-    const text = list.map((entry, at) => [`${at + 1}`, title ? valueText(entry[title]) : null, ...parts.filter(([part, sub]) => part !== title && sub.type !== 'text').map(([part]) => String(entry[part]))].filter(Boolean).join(' '));
-    return `${key}: ${text.length ? text.join('; ') : 'none'}`;
+// never its longer texts. The story needs the numbers and titles to name an entry, and what is still open. When the list does not fit `room` (characters), the
+// open entries (by the status role's tone: not done or failed) come first, then the finished ones, newest first; an entry is never cut in the middle, and
+// the line ends "+N more". The entries shown keep their numbers and their order.
+const LIST_ROOM_LEAST = 300;
+const entriesText = (definition, key, list, room = L.listTailTokens * 4) => {
+    const schema = definition.state[key], parts = Object.entries(schema.of), title = titlePart(definition, key);
+    const status = definition.roles?.field === key ? definition.roles.status : null;
+    const pieces = list.map((entry, at) => [`${at + 1}`, title ? valueText(entry[title]) : null, ...parts.filter(([part, sub]) => part !== title && sub.type !== 'text').map(([part]) => String(entry[part]))].filter(Boolean).join(' '));
+    const open = at => !status || ['active', 'neutral'].includes(definition.tones?.[list[at][status]] ?? dmDefaultTone(list[at][status]));
+    const order = [...list.keys()].filter(open).concat([...list.keys()].filter(at => !open(at)).reverse());
+    const budget = Math.max(room, LIST_ROOM_LEAST) - `${key}: `.length;
+    const shown = [];
+    let used = 0;
+    for (const at of order) {
+        const more = order.length - shown.length - 1 > 0 ? `; +${order.length - shown.length - 1} more`.length : 0;
+        if (shown.length && used + pieces[at].length + 2 + more > budget) break;
+        shown.push(at);
+        used += pieces[at].length + 2;
+    }
+    const hidden = list.length - shown.length;
+    return `${key}: ${shown.length ? `${shown.sort((a, b) => a - b).map(at => pieces[at]).join('; ')}${hidden ? `; +${hidden} more` : ''}` : 'none'}`;
 };
 // A number whose field has display names is shown (to a person and to the story) by its name; stored, it stays the number.
 // The Standard formula's bars (a field with `blocks`) have no fixed names: their stage word depends on the bar's size, which `at` ({ fields, key }, the
@@ -259,16 +274,23 @@ const barText = (schema, value, at) => {
 };
 const shownText = (schema, value, at = null) => dmNameOf(schema, value) ?? (at && barOf(schema) ? barText(schema, value, at) : valueText(value));
 // A hidden field (`prompt: false`) is left out: the story is never told it.
-const fieldText = (definition, key, value) => (Array.isArray(value) ? entriesText(definition, key, value) : value !== null && typeof value === 'object'
+const fieldText = (definition, key, value, room) => (Array.isArray(value) ? entriesText(definition, key, value, room) : value !== null && typeof value === 'object'
     ? `${key}: ${Object.entries(value).map(([name, item]) => `${name} ${valueText(item)}`).join(', ')}` : `${key} ${shownText(definition.state[key], value)}`);
-const fieldsText = (definition, fields) => Object.entries(fields).filter(([key]) => !dmHidden(definition.state[key])).map(([key, value]) => fieldText(definition, key, value)).join('; ');
+// (`room`: the characters the line may take; a List of entries takes what the other fields leave)
+const fieldsText = (definition, fields, room = Infinity) => {
+    const shown = Object.entries(fields).filter(([key]) => !dmHidden(definition.state[key]));
+    const lists = shown.filter(([, value]) => Array.isArray(value)).length;
+    const left = lists ? (room - shown.filter(([, value]) => !Array.isArray(value)).reduce((sum, [key, value]) => sum + fieldText(definition, key, value).length + 2, 0)) / lists : 0;
+    return shown.map(([key, value]) => fieldText(definition, key, value, Math.floor(left) || undefined)).join('; ');
+};
 // The named fields a root changed, for its summary: "Soul Class II → III". Empty for a block with no display names.
 const namedChanges = (definition, before, after) => Object.entries(definition.state).filter(([key, schema]) => (schema.names || barOf(schema)) && before[key] !== after[key])
     .map(([key, schema]) => `${schema.label ?? key} ${shownText(schema, before[key], { fields: before, key })} → ${shownText(schema, after[key], { fields: after, key })}`);
 
 // What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the RPG's sheets carry text the story reads).
 // `rpg` is whether the RPG feature is on: a block with a role is the RPG's to write only then; with it off the block is told like any other.
-const tailRoom = (definition, rpg = true) => (rpg && definition?.role ? L.roleTailTokens : L.tailTokens);
+const tailRoom = (definition, rpg = true) => (rpg && definition?.role ? L.roleTailTokens
+    : Object.values(definition?.state ?? {}).some(schema => schema?.type === 'entries') ? L.listTailTokens : L.tailTokens);
 
 /**
  * One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role, written compact): "Survival — Wessel: hunger 12; fatigue 6."
@@ -287,10 +309,12 @@ export function summaryOf(state, module, { rpg = true } = {}) {
             named: (key, value) => shownText(definition.state[key], value) });
         return line && cutAt(`${line}${waiting}`, tailRoom(definition, rpg) * 4);
     }
-    const body = definition.scope === 'chat' ? fieldsText(definition, view.chat)
-        : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(definition, fields)}`).join(' | ') || 'no one attached';
-    // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget.
-    return cutAt(`${definition.name} — ${body}.${waiting}`, tailRoom(definition, rpg) * 4);
+    const limit = tailRoom(definition, rpg) * 4, lists = Object.values(definition.state).some(schema => schema.type === 'entries');
+    const room = limit - definition.name.length - 4 - waiting.length;
+    const body = definition.scope === 'chat' ? fieldsText(definition, view.chat, room)
+        : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(definition, fields, Math.floor(room / view.characters.length) - name.length - 2)}`).join(' | ') || 'no one attached';
+    // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget (a block with a list keeps the room its list needs at least).
+    return cutAt(`${definition.name} — ${body}.${waiting}`, limit + (lists ? LIST_ROOM_LEAST : 0));
 }
 // A timer whose clock has moved past its cursor.
 const timerDue = (timer, inputs, instance) => {
@@ -398,7 +422,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             predicate, inputHash: hashJson({ source, witness, predicate, decision }), ...(bound ? { replyBound: true } : {}) }, recorded);
         return recorded;
     }
-    function finish(ctx, prefix, draft, data, { pin = false, visits = 0, summary, notes = [], replan = false, result = null, xpFrom = null, practiceFrom = null } = {}) {
+    function finish(ctx, prefix, draft, data, { pin = false, visits = 0, summary, notes = [], replan = false, result = null, xpFrom = null, practiceFrom = null, listsFrom = null } = {}) {
         const key = pairKey(ctx.source), standing = ctx.standing?.domains?.dataModules?.perReply?.[key];
         const actions = { ...(draft.perReply[key]?.actions ?? {}) };
         // `xpFrom` (the RPG's fight XP, lean-rpg/fight.js): what a character's xp, soul and points were before the first story line of this reply that wrote
@@ -410,7 +434,11 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         for (const module of new Set([...Object.keys(practiceFrom ?? {}), ...Object.keys(draft.perReply[key]?.practiceFrom ?? {})])) slots[module] = { ...(practiceFrom?.[module] ?? {}), ...(draft.perReply[key]?.practiceFrom?.[module] ?? {}) };
         for (const [id, action] of Object.entries(standing?.actions ?? {})) if (action.click) actions[id] ??= action;
         actions[ctx.cursor().block] = { visits, click: ctx.cause === 'ui' && !pin };
-        const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions, ...(Object.keys(rises).length ? { xpFrom: rises } : {}), ...(Object.keys(slots).length ? { practiceFrom: slots } : {}) };
+        // `listsFrom`: where each entry of a List of entries stood when this reply began, by block, subject and field ({ size, at: [original index or null] }), so that
+        // a number in `at` always means the entry as the story saw it, whatever the reply's earlier lines dropped.
+        const lists = listsFrom ?? draft.perReply[key]?.lists;
+        const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions, ...(Object.keys(rises).length ? { xpFrom: rises } : {}), ...(Object.keys(slots).length ? { practiceFrom: slots } : {}),
+            ...(lists && Object.keys(lists).length ? { lists } : {}) };
         if (next.roots > L.replyRoots || next.visits > L.replyVisits) refuse('DM_BUDGET', '', 'Data module reply budget exhausted.');
         // The story's lines leave room for the steps that settle the reply (what each block with reply-end functions can really cost): without it a full
         // reply would take its last action and the settling that decides a death would be refused.
@@ -509,7 +537,14 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const instance = newInstance(definition, inputs);
         if (previous) {
             const oldInstance = instanceOf(prefix, module), fields = oldInstance?.fields ?? {};
-            for (const [field, schema] of Object.entries(definition.state)) if (previous.state[field]?.type === schema.type && scalarHolds(schema, fields[field])) instance.fields[field] = copy(fields[field]);
+            for (const [field, schema] of Object.entries(definition.state)) {
+                // A List of entries is carried part by part, so that adding, removing or renaming a part never empties it; a Most entries below the count is refused.
+                if (schema.type === 'entries' && previous.state[field]?.type === 'entries') {
+                    const carried = carryEntries(schema, fields[field]);
+                    if (!carried) refuse('DM_BOUNDS', 'fields', fill(B.listShrinks, { name: schema.label ?? field, n: fields[field].length }));
+                    instance.fields[field] = carried;
+                } else if (previous.state[field]?.type === schema.type && scalarHolds(schema, fields[field])) instance.fields[field] = copy(fields[field]);
+            }
             instance.offers = copy(oldInstance?.offers ?? {});
             instance.settled = copy(oldInstance?.settled ?? {});
             for (const timer of definition.timers) {
@@ -832,7 +867,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const entryLine = kind.effects?.some(effect => ['entryAdd', 'entrySet', 'entryDrop'].includes(effect?.op));
         const claim = `dm:${pairKey(ctx.source)}:${module}:${labels.kind}:${subject}:${hashJson(entryLine ? args : kind.oncePerReply.map(key => args[key]))}`;
         if (!ctx.claim(claim)) refuse('CLAIMED', '', `${labels.kind} was already applied for this in this reply`);
-        const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
+        const listKey = `${module}:${subject}`, listsKept = draft.perReply[pairKey(ctx.source)]?.lists ?? {};
+        const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject, lists: copy(listsKept[listKey] ?? {}) });
         const fieldsBefore = copy(instance.fields);
         evaluation.timers();
         // A foe group the narrator sets by a name already on a slot of the same Foes block (the pre-call may have opened this very fight, lean-rpg/open.js)
@@ -864,7 +900,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         // reply's rolls give by code can put back what the narrator added for the same skill.
         const practiceFrom = ctx.cause === 'story' && route && route.kind.startsWith('practice-')
             ? { [module]: { [route.slot]: Object.fromEntries(['practice', 'rank'].filter(key => Number.isSafeInteger(fieldsBefore[`${key}${route.slot}`])).map(key => [key, fieldsBefore[`${key}${route.slot}`]])) } } : null;
-        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
+        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, listsFrom: Object.keys(result.lists).length ? { ...listsKept, [listKey]: result.lists } : null, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }

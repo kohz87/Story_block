@@ -28,6 +28,7 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
     let controls = [], spots = new Map(), busy = false, alive = true, updateCount = () => {}, renamed = new Map();
     // What the form says beside the layout (where the layout came from, a fall-back line, the starter's fill) lives in `meta`, which the page keeps while the form is redrawn.
     meta.layoutBy ??= draft.layout ? 'stored' : 'shape'; meta.layoutNote ??= ''; meta.starterNote ??= ''; meta.pickedStarter ??= starters ? 'empty' : '';
+    meta.layoutAtOpen ??= draft.layout ?? '';
     meta.rolesAuthor ??= false; meta.rolesGuessed ??= false; meta.starterName ??= '';
     let previewHandle = null, paintPreview = () => {};
     const node = (tag, cls = '', text = '', parent = null) => { const out = h(doc, tag, cls, text); parent?.appendChild(out); return out; };
@@ -163,9 +164,12 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         if (busy || !alive) return;
         collect();
         for (const spot of spots.values()) spot.textContent = '';
-        // The layout the form shows is the one saved (an old block gets the one its shape suggests the first time it is saved).
+        // The layout the form shows is the one saved, except where saving it would only write down what the block already is: the default (plain rows, no key),
+        // and an old block with no layout the author has not touched (it keeps its bytes, and is drawn as before).
         const live = resolve();
-        if (live.effective) draft.layout = live.effective; else delete draft.layout;
+        const keepsBytes = !meta.layoutAtOpen && draft.slug && meta.layoutBy === 'shape' && !draft.fields.some(field => field.type === 'entries');
+        const save = !live.effective ? null : live.effective === meta.layoutAtOpen ? live.effective : live.effective === 'fields' || keepsBytes ? null : live.effective;
+        if (save) draft.layout = save; else delete draft.layout;
         if (live.roles) draft.roles = live.roles; else delete draft.roles;
         const result = buildBlock(draft, { used });
         if (!result.ok) {
