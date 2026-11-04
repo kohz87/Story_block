@@ -324,6 +324,20 @@ between, and still keeps a recent copy. With long chats also look at how many ba
 the names against your SillyTavern version's `default/config.yaml`; older versions used other keys. The
 guide says the same (docs/v2/GUIDE.md, "Slow disk?").
 
+## Queries on an unchanged chat
+
+`sdk.query` first lets the timeline settle (`settle` → `selectionPlan`), which asks `store.prefixWitness` for every archived native
+boundary: a replay of that prefix plus its hashes, to check that each participant stands on the checkpoint the selected head
+names. A dossier open makes dozens of queries, so the same replays ran dozens of times on a chat that had not moved.
+
+The store now keeps each witness (`witnessMemo`, at most 256) while everything it reads is as it was: the same chat array with every
+message's record, swipe, text and swipe copies the same, the same `epoch` (any write, rebuild, guard or lifecycle change forgets it),
+the guards' mark, the chat id and metadata, the source archive, the Features the reader has on. A new reply, swipe, edit, delete, save
+point, rewind, reload, chat switch or Feature switch answers afresh. Settings are not an input of a replay, so they do not. The
+timeline also hashes a witness's state once per state object. Each caller gets a new answer object; the state in it is deep-frozen.
+
+`node scripts/bench-query.mjs` (600 replies, 50 queries): replays 100 → 1.
+
 ## Memory of the caches
 
 The store's own caches (the head state and the frozen copy of the checkpoint it started from) stay under
