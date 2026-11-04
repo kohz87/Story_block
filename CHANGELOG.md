@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Public paths from modules (internal sdk):** `sdk.registerPublicPaths({ owner, prefix, paths, get, hidden })` lets a module offer
+  its values under one prefix. `StoryBlock.api.get`, `paths()`, `{{sb::…}}` and the `story:changed` lists include them, with the same
+  rules (frozen plain copies, hidden values never returned, read-only). One owner per prefix; Story Block's own roots cannot be
+  taken. NPC State Delta 1.10.0 uses it for `npc.<name>.<meter>`. See docs/v2/PUBLIC-API.md.
+
 ## 2.20.0
 
 Story Block as a platform, part 1: a small public API for scripts and cards.

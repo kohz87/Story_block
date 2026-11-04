@@ -40,6 +40,7 @@ import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
 import { createRpgLoader } from './rpg-lazy.js';
 import { createPublicApi } from './public-api.js';
+import { createPublicPaths } from './public-paths.js';
 
 export const VERSION = '2.20.0';
 
@@ -508,7 +509,8 @@ export function createRuntime({
         if (result.error === MODEL_CALL_ERRORS.EMPTY) return '';
         throw Object.assign(new Error(result.message), { code: result.error });
     };
-    const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
+    const publicPaths = createPublicPaths();   // the paths modules offer to the public API (sdk.registerPublicPaths)
+    const made = createSdk({ publicPaths, store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
         substitute: text => substituteNames(text, ctx), dialog: (screenId, opts) => dialogOpener?.(screenId, opts) ?? null,
         dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel, timeline, seed: () => turn?.seed() });
     sdk = made.sdk;
@@ -531,6 +533,8 @@ export function createRuntime({
         rpgOn: () => registry.featureOn(CORE_FEATURE.leanRpg),
         persona: apiPersona,
         events,
+        publicPaths,
+        latestIndex: () => { try { return Math.max(0, (ctx.chat?.length ?? 1) - 1); } catch { return 0; } },
         chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId) ?? '',
         // A reply's state is written before its events go out (a reply's idle save is brought forward only while a listener waits for it).
         saved: async () => { try { if (store.dirty?.() === true) await store.saveSoon?.(); } catch { /* a failed save is told and tried again by the store */ } },

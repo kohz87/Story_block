@@ -10,6 +10,7 @@ import { cutAt } from '../text.js';
 import { MODEL_CALL_ERRORS, MODEL_CALL_TEXT, profileName } from './model-call.js';
 import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
 import { receiptCue, entriesWithCue } from './lean-rpg/cue.js';
+import { createPublicPaths } from './public-paths.js';
 
 // sdk.check comes from check.js (SB-commands); the sdk still loads without it.
 const checkModule = await import('./check.js').catch(() => null);
@@ -464,7 +465,7 @@ export function preflight({ store, registry, chat = () => [], apiVersion = 2 }, 
  * Returns { sdk, events, markReady }:
  * `sdk.ready` resolves to the sdk once the host calls markReady().
  */
-export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? ''), dialog = null, dialogCurrent = null, reread = null, callModel = null, timeline = null, seed = null }) {
+export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? ''), dialog = null, dialogCurrent = null, reread = null, callModel = null, timeline = null, seed = null, publicPaths = createPublicPaths() }) {
     let markReady;
     const ready = new Promise(resolve => { markReady = () => resolve(sdk); });
     const refused = message => ({ ok: false, code: 'REFUSED', message });
@@ -586,6 +587,12 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
          */
         preflight: options => preflight({ store, registry, chat, apiVersion: 2 }, options),
         on: (name, fn) => events.on(name, fn),
+        /**
+         * Public paths from a module (docs/v2/PUBLIC-API.md "Paths from modules"): `({ owner, prefix, paths() → [path], get(path) → value,
+         * hidden(path) → bool, values()? → { path: value } })` → `unregister()` (call `unregister.changed()` when the values moved). One owner per prefix; the prefix may not
+         * be scene, money, items, party or blocks. Throws on a bad registration.
+         */
+        registerPublicPaths: options => publicPaths.register(options),
         /** `{{user}}` / `{{char}}` in a text → the persona's and the character's names (for tabs, screens). */
         substitute: text => substitute(text),
         /**

@@ -65,6 +65,6 @@ A hidden value is never returned: not by `get`, not in `paths()`, not in a chang
 
 - Read-only. A card changes the story through the narrator's change lines or the screens, not through the API.
 - Version 1 is a promise: names, arguments and payload shapes in PUBLIC-API.md do not change inside version 1; new paths and events may be added.
-- `npc.<name>.<meter>` (NPC State Delta) is not in this release.
+- `npc.<name>.<meter>` comes with NPC State Delta 1.10.0 or later (see [PUBLIC-API.md](PUBLIC-API.md#paths-from-modules)); without that module there are no `npc.*` paths.
 - With SillyTavern's old macro engine, only a fixed set of paths has a macro and there is no fallback (listed in PUBLIC-API.md). Use SillyTavern 1.19 or later.
 - Blocks defined on the character card's own worldbook are a separate, later piece: for now, blocks come from a pack.
