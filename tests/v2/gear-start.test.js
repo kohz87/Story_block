@@ -393,3 +393,19 @@ test('a chat written before the reply mark (records without it) stays closed onc
     await host.st.deleteMessage(1);
     assert.deepEqual(kit(host), { open: false });
 });
+
+test('swiping a reply after deleting your message keeps the kit closed; swiping the opening greeting keeps it open', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', reply('+ item Ash-grey Longsword | kind: equipment | rarity: rare | slot: weapon | STR +2'));
+    await host.st.deleteMessage(1);
+    assert.deepEqual(kit(host), { open: false });
+    await host.swipe(reply('+ 2 silver'));
+    assert.deepEqual(kit(host), { open: false });
+    const plain = await world(t);
+    await plain.st.generate('normal', { reply: 'A voice answers.' });
+    await plain.swipe('Another voice.');
+    assert.deepEqual(kit(plain), { open: false });
+    const greet = await world(t);
+    await greet.swipe('Another greeting.');
+    assert.deepEqual(kit(greet), { open: true });
+});

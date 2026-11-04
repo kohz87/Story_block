@@ -398,6 +398,8 @@ export function createRuntime({
             const record = readRecord(message);
             if (!record) return true;
             if (record.reply === true) return false;
+            // (whatever the mark: a story block or a receipt of the story is a reply's)
+            if ((record.spans ?? []).some(span => span?.story !== false) || (record.receipts ?? []).some(receipt => receipt?.cause !== 'ui')) return false;
             return record.mv === 1 || (record.checkpoint !== undefined && message === seen[0]);
         });
     };
