@@ -49,6 +49,12 @@ The card offer: a character card can bring its whole world, and Story Block offe
   and the prompts show only this fight's foes (a group that goes Down in a reply stays until the next fight opens, so its XP is still paid, and a stale Down group
   is never paid again). The planner is shown standing groups only. A block of Down groups alone is a won fight, not an open one: the next quiet reply drops the
   combat text again (about 1,300 characters shorter). The battle log's Foes line lists only the groups that rolled in that reply.
+- **A skill that runs out falls back properly (Standard):** the plain roll is a physical, single-target attack (never a magic or area one planned for the
+  skill's Mana). An act may name `else: <skill>`: when the first skill's Mana or Stamina is spent it goes on with that skill (its own type and stat, its own
+  resource, practice only for the skill rolled), else with the plain attack. The planner head asks for `else:` in one line (about 90 characters).
+- **Cue wording:** a fallback line says why ("no skill: Shadow Cut's Mana is spent; a plain weapon attack — name no skill", or "…; Iaijutsu instead"); the
+  verdict word comes first ("DECISIVE SUCCESS", "FAIL, DECISIVE"); the head adds "Name only the skill a line names."; and one line tells the groups a roll
+  opened ("New foes: rats ×12 (Lv 2)").
 - Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
 
 ## 2.20.0

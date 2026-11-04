@@ -12,6 +12,10 @@ Practice comes only from a skill's rolled use, in a fight or in a check. It show
 
 Yes. When you use a skill before a fight to get the drop on the foes (hide, sneak, lure, slip behind them), it becomes a check with that skill, in the same reply as your attack or in the reply just before it. If it succeeds, your first attack gets +2 that round (with the Standard rules the party also strikes first). If it only succeeds at a cost, or fails, there is no surprise. A drop you win in one reply is used once, on the very next reply that attacks, and is gone after that. The battle log says which in one line.
 
+## My character has no Mana left. What happens to a planned spell?
+
+With Mana empty, name a Stamina skill or rest; a planned skill falls back to its named backup skill, else a plain attack.
+
 ## How many skills can a character have?
 
 Five slots. The story never overwrites a filled slot. You can change a skill yourself with its pencil (its name and what it does); its rank and practice only move through play.

@@ -137,8 +137,19 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
     };
     // What the action rolls if its skill's resource runs out before its turn: no skill, rank 0, the type's own stat.
     const NONE = { skill: null, rank: 0, stat: null, uses: null };
-    const withSkill = (skill, character, type, extra, typeBare = type) => (skill.skill
-        ? { uses: skill.uses, plain: { type: typeBare, skill: null, uses: null, pc: sideStd(character, typeBare, NONE, extra, rules) } } : {});
+    // (a plain roll is a weapon attack on one foe: `area: false`; its type is physical unless the plan asked for a social or check one, because a magic type
+    // the planner wrote for a mana skill belonged to the skill, which is spent)
+    const plainType = (planned, skill) => (skill.skill ? (TYPE_FREE.includes(planned.type) ? planned.type : 'physical') : typeOf(planned, NONE));
+    const withSkill = (skill, character, type, extra, typeBare = type, alt = null) => (skill.skill
+        ? { uses: skill.uses, plain: { type: typeBare, skill: null, uses: null, area: false, pc: sideStd(character, typeBare, NONE, extra, rules) }, ...(alt ? { alt } : {}) } : {});
+    // The act's `else:` skill (plan.js), used when the first skill's resource is spent and this one's is not: its own type, stat, rank and resource.
+    const altOf = (character, act, extra) => {
+        if (!act.else) return null;
+        const skill = skillStd(character, act.else, {});
+        if (!skill.skill) return null;
+        const type = typeOf({}, skill);
+        return { type, skill: skill.skill, uses: skill.uses, area: false, pc: sideStd(character, type, skill, extra, rules) };
+    };
     for (const [at, act] of (plan.acts ?? []).entries()) {
         const actor = ready(act.who);
         const label = `${act.who} → ${act.target}`;
@@ -152,7 +163,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         const { side, check } = skillSide(actor.character, skill, type, { fit: act.fit ?? act.stat, edge: act.edge });
         if (check.refusal) { refuse(act.who, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(act.who, skill.refused, skill.refusedPlain);
-        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: skill.skill, ...withSkill(skill, actor.character, type, { fit: act.fit ?? act.stat, edge: act.edge }, typeOf(act, NONE)), ...(act.why ? { why: act.why } : {}), pc: side };
+        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: skill.skill, ...withSkill(skill, actor.character, type, { fit: act.fit ?? act.stat, edge: act.edge }, plainType(act, skill), altOf(actor.character, act, { fit: act.fit ?? act.stat, edge: act.edge })), ...(act.why ? { why: act.why } : {}), pc: side };
         if (support) {
             out.acts.push({ ...entry, support: true, difficulty: act.difficulty, dc: LIMITS.dc[act.difficulty], target: { id: charId(mate), name: mate.who } });
         } else {
@@ -232,7 +243,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null, opened = null } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -245,15 +256,20 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const bars = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, { ...bar }]));
     const standing = id => (bars.get(id)?.value ?? 0) > 0;
     // A skill costs a block of its resource (Stamina or Mana) each time it is used; with the resource empty an action is rolled without the skill.
+    // With the resource empty an action goes on with its `else:` skill when that one's resource is not empty, else as a plain attack (single foe, no skill).
     const usable = entry => {
         const bar = entry.skill && entry.plain ? bars.get(`${entry.actor}:${entry.uses}`) : null;
-        return bar && bar.value === 0 ? { ...entry, ...entry.plain, without: entry.skill, base: entry.base ?? entry } : entry;
+        if (!(bar && bar.value === 0)) return entry;
+        const spentOn = { without: entry.skill, withoutUses: entry.uses, base: entry.base ?? entry };
+        const backup = entry.alt ? bars.get(`${entry.actor}:${entry.alt.uses}`) : null;
+        if (entry.alt && backup && backup.value > 0) return { ...entry, ...entry.alt, plain: undefined, alt: undefined, ...spentOn };
+        return { ...entry, ...entry.plain, alt: undefined, ...spentOn };
     };
     // The action done (`done.lines`): its skill, if it used one, spends a block, and a roll made without its skill says which.
     const spent = (use, lines) => {
         if (!lines.length) return lines;
         const cost = use.skill && use.uses ? damageOf(bars.get(`${use.actor}:${use.uses}`), 1) : undefined;
-        return [{ ...lines[0], ...(use.without ? { without: use.without } : {}), ...(cost ? { cost } : {}) }, ...lines.slice(1)];
+        return [{ ...lines[0], ...(use.without ? { without: use.without, ...(use.withoutUses ? { withoutUses: use.withoutUses } : {}) } : {}), ...(cost ? { cost } : {}) }, ...lines.slice(1)];
     };
     const damageOf = (bar, blocks) => (blocks === 0 ? undefined : move(bar, blocks) ?? undefined);
     const checks = prepared.checks.map(base => {
@@ -387,7 +403,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const refused = prepared.refused.map(entry => entry.text);
     const start = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, bar]));
     const cueParts = { checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && (all.at(-1).decisive || all.at(-1).over), standard: { order, opening, quick, start },
-        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}), ...(wearOf ? { wearOf } : {}) };
+        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}), ...(wearOf ? { wearOf } : {}), ...(opened?.length ? { opened } : {}) };
     const cue = fitCue(cueParts);
     const rounds = all.slice(0, cue.count).map(({ over: _, end: _end, ...round }) => round);
     const told = all.slice(0, cue.count);

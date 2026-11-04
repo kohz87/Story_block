@@ -108,8 +108,8 @@ test('without an ambush check the roll has no ambush record and no edge (a plan 
 
 test('the planner heads carry the ambush rule (any skill that sets up a fight, judged from its description) and the shorter stat wording', () => {
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.includes('is a check with that skill and ambush, in the same plan as the attack when the message also attacks. No ambush edge without one.'));
-        assert.ok(head.includes('lure, distract, slip behind them; judge by its description'));
+        assert.ok(head.includes('is a check with that skill and ambush, in the same plan as the attack. No ambush edge without one.'));
+        assert.ok(head.includes('lure, distract, slip behind; judge by its description'));
         assert.ok(!head.includes('edge: ambush +2'));
         assert.ok(head.includes('| ambush?'));
     }

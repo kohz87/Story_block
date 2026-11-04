@@ -9,7 +9,7 @@ export const OUTCOME_WORD = Object.freeze({ success: 'SUCCESS', cost: 'SUCCESS A
 /** Tokens as the prompt budget counts them (§5): about four characters each. */
 export const cueTokens = text => Math.ceil(String(text ?? '').length / 4);
 
-// An ambush check (ambush.js) tells the narrator what it did: the party has the drop, or there is no surprise.
+// An ambush check's result (ambush.js).
 const ambushNote = line => (line.ambush !== true ? ''
     : line.outcome === 'success' ? (line.ambushDrop === true ? '; ambush works: you have the drop' : '; ambush works, the party strikes first')
         : line.outcome === 'cost' ? '; ambush only half works: no surprise' : '; ambush fails, no surprise');
@@ -61,16 +61,18 @@ export function lineText(line, { compact = false, names = 0, shown = name => nam
     return `${who} → ${shown(line.foe.name)}${line.skill ? ` (${cut(line.skill, names)})` : ''}: ${word} ${numbers(line)}`;
 }
 
-// The Standard formula's act and foe attack: Classic's wording, then what the roll did to the bars in words (the narrator reads no block counts).
+// The Standard formula's act and foe attack: the verdict first as in the log ("DECISIVE SUCCESS", "FAIL, DECISIVE"), then what the roll did to the bars in words.
 function standardLine(line, { names, shown, word, who }) {
+    const verdict = line.decisive ? (line.outcome === 'fail' ? `${word}, DECISIVE` : `DECISIVE ${word}`) : word;
     const hit = line.damage
-        ? (line.kind === 'foe' ? `, hits ${who}${line.decisive ? ' hard' : ''}` : `, a ${line.decisive ? 'decisive ' : ''}hit`)
-        : (line.decisive ? ', decisive' : '');
-    // (a skill whose Stamina or Mana ran out in the fight is rolled without it)
-    const bare = line.without ? ` (${cut(line.without, names)} unavailable: resource spent)` : '';
-    if (line.kind === 'foe') return `${shown(line.foe.name)} attacks ${who}${line.skill ? ` (${cut(line.skill, names)})` : ''}${bare}: ${word} for ${who} ${numbers(line)}${hit}`;
+        ? (line.kind === 'foe' ? `, hits ${who}${line.decisive ? ' hard' : ''}` : ', a hit')
+        : '';
+    // A spent skill: its `else:` skill is named, else the roll is a plain weapon attack that names no skill.
+    const resource = line.withoutUses ? `${cut(line.without, names)}'s ${line.withoutUses === 'mana' ? 'Mana' : 'Stamina'} is spent` : `${cut(line.without ?? '', names)} unavailable: resource spent`;
+    const bare = line.without ? (line.skill ? ` (${resource}; ${cut(line.skill, names)} instead)` : ` (no skill: ${resource}; a plain weapon attack \u2014 name no skill)`) : '';
+    if (line.kind === 'foe') return `${shown(line.foe.name)} attacks ${who}${line.skill ? ` (${cut(line.skill, names)})` : ''}${bare}: ${verdict} for ${who} ${numbers(line)}${hit}`;
     const kind = line.area ? ' (area)' : '';
-    return `${who} → ${shown(line.foe.name)}${line.skill ? ` (${cut(line.skill, names)})` : ''}${bare}${kind}: ${word} ${numbers(line)}${hit}`;
+    return `${who} \u2192 ${shown(line.foe.name)}${line.skill ? ` (${cut(line.skill, names)})` : ''}${bare}${kind}: ${verdict} ${numbers(line)}${hit}`;
 }
 
 const IDLE_WHY = Object.freeze({ down: 'Down', beaten: 'beaten', 'no-target': 'no target left' });
@@ -120,7 +122,7 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
     const fight = rounds.length > 0;
     const std = parts.standard ?? null;
     const head = fight
-        ? `[Rolls] Code rolled these${std ? ' and has already moved the bars they hit, heal or spend (Health, and the Stamina or Mana a skill uses; the last line says where those stand): never set those yourself' : ''}. Tell them in this order and as given, and never invent a roll; write ${BATTLE_MARKER} on its own line where the fight is told.`
+        ? `[Rolls] Code rolled these${std ? ' and has already moved the bars they hit, heal or spend (Health, and the Stamina or Mana a skill uses; the last line says where those stand): never set those yourself' : ''}. Tell them in this order and as given. Name only the skill a line names, and never invent a roll; write ${BATTLE_MARKER} on its own line where the fight is told.`
         : '[Rolls] Code rolled these. Tell them as given, and never invent a roll.';
     // Shape 3 cuts every name, and each stays different from the others, so the narrator can tell who earned which result.
     const options = { compact: shape >= 1, names: shape >= 3 ? NAME_CUT : 0, plain };
@@ -130,6 +132,8 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
         options.shown = name => map.get(name) ?? name;
     }
     const lines = [head];
+    // the groups this roll opened, with the rolled count
+    if (parts.opened?.length) lines.push(`New foes: ${parts.opened.map(entry => `${options.shown ? options.shown(entry.name) : entry.name} \u00d7${entry.count}${Number.isInteger(entry.level) ? ` (Lv ${entry.level})` : ''}`).join(', ')}.`);
     for (const line of checks) lines.push(lineText(line, options));
     if (std && fight) {
         // (names only; a quick start and its opening action come before round 1)
@@ -203,7 +207,7 @@ export function cueOfResult(result, shape = 0) {
         const end = flow2 && ['won', 'lost', 'heavy'].includes(result.stop) ? result.stop : null;
         return cueText({
             checks: result.checks, rounds, refused: (result.refused ?? []).map(entry => entry.text), decisive,
-            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}), ...(result.wear ? { wear: result.wear } : {}),
+            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}), ...(result.wear ? { wear: result.wear } : {}), ...(Array.isArray(result.opened) && result.opened.length ? { opened: result.opened } : {}),
         }, Number.isInteger(shape) ? shape : 0);
     } catch { return ''; }
 }

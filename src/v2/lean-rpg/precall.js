@@ -51,7 +51,7 @@ const SHARED_RULES = [
 const TAIL_RULES = [
     '- A defender\'s fitting skill (dodge, parry, ward) goes on the foe line.',
     '- pace: careful if the reader is careful, all if they fight it out. edge: trap -2.',
-    '- A skill used before a fight to gain the drop on the foes (hide, sneak, lure, distract, slip behind them; judge by its description) is a check with that skill and ambush, in the same plan as the attack when the message also attacks. No ambush edge without one.',
+    '- A skill used before a fight to get the drop (hide, sneak, lure, distract, slip behind; judge by its description) is a check with that skill and ambush, in the same plan as the attack. No ambush edge without one.',
     '- Outside a fight a risky attempt (sneak, persuade, climb) is a check.',
 ];
 const FOE_NEW = 'foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?';
@@ -87,6 +87,7 @@ export const PRECALL_HEAD_STANDARD = [
     '- Use listed names only. A skill brings its own stat; leave the stat out.',
     '- type: physical (blades), magic (spells, mana), social (talk, bluff), check (rest). area: all foes. support: heals or helps. magic on a foe: a spell.',
     '- fit: the stat a check leans on (STR climb, AGI sneak, INT lore).',
+    '- A skill that spends Mana or Stamina may run out: add `else:` with the skill to use then.',
     ...TAIL_RULES,
 ].join('\n');
 

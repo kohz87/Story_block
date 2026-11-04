@@ -136,7 +136,7 @@ test('Classic output is byte-identical to the build before the Standard formula:
     }, {
         // (Changed on purpose in the prompt diet (stage 59): the planner head is shorter, so `prompt` and `head` moved; the sheet, cue, rounds and witness are the same bytes.)
         // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
-        prompt: 'f4a116ac9aa01f3b', head: '73223fa876e2ea2c', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        prompt: '372eaf02ee8b2607', head: '6f9c48ac48d6220d', sheet: 'b1838934cb4ce054', cue: 'd8ba73fee8a8ca20', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
         parsed: 'f3d9eb8728e780eb', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
     });
 });
@@ -205,7 +205,8 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
     assert.match(PRECALL_HEAD_STANDARD, /type: physical\|magic\|social\|check/);
     assert.doesNotMatch(PRECALL_HEAD_STANDARD, /defend:/);
     // Measured at 1.232 (1315 characters against 1067); a little margin, so a growing head is noticed.
-    const STANDARD_HEAD_RATIO_MAX = 1.25;
+    // (PINNED CHANGE, PRACTICE-FIX and FIGHT-FIX: the heads grew by the ambush rule, the `ambush?` flag and the Standard-only `else:` rule; measured at 1.274, 1631 against 1280.)
+    const STANDARD_HEAD_RATIO_MAX = 1.3;
     assert.ok(PRECALL_HEAD_STANDARD.length <= PRECALL_HEAD.length * STANDARD_HEAD_RATIO_MAX, `${PRECALL_HEAD_STANDARD.length} against ${PRECALL_HEAD.length}`);
     const input = { sheet, message: 'I attack.', excerpt: '' };
     assert.ok(precallPrompt({ ...input, standard: true }).startsWith(PRECALL_HEAD_STANDARD));
@@ -581,7 +582,8 @@ test('the resource runs out in the fight: the last block is spent, then the acti
     assert.deepEqual([lines[0].skill, lines[0].cost.to, lines[0].without], ['Iron Breath', 0, undefined]);
     assert.deepEqual([lines[1].skill, lines[1].pc.rank, lines[1].pc.stat, lines[1].without, lines[1].cost], [null, 0, 'str', 'Iron Breath', undefined]);
     assert.equal(lines[1].pc.total - lines[1].pc.die, 6 + 4, 'the pair and Soul Class only: no rank');
-    assert.match(result.text, /Round 2: Wessel → Sluice Rats \(Iron Breath unavailable: resource spent\)/);
+    // (PINNED CHANGE, FIGHT-FIX 4: the fallback line says why and that it is a plain weapon attack naming no skill)
+    assert.match(result.text, /Round 2: Wessel → Sluice Rats \(no skill: Iron Breath's Stamina is spent; a plain weapon attack — name no skill\)/);
     assert.equal(result.hurts.find(item => item.field === 'stamina').to, 0);
     // Already empty at the start: refused as before, rolled without it, and nothing to spend.
     const empty = roll(planOf({ pace: 'careful', acts: [hit] }), { blocks: party({ wessel: { stamina: 0 } }) });
