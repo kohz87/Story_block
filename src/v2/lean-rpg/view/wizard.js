@@ -426,6 +426,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 }
                 body.appendChild(h(doc, 'h3', 'rpg-wiz-h', W.yourSkills));
                 if (draft().skills.some(skill => Number.isSafeInteger(skill.rank))) body.appendChild(h(doc, 'p', 'rpg-wiz-note', W.importRanks));
+                if (draft().skills.some(skill => skill.sig === true)) body.appendChild(h(doc, 'p', 'rpg-wiz-note', W.signatureNote));
                 const rows = h(doc, 'div', 'rpg-wiz-rows');
                 body.appendChild(rows);
                 const head = h(doc, 'div', 'rpg-wiz-row rpg-wiz-headrow');
@@ -460,6 +461,11 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     row.append(name, about, stat, uses, start);
                     const remove = button(row, '', 'rpg-wiz-x', () => { put(withoutSkill(draft(), at)); drawSummary(); redraw(); });
                     remove.setAttribute('aria-label', fill(W.remove, { name: label }));
+                    // A signature skill (a pack's cast member brought it): the pencil's rules, its name and what it does may be fixed; the stat, resource and rank stay and it cannot be taken out.
+                    if (skill.sig === true) {
+                        for (const control of [stat, uses, start, remove]) control.disabled = true;
+                        row.setAttribute('data-signature', 'true');
+                    }
                     remove.appendChild(h(doc, 'span', '', '×'));
                     rows.appendChild(row);
                 });
