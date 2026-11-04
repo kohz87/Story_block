@@ -9,6 +9,7 @@ import { LEAN_RPG_FEATURE, parsePlanAnswer, prepare, readSheet, rollPrepared } f
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
 import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply } from '../data-modules/helpers.js';
+import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
 import { character, foeBlock, sheetDomain } from './helpers.js';
 
 const available = await hostAvailable();
@@ -87,4 +88,17 @@ test('INT-222: Shadow Cut in slot 6 with the Mana spent falls back to its `else:
     // an eighth-slot skill is known to the planner too: Spark (slot 8, Mana) with the Mana spent falls back as well
     const spark = roll('act Astra | skill: Spark | type: magic | target: Rats | else: Iaijutsu', s);
     for (const line of actLines(spark.result).slice(0, 3)) assert.deepEqual([line.skill, line.without, line.withoutUses], ['Iaijutsu', 'Spark', 'mana']);
+});
+
+test('INT-222: a `then:` act naming a skill in slot 6-8 rolls it from round 2 and earns it practice (the first skill sits in an extra slot too)', () => {
+    const s = sheet(4, 4);
+    const answer = 'act Astra | skill: Shadow Cut | type: magic | target: Rats | then: Iaijutsu';   // Shadow Cut is slot 6, Iaijutsu slot 7
+    const plan = parsePlanAnswer(['pace: all', answer].join('\n'), s, { formula: 'standard' }).plan;
+    assert.equal(plan.acts[0].then, 'Iaijutsu', 'a follow-up held in slot 7 is accepted');
+    const result = rollPrepared(plan, prepare(plan, s, rules, { fix: true, then: true }), misses(), rules, { flow: 2, fix: true, then: true });
+    const lines = actLines(result);
+    assert.equal(lines[0].skill, 'Shadow Cut');
+    for (const line of lines.slice(1, 5)) assert.equal(line.skill, 'Iaijutsu', 'rounds 2+ roll the slot-7 skill');
+    const uses = Object.fromEntries(usesOf({ checks: result.checks, rounds: result.rounds, opening: result.opening }).map(use => [use.skill, use.n]));
+    assert.ok(uses['Shadow Cut'] >= 1 && uses.Iaijutsu >= 1, `practice for both: ${JSON.stringify(uses)}`);
 });
