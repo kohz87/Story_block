@@ -627,12 +627,17 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const after = standingBlock(ctx, name);
         if (!after || !Object.hasOwn(after.definition.state ?? {}, 'sig')) return [];
         if (mode === 'join') return defaultSeeds(after.definition.state).filter(skill => !have.has(fold(skill.name)));
+        // A return plans the rows its own receipt recorded (`data.sigSkills`: what was seeded, before the reader's pencil changed a name or a description in the
+        // slot); only a reply that recorded none is planned from the marked slots as they stand.
+        const recorded = (ctx.standingReceipts ?? []).filter(receipt => receipt?.data?.join?.op === 'back' && fold(receipt.data.join.name ?? '') === fold(name)).flatMap(receipt => (Array.isArray(receipt.data.sigSkills) ? receipt.data.sigSkills : []))
+            .filter(row => dmObject(row) && typeof row.name === 'string' && row.name);
+        if (recorded.length) return recorded.filter(row => !have.has(fold(row.name))).map(row => ({ name: row.name, about: typeof row.about === 'string' ? row.about : '', stat: row.stat, uses: row.uses ?? 'stamina', rank: Number.isSafeInteger(row.rank) ? row.rank : 0 }));
         const rows = [];
         for (let n = 1; n <= SKILL_SLOTS_MAX; n += 1) if (typeof after.fields[`skill${n}`] === 'string' && after.fields[`skill${n}`] && signatureAt(after.fields.sig, n) && !have.has(fold(after.fields[`skill${n}`]))) rows.push(skillRow(after.fields, n));
         return rows;
     }
     // The tiles of the join's receipt and its summary words.
-    const seededData = seeds => seeds.map(skill => ({ name: skill.name, stat: skill.stat, uses: skill.uses, rank: skill.rank }));
+    const seededData = seeds => seeds.map(skill => ({ name: skill.name, about: skill.about, stat: skill.stat, uses: skill.uses, rank: skill.rank }));
     // Coming back: the seeds go into the free slots of the Skills block the person already has.
     function reseed(ctx, answer, name) {
         const prefix = stateOf(ctx), block = skillsBlockOf(prefix, name);
@@ -955,7 +960,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
                 if (probe?.full && skillCapacity(definition) < Math.min(SKILL_SLOTS_MAX, skillWant(prefix, fields)) && (!ctx.standing || (standing && skillCapacity(standing) > skillCapacity(definition)))) {
                     grown = growSkills(ctx, prefix, draftOf(ctx), module);
                     if (grown) definition = grown;
-                } else if (probe?.slot && !dmOwn(definition.kinds, named.kind)) redirect = probe.kind;
+                } else if (probe?.slot && !dmOwn(definition.kinds, named.kind)
+                    // (a Re-read redirects only to a slot the reply, as it stands, holds that skill in: a line that was refused then stays refused)
+                    && (!ctx.standing || fold(standingBlock(ctx, String(fields.who ?? ''))?.fields?.[`skill${probe.slot}`] ?? '') === fold(String(named.name ?? '')))) redirect = probe.kind;
             }
         }
         let given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };

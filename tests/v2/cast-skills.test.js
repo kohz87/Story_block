@@ -160,7 +160,7 @@ test('a join fills the first free slots as written, marks them signature, and te
     assert.equal(fields.skill4, '', 'free slots stay for the narrator');
     const joined = joinReceipt(host);
     assert.equal(joined.summary, 'Mara joined the party. Signature skills: 3.');
-    assert.deepEqual(joined.data.sigSkills, [{ name: 'Tide Step', stat: 'agi', uses: 'stamina', rank: 1 }, { name: 'Ferry Spark', stat: 'int', uses: 'mana', rank: 0 }, { name: 'Rope Haul', stat: 'str', uses: 'stamina', rank: 2 }]);
+    assert.deepEqual(joined.data.sigSkills, [{ name: 'Tide Step', about: 'Light footwork on a rocking deck.', stat: 'agi', uses: 'stamina', rank: 1 }, { name: 'Ferry Spark', about: 'A small lantern-flash of magic.', stat: 'int', uses: 'mana', rank: 0 }, { name: 'Rope Haul', about: 'Hauls a line hand over hand.', stat: 'str', uses: 'stamina', rank: 2 }]);
     assert.deepEqual(receipts(host).map(entry => entry.type).filter(type => type !== 'dm.settle'), ['capture.party'], 'no receipt of its own');
     assert.deepEqual(told(host).filter(message => !/ROLLS/.test(message)), []);
     const party = readParty(host.head(), {});
