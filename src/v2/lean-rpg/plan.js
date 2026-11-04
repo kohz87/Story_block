@@ -1,7 +1,7 @@
 // The plan (SPEC_RPG §2 A2): what the pre-call answers, as plain data the roll reads.
 //
 //   { pace: 'careful' | 'normal' | 'all',
-//     acts:   [{ who, skill?, else?, uses?, stat?, target, edge?, why? }],  `else`: the skill to use when the first one's resource is spent (Standard)  a party member's action against a foe
+//     acts:   [{ who, skill?, then?, else?, uses?, stat?, target, edge?, why? }],  `then`: the skill rounds 2 on use (mark 3); `else`: the skill to use when the current one's resource is spent (Standard)  a party member's action against a foe
 //     foes:   [{ slot, target, defend, skill? } | { slot, hold: true }],  what a foe slot does (a number 1–4); `skill`: the
 //                                                                         defender's skill that counts when they defend
 //     checks: [{ who, skill?, uses?, stat?, difficulty, ambush? }] }  a roll outside a fight; `ambush`: a skill used to set up the fight (ambush.js)
@@ -65,8 +65,8 @@ export function validatePlan(plan) {
     (Array.isArray(plan.acts) ? plan.acts : []).forEach((act, n) => {
         const where = `act ${n + 1}`;
         if (!isObject(act)) { errors.push(`${where} must be an object.`); return; }
-        known(act, ['who', 'skill', 'else', 'uses', 'stat', 'target', 'edge', 'why', ...(std ? ['type', 'fit', 'area', 'support', 'difficulty'] : [])], where);
-        text(act, 'who', where); text(act, 'skill', where, false); text(act, 'else', where, false); text(act, 'target', where); text(act, 'why', where, false);
+        known(act, ['who', 'skill', 'then', 'else', 'uses', 'stat', 'target', 'edge', 'why', ...(std ? ['type', 'fit', 'area', 'support', 'difficulty'] : [])], where);
+        text(act, 'who', where); text(act, 'skill', where, false); text(act, 'then', where, false); text(act, 'else', where, false); text(act, 'target', where); text(act, 'why', where, false);
         stat(act, 'stat', where, !std && act.skill === undefined);
         if (std) {
             if (act.type !== undefined && !PLAN_TYPES.includes(act.type)) errors.push(`${where} type must be one of ${PLAN_TYPES.join(', ')}.`);
@@ -171,6 +171,14 @@ function elseOf(character, labels, skill) {
     return found ? { else: found.name } : {};
 }
 
+// "then: Iaijutsu": the skill an act uses from round 2 on (round 1 and an opening action use `skill:`). A skill the character has, other than the first.
+function thenOf(character, labels, skill) {
+    const named = oneLine(labels.then);
+    if (!named || /^(none|no|-|—)$/i.test(named)) return {};
+    const found = character ? matchSkill(character, named) : null;
+    return found && found.name !== skill.entry.skill ? { then: found.name } : {};
+}
+
 const difficultyOf = value => {
     const word = String(value ?? '').trim().toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ');
     if (DIFFICULTIES.includes(word)) return word;
@@ -238,13 +246,13 @@ export function parsePlanAnswer(answer, sheet, { formula = 'classic' } = {}) {
                 if (!who || !target || plan.acts.length >= LIMITS.acts) { dropped += 1; continue; }
                 const type = typeOf(labels.type);
                 const fit = type === 'check' ? statOf(labels.fit ?? labels.stat) : null;
-                plan.acts.push({ who: who.who, ...skill.entry, ...elseOf(who, labels, skill), ...(type ? { type } : {}), ...(fit ? { fit } : {}), ...(!support && labels.area ? { area: true } : {}),
+                plan.acts.push({ who: who.who, ...skill.entry, ...thenOf(who, labels, skill), ...elseOf(who, labels, skill), ...(type ? { type } : {}), ...(fit ? { fit } : {}), ...(!support && labels.area ? { area: true } : {}),
                     ...(support ? { support: true, difficulty } : {}), target: support ? mate.who : target.name, ...edgeOf(labels.edge) });
                 continue;
             }
             const target = matchFoe(sheet, labels.target);
             if (!who || !(stat || skill.named) || !target || plan.acts.length >= LIMITS.acts) { dropped += 1; continue; }
-            plan.acts.push({ who: who.who, ...skill.entry, ...elseOf(who, labels, skill), target: target.name, ...edgeOf(labels.edge) });
+            plan.acts.push({ who: who.who, ...skill.entry, ...thenOf(who, labels, skill), ...elseOf(who, labels, skill), target: target.name, ...edgeOf(labels.edge) });
         } else if (head === 'foe') {
             // A foe listed as new (open.js) is read apart (openLinesOf): a line that asks for one is not a line to place.
             if (labels.new) continue;

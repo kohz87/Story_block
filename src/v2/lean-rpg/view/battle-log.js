@@ -112,6 +112,9 @@ function breakdownStandard(raw, skill, soul, foeSide, against, lv) {
     return [`${pcStandard(raw, skill, soul, lv)}${theirs ? ` · vs ${theirs}` : ''}`, damageText(raw.damage), raw.decisive === true ? B.decisive : ''].filter(Boolean).join(' · ');
 }
 
+// The bar a skill's cost moved on a recorded line ('mana' | 'stamina'), from the cost's bar id; '' when the line has none (a record from before kept none).
+const costOf = cost => (isRecord(cost) ? /:(mana|stamina)$/.exec(String(cost.id ?? ''))?.[1] ?? '' : '');
+
 // One Line as the panel draws it: who acts, on whom, the acting side's total against the other's, and the roll behind it. A party
 // act or check reads the party's total first; a foe's attack reads from the attacker's side, so the foe's total and roll come first.
 function lineOf(raw, soulOf = () => null, lv = false, divisor = null) {
@@ -132,7 +135,7 @@ function lineOf(raw, soulOf = () => null, lv = false, divisor = null) {
     const standard = typeof raw.type === 'string' && Number.isFinite(raw.pc.mainValue) && Number.isFinite(raw.pc.secondValue);
     const breakdown = told || (standard ? breakdownStandard(raw, skill, soul, foeSide, against, lv) : why ? `${detail} · ${why}` : detail);
     const gear = gearText(raw.pc.gear);
-    const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: gear && breakdown ? `${breakdown} · ${gear}` : breakdown, arrows: [], ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}), ...(gear ? { gear } : {}) };
+    const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: gear && breakdown ? `${breakdown} · ${gear}` : breakdown, arrows: [], ...(costOf(raw.cost) ? { cost: costOf(raw.cost) } : {}), ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}), ...(gear ? { gear } : {}) };
     // A support action (a heal or a buff, a `check` line that names the one helped) reads like an act on that character.
     if (raw.kind === 'check' && raw.support === true && words(raw.target, 40)) return { ...base, who: words(raw.pc.who, 40), target: words(raw.target, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, support: true, heals: isRecord(raw.damage) && raw.damage.blocks < 0 };
     if (raw.kind === 'foe') return { ...base, total: foeSide?.total ?? null, vs: raw.pc.total, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', defence: skill, stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
@@ -202,7 +205,7 @@ function consequences(state, before, roleOf) {
     for (const character of readParty(state, { roleOf })) {
         const old = was.get(`${character.module}|${character.subject}`);
         if (!old) continue;
-        for (const key of BARS) if (old.bars[key].value !== character.bars[key].value) out.push({ name: character.name, kind: key, text: `${character.name} ${character.bars[key].word}` });
+        for (const key of BARS) if (old.bars[key].value !== character.bars[key].value) out.push({ name: character.name, kind: key, text: key === 'health' ? `${character.name} ${character.bars[key].word}` : fill(B.arrowBar, { name: character.name, bar: character.definition.state?.[key]?.label ?? RPG_STRINGS.bars[key], word: character.bars[key].word }) });
     }
     return out;
 }
@@ -214,7 +217,9 @@ function attach(model, changes) {
     const lines = [...(model.opening ?? []), ...model.rounds.flatMap(round => round.lines)];
     for (const change of changes) {
         const aimed = line => (change.kind === 'health' ? (line.target && same(line.target, change.name)) || (line.foe && same(line.who, change.name)) : same(line.who, change.name));
-        lines.findLast(aimed)?.arrows.push(change.text);
+        // A Mana or Stamina change sits on the first line whose recorded cost moved that bar; a record with no cost keeps the last line the actor took.
+        const paid = change.kind === 'health' ? null : lines.find(line => line.cost === change.kind && same(line.foe ? line.target : line.who, change.name));
+        (paid ?? lines.findLast(aimed))?.arrows.push(change.text);
     }
 }
 

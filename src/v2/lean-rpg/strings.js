@@ -372,6 +372,7 @@ export const RPG_STRINGS = Object.freeze({
         foeHit: 'Hit',
         foeGrazed: 'Grazed',
         foeBlocked: 'Blocked',
+        arrowBar: '{name} {bar} {word}',
         vs: '{total} vs {against}',
         ended: '[Combat ended: {how}]',
         down: 'Down',
