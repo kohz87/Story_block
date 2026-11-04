@@ -10,7 +10,7 @@ import { exportBlockPack } from '../data-modules/block-templates.js';
 import { saveTextFile } from '../view/download.js';
 import { STRINGS, fill, refusalText } from '../strings.js';
 import { ROLES_WITHOUT_TAB } from '../lean-rpg/names.js';
-import { drawEntries, drawNumberMap, entriesRoles, numberRows } from './block-layouts.js';
+import { barFields, drawEntries, drawNumberMap, entriesRoles, numberRows } from './block-layouts.js';
 
 const S = STRINGS.blocks;
 const P = S.page;
@@ -116,7 +116,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
             } };
             // Plain fields are the record card (a small card, label and value in two columns, a pencil at the end of each line); a block whose own
             // layout is cards or bars keeps loose rows.
-            let rec = null;
+            let rec = null, barsDrawn = false;
             const recordHost = () => (['cards', 'bars'].includes(definition.layout) ? root : (rec ??= root.appendChild(h(doc, 'div', 'ss-glass ss-b-plain'))));
             for (const [field, schema] of Object.entries(definition.state)) {
                 if (schema.type === 'entries' || (schema.type === 'map' && schema.values.type === 'int')) rec = null;
@@ -129,6 +129,14 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
                         line.appendChild(h(doc, 'span', 'ss-block-value-name', `${schema.label ?? field} (${list.length})`));
                         const slot = h(doc, 'span', 'ss-block-value-slot'); line.appendChild(slot);
                         for (const entry of list) slot.appendChild(h(doc, 'div', 'ss-block-value-shown', Object.keys(schema.of).map(part => String(entry?.[part] ?? '')).filter(Boolean).join(' · ')));
+                    }
+                    continue;
+                }
+                if (schema.type === 'int' && barFields(definition).includes(field)) {
+                    // A bars block draws its number fields together as one map of numbers (the first one stands for all).
+                    if (!barsDrawn) {
+                        barsDrawn = true;
+                        drawNumberMap(env, root, { title: '', memoryKey: `${row.module}:${who ?? ''}:fields`, rows: numberRows({ definition, module: row.module, who, values, fields: barFields(definition) }) });
                     }
                     continue;
                 }
