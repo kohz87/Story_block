@@ -55,18 +55,7 @@ export const FORMULA = Object.freeze({ die: 20, statDivisor: 2, classWeight: 2, 
 /** Pacing: exchanges per reply. (From the second flow, FLOW_VERSION in resolve.js, only `careful` limits a reply: 1 exchange; the others run to the cap.) */
 export const PACE = Object.freeze({ careful: 1, normal: 5, all: 8 });
 
-/**
- * How many skill slots a Skills block can hold (`skill1`…`skill8`, `rank1`…, `practice1`…, the New Skills template) and how many a character has at a level:
- * 5 to start, one more at Lv 20, 40 and 60 (`skillSlots`). A block made before has five fields and so five slots; a level drop never takes a skill away (the extra
- * slots are kept, there are just no new learns). Foe slots of a Foes block: `foe1`…`foe4`.
- */
-export const SKILL_SLOTS_MAX = 8;
-export const SKILL_SLOTS_BASE = 5;
-export const SKILL_SLOTS_EVERY = 20;
-export const skillSlots = level => Math.min(SKILL_SLOTS_MAX, SKILL_SLOTS_BASE + Math.floor((Number.isFinite(level) ? Math.max(0, level) : 0) / SKILL_SLOTS_EVERY));
-/** The Skills block's `sig` field: a bit for each slot a pack's cast gave (bit n - 1 for slot n). Whether slot `slot` is a signature skill. */
-export const SIGNATURE_FIELD = 'sig';
-export const signatureAt = (value, slot) => Number.isSafeInteger(value) && value > 0 && Number.isSafeInteger(slot) && slot >= 1 && slot <= SKILL_SLOTS_MAX && (value >> (slot - 1)) % 2 === 1;
+/** Foe slots of a Foes block: `foe1`…`foe4` (skill slots: ../skill-slots.js). */
 export const FOE_SLOTS = 4;
 
 /**
@@ -134,7 +123,7 @@ export const USES = Object.freeze(['stamina', 'mana']);
  * `skills` skills, at most `adept` of them at Adept and the rest Novice. Text limits are the Character and Skills fields'.
  */
 export const CREATION = Object.freeze({
-    start: 10, budget: 6, min: 8, max: 15, skills: SKILL_SLOTS_BASE, adept: 1,
+    start: 10, budget: 6, min: 8, max: 15, skills: 5, adept: 1,
     name: 40, about: 240, skillName: 40, skillAbout: 120,
 });
 

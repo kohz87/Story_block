@@ -10,7 +10,8 @@
 // Pure and read-only: it takes a state (or anything shaped `{ domains: { dataModules } }`) and answers plain data. It
 // never validates the definitions (the data-module checker did when they were pinned); a block it cannot read is left
 // out, with a plain `problems` line.
-import { FOE_SLOTS, LEVEL, SKILL_SLOTS_MAX, STAGES, signatureAt, STATS, USES } from './names.js';
+import { FOE_SLOTS, LEVEL, STAGES, STATS, USES } from './names.js';
+import { SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { dmHidden } from '../data-modules/schema.js';
 import { barOf, characterBars, sizeOf } from './blocks.js';
 import { soulReading } from './soul.js';
@@ -137,7 +138,7 @@ function skillsOf(fields, hidden = new Set()) {
         const stat = text(fields[`stat${n}`]).toLowerCase(), uses = text(fields[`uses${n}`]).toLowerCase();
         out.push({
             slot: n, name, about: text(fields[`about${n}`]), rank: int(fields[`rank${n}`]) ?? 0, practice: int(fields[`practice${n}`]) ?? 0,
-            stat: STATS.includes(stat) ? stat : null, uses: USES.includes(uses) ? uses : null, ...(signatureAt(fields.sig, n) ? { signature: true } : {}),
+            stat: STATS.includes(stat) ? stat : null, uses: USES.includes(uses) ? uses : null,
             hidden: ['rank', 'practice', 'stat', 'uses'].filter(part => hidden.has(`${part}${n}`)),
         });
     }

@@ -18,7 +18,8 @@ import { fold, readSheet } from '../lean-rpg/read.js';
 // (foes.js and levels.js are small and need nothing of the RPG's library: they stay static, like read.js)
 import { averageLevel, bandOfRank, foeRandom, foeLevelCap, levelOf, partyLevels, pickLevel } from '../lean-rpg/foes.js';
 import { XP_RATE, packLevelsOf, scaleXp, xpRateFrom } from '../lean-rpg/levels.js';
-import { CLASS_NAMES, SKILL_SLOTS_BASE, SKILL_SLOTS_EVERY, SKILL_SLOTS_MAX, signatureAt, skillSlots } from '../lean-rpg/names.js';
+import { CLASS_NAMES } from '../lean-rpg/names.js';
+import { SKILL_SLOTS_BASE, SKILL_SLOTS_EVERY, SKILL_SLOTS_MAX, signatureAt, skillSlots } from '../skill-slots.js';
 // The companions who join, the rules they are made with and their words are the RPG's library, loaded only when it is needed (rpg-lazy.js).
 import { rpgLib } from '../rpg-lazy.js';
 import { castGearOf, gearLine } from '../packs/cast-gear.js';
@@ -26,6 +27,7 @@ import { castSkillsOf } from '../packs/cast-skills.js';
 import { gearOn } from '../domains/inventory.js';
 import { actorIdOf } from '../lean-rpg/roster.js';
 import { placeOf } from '../domains/gear.js';
+const PRACTICE_KIND = new RegExp(`^practice-[1-${SKILL_SLOTS_MAX}]$`, 'u');
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
@@ -938,7 +940,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
         // Practice comes only from rolled skill uses: on a reply captured under that rule (turn.js marks it, `ctx.carrier.practiceRule`; an older reply has no mark
         // and keeps its practice lines on a Re-read, an edit, a rebuild and a reload) the narrator's practice line changes nothing.
-        if (ctx.cause === 'story' && definition.role === 'skills' && /^practice-[1-8]$/u.test(labels.kind) && ctx.carrier?.practiceRule === 'rolls') refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
+        if (ctx.cause === 'story' && definition.role === 'skills' && PRACTICE_KIND.test(labels.kind) && ctx.carrier?.practiceRule === 'rolls') refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
         // The XP rate (lean-rpg/levels.js): the narrator's XP line for a character is multiplied by the rate in force (the RPG on), which the line's record keeps
         // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.

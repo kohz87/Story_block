@@ -11,7 +11,8 @@
 
 import { KINDS, RARITIES } from '../domains/inventory.js';
 import { formatAmount } from '../domains/money.js';
-import { CREATION, RANK_NAMES, SKILL_SLOTS_MAX, STATS, USES } from './names.js';
+import { CREATION, RANK_NAMES, STATS, USES } from './names.js';
+import { SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { classOfLevel, levelOfClass } from './formula.js';
 import { RPG_STRINGS, fill } from './strings.js';
 

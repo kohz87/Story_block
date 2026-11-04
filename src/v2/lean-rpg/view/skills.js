@@ -7,7 +7,8 @@
 import { h, iconNode } from '../../view/widgets/dom.js';
 import { meter } from '../../view/widgets/meter.js';
 import { refusalText } from '../../strings.js';
-import { LEVEL, FORMULA, RANK_NAMES, skillSlots } from '../names.js';
+import { LEVEL, FORMULA, RANK_NAMES } from '../names.js';
+import { skillSlots } from '../../skill-slots.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { classTerm, hasLevels, isStandard, statShare } from '../rules.js';
 import { levelBonus, statPart } from '../formula.js';

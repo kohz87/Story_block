@@ -4,7 +4,8 @@
 // `names` from STAGES; the level is a number 1–99 (stage 51; the Soul Class I–IX of earlier blocks is not in new templates) and ranks are numbers with names. The block engine adds three things these
 // use: `names` and `prompt: false` on fields, and the `replyEnd` and `cards` lists. The Skills block's rank and practice
 // are `edit: false` (they only move through play); SKILL_SETS are the New character wizard's built-in skill sets.
-import { CREATION, LEVEL, SIGNATURE_FIELD, SKILL_SLOTS_MAX, STATS, STAGES, USES } from './names.js';
+import { CREATION, LEVEL, STATS, STAGES, USES } from './names.js';
+import { SIGNATURE_FIELD, SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { STANDARD_NUMBERS } from './formula.js';
 
 const names = (words, first = 0) => Object.fromEntries(words.map((word, index) => [String(index + first), word]));

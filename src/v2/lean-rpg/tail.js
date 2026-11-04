@@ -11,7 +11,8 @@
 // Pure: no DOM, no state. `summaryOf` (data-modules/part.js) calls it for a block with a role and cuts the result to the block's room.
 
 import { barOf, characterBars, sizeOf, spreadWord, wordsOf } from './blocks.js';
-import { SKILL_SLOTS_MAX, STATS } from './names.js';
+import { STATS } from './names.js';
+import { SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { oneLine } from '../../text.js';
 
 const SLOTS = Object.freeze({ skills: SKILL_SLOTS_MAX, foes: 4 });

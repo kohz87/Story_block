@@ -15,7 +15,8 @@
 //
 // The record (the step's receipt `data.v2.result.practice`): { skills: [{ who, skill, slot, amount, held? }] }.
 import { createEvaluation } from '../data-modules/interpreter.js';
-import { LEAN_RPG_FEATURE, PRACTICE, PRACTICE_STEP, RESOLVE, SKILL_SLOTS_MAX, practiceOf } from './names.js';
+import { LEAN_RPG_FEATURE, PRACTICE, PRACTICE_STEP, RESOLVE, practiceOf } from './names.js';
+import { SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { fold } from './read.js';
 
 /** The replies whose rolls are practised (the same as the fight's: not a Continue's, nor the extractor's late lines). */
