@@ -610,7 +610,10 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (!block) return answer;
         const seeds = castSeeds(ctx, name);
         if (!seeds.length) return answer;
-        const fields = atPath(draftOf(ctx), instancePath(block.module, 'chat')).fields, capacity = skillCapacity(block.definition), marks = Object.hasOwn(block.definition.state ?? {}, 'sig');
+        // A block made before the signature mark (or the extra slots) is extended first, so the skills can be marked (growSkills).
+        let definition = block.definition;
+        if (!Object.hasOwn(definition.state ?? {}, 'sig') || skillCapacity(definition) < SKILL_SLOTS_MAX) definition = growSkills(ctx, prefix, draftOf(ctx), block.module) ?? definition;
+        const fields = atPath(draftOf(ctx), instancePath(block.module, 'chat')).fields, capacity = skillCapacity(definition), marks = Object.hasOwn(definition.state ?? {}, 'sig');
         const placed = [];
         for (const skill of seeds) {
             const slot = Array.from({ length: capacity }, (_, i) => i + 1).find(n => !fields[`skill${n}`]);
@@ -722,7 +725,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (check.returning) return leave(ctx, check.returning, false, call);
         if (rpg().joinMode(settings()) === 'ask') {
             // Ask: nothing is made. The line is kept in this reply's own receipt, and the card under the reply (rpg.joins) is read from it.
-            const offer = { op: 'offer', name: read.name, about: read.about, soul: read.soul, best: read.best };
+            const seeds = castSeeds(ctx, read.name);
+            const offer = { op: 'offer', name: read.name, about: read.about, soul: read.soul, best: read.best, ...(seeds.length ? { skills: seeds } : {}) };
             return { summary: fill(J.offerNote, { name: read.name }), narrate: false, data: { join: offer } };
         }
         return makeParty(ctx, read, check.soul, call);
@@ -852,6 +856,34 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         try { level = readSheet(state).characters.find(person => fold(person.who) === fold(fields.who))?.level ?? 1; } catch { level = 1; }
         return Math.min(capacity, skillSlots(level));
     }
+    // The slots the character's level opens (names.js skillSlots), whatever the block has.
+    function skillWant(state, fields) {
+        let level = 1;
+        try { level = readSheet(state).characters.find(person => fold(person.who) === fold(fields.who))?.level ?? 1; } catch { level = 1; }
+        return skillSlots(level);
+    }
+    // The additive upgrade of a Skills block made before the extra slots (five slots, no `sig`; templates.js grownSkills): when it is first needed (a learn line once the level
+    // has opened a slot the block lacks, or a cast member's skills to mark), the block's pin is replaced by the same definition with the missing slots and the mark added.
+    // Nothing is removed or renamed; the fields it adds start at their defaults and every existing skill keeps its rank and practice. It is part of the action that needed it:
+    // its ops carry the new pin and a Re-read plans it again from the same prefix, so rebuild, Re-read and reload all give the same block (the pack is not asked).
+    // → the new definition (the draft holds it), or null when nothing was missing.
+    function growSkills(ctx, prefix, draft, module) {
+        const domain = prefix.domains.dataModules, old = domain?.active?.[module], current = activeDefinition(prefix, module);
+        if (!old || !current || current.role !== 'skills' || current.pack !== 'chat' || domain.pins[old.hash]?.packId !== 'chat') return null;
+        const grown = rpg().grownSkills(rawDefinition(current));
+        if (!grown) return null;
+        const catalog = Object.keys(domain.active).map(id => activeDefinition(prefix, id)).filter(Boolean);
+        const checked = validateDataModules([grown], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions: catalog });
+        if (!checked.ok) return null;
+        const definition = checked.definitions[0], hash = dataModuleHash(definition);
+        if (Object.keys(draft.pins).length >= L.pins + 1) return null;
+        draft.pins[hash] = copy({ definition, packId: 'chat', packVersion: '0', packHash: null, interpreter: 1 });
+        draft.active[module] = { ...copy(old), hash, generation: Math.max(ctx.rev, old.generation + 1) };
+        const fields = atPath(draft, instancePath(module, 'chat')).fields;
+        for (const [key, value] of Object.entries(dataModuleDefaults(definition.state))) if (!Object.hasOwn(fields, key)) fields[key] = value;
+        if (old.hash !== hash && !Object.values(draft.active).some(entry => entry.hash === old.hash)) delete draft.pins[old.hash];
+        return definition;
+    }
     // A Foes block of the Levels rules (its set-slot kind has a `level` label): a line that gives a level keeps it; one that gives a rank gets a level drawn inside that
     // rank's band (the `rpg.rank` query names the ranks); one that gives neither gets a level within ±2 of the party's average. The draw is from the reply's seed, so a
     // swipe draws anew and a Re-read keeps it. `rank` is not a label of the kind: it is taken out of the line here.
@@ -872,10 +904,19 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     }
     function act(ctx, payload, line = null, call = {}) {
         if (ctx.caller !== null) refuse('REFUSED', '', 'A data action cannot be called by another module.');
-        const prefix = stateOf(ctx), module = resolveModule(prefix, line?.name ?? payload.module), definition = activeDefinition(prefix, module);
+        const prefix = stateOf(ctx), module = resolveModule(prefix, line?.name ?? payload.module);
+        let definition = activeDefinition(prefix, module);
         call.label = definition?.name ?? module;
         if (!definition) refuse('DM_SCHEMA', '', 'Unsupported or damaged pin.');
         dependency(definition, prefix);
+        // A learn line for a Skills block made before the extra slots, once the character's level has opened a slot it lacks: the block is extended first (growSkills).
+        let grown = null;
+        if (line && definition.role === 'skills' && !/^practice/u.test(String(line.labels?.kind ?? ''))) {
+            const have = Object.keys(definition.state).filter(key => /^skill\d+$/u.test(key)).length, fields = instanceOf(prefix, module)?.fields;
+            // (the guard re-asks the conditions an action answered on the block as it was before; the new slots are empty by construction, so a grown action records none)
+            if (fields && have < Math.min(SKILL_SLOTS_MAX, skillWant(prefix, fields))) grown = growSkills(ctx, prefix, draftOf(ctx), module);
+            if (grown) definition = grown;
+        }
         const given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
         const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
         // A foe group the narrator sets may give `level: N` or `rank: <name>`, or neither: then its level is drawn from the reply's seed (see foeLevelLabels).
@@ -919,7 +960,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), imports: prefixImports(definition),
-            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds, ...(xpRate !== XP_RATE.default ? { xpRate } : {}) } });
+            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
         // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is
@@ -930,7 +971,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         // reply's rolls give by code can put back what the narrator added for the same skill.
         const practiceFrom = ctx.cause === 'story' && route && route.kind.startsWith('practice-')
             ? { [module]: { [route.slot]: Object.fromEntries(['practice', 'rank'].filter(key => Number.isSafeInteger(fieldsBefore[`${key}${route.slot}`])).map(key => [key, fieldsBefore[`${key}${route.slot}`]])) } } : null;
-        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
+        const answer = finish(ctx, prefix, draft, recorded, { pin: Boolean(grown), visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }

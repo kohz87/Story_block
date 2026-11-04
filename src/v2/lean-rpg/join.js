@@ -161,7 +161,8 @@ export function joinOffers(entries, index, party = []) {
         const key = fold(join.name);
         if (!key || seen.has(key) || answered.has(key) || party.some(person => fold(person.name) === key)) continue;
         seen.add(key);
-        out.push({ name: oneLine(join.name), about: oneLine(join.about), soul: Number.isSafeInteger(join.soul) ? join.soul : 1, best: STATS.includes(join.best) ? join.best : '' });
+        out.push({ name: oneLine(join.name), about: oneLine(join.about), soul: Number.isSafeInteger(join.soul) ? join.soul : 1, best: STATS.includes(join.best) ? join.best : '',
+            ...(Array.isArray(join.skills) && join.skills.length ? { skills: join.skills.slice(0, 8).map(skill => ({ name: oneLine(skill?.name), about: oneLine(skill?.about), stat: skill?.stat, uses: skill?.uses, rank: skill?.rank })) } : {}) });
     }
     return out;
 }
@@ -170,7 +171,8 @@ export function joinOffers(entries, index, party = []) {
 export function joinCard(offers, state = null) {
     const offer = offers[0];
     if (!offer) return null;
-    const payload = { name: offer.name, about: offer.about, soul: offer.soul, best: offer.best };
+    // (a cast member's signature skills, as the pack had them when the line came, go with Edit first: the wizard's draft keeps them marked)
+    const payload = { name: offer.name, about: offer.about, soul: offer.soul, best: offer.best, ...(offer.skills ? { skills: offer.skills } : {}) };
     // (the class a line writes stands for a level, 10n - 5: the card says the level the companion will start at)
     const rows = [{ icon: 'fa-star', text: fill(J.rowLevel, { level: levelOfClass(CLASS_NAMES[offer.soul - 1] ? offer.soul : 1) }) }];
     if (offer.best) rows.push({ icon: 'fa-arrow-up', text: fill(J.rowBest, { stat: offer.best.toUpperCase() }) });

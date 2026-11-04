@@ -272,6 +272,22 @@ export const STANDARD_TEMPLATES = Object.freeze([
     { name: 'Combat rules', definition: standardCombat },
 ]);
 
+/**
+ * The additive upgrade of a Skills block made before the extra skill slots (five slots, no `sig`): the same definition with the fields, kinds and rules of the slots
+ * and the signature mark it lacks added from today's template (Standard's learn guard when the block has it). Nothing is removed, renamed or changed, and the text
+ * (`prompt`) stays as it was. → the extended definition, or null when it lacks nothing (or is not a Skills block). Pure.
+ */
+export function grownSkills(definition) {
+    if (definition?.role !== 'skills' || typeof definition.state !== 'object' || typeof definition.kinds !== 'object') return null;
+    const base = definition.kinds['learn-1']?.when ? standardSkills : skills;
+    const state = { ...definition.state }, kinds = { ...definition.kinds }, rules = [...(definition.rules ?? [])];
+    let changed = false;
+    for (const [key, schema] of Object.entries(base.state)) if (!Object.hasOwn(state, key)) { state[key] = structuredClone(schema); changed = true; }
+    for (const [name, kind] of Object.entries(base.kinds)) if (!Object.hasOwn(kinds, name)) { kinds[name] = structuredClone(kind); changed = true; }
+    for (const rule of base.rules) if (!rules.some(other => other.id === rule.id)) { rules.push(structuredClone(rule)); changed = true; }
+    return changed ? { ...definition, state, kinds, rules } : null;
+}
+
 /** The templates a chat's formula makes blocks from: 'classic' the originals, anything else Standard's. */
 export const templatesFor = formula => (formula === 'classic' ? LEAN_RPG_TEMPLATES : STANDARD_TEMPLATES);
 

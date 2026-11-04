@@ -7,7 +7,7 @@
 import { h, iconNode } from '../../view/widgets/dom.js';
 import { meter } from '../../view/widgets/meter.js';
 import { refusalText } from '../../strings.js';
-import { LEVEL, FORMULA, RANK_NAMES, SKILL_SLOTS_BASE, skillSlots } from '../names.js';
+import { LEVEL, FORMULA, RANK_NAMES, skillSlots } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { classTerm, hasLevels, isStandard, statShare } from '../rules.js';
 import { levelBonus, statPart } from '../formula.js';
@@ -48,11 +48,8 @@ export function rollOf(skill, character, rules = FORMULA) {
     return { total: half + skill.rank + bonus, stat: entry?.label ?? null, value: entry?.value ?? 0, half, rank: skill.rank, bonus };
 }
 
-/** How many slots the character's skills card shows: the slots the Skills block has, as far as the level opens them (names.js skillSlots), never fewer than the skills it holds. */
-export function slotsShown(character) {
-    const capacity = Object.keys(character.skillsBlock?.definition?.state ?? {}).filter(key => /^skill\d+$/u.test(key)).length || SKILL_SLOTS_BASE;
-    return Math.max(character.skills.length, Math.min(capacity, skillSlots(character.level)));
-}
+/** How many slots the character's skills card shows: the slots the level opens (names.js skillSlots; a Skills block made before them is extended when the story first needs it, data-modules/part.js growSkills), never fewer than the skills it holds. */
+export const slotsShown = character => Math.max(character.skills.length, skillSlots(character.level));
 
 /** The record the Party tab keeps for an open Skills view (outside the DOM: the page draws a screen again on every change of the story). */
 export const newSkillsSession = character => ({ module: character.module, subject: character.subject, editing: null, start: null, draft: { name: '', about: '' }, busy: false, message: '' });
