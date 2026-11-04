@@ -79,7 +79,7 @@ function skillStd(character, phrase, planned) {
     const hiddenStat = found.stat && (found.hidden ?? []).includes('stat') ? { statHidden: true } : {};
     if (character[resource] === 0) {
         const hidden = Boolean(found.uses) && (found.hidden ?? []).includes('uses');
-        return say({ skill: null, rank: 0, stat: null, uses: resource }, plain => `${character.who} cannot use ${found.name}${hidden && !plain ? '' : ` (${cap(resource)} ${STAGES[resource][0]})`}: rolled without it.`);
+        return say({ skill: null, rank: 0, stat: null, uses: resource, spentName: found.name }, plain => `${character.who} cannot use ${found.name}${hidden && !plain ? '' : ` (${cap(resource)} ${STAGES[resource][0]})`}: rolled without it.`);
     }
     return { skill: found.name, rank: found.rank, stat: found.stat ?? null, uses: resource, ...hiddenStat };
 }
@@ -109,7 +109,8 @@ function sideStd(character, type, skill, { fit = null, edge = 0, againstMagic = 
  * The plan against the sheet under Standard `rules`: what can be rolled, what is refused, the witness (every sheet number the roll
  * depends on, which the replay guard asks again) and the roster (the bars). → { acts, foes, checks, refused, plainRefused, witness, roster }
  */
-export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false } = {}) {
+export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false, fix = true } = {}) {
+    // (`fix`: the stage-65 fallback of a spent skill, see FIX_VERSION in open.js; a roll made before keeps the plain roll it had: the plan's own type, the skill's area, no `else:`)
     const out = { acts: [], foes: [], checks: [], refused: [], plainRefused: [] };
     const roster = rosterOf(sheet, maxOf);
     // A foe's side of the roll: from a roll of the Levels rules (`lv`) the foe adds floor(level / divisor), else foeClassWeight × class, as it did.
@@ -141,7 +142,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
     // the planner wrote for a mana skill belonged to the skill, which is spent)
     const plainType = (planned, skill) => (skill.skill ? (TYPE_FREE.includes(planned.type) ? planned.type : 'physical') : typeOf(planned, NONE));
     const withSkill = (skill, character, type, extra, typeBare = type, alt = null) => (skill.skill
-        ? { uses: skill.uses, plain: { type: typeBare, skill: null, uses: null, area: false, pc: sideStd(character, typeBare, NONE, extra, rules) }, ...(alt ? { alt } : {}) } : {});
+        ? { uses: skill.uses, plain: { type: typeBare, skill: null, uses: null, ...(fix ? { area: false } : {}), pc: sideStd(character, typeBare, NONE, extra, rules) }, ...(alt && fix ? { alt } : {}) } : {});
     // The act's `else:` skill (plan.js), used when the first skill's resource is spent and this one's is not: its own type, stat, rank and resource.
     const altOf = (character, act, extra) => {
         if (!act.else) return null;
@@ -159,15 +160,20 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         const foe = support ? null : matchFoe(sheet, act.target);
         if (support ? !mate : !foe) { refuse(act.who, `${label}: not rolled (no ${support ? 'character' : 'foe'} called ${act.target}).`); continue; }
         const skill = skillStd(actor.character, act.skill, act);
-        const type = typeOf(act, skill);
-        const { side, check } = skillSide(actor.character, skill, type, { fit: act.fit ?? act.stat, edge: act.edge });
+        // A skill whose resource is already empty before the reply (stage 65, `fix`): the action goes on with its `else:` skill when that one's resource is not empty,
+        // else as a plain physical single-target attack; its refusal text is told only for the plain attack (an `else:` skill needs none).
+        const spent = fix && !skill.skill && skill.spentName ? skill : null;
+        const swap = spent ? altOf(actor.character, act, { fit: act.fit ?? act.stat, edge: act.edge }) : null;
+        const type = swap ? swap.type : spent ? plainType(act, { skill: spent.spentName }) : typeOf(act, skill);
+        const { side: ownSide, check } = skillSide(actor.character, skill, type, { fit: act.fit ?? act.stat, edge: act.edge });
+        const side = swap ? swap.pc : ownSide;
         if (check.refusal) { refuse(act.who, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
-        if (skill.refused) refuse(act.who, skill.refused, skill.refusedPlain);
-        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: skill.skill, ...withSkill(skill, actor.character, type, { fit: act.fit ?? act.stat, edge: act.edge }, plainType(act, skill), altOf(actor.character, act, { fit: act.fit ?? act.stat, edge: act.edge })), ...(act.why ? { why: act.why } : {}), pc: side };
+        if (skill.refused && !swap) refuse(act.who, skill.refused, skill.refusedPlain);
+        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: swap ? swap.skill : skill.skill, ...(swap ? { uses: swap.uses } : {}), ...(spent ? { without: spent.spentName, withoutUses: spent.uses, ...(swap ? {} : { area: false }) } : {}), ...withSkill(swap ? { skill: swap.skill, uses: swap.uses } : skill, actor.character, type, { fit: act.fit ?? act.stat, edge: act.edge }, fix ? plainType(act, skill) : typeOf(act, NONE), altOf(actor.character, act, { fit: act.fit ?? act.stat, edge: act.edge })), ...(act.why ? { why: act.why } : {}), pc: side };
         if (support) {
             out.acts.push({ ...entry, support: true, difficulty: act.difficulty, dc: LIMITS.dc[act.difficulty], target: { id: charId(mate), name: mate.who } });
         } else {
-            out.acts.push({ ...entry, ...(act.area === true ? { area: true } : {}), foe: foeSide(foe) });
+            out.acts.push({ ...entry, ...(act.area === true && !spent ? { area: true } : {}), foe: foeSide(foe) });
         }
     }
     for (const [at, entry] of (plan.foes ?? []).entries()) {

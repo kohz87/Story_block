@@ -42,6 +42,19 @@ test('2: with Mana 2 an area Shadow Cut is used twice, then the plain roll is a 
     assert.doesNotMatch(result.text.split('\n').filter(line => /^Round [345]:/.test(line)).join('\n'), /\(area\)/, 'no "(area)" for the plain roll');
 });
 
+test('2/3: with the Mana already empty at the start the action goes on with its `else:` skill, else as a plain physical single-target attack (a roll made before keeps its own)', () => {
+    const withElse = actLines(roll(`${CUT} | else: Iaijutsu`, { sheet: [0, 4] }).result);
+    assert.ok(withElse.length >= 5);
+    for (const line of withElse.slice(0, 3)) assert.deepEqual([line.skill, line.type, line.area ?? false, line.without, line.withoutUses], ['Iaijutsu', 'physical', false, 'Shadow Cut', 'mana']);
+    const plain = actLines(roll(CUT, { sheet: [0, 4] }).result);
+    for (const line of plain.slice(0, 3)) assert.deepEqual([line.skill ?? null, line.type, line.area ?? false, line.pc.stat, line.pc.second], [null, 'physical', false, 'str', 'dex']);
+    // (a payload without `fix` is prepared as it was: the plan's own type and area, no backup)
+    const s = sheet(0, 4);
+    const plan = parsePlanAnswer(['pace: all', `${CUT} | else: Iaijutsu`].join('\n'), s, { formula: 'standard' }).plan;
+    const old = rollPrepared(plan, prepare(plan, s, rules, { fix: false }), misses(), rules, { flow: 2 });
+    assert.deepEqual(actLines(old).slice(0, 2).map(line => [line.skill ?? null, line.type, line.area === true]), [[null, 'magic', true], [null, 'magic', true]]);
+});
+
 test('3: `else:` parses and validates; a backup the character lacks is dropped; the Standard head asks for it in few words', () => {
     const s = sheet();
     const { plan } = parsePlanAnswer(['pace: all', `${CUT} | else: Iaijutsu`].join('\n'), s, { formula: 'standard' });

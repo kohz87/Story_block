@@ -52,6 +52,7 @@ The card offer: a character card can bring its whole world, and Story Block offe
 - **A skill that runs out falls back properly (Standard):** the plain roll is a physical, single-target attack (never a magic or area one planned for the
   skill's Mana). An act may name `else: <skill>`: when the first skill's Mana or Stamina is spent it goes on with that skill (its own type and stat, its own
   resource, practice only for the skill rolled), else with the plain attack. The planner head asks for `else:` in one line (about 90 characters).
+- **Old chats replay as they were played:** a roll now carries a rules mark (`fix: 2`). A roll made before it opens foes and falls back for a spent skill exactly as it did, so loading or Re-reading an older reply leaves its saved results unchanged; new rolls use the rules above, also when the Mana is already empty at the start of the reply (the `else:` skill, else a plain physical single-target attack).
 - **Cue wording:** a fallback line says why ("no skill: Shadow Cut's Mana is spent; a plain weapon attack — name no skill", or "…; Iaijutsu instead"); the
   verdict word comes first ("DECISIVE SUCCESS", "FAIL, DECISIVE"); the head adds "Name only the skill a line names."; and one line tells the groups a roll
   opened ("New foes: rats ×12 (Lv 2)").

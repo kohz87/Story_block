@@ -51,6 +51,19 @@ test('open.js: a Down group is replaced by a new group of the same name, else th
     assert.deepEqual(openFoes(full, [{ name: 'New', count: 2, level: 1 }]).map(entry => entry.slot), [2]);
 });
 
+test('a roll made before `fix: 2` opens foes as it did (replay safety): a filled group of the name stops the entry, only an empty slot is free, nothing is cleared; resolve records and hashes the mark', { skip }, async t => {
+    const stale = () => sheetDomain({ ...PARTY(), foes: { role: 'foes', fields: foeBlock([['Rats', 4, 2, 0], ['Wolves', 3, 2, 0]]) } });
+    const old = stale();
+    assert.deepEqual(openFoes(old, [{ name: 'rats', count: 6, level: 3 }], { fix: 1 }), [], 'a Down group of the name still stops the entry');
+    assert.deepEqual(openFoes(old, [{ name: 'Boars', count: 2, level: 1 }], { fix: 1 }).map(entry => entry.slot), [3], 'only an empty slot is free');
+    assert.deepEqual(readSheet({ domains: { dataModules: old } }).foes.map(foe => [foe.name, foe.hurt]).slice(0, 2), [['Rats', 0], ['Wolves', 0]], 'the Down groups are not cleared');
+    const fresh = stale();
+    assert.deepEqual(openFoes(fresh, [{ name: 'Boars', count: 2, level: 1 }]).map(entry => entry.slot), [1], 'the current rule takes the first Down slot');
+    const { host, model } = await world(t);
+    const { roll } = await fight(host, model, 'rats');
+    assert.equal(roll.data.v2.result.fix, 2, 'the roll asks for the foe-slot rule');
+});
+
 test('a Down group of the name is not "already there" for the planner: vetOpen lets a new group of that name through, a standing one is still passed over', () => {
     const sheet = readSheet({ domains: { dataModules: sheetDomain({ ...PARTY(), foes: { role: 'foes', fields: foeBlock([['Rats', 4, 2, 0], ['Wolves', 3, 2, 3]]) } }) } });
     const vetted = vetOpen([{ name: 'rats', count: '5', level: '2' }, { name: 'Wolves', count: '2' }], sheet, ['The rats again, and the wolves.', ''] );

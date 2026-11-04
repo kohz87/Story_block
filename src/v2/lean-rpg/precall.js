@@ -15,7 +15,7 @@ import { CLASS_NAMES, LEAN_RPG_FEATURE, LV_VERSION, PRACTICE, PRACTICE_SETTING, 
 import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rules.js';
 import { NO_ROLLS_LINE, OPEN_FIGHT_LINE } from './cue.js';
 import { openLinesOf, parsePlanAnswer } from './plan.js';
-import { openFoes, vetOpen } from './open.js';
+import { openFoes, vetOpen, FIX_VERSION } from './open.js';
 import { averageLevel, foeLabel, foeRandom, partyLevels, pickLevel } from './foes.js';
 import { DICE_VERSION, FLOW_VERSION, claimKey, prepare } from './resolve.js';
 import { dropOf } from './ambush.js';
@@ -279,7 +279,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         // from the state before the roll, so a change before it (a reply deleted or edited) changes its gear.
         const drop = planned.plan ? carriedDrop(view, index) : null;
         const gear = planned.plan && gearIsOn(sheet, (name, args) => view.query?.(name, args)) ? gearMarkOf({ v: GEAR_VERSION, lead: String(last.name ?? '') }) : null;
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
+        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, fix: FIX_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether

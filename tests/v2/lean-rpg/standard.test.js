@@ -323,7 +323,8 @@ test('out of the resource: no skill, rank 0 and the type\'s own stat, and the cu
     const blocks = party({ ren: { mana: 0 } });
     const { result, prepared } = roll(planOf({ pace: 'careful', acts: [{ who: 'Ren', skill: 'Spark', type: 'magic', target: 'Sluice Rats' }] }), { blocks });
     const line = result.rounds[0].lines[0];
-    assert.deepEqual([line.skill, line.pc.rank, line.pc.stat], [null, 0, 'int']);
+    // (PINNED CHANGE, FIGHT-FIX 2: with the Mana already empty the plain roll is a physical, single-target weapon attack, so the pair is STR/DEX, not the magic one)
+    assert.deepEqual([line.skill, line.pc.rank, line.pc.stat, line.type], [null, 0, 'str', 'physical']);
     assert.deepEqual(prepared.refused.map(entry => entry.text), ['Ren cannot use Spark (Mana Empty): rolled without it.']);
     assert.match(result.text, /Ren cannot use Spark \(Mana Empty\): rolled without it\./);
     const stamina = roll(planOf({ pace: 'careful', acts: [hit] }), { blocks: party({ wessel: { stamina: 0 } }) }).result.rounds[0].lines[0];

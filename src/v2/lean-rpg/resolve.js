@@ -71,7 +71,7 @@ import { prepareStandard, rollStandard, summaryStd } from './standard.js';
 import { cueOfResult, fitCue } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from './read.js';
 import { validatePlan } from './plan.js';
-import { openFoes } from './open.js';
+import { openFoes, FIX_VERSION } from './open.js';
 import { levelBonus } from './formula.js';
 import { applyGear, earnedLegend, gearMarkOf, gearMatches, gearValid, noteGear, planGear, wearGear } from './gear.js';
 import { condWord, stepDown } from '../domains/gear.js';
@@ -429,7 +429,8 @@ export function resolve(ctx, payload = {}) {
     const opening = Array.isArray(plan.open) && plan.open.length > 0;
     const domain = opening ? ctx.draft('dataModules') : ctx.read('dataModules');
     const settled = opening && lv ? settleOpen(plan.open, averageLevel(partyLevels(readSheet({ domains: { dataModules: domain } }))), base) : null;
-    const opened = opening ? openFoes(domain, settled ?? plan.open) : null;
+    const fix = payload.fix === FIX_VERSION ? FIX_VERSION : undefined;
+    const opened = opening ? openFoes(domain, settled ?? plan.open, { fix: fix ?? 1 }) : null;
     // From a roll that carries the gear mark (precall.js, while `story-block.gear` is on) the worn pieces and the load, worked out here from the state before the
     // roll (the inventory's `recorded` answers: the mark decides, not today's switch), are laid over the stats it rolls with (gear.js). The record is kept with the
     // roll, so a later change never moves it; a change before it is seen by the guard.
@@ -437,7 +438,7 @@ export function resolve(ctx, payload = {}) {
     const mark = gearMarkOf(payload.gear);
     const gear = mark ? planGear(standing, (name, args) => ctx.query(name, ['inventory.gear', 'party.actors', 'party.pc'].includes(name) ? { ...args, recorded: true } : args), mark.lead ?? '') ?? undefined : undefined;
     const sheet = applyGear(standing, gear);
-    const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow, lv: Boolean(lv) });
+    const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow, lv: Boolean(lv), fix: fix === FIX_VERSION });
     if (opening) prepared.witness = { ...prepared.witness, opened };
     if (!prepared.acts.length && !prepared.foes.length && !prepared.checks.length) ctx.fail('NO_LONGER_DONE', 'Nothing is left to roll on this sheet.');
     if (!ctx.claim(claimKey(key))) ctx.fail('CLAIMED', 'This message has already been rolled for.');
@@ -454,10 +455,10 @@ export function resolve(ctx, payload = {}) {
         wear = wearGear(ctx, gear, { opening: dice.opening ?? [], rounds: dice.rounds, rules, condWord });
         legend = earnedLegend(dice, sheet, lv === LV_VERSION);
     }
-    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(drop ? { ambush: ctx.hash(drop) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: ctx.hash(levelsOf(settled)) } : {}), ...(gear ? { gear: ctx.hash(gear) } : {}) };
-    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
+    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(drop ? { ambush: ctx.hash(drop) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: ctx.hash(levelsOf(settled)) } : {}), ...(gear ? { gear: ctx.hash(gear) } : {}) };
+    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
     const result = {
-        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(gear ? { gear } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
+        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(gear ? { gear } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
         refused: prepared.refused, summary: dice.summary, ...(dice.ambush ? { ambush: dice.ambush } : {}), ...(opening ? { opened } : {}), ...(wear.length ? { wear } : {}), ...(legend ? { legend: 1 } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
@@ -493,6 +494,8 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         // The flow it stopped by is hashed with it; a roll of the earlier flow has none.
         const flow = recorded.flow === undefined && predicate.flow === undefined ? 1 : recorded.flow === FLOW_VERSION && predicate.flow === FLOW_VERSION ? FLOW_VERSION : null;
         if (flow === null) return bad('The roll\'s flow was damaged.');
+        // The stage-65 rules mark (foe slots, spent-skill fallback) is hashed with the roll; a roll made before has none and keeps the earlier rules.
+        if (recorded.fix !== predicate.fix || (recorded.fix !== undefined && recorded.fix !== FIX_VERSION)) return bad('The roll\'s rules mark was damaged.');
         // Practice by code is hashed with the roll that asked for it; a roll made before has none.
         if (recorded.practice !== predicate.practice || (recorded.practice !== undefined && practiceOf(recorded.practice) === null)) return bad('The roll\'s practice mark was damaged.');
         // The drop an earlier reply's ambush check gave is hashed with the roll that spent it.
@@ -517,8 +520,8 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         const opening = Array.isArray(recorded.plan.open) && recorded.plan.open.length > 0;
         if (opening && lv && (!levels || levels.length !== recorded.plan.open.length)) return bad('The roll\'s foe levels were damaged.');
         const domain = opening ? structuredClone(state.domains?.dataModules) : state.domains?.dataModules;
-        const opened = opening ? openFoes(domain, lv ? recorded.plan.open.map((entry, at) => ({ name: entry.name, count: entry.count, level: levels[at] })) : recorded.plan.open) : null;
-        const witness = prepare(recorded.plan, applyGear(readSheet(opening ? { domains: { dataModules: domain } } : state), gear), rules, { maxOf: fieldMax(domain), flow, lv }).witness;
+        const opened = opening ? openFoes(domain, lv ? recorded.plan.open.map((entry, at) => ({ name: entry.name, count: entry.count, level: levels[at] })) : recorded.plan.open, { fix: recorded.fix ?? 1 }) : null;
+        const witness = prepare(recorded.plan, applyGear(readSheet(opening ? { domains: { dataModules: domain } } : state), gear), rules, { maxOf: fieldMax(domain), flow, lv, fix: recorded.fix === FIX_VERSION }).witness;
         if (opening) witness.opened = opened;
         if (hash({ source, predicate, witness }) !== guard.inputHash) return bad('The sheet before this roll changed; Re-read this reply.');
         return { ok: true };

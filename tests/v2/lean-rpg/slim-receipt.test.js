@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
+import { FIX_VERSION } from '../../../src/v2/lean-rpg/open.js';
 import { PRESETS, RESOLVE, STANDARD_FORMULA, DICE_VERSION, FLOW_VERSION, prepare, readSheet, resolve, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { cueOfResult, receiptCue } from '../../../src/v2/lean-rpg/cue.js';
 import { fieldMax, positionalDice } from '../../../src/v2/lean-rpg/resolve.js';
@@ -49,7 +50,8 @@ function run({ blocks, plan, rules, dice, flow, seed }) {
     const random = rng(seed);
     const ctx = { cause: 'system', caller: null, module: 'story-block', epoch: 1, source: {}, fail: (code, message) => { throw new Error(`${code}: ${message}`); },
         read: () => domain, draft: () => structuredClone(domain), claim: () => true, rng: random, roll: expression => roll(random, expression), hash: hashJson, replayGuard() {} };
-    const payload = { key: '1-abc', plan, rules, ...(dice ? { dice: DICE_VERSION } : {}), ...(flow ? { flow: FLOW_VERSION } : {}) };
+    // (PINNED CHANGE: the roll is a current one, `fix: 2`, as the cue it is compared with is made by prepare()'s current rules)
+    const payload = { key: '1-abc', plan, rules, fix: FIX_VERSION, ...(dice ? { dice: DICE_VERSION } : {}), ...(flow ? { flow: FLOW_VERSION } : {}) };
     const out = resolve(ctx, payload);
     // The same dice, drawn again from the same seed: the cue as the roll itself wrote it.
     const again = rng(seed), standard = rules.formula === 'standard';
