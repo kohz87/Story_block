@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.22.1
+
+Story Block's notes stay out of other extensions' prompts, and stay in the reply's.
+
+### Fixes
+
+- **Another extension's raw prompt.** SillyTavern's `generateRaw` runs no interceptor but tells the same prompt-ready as a
+  reply. NPC State Delta uses it for its scans, backfills and relationship passes, and Memory Books makes its own calls. When
+  one ran while a reply was pending, Story Block wrote Story Suite's instructions and state into that prompt and took it for
+  the reply's. Now a prompt that holds neither of Story Block's two texts while they are set is left alone, and the reply's
+  own prompt is still the one (tests/v2/turn.test.js).
+- **A quiet generation next to a reply.** A quiet generation's interceptor emptied both of Story Block's prompt texts. When
+  the reply's prompt was built after that, it went without Story Suite's instructions and state, and the quiet prompt got
+  them instead. Now a quiet generation is told by its own instruction (`quiet_prompt`, from GENERATION_STARTED): its prompt
+  loses Story Block's text, and the texts stay set for the reply, whichever prompt is built first. A quiet generation with
+  no instruction and an impersonation work as before.
+- The reply's prompt is byte for byte the same as in 2.22.0, with the RPG off and on; swipes, Continue and impersonation
+  are unchanged.
+- Testkit: the fake SillyTavern's `generate()` takes `quietPrompt` (told in GENERATION_STARTED and put last in the prompt).
+
 ## 2.22.0
 
 Blocks that hold lists of entries, a Reputation tab for Ersveil 2.7.0, extra skill slots with cast signature skills, hand-set starting gear, and public paths for modules.
