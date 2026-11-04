@@ -218,7 +218,7 @@ function attach(model, changes) {
     for (const change of changes) {
         const aimed = line => (change.kind === 'health' ? (line.target && same(line.target, change.name)) || (line.foe && same(line.who, change.name)) : same(line.who, change.name));
         // A Mana or Stamina change sits on the first line whose recorded cost moved that bar; a record with no cost keeps the last line the actor took.
-        const paid = change.kind === 'health' ? null : lines.find(line => line.cost === change.kind && same(line.who, change.name));
+        const paid = change.kind === 'health' ? null : lines.find(line => line.cost === change.kind && same(line.foe ? line.target : line.who, change.name));
         (paid ?? lines.findLast(aimed))?.arrows.push(change.text);
     }
 }

@@ -47,7 +47,7 @@ test('then: round 1 and the opening action use the first skill, rounds 2+ the fo
     const lines = actLines(result);
     assert.ok(lines.length >= 5);
     assert.deepEqual([lines[0].skill, lines[0].type, lines[0].area === true], ['Shadow Cut', 'magic', true]);
-    for (const line of lines.slice(1, 5)) assert.deepEqual([line.skill, line.type, line.area === true, line.pc.stat, line.cost.id.split(':').pop()], ['Iaijutsu', 'physical', true, 'agi', 'stamina']);
+    for (const line of lines.slice(1, 5)) assert.deepEqual([line.skill, line.type, line.area === true, line.pc.stat, line.cost.id.split(':').pop()], ['Iaijutsu', 'physical', false, 'agi', 'stamina']);
     const opening = (result.opening ?? []).map(line => line.skill);
     assert.ok(opening.every(skill => skill === 'Shadow Cut'), 'an opening action is round 1');
     const uses = Object.fromEntries(usesOf({ checks: result.checks, rounds: result.rounds, opening: result.opening }).map(use => [use.skill, use.n]));
@@ -156,4 +156,27 @@ test('then: on the real host, a 3-round fight "Shadow Cut then Iaijutsu" rolls S
     await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
     assert.equal(JSON.stringify(host.head()), afterReread, 'a reload agrees');
     host.close();
+});
+
+test('the pool note is read from the bars as the line is rolled: Mana empty at the start, the else/then skill spends the Stamina, and from then on no line says Mana is not spent', () => {
+    for (const answer of [`${CUT} | else: Iaijutsu`, `${CUT} | then: Iaijutsu`]) {
+        const { result } = roll(answer, { sheetArgs: [0, 2] });
+        const lines = actLines(result);
+        const late = lines.filter(line => line.without === 'Iaijutsu');
+        assert.ok(late.length >= 2, answer);
+        assert.ok(late.every(line => line.otherUp === undefined), answer);
+        assert.doesNotMatch(result.text, /Iaijutsu's Stamina is spent, Mana is not/, answer);
+        assert.match(result.text, /Shadow Cut's Mana is spent, Stamina is not/, answer);
+    }
+});
+
+test('then: the follow-up rolls as its own skill: not the act\'s area, planner type or resource hint (single foe, the skill\'s own type, stat and resource)', () => {
+    const { result } = roll('act Astra | skill: Shadow Cut | type: magic | target: Rats | area | then: Iaijutsu', { sheetArgs: [3, 4] });
+    const lines = actLines(result);
+    assert.deepEqual([lines[0].skill, lines[0].type, lines[0].area === true], ['Shadow Cut', 'magic', true]);
+    for (const line of lines.slice(1, 4)) assert.deepEqual([line.skill, line.type, line.area ?? false, line.cost.id.split(':').pop(), line.pc.stat], ['Iaijutsu', 'physical', false, 'stamina', 'agi']);
+    assert.doesNotMatch(result.text.split('\n').filter(line => /^Round [234]:/.test(line)).join('\n'), /\(area\)/);
+    // a plain fallback of the follow-up is a physical single-target attack as well
+    const plain = actLines(roll('act Astra | skill: Shadow Cut | type: magic | target: Rats | area | then: Iaijutsu', { sheetArgs: [3, 1] }).result);
+    assert.deepEqual([plain[2].skill ?? null, plain[2].type, plain[2].area ?? false], [null, 'physical', false]);
 });

@@ -72,6 +72,17 @@ test('THEN-FIX 3: a Mana or Stamina arrow names its bar and sits on the first li
     assert.deepEqual(mana.rounds[0].lines.map(line => line.arrows)[1], ['Wessel Mana Empty'], 'a Mana change names Mana');
 });
 
+test('THEN-FIX: a defender\'s skill cost on a foe line puts its arrow on that foe line (the line\'s target is the character)', () => {
+    const cost = { id: 'c:ren:stamina', kind: 'char', name: 'Ren', blocks: 1, from: 3, to: 2, size: 5 };
+    const record = { ...result(), rounds: [{ n: 1, decisive: false, lines: [
+        { kind: 'act', outcome: 'fail', skill: null, pc: pc('Ren', 'int'), foe: foe('Sluice Rat B', { slot: 2 }) },
+        { kind: 'foe', outcome: 'success', skill: 'Dodge', cost, pc: pc('Ren', 'agi'), foe: foe('Sluice Rat B', { slot: 2 }) },
+        { kind: 'act', outcome: 'fail', skill: null, pc: pc('Ren', 'int'), foe: foe('Sluice Rat B', { slot: 2 }) },
+    ] }] };
+    const arrows = panelModel({ resolve: readResolve(record), state: after, before, roleOf }).rounds[0].lines.map(line => line.arrows.filter(text => /Stamina/.test(text)));
+    assert.deepEqual(arrows, [[], ['Ren Stamina Tired'], []]);
+});
+
 test('resolveOf takes the rpg.resolve receipt the replay kept, not one it skipped', () => {
     const record = { receipts: [{ id: 'a', type: 'inventory.add' }, { id: 'b', type: RESOLVE, summary: '[Rolls] cue', data: { v2: { result: result() } } }] };
     assert.equal(resolveOf(record).rounds.length, 1);
