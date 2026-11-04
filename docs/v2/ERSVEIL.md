@@ -69,10 +69,10 @@ press **Enable for this chat**.
 
 | Module | What it keeps |
 |---|---|
-| Standing with the powers | Your standing, -100 to 100, with each of ten powers (kinds `gain` and `loss`). Screen: Standing. |
-| Fame by region | How well known you are, 0 to 100, in each of sixteen regions (kinds `deed` and `spread`). Screen: Fame. |
-| Adventurer Guild membership | Registration, your letter (F to S), dues and years as a member (kinds `register`, `dues`, `contract`, `promote`, `yearend`). Screen: Guild. |
-| Court favour | How much favour each claimant to Highmark's throne holds at court, 0 to 100 (kinds `back` and `undermine`, small or great). The narrator moves it only when your own deeds clearly help or hurt a claimant. No screen: it is the story's to keep, and the world's events read it when the throne is decided. Without it the throne goes as the law expects. |
+| Standing with the powers | Your standing, -100 to 100, with each of ten powers (kinds `gain` and `loss`). Section: Standing with the powers (Reputation tab). |
+| Fame by region | How well known you are, 0 to 100, in each of sixteen regions (kinds `deed` and `spread`). Section: Fame by region (Reputation tab). |
+| Adventurer Guild membership | Registration, your letter (F to S), dues and years as a member (kinds `register`, `dues`, `contract`, `promote`, `yearend`). Section: Adventurer Guild (Reputation tab). |
+| Court favour | How much favour each claimant to Highmark's throne holds at court, 0 to 100 (kinds `back` and `undermine`, small or great). The narrator moves it only when your own deeds clearly help or hurt a claimant. Section: Court favour (Reputation tab, three bars). The world's events read it when the throne is decided. Without it the throne goes as the law expects. |
 
 Once a module is enabled the narrator is told its `dm …` lines; a refused line changes nothing. See
 [DATA_MODULES.md](DATA_MODULES.md).

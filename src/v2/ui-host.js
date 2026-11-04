@@ -60,6 +60,9 @@ import { drawReplyCard } from './view/reply-cards-ui.js';
 import { CORE_FEATURE, GEAR_FEATURE, withHiddenFeatures } from './features.js';
 import { createBlockTemplates } from './data-modules/block-templates.js';
 import { createBlockWidgets } from './screens/blocks.js';
+import { createFieldsWidgets } from './screens/block-fields.js';
+import { renderBlockPreview } from './screens/block-layouts.js';
+import { mergeTabs } from './view/tab-merge.js';
 import { ROLES_WITHOUT_TAB } from './lean-rpg/names.js';
 import { createInspectorSource } from './inspect.js';
 import { createSavePoints } from './rewind.js';
@@ -170,7 +173,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         if (!es.storySuite || typeof es.storySuite !== 'object') es.storySuite = {};
         return es.storySuite;
     }, save: () => ctx.saveSettingsDebounced?.() });
-    const blockWidgets = createBlockWidgets({ templates: blockTemplates,
+    // The tabs screens share (a pack's `tab` ids and titles), for a block's Show in tab.
+    let sharedTabs = [];
+    const blockWidgets = createBlockWidgets({ templates: blockTemplates, tabs: () => sharedTabs, renderPreview: renderBlockPreview,
         directorOn: () => registry.lifecycle?.('story-director')?.status === 'ready',
         // Off unless Story Block's core is there to own the switch (unlike coreOn, which counts a missing feature as on).
         leanRpgOn: () => (registry.feature?.(CORE_FEATURE.leanRpg) ? registry.featureOn(CORE_FEATURE.leanRpg) : false),
@@ -189,6 +194,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     });
     const hostWidgets = {
         ...blockWidgets.widgets,
+        ...createFieldsWidgets(),
         [INSPECTOR_WIDGET]: createInspectorWidget(inspector, { enabled: () => coreOn(CORE_FEATURE.inspector) }),
         [SAVEPOINTS_WIDGET]: createSavePointsWidget({
             points: savePoints,
@@ -279,6 +285,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             }
         } catch { /* older host */ }
         try { packScreens.push(...(blockPresentation() ?? [])); } catch { /* older host */ }
+        // Screens that name one `tab` (a pack's, or a block's show.into) become sections of one tab.
+        sharedTabs = [...new Map(packScreens.filter(screen => typeof screen?.tab === 'string' && screen.tab).map(screen => [screen.tab, { id: screen.tab, title: screen.tabTitle ?? screen.title ?? screen.tab }])).values()];
+        packScreens = mergeTabs(packScreens);
         const byPack = new Map();
         for (const screen of packScreens) {
             const { pack, ...def } = screen ?? {};

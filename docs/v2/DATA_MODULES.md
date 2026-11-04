@@ -162,6 +162,36 @@ block is listed on Settings → Blocks, with or without `show`. Its **Show as** 
 or Hidden) redefines the block with a new `show`, keeping its tab name and icon; the RPG's role blocks are marked and
 shown by the RPG's tabs while the feature is on.
 
+### How a block draws its values
+
+The block card and a pack module's tab draw values by the shape of the data, with no author work except the one hint below.
+
+- **A list of records** (quests). Text and choice fields that share a `group` are one record; `as` says what each is
+  (`title`, `text` the description, `step` the current step, `status` a choice). Both keys come together, a record has one
+  title and at most one each of the others, `title`/`text`/`step` are text fields and `status` is a choice. Each record is
+  a card: the title with a status chip, the description clamped to two lines with a More button, the step with an icon;
+  the first value of the status choice is the open state (accent); the open records come first and the rest sit under a
+  collapsed "Finished (n)". A block with an `entries` field (a list of records the block keeps in one field) reads it
+  through the block keys `layout` (`cards`, `bars` or `fields`), `roles` (`{ field, title, status, step }`, the sub-keys of
+  that field) and `tones` (`{ <status value>: active | done | failed | neutral }`); a block without them draws plain rows.
+- **A map of numbers** (a map field whose values are whole numbers) has a header, a row for each key with its value and a bar
+  (from a centre line when the range runs below zero), highest first. Keys still at their default are listed under a
+  collapsed "Not known yet (n)", and their pencils still set them. One pencil sits at the end of every row.
+- **A record of fields** (`story-block.fields` with `as: "record"`) is a small card of label and value lines.
+- `show.into: "<tab>"` makes a block a section of the tab that pack screens name with `tab` (below), instead of a tab of its own.
+- A layout meter with no `max` takes its field's bounds ("18 / 100"); a number with no maximum shows its value, not a dash.
+
+A pack's data module screen asks for the map or the record with one layout node,
+`{ "type": "story-block.fields", "props": { "module": "<its own id>", "field": "<map field>" } }`, or `"fields": [...]`
+(whole-number fields listed together, or the fields of a record card), `"as": "map" | "record"`, `"title"`, `"names"`
+(`{ key: shown name }`), `"labels"`, `"units"` (a word after a value) and `"tones"` (a chip tone for each value of a choice).
+The node may show only its own module's fields.
+
+Screens (a pack's, or a module's) may carry `tab: "<id>"`, `tabTitle` (at most 24 characters) and `order`. Screens with the same
+`tab` are drawn as sections of one tab, in `order` then the order given, each under a header with the screen's `title`; the first
+`tabTitle` given names the tab. A section whose module is not enabled is absent. A pack that uses `tab` needs a Story Block that
+knows it (`requires.storyBlock` ^2.22.0).
+
 The editor generates one `set-<field>` story kind per field, including numbers; a numeric `to` label
 uses the field's bounds. A new or redefined block allows at most 16 fields and buttons combined, because
 each uses one kind of the existing 16-kind limit. Rules and timers do not count toward that total. The

@@ -102,6 +102,8 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
             schema = { type: 'enum', values, default: field.default || values[0], label };
         } else return problem(`${path}.type`, B.fieldType);
         if (field.prompt === false) schema.prompt = false;
+        // A field that is part of a record (a quest card): the group it belongs to and what it is in it.
+        if (field.group !== undefined && field.as !== undefined && (schema.type === 'text' || schema.type === 'enum') && schema.list !== true) { schema.group = field.group; schema.as = field.as; }
         state[key] = schema;
         // A field hidden from the story gets no line the story can write; the reader and the rules still change it.
         if (schema.prompt === false) continue;
@@ -168,7 +170,8 @@ export function blockDraft(definition) {
         type: schema.type === 'int' ? 'number' : schema.type === 'enum' ? 'choice' : schema.list ? 'list' : 'text',
         ...(schema.type === 'int' ? { min: schema.min, max: schema.max } : {}),
         ...(schema.type === 'text' ? { max: schema.max } : {}), ...(schema.type === 'enum' ? { values: [...schema.values] } : {}), default: schema.default,
-        ...(schema.names ? { names: { ...schema.names } } : {}), ...(schema.prompt === false ? { prompt: false } : {}) }));
+        ...(schema.names ? { names: { ...schema.names } } : {}), ...(schema.prompt === false ? { prompt: false } : {}),
+        ...(schema.group !== undefined && schema.as !== undefined ? { group: schema.group, as: schema.as } : {}) }));
     const effects = list => (list ?? []).map(effect => {
         const value = effect.value;
         const timerSet = effect.op === 'add' && Array.isArray(value) && value[0] === 'sub' && Array.isArray(value[2])

@@ -87,7 +87,8 @@ test('the Court favour module starts as approved (Wendhild 40, Corvin 35, Hasse 
     const module = pack.content.dataModules.find(definition => definition.slug === 'succession');
     const defaults = Object.fromEntries(Object.entries(module.state).map(([key, field]) => [key, field.default]));
     assert.deepEqual(defaults, { wendhild: 40, corvin: 35, hasse: 25, ...court({ wendhild: 40, corvin: 35, hasse: 25 }) }, 'the result fields start as the rules would set them');
-    assert.equal(module.screens, undefined, 'no screen: the favour is the narrator\'s to keep');
+    // (a section of the Reputation tab, three bars; the helper fields below are not on it)
+    assert.deepEqual(module.screens.map(screen => [screen.tab, screen.layout.root.props.fields]), [['reputation', ['wendhild', 'corvin', 'hasse']]]);
     for (const field of ['least', 'wc', 'wh', 'ch']) assert.equal(module.state[field].edit, false, `${field} is never edited by hand`);
     for (const kind of Object.values(module.kinds)) assert.ok(JSON.stringify(kind.effects).includes('"claimant"'), 'the story writes only the claimants');
 });

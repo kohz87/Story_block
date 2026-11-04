@@ -36,6 +36,13 @@ export const STRINGS = deepFreeze({
         promptLimit: 'What it is for must be at most 1200 characters.',
         staticLimit: 'The purpose and story lines together must fit 2000 characters.',
         showOptions: 'Choose where the block shows (its own tab, a card on Home, both or neither), a short tab name and an app icon.',
+        groupKeys: 'A field in a record needs both group (a short name) and as (title, text, step or status).',
+        groupType: 'In a record, title, text and step are text fields and status is a choice (not a list).',
+        groupTitle: 'A record needs exactly one title field, and at most one each of text, step and status.',
+        groupSize: 'A record can have at most 4 fields.',
+        // How a block's records, numbers and fields are drawn (screens/block-layouts.js).
+        view: { active: 'Active ({n})', finished: 'Finished ({n})', more: 'More', less: 'Less', unknown: 'Not known yet ({n})', known: '{n} of {total} known',
+            nothing: 'Nothing here yet.', editQuest: 'Edit {name}', edited: 'Edit' },
         listOnlyText: 'A list must be a text field.', listLimit: 'A list can have at most 12 entries.',
         labelLimit: 'Use a name of 1 to 60 characters.', choiceLimit: 'A choice needs 2 to 32 different options.',
         functionLimit: 'A block can have at most 8 functions.', chooseField: 'Choose a field.',

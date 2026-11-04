@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+Blocks and data modules draw by the shape of their data, and Ersveil's reputation is one tab (BLOCKS).
+- **Quest cards.** Fields that share a `group` (and say what each is with `as`: title, text, step, status) are one card: the title
+  with a status chip, the description clamped to two lines with More, the step with an icon. The open ones come first; the others
+  sit under a collapsed "Finished (n)". A block's `entries` field is read through `layout`, `roles` and `tones` (BLOCKEDIT).
+- **A map of numbers** (fame, standing) has a header, a row with a value and a bar for each key, highest first, and the keys
+  still at their default under a collapsed "Not known yet (n)". One pencil column per screen.
+- **A record card** for a module's plain fields (the Guild), and meters with no `max` show their values.
+- **Screens that share a `tab` are one tab** (`tab`, `tabTitle`, `order` on a pack screen; `show.into` on a block).
+- Ersveil: Standing, Fame, Guild and Court favour are sections of one Reputation tab (Court favour has a screen now). The pack
+  data is ready; at integration set `requires.storyBlock` to `^2.22.0` in examples/packs/ersveil/pack.json and rebuild the zip.
+- Display only: the prompt is byte for byte the same (tests/v2/packs/ersveil-reputation.test.js).
+
 ## 2.20.0
 
 Story Block as a platform, part 1: a small public API for scripts and cards.
