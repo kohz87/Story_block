@@ -109,7 +109,7 @@ export function createStore({
     chat, save, now = null, apply = applyOps, onSaveError = null, timers = globalThis,
     checkpointEvery = CHECKPOINT_EVERY, checkpointBytes = CHECKPOINT_BYTES, recordId = newRecordId, validate = null,
     chatId = () => undefined, place = () => null, rescue = null, scratch = null, receiptKeep = RECEIPT_KEEP,
-    confirm = null, memo = null, metadata = () => null,
+    confirm = null, memo = null, metadata = () => null, marked = () => false,
 } = {}) {
     if (typeof chat !== 'function') throw new TypeError('createStore needs a chat() function.');
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
@@ -1549,6 +1549,7 @@ export function createStore({
         if (KEPT_ASIDE.has(rawKind(there))) throw new Error(`The story record on this reply ${WHY[rawKind(there)](there)}; it is kept as it is and not written over.`);
         const sid = sidFor(message);
         const record = { v: 2, sid, ops: [], receipts: [], narrated: [], spans: [], source: sourceFor(arr, message, sid) };
+        if (marked()) record.mv = 1;   // (the reply mark's version, only while hand-set gear is on: a chat that never used it keeps its bytes; runtime.js greetingOnly)
         if (index === lastCarrier(arr)) settleBehind(arr, index);
         if (needsCheckpoint(arr, index)) {
             const base = before === undefined ? stateBefore(arr, index) : before;
@@ -2346,7 +2347,8 @@ export function createStore({
             return { changed: true, planned: walked.planned, removed: walked.removed };
         },
 
-        setNarrated(index, ids) {
+        // `reply`: the record is of a received message Story Block captured (never a greeting): it is marked `reply: true`.
+        setNarrated(index, ids, { reply = false } = {}) {
             if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) {
                 throw new TypeError('Narrated receipts must be a list of receipt IDs.');
             }
@@ -2356,7 +2358,7 @@ export function createStore({
             const atHead = index === head.key.index;
             const { message, record, fresh } = take(arr, index, atHead ? head.state : undefined);
             const rev = fresh ? revOf(atHead ? head.state : stateBefore(arr, index)) : record.rev;
-            write(message, { ...record, narrated: [...new Set(ids)], ...(rev === undefined ? {} : { rev }) });
+            write(message, { ...record, narrated: [...new Set(ids)], ...(rev === undefined ? {} : { rev }), ...(reply && marked() ? { mv: 1, reply: true } : {}) });
             saver.touch();
             if (atHead) retain(arr, head.state, head.problems);
         },
