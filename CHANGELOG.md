@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+Draft for 2.22.0 (the lead integrates it). The block editor and a new field type, **List of entries**.
+- **List of entries (`type: "entries"`):** a block field that holds a list of small records, each with its own parts
+  (`of`: up to 8 text, number or choice parts) and a most-entries `max` (default 30, at most 50). The story adds, changes and
+  drops entries with its own lines: `+ dm quests — why | kind: add-quests | title: …`, `~ … | kind: set-quests | at: <number or title> | status: done`
+  and `- … | kind: drop-quests | at: …`. They are checked like every other line (an unknown part, a value outside a choice or
+  a number's range, a full list, a title that two entries share are all refused with a plain sentence). A line may leave an
+  optional part out. The tail names each entry by number and title with its choices and numbers. The story grammar adds three
+  short lines for a list (about 310 bytes for a six-part Quest log). A block without a list reads exactly as before.
+- **Display keys on a block:** `layout` (`cards`, `bars` or `fields`), `roles` (`field`, `title`, `status`, `step`: which list
+  and which of its parts), `tones` (a colour for a status value: `active`, `done`, `failed` or `neutral`) and `show.into` (the id of a
+  tab to join). They change only how the block is drawn, never what the story can write. An older Story Block refuses them,
+  so a pack that carries them needs `requires.storyBlock ^2.22.0` (Export as pack writes that).
+- **Settings → Blocks editor:** *Start from* Quest log, Reputation by place or Membership card (New block only);
+  a *Layout* chosen from the fields' shape, with the reason beside it (a layout that does not fit is off, with why; when the
+  shape changes the layout falls back to the suggested one with one line, and Save is never blocked); *Card roles* (Title,
+  Status, Step) and *Status colours* for a list of cards; *Show in tab*; a live *Preview* under the layout that stays in view
+  on a wide window. A block saved before has no layout and is drawn as it was until it is saved again.
+- The cards themselves are drawn by the block-layouts work; until it is merged the preview is a plain sketch and Show in tab is
+  empty (the editor takes `tabs` and `renderPreview` from the host).
+
 ## 2.20.0
 
 Story Block as a platform, part 1: a small public API for scripts and cards.

@@ -76,10 +76,41 @@ refuses a new action; its saved instance stays. No global persona state and no d
 | `enum` | 1–32 distinct literal `values`, `default` among them |
 | `text` | `max` 1–240, literal `default`; text may be compared to a literal with `eq` or `ne` |
 | `map` | 1–16 fixed enum `keys`, scalar `values` schema; each key gets that default |
+| `entries` | A list of entries (Story Block 2.22): `of` 1–8 named parts (`text`, `int` or `enum` schemas; a name is one lowercase word and is not `at`, `kind` or `who`), `max` 1–50 entries (default 30). Stored as an array of objects keyed by the parts, in order; starts empty. See "List of entries" below. |
 
 No growing authored arrays/maps, nullable arithmetic, coercion, floats or implicit field creation.
 Field/key slugs are at most 40 characters; unsafe prototype keys and Unicode-normalized collisions
 are refused. Names/reasons use the host's text safety rules. Fields not declared are invalid state.
+
+### List of entries (`type: "entries"`)
+
+A field that holds a list of small records the story grows: a quest log, a roster. It is changed only by three kinds of
+kind of line (the Block editor writes them; a pack may write them by hand); a list is never read in an expression and never changed by a rule, a timer or a reward:
+
+```json
+"state": { "quests": { "type": "entries", "max": 30, "label": "Quests",
+  "of": { "title": { "type": "text", "max": 60, "default": "" },
+          "status": { "type": "enum", "values": ["active", "done", "failed"], "default": "active" } } } },
+"kinds": {
+  "add-quests":  { "op": "+", "labels": { "title": { "type": "text", "max": 60 }, "status": { "type": "enum", "values": ["active", "done", "failed"], "optional": true } },
+                   "effects": [{ "op": "entryAdd", "path": ["quests"] }] },
+  "set-quests":  { "op": "~", "labels": { "at": { "type": "text", "max": 60 }, "status": { "type": "enum", "values": ["active", "done", "failed"], "optional": true } },
+                   "effects": [{ "op": "entrySet", "path": ["quests"] }] },
+  "drop-quests": { "op": "-", "labels": { "at": { "type": "text", "max": 60 } }, "effects": [{ "op": "entryDrop", "path": ["quests"] }] } }
+```
+
+- `entryAdd`, `entrySet` and `entryDrop` take only `path: [<field>]`; the line's labels are the parts (each the part's own type and no wider) and,
+  for a change or a drop, `at`. A label with `"optional": true` may be left out: an add keeps that part at its default, a change leaves it as it is.
+- `at` is the entry's number (1 is the first) or its title (the first text part, case and spacing ignored). A missing entry, a title that two
+  entries share, and an add to a full list are refused with a plain sentence and change nothing.
+- Two lines that say exactly the same in one reply are one (the second is refused as already applied); two different ones both apply.
+- The prompt: each list adds three short lines; the tail names each entry by number and title with its choices and numbers (`quests: 1 "Find the key" active; 2 "Warn the mill" done`).
+- A migration may add an `entries` field like any other (it starts empty).
+
+Display keys on a block, all optional and display-only (an older Story Block refuses them, so a pack that carries them needs `requires.storyBlock` `^2.22.0`):
+`layout` (`cards`, `bars` or `fields`); `roles` (`{ field, title, status?, step? }`, only with `cards`: the list and its parts: `title` and `step` text, `status` a choice);
+`tones` (`{ "<status value>": "active" | "done" | "failed" | "neutral" }`, only the values that differ from the default: `active`, `done` and `failed` by name, any other value neutral);
+and `show.into` (the id of a tab the block joins as a section; `show.tabName` is its heading; needs `show.tab`).
 
 Expressions are JSON AST arrays, not strings to execute. Literals are JSON scalars; every operation
 has fixed arity. The checker resolves field paths, checks types and interval bounds before import.

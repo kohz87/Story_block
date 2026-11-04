@@ -4,16 +4,19 @@ import { slugify } from '../packs/validate.js';
 import { DM_LIMITS as L } from './schema.js';
 import { validateDataModules } from './check.js';
 import { cleanList } from './interpreter.js';
-import { STRINGS } from '../strings.js';
+import { STRINGS, fill } from '../strings.js';
 import { hashJson } from '../replay.js';
 
 const B = STRINGS.blocks;
 const problem = (path, message) => ({ ok: false, errors: [{ code: 'DM_SCHEMA', path, message }] });
 const keyFor = (name, max = 40) => slugify(name).slice(0, max).replace(/-+$/, '');
+/** The tone a status value has unless the author changed it. */
+export const defaultTone = value => (['active', 'done', 'failed'].includes(value) ? value : 'neutral');
 const number = value => typeof value === 'number' ? value
     : typeof value === 'string' && value.trim() ? Number(value) : NaN;
 // (a field hidden from the story has no line the story can write, so it uses no kind)
-export const blockKindCount = draft => (Array.isArray(draft?.fields) ? draft.fields.filter(field => field?.prompt !== false).length : 0)
+// (a List of entries field has three lines, one to add an entry, one to change one and one to drop one)
+export const blockKindCount = draft => (Array.isArray(draft?.fields) ? draft.fields.filter(field => field?.prompt !== false).reduce((sum, field) => sum + (field?.type === 'entries' ? 3 : 1), 0) : 0)
     + (Array.isArray(draft?.functions) ? draft.functions.filter(fn => fn?.type === 'button').length : 0);
 
 export function uniqueBlockSlug(name, used = []) {
@@ -73,6 +76,59 @@ const effectOf = (effect, state) => {
     return { op: 'set', path: [effect.field], value };
 };
 
+// A part of an entry (or a plain field) from its form: text, number or choice. → { schema } or { error } (a problem for the form).
+function partSchema(field, path, label, { list = false, names = false } = {}) {
+    if (field.type === 'text') return { schema: { type: 'text', max: Number(field.max ?? 120), default: String(field.default ?? ''), label } };
+    if (field.type === 'list' && list) {
+        try { return { schema: { type: 'text', max: 240, default: cleanList(field.default ?? '', 240), list: true, label } }; } catch { return { error: problem(`${path}.default`, B.listLimit) }; }
+    }
+    if (field.type === 'number') {
+        const schema = { type: 'int', min: number(field.min), max: number(field.max), default: number(field.default), label };
+        if (names) {
+            const given = parseNames(field.names);
+            if (!given) return { error: problem(`${path}.names`, B.namesInvalid) };
+            if (Object.keys(given).length) schema.names = given;
+        }
+        return { schema };
+    }
+    if (field.type === 'choice') {
+        const values = Array.isArray(field.values) ? field.values.map(value => oneLine(value)) : String(field.values ?? '').split(',').map(value => oneLine(value));
+        if (values.length < 2 || values.length > L.enumValues || values.some(value => !value) || new Set(values).size !== values.length) return { error: problem(`${path}.values`, B.choiceLimit) };
+        return { schema: { type: 'enum', values, default: field.default || values[0], label } };
+    }
+    return { error: problem(`${path}.type`, B.fieldType) };
+}
+
+// A List of entries field: its parts are named with one lowercase word (the label a story line writes), at most eight, none of them a list.
+export const partKey = name => keyFor(name, 20).replace(/[^a-z]/g, '');
+function entriesSchema(field, path, label) {
+    const parts = Array.isArray(field.of) ? field.of : [];
+    if (!parts.length || parts.length > L.entrySubs) return { error: problem(`${path}.of`, B.entrySubsLimit) };
+    const max = number(field.max ?? L.entriesDefault);
+    if (!Number.isSafeInteger(max) || max < 1 || max > L.entriesMax) return { error: problem(`${path}.max`, fill(B.entriesMax, { max: L.entriesMax })) };
+    const of = {};
+    for (const [index, part] of parts.entries()) {
+        const where = `${path}.of.${index}`, name = oneLine(part?.name), key = partKey(part?.key || name);
+        if (!name || [...name].length > 60 || !key || Object.hasOwn(of, key) || ['at', 'kind', 'who'].includes(key)) return { error: problem(`${where}.name`, B.entrySubName) };
+        const made = partSchema(part, where, name);
+        if (made.error) return made;
+        of[key] = made.schema;
+    }
+    return { schema: { type: 'entries', of, max, label } };
+}
+// The three lines of a List of entries: add an entry (its title is required), change one by `at` (its number or title; any part), drop one by `at`.
+function entryKinds(key, schema) {
+    const parts = Object.entries(schema.of), title = (parts.find(([, part]) => part.type === 'text') ?? parts[0])[0];
+    const label = part => (part.type === 'int' ? { type: 'int', min: part.min, max: part.max } : part.type === 'enum' ? { type: 'enum', values: part.values } : { type: 'text', max: part.max });
+    const labels = optional => Object.fromEntries(parts.map(([name, part]) => [name, { ...label(part), ...(optional || name !== title ? { optional: true } : {}) }]));
+    const at = { type: 'text', max: L.entryAt };
+    return {
+        [`add-${key}`]: { op: '+', labels: labels(false), effects: [{ op: 'entryAdd', path: [key] }] },
+        [`set-${key}`]: { op: '~', labels: { at, ...labels(true) }, effects: [{ op: 'entrySet', path: [key] }] },
+        [`drop-${key}`]: { op: '-', labels: { at }, effects: [{ op: 'entryDrop', path: [key] }] },
+    };
+}
+
 /** The draft is plain form data; errors point at the field or function to show beside its control. */
 export function buildBlock(draft, { used = [], definitions = [] } = {}) {
     const name = oneLine(draft?.name);
@@ -86,25 +142,26 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
         const path = `fields.${index}`, label = oneLine(field?.name), key = keyFor(field?.key || label, 32);
         if (!label || [...label].length > 60 || !key || Object.hasOwn(state, key)) return problem(`${path}.name`, B.fieldName);
         let schema;
-        if (field.type === 'text') schema = { type: 'text', max: Number(field.max ?? 120), default: String(field.default ?? ''), label };
-        else if (field.type === 'list') {
-            let value;
-            try { value = cleanList(field.default ?? '', 240); } catch { return problem(`${path}.default`, B.listLimit); }
-            schema = { type: 'text', max: 240, default: value, list: true, label };
-        } else if (field.type === 'number') {
-            schema = { type: 'int', min: number(field.min), max: number(field.max), default: number(field.default), label };
-            const names = parseNames(field.names);
-            if (!names) return problem(`${path}.names`, B.namesInvalid);
-            if (Object.keys(names).length) schema.names = names;
-        } else if (field.type === 'choice') {
-            const values = Array.isArray(field.values) ? field.values.map(value => oneLine(value)) : String(field.values ?? '').split(',').map(value => oneLine(value));
-            if (values.length < 2 || values.length > L.enumValues || values.some(value => !value) || new Set(values).size !== values.length) return problem(`${path}.values`, B.choiceLimit);
-            schema = { type: 'enum', values, default: field.default || values[0], label };
-        } else return problem(`${path}.type`, B.fieldType);
+        if (field.type === 'entries') {
+            const made = entriesSchema(field, path, label);
+            if (made.error) return made.error;
+            schema = made.schema;
+        } else {
+            const made = partSchema(field, path, label, { list: true, names: true });
+            if (made.error) return made.error;
+            schema = made.schema;
+        }
         if (field.prompt === false) schema.prompt = false;
         state[key] = schema;
         // A field hidden from the story gets no line the story can write; the reader and the rules still change it.
         if (schema.prompt === false) continue;
+        if (schema.type === 'entries') {
+            for (const [name, kind] of Object.entries(entryKinds(key, schema))) {
+                if (Object.hasOwn(kinds, name)) return problem(`${path}.name`, B.fieldName);
+                kinds[name] = kind;
+            }
+            continue;
+        }
         const labelSchema = schema.type === 'int' ? { type: 'int', min: schema.min, max: schema.max }
             : schema.type === 'enum' ? { type: 'enum', values: schema.values } : { type: 'text', max: schema.max };
         kinds[`set-${key}`] = { op: '~', labels: { to: labelSchema }, effects: [{ op: 'set', path: [key], value: ['arg', 'to'] }] };
@@ -153,9 +210,16 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
         else return problem(`${path}.type`, B.chooseFunction);
     }
     for (const [index, card] of cards.entries()) if (card.button && !Object.hasOwn(kinds, card.button)) return problem(`functions.${cardAt[index]}.button`, B.cardButton);
-    const show = draft.show ?? { tab: true, card: false, tabName: '', icon: 'ph-bookmark-simple' };
+    const show = { ...(draft.show ?? { tab: true, card: false, tabName: '', icon: 'ph-bookmark-simple' }) };
+    // (joining another tab needs a tab of its own to join with: `into` is dropped otherwise, and when empty)
+    if (!show.tab || !show.into) delete show.into;
+    // How the block is drawn (display only). Roles and tones belong to the cards layout; a tone is kept only where it differs from the default.
+    const layout = ['cards', 'bars', 'fields'].includes(draft.layout) ? draft.layout : null, roles = layout === 'cards' && draft.roles?.field && draft.roles?.title
+        ? Object.fromEntries(['field', 'title', 'status', 'step'].filter(part => draft.roles[part]).map(part => [part, draft.roles[part]])) : null;
+    const tones = roles?.status ? Object.fromEntries(Object.entries(draft.tones ?? {}).filter(([value, tone]) => tone !== defaultTone(value))) : {};
     const output = { slug, name, schema: 1, stateVersion: 1, scope: 'chat', state, kinds,
         prompt: String(draft.prompt ?? ''), show: { ...show, tabName: oneLine(show.tabName) || [...name].slice(0, 24).join('') },
+        ...(layout ? { layout } : {}), ...(roles ? { roles } : {}), ...(Object.keys(tones).length ? { tones } : {}),
         ...(draft.role ? { role: draft.role } : {}), ...(cards.length ? { cards } : {}), ...(replyEnd.length ? { replyEnd } : {}),
         rules, timers, ...(timers.length ? { imports: { clock: { query: 'director.time', mode: 'prefix', projection: ['minutes'] } } } : {}) };
     const checked = validateDataModules([output], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions });
@@ -164,11 +228,15 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
 
 /** Reopens an editor-built definition without storing a second representation of the block. */
 export function blockDraft(definition) {
-    const fields = Object.entries(definition?.state ?? {}).map(([key, schema]) => ({ key, name: schema.label ?? key,
+    const fieldOf = (key, schema) => ({ key, name: schema.label ?? key,
         type: schema.type === 'int' ? 'number' : schema.type === 'enum' ? 'choice' : schema.list ? 'list' : 'text',
         ...(schema.type === 'int' ? { min: schema.min, max: schema.max } : {}),
         ...(schema.type === 'text' ? { max: schema.max } : {}), ...(schema.type === 'enum' ? { values: [...schema.values] } : {}), default: schema.default,
-        ...(schema.names ? { names: { ...schema.names } } : {}), ...(schema.prompt === false ? { prompt: false } : {}) }));
+        ...(schema.names ? { names: { ...schema.names } } : {}), ...(schema.prompt === false ? { prompt: false } : {}) });
+    const fields = Object.entries(definition?.state ?? {}).map(([key, schema]) => (schema.type === 'entries'
+        ? { key, name: schema.label ?? key, type: 'entries', max: schema.max ?? L.entriesDefault, of: Object.entries(schema.of).map(([part, sub]) => fieldOf(part, sub)),
+            ...(schema.prompt === false ? { prompt: false } : {}) }
+        : fieldOf(key, schema)));
     const effects = list => (list ?? []).map(effect => {
         const value = effect.value;
         const timerSet = effect.op === 'add' && Array.isArray(value) && value[0] === 'sub' && Array.isArray(value[2])
@@ -187,7 +255,8 @@ export function blockDraft(definition) {
             title: card.title, text: card.text, ...(card.button ? { button: definition.kinds?.[card.button]?.title ?? card.button.replace(/^button-/, '') } : {}) })),
     ];
     return { slug: definition?.slug, name: definition?.name ?? '', ...(definition?.role ? { role: definition.role } : {}), fields, functions, prompt: definition?.prompt ?? '',
-        show: definition?.show ?? { tab: true, card: false, tabName: definition?.name ?? '', icon: 'ph-bookmark-simple' } };
+        ...(definition?.layout ? { layout: definition.layout } : {}), ...(definition?.roles ? { roles: { ...definition.roles } } : {}), ...(definition?.tones ? { tones: { ...definition.tones } } : {}),
+        show: definition?.show ? { ...definition.show } : { tab: true, card: false, tabName: definition?.name ?? '', icon: 'ph-bookmark-simple' } };
 }
 
 /** Open only definitions the form can write back without losing their behavior. */

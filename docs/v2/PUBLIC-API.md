@@ -45,7 +45,7 @@ Within API version 1 the names, arguments and payload shapes on this page do not
 | `party.<name>`, `party.<name>.<field>`, `party.<name>.stats.<stat>` | One member, one field, one stat (`str vit agi dex int luk cha`). |
 | `party.me`, `party.me.<field>` | The reader's own Character: the one named like the persona, else the only Character. `undefined` when it is not clear who the reader is. |
 | `blocks` | The ids of the data-module blocks in the chat (pack blocks included). |
-| `blocks.<blockId>`, `blocks.<blockId>.<field>` | A chat block's visible fields, or one field as it is stored (numbers as numbers, text as text, a `map` field as an object, and `….<field>.<key>` for one key). A block for characters is read by who: `blocks.<blockId>.<who>.<field>`. |
+| `blocks.<blockId>`, `blocks.<blockId>.<field>` | A chat block's visible fields, or one field as it is stored (numbers as numbers, text as text, a `map` field as an object, and `….<field>.<key>` for one key; a List of entries field as a list of objects). A block for characters is read by who: `blocks.<blockId>.<who>.<field>`. |
 
 `health`, `mana` and `stamina` are the words the Party card shows (`"Hurt"`, `"Fresh"`; a Standard block bar's word is spread over its blocks). `level` and `xp` are numbers. A name with dots in it (`items.Mr. Fox's Pie.qty`, `blocks.pack.chat/tracker.hope`) is fine: the path is matched against the names in the chat, not split at every dot. `npc.<name>.<meter>` for NPC State Delta is planned as an NPC State Delta change; it is not in this release.
 

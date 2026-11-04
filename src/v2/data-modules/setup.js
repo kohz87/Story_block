@@ -16,7 +16,8 @@ const boundsOf = schema => schema.type === 'int' ? `${schema.min} to ${schema.ma
     : schema.type === 'bool' ? `true or false, starts ${schema.default}`
         : schema.type === 'enum' ? `${schema.values.join(', ')}; starts ${schema.default}`
             : schema.type === 'text' ? `text up to ${schema.max}; starts "${schema.default}"`
-                : `${schema.keys.join(', ')}, each ${boundsOf(schema.values)}`;
+                : schema.type === 'entries' ? `a list of up to ${schema.max ?? L.entriesDefault} entries of ${Object.keys(schema.of).join(', ')}`
+                    : `${schema.keys.join(', ')}, each ${boundsOf(schema.values)}`;
 
 /** The facts a reader needs before enabling a module, as plain lines: fields, lines, rewards, needs, screens, budgets. */
 export function describe(row) {
@@ -130,7 +131,7 @@ export function renderDataModules(root, api = {}) {
             const fields = make('div', 'ss-dm-fields', '', item);
             make('span', 'ss-dm-label', STRINGS.editMessages.fields, fields);
             for (const subject of subjects) for (const [field, schema] of Object.entries(active.state)) {
-                if (schema.edit === false) continue;
+                if (schema.edit === false || schema.type === 'entries') continue;
                 const scalar = schema.type === 'map' ? schema.values : schema;
                 for (const key of schema.type === 'map' ? schema.keys : [null]) {
                     const label = [subject.name, schema.label ?? field, key].filter(Boolean).join(' · ');

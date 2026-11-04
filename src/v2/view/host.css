@@ -444,6 +444,39 @@ body.story-suite-open { overflow: hidden; }
 @media (max-width: 759.98px) {
     .ss-block-fields-editor, .ss-block-effect, .ss-block-value { grid-template-columns: minmax(0, 1fr); }
 }
+/* The block editor's starters, List of entries parts, Layout with its card roles and status colours, and the Preview (screens/blocks-editor.js). */
+.ss-block-starter-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ss-block-starter-row .ss-block-starter { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; text-align: left; min-width: 0; overflow-wrap: anywhere; }
+.ss-block-starter-on { border-color: var(--ss-accent); background: var(--ss-accent-soft); }
+.ss-block-field-wide { grid-column: 1 / -1; }
+.ss-block-parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ss-block-parts-title { grid-column: 1 / -1; margin: 0; font-size: 13px; }
+.ss-block-parts > button { grid-column: 1 / -1; justify-self: start; }
+.ss-block-part { display: grid; gap: 5px; padding: 8px; min-width: 0; border: 1px solid var(--ss-border, currentColor); border-radius: var(--ss-radius, 8px); }
+.ss-block-layout, .ss-block-starters, .ss-block-roles, .ss-block-tones { display: grid; gap: 6px; min-width: 0; }
+.ss-block-roles { margin-top: 4px; }
+.ss-block-tone-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+.ss-block-tone-row .ss-block-control-label { display: none; }
+.ss-block-tone-row .ss-pill { justify-self: start; }
+.ss-block-tone-active { border-color: var(--ss-accent); }
+.ss-block-tone-done { border-color: var(--ss-tick, currentColor); }
+.ss-block-tone-failed { border-color: var(--ss-bad, currentColor); }
+.ss-block-tone-neutral { opacity: .8; }
+.ss-block-preview { display: grid; gap: 8px; padding: 12px; min-width: 0; }
+.ss-block-sketch { display: grid; gap: 6px; max-width: 460px; }
+.ss-block-sketch-card { display: grid; gap: 2px; padding: 8px; border: 1px solid var(--ss-border, currentColor); border-radius: var(--ss-radius, 8px); }
+.ss-block-sketch-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; justify-content: space-between; }
+.ss-block-sketch-bar, .ss-block-sketch-line { display: grid; gap: 2px; }
+.ss-block-sketch-track { display: block; height: 8px; border-radius: 4px; background: var(--ss-accent-soft); overflow: hidden; }
+.ss-block-sketch-fill { display: block; height: 100%; background: var(--ss-accent); }
+@media (min-width: 900px) and (min-height: 700px) {
+    /* The preview stays in view at the bottom of the window while the fields above it are edited, then settles under the layout. */
+    .ss-block-preview { position: sticky; bottom: 0; max-height: min(38vh, 200px); overflow: auto; z-index: 1; background: var(--ss-panel-opaque, var(--ss-glass-strong)); }
+}
+@media (max-width: 759.98px) {
+    .ss-block-starter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ss-block-parts, .ss-block-tone-row { grid-template-columns: minmax(0, 1fr); }
+}
 /* Settings → Blocks (screens/blocks.js `page`): the buttons and the count line, then a row for each block: its name and words, Show as, Edit and more. */
 .ss-blocks-page { display: grid; gap: 12px; min-width: 0; }
 .ss-blocks-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
