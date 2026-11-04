@@ -11,10 +11,10 @@
 // Pure: no DOM, no state. `summaryOf` (data-modules/part.js) calls it for a block with a role and cuts the result to the block's room.
 
 import { barOf, characterBars, sizeOf, spreadWord, wordsOf } from './blocks.js';
-import { STATS } from './names.js';
+import { SKILL_SLOTS_MAX, STATS } from './names.js';
 import { oneLine } from '../../text.js';
 
-const SLOTS = Object.freeze({ skills: 5, foes: 4 });
+const SLOTS = Object.freeze({ skills: SKILL_SLOTS_MAX, foes: 4 });
 const word = value => (typeof value === 'string' ? oneLine(value) : '');
 
 // "Hurt, Fresh" style bits of one instance, in the definition's field order: what is not at its default, the stats as one run.

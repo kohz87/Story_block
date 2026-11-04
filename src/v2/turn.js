@@ -36,7 +36,7 @@ import { CORE_FEATURE } from './features.js';
 import { LEAN_RPG_FEATURE, RESOLVE as RPG_RESOLVE, practiceFromRollsOnly } from './lean-rpg/names.js';
 
 // A story line that practises a skill (`practice-N`, data-modules/part.js): the lines a reply is marked for (see captureEach).
-const PRACTICE_LINE = /\|\s*kind\s*:\s*practice-[1-5]\b/iu;
+const PRACTICE_LINE = /\|\s*kind\s*:\s*practice-[1-8]\b/iu;
 import { NO_ROLLS_LINE, receiptCue, receiptWithCue } from './lean-rpg/cue.js';
 
 export const STATIC_KEY = 'story_suite_static';

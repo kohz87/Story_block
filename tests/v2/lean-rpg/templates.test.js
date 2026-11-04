@@ -32,8 +32,9 @@ test('each template is a chat-scoped data module with a unique slug, schema 1 an
 
 test('every block stays inside the field, kind and text limits', () => {
     for (const { definition } of LEAN_RPG_TEMPLATES) {
-        // The block engine's limit is DM_LIMITS.fields (32), not 16: the Skills block's five slots of six fields and its `who` are 31.
-        assert.ok(Object.keys(definition.state).length <= L.fields, `${definition.slug} fields`);
+        // The block engine's limit is DM_LIMITS.fields (32), not 16. (Pinned change, extra skill slots: the Skills block's eight slots of six fields, its `who`
+        // and the signature mark are 50, inside DM_LIMITS.skillsFields, the limit of a block with the role `skills`.)
+        assert.ok(Object.keys(definition.state).length <= (definition.role === 'skills' ? L.skillsFields : L.fields), `${definition.slug} fields`);
         assert.ok(Object.keys(definition.kinds).length <= L.kinds, `${definition.slug} kinds`);
         for (const field of Object.values(definition.state)) if (field.type === 'text') assert.ok(field.max <= L.text);
         for (const kind of Object.values(definition.kinds)) for (const label of Object.values(kind.labels)) {
@@ -72,12 +73,12 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     for (const field of [...STATS, 'points']) assert.ok(!touched.includes(field), field);
 });
 
-test('the Skills block has five slots of name, description, stat, resource, rank and practice: 31 fields, 10 kinds', () => {
+test('the Skills block has eight slots of name, description, stat, resource, rank and practice and the signature mark: 50 fields, 16 kinds', () => {
     const { state, kinds, rules } = template('Skills');
-    assert.equal(Object.keys(state).length, 31);
-    assert.equal(Object.keys(kinds).length, 10);
+    assert.equal(Object.keys(state).length, 50);
+    assert.equal(Object.keys(kinds).length, 16);
     assert.equal(state.who.type, 'text');
-    for (let n = 1; n <= 5; n++) {
+    for (let n = 1; n <= 8; n++) {
         assert.deepEqual([state[`skill${n}`].type, state[`skill${n}`].max], ['text', 40]);
         assert.deepEqual([state[`about${n}`].type, state[`about${n}`].max], ['text', 120]);
         assert.notEqual(state[`about${n}`].prompt, false, 'what a skill does is read by the AI');
@@ -158,7 +159,8 @@ test('the combat rules text is the [COMBAT SYSTEM] prompt with one line of XP gu
 test('without the new block-engine keys, each template passes the data-module checker', () => {
     for (const { definition } of LEAN_RPG_TEMPLATES) {
         const legacy = structuredClone(definition);
-        delete legacy.role;
+        // (pinned change, extra skill slots: the Skills block's eight slots need the role's larger field limit, so its role stays)
+        if (definition.role !== 'skills') delete legacy.role;
         delete legacy.replyEnd;
         delete legacy.cards;
         for (const field of Object.values(legacy.state)) {
@@ -181,7 +183,9 @@ test('the templates pass the data-module checker with the block-engine keys', ()
 test('the party fixture gives every block all of its template fields, inside their ranges', () => {
     for (const block of party.blocks) {
         const { state } = template(block.template === 'Foes' ? 'Foes' : block.template);
-        assert.deepEqual(Object.keys(block.fields).sort(), Object.keys(state).sort(), block.slug);
+        // (pinned change, extra skill slots: the fixture's Skills block is one made before them, with five slots and no signature mark: a subset of today's template)
+        if (block.template === 'Skills') assert.ok(Object.keys(block.fields).every(key => key in state), block.slug);
+        else assert.deepEqual(Object.keys(block.fields).sort(), Object.keys(state).sort(), block.slug);
         for (const [key, value] of Object.entries(block.fields)) {
             const field = state[key];
             if (field.type === 'int') {

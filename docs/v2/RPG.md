@@ -203,6 +203,20 @@ and the setting is not Off; with the RPG off, nothing is told and nothing change
   usually run out first), there is no room for two more blocks, or the reply has used all the block actions it can take. A class
   that is not I to IX, a `best` that is not a stat and a line with no name are refused the same way.
 
+## Skill slots
+
+A character has five skill slots, a sixth from Lv 20, a seventh from Lv 40 and an eighth from Lv 60 (`skillSlots(level)` in `lean-rpg/names.js`). The `learn-N` and `practice-N` lines run N = 1..8; a learn line for a new skill goes to slot N if it is empty and open, else the first open slot, else it is refused with one Problems line that says when the next slot opens ("No free skill slot for X. The next slot opens at Lv 20."). A level drop never deletes a skill: the extra slots are kept, there are just no new learns. A character file holds up to eight skills; creation still starts at five. A Skills block made before 2.22 (five slots, no signature mark) is extended by Story Block itself, the first time it is needed: a learn line once the character's level has opened a slot the block lacks, or a returning cast member's skills to mark. The block's pin is replaced by the same definition with the missing slots, kinds, rules and mark added (nothing removed or renamed; every skill keeps its rank and practice; its text is unchanged). The upgrade is part of that action's changes, so rebuild, reload and Re-read agree and a swipe takes it back. The Skills block's tail may say 60 tokens more for each skill past five.
+
+## Signature skills
+
+A pack's cast entry may list `skills` (PACKS.md "The cast"). They are seeded **only on the join event**, under the pack as installed at that moment:
+
+- a first join fills the first slots with the skills as written (name, what it does, stat, uses, rank), marks them in the Skills block's hidden `sig` field, and adds one tile for each to the join's receipt ("signature · Expert", "STR · Stamina"; the summary adds "+3 skills"). Free slots stay for the narrator. The RPG off: nothing is done.
+- the story cannot rename or replace a signature skill: a `learn-N` line of its name is refused with one Problems line ("Harrak's Beacon Call is a signature skill: it keeps its name and slot."); a learn line with another name takes a free slot as for any skill. Practice and rank-ups work as for any skill. The reader's pencil still fixes the name and the wording, and the skill stays signature.
+- leave and return keep rank and practice. A return fills only free slots, only with pack skills the person does not hold by name, so a member who joined before the pack had skills gets them on their next return and never gets duplicates; a skill they made themselves is never marked. A member who stays in the party is never changed by a pack update.
+- the Skills view marks them with a lock after the rank pill (title "Signature skill, from the pack"), a legend entry and a sentence in the foot note, shown only when the card has one.
+- replay: the state is replayed from the recorded changes, and the receipt records what was seeded; a Re-read of the join or return reply seeds what that reply seeded (read from the reply as it stood), never what the pack says now.
+
 ## The Skills view
 
 **Skills** on a character's card opens that character's skills in place of the cards (**Back to the party** returns). Each skill

@@ -18,10 +18,11 @@ import { fold, readSheet } from '../lean-rpg/read.js';
 // (foes.js and levels.js are small and need nothing of the RPG's library: they stay static, like read.js)
 import { averageLevel, bandOfRank, foeRandom, foeLevelCap, levelOf, partyLevels, pickLevel } from '../lean-rpg/foes.js';
 import { XP_RATE, packLevelsOf, scaleXp, xpRateFrom } from '../lean-rpg/levels.js';
-import { CLASS_NAMES } from '../lean-rpg/names.js';
+import { CLASS_NAMES, SKILL_SLOTS_BASE, SKILL_SLOTS_EVERY, SKILL_SLOTS_MAX, signatureAt, skillSlots } from '../lean-rpg/names.js';
 // The companions who join, the rules they are made with and their words are the RPG's library, loaded only when it is needed (rpg-lazy.js).
 import { rpgLib } from '../rpg-lazy.js';
 import { castGearOf, gearLine } from '../packs/cast-gear.js';
+import { castSkillsOf } from '../packs/cast-skills.js';
 import { gearOn } from '../domains/inventory.js';
 import { actorIdOf } from '../lean-rpg/roster.js';
 import { placeOf } from '../domains/gear.js';
@@ -264,7 +265,10 @@ const namedChanges = (definition, before, after) => Object.entries(definition.st
 
 // What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the RPG's sheets carry text the story reads).
 // `rpg` is whether the RPG feature is on: a block with a role is the RPG's to write only then; with it off the block is told like any other.
-const tailRoom = (definition, rpg = true) => (rpg && definition?.role ? L.roleTailTokens : L.tailTokens);
+// A Skills block with more than five slots (the extra ones come with levels) may say 60 tokens more for each.
+const tailRoom = (definition, rpg = true) => (rpg && definition?.role
+    ? L.roleTailTokens + (definition.role === 'skills' ? L.skillTailTokens * Math.max(0, Object.keys(definition.state ?? {}).filter(key => /^skill\d+$/u.test(key)).length - 5) : 0)
+    : L.tailTokens);
 
 /**
  * One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role, written compact): "Survival — Wessel: hunger 12; fatigue 6."
@@ -539,7 +543,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         try { pack = rpg().packRulesOf(rpgRecords); } catch { pack = null; }
         const rules = rpg().rulesFromSettings(settings(), pack);
         // (a companion starts under the story's level cap: the pack's ranks record names one, else the reader's setting, else 99)
-        const made = rpg().joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap) });
+        const seeds = castSeeds(ctx, request.name);
+        const made = rpg().joinDefinitions({ ...request, skills: seeds }, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap) });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
         const first = rpg().partyOf(prefix).length === 0, plan = first ? rpg().extrasPlan(prefix) : { add: [], skipped: [] };
         const extras = rpg().extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug], formula: rpg().isStandard(rules) ? 'standard' : 'classic' });
@@ -563,7 +568,69 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module: head.definition.id, skills: rest[0].definition.id },
             summary: `${fill(J.joined, { name: request.name })}${left}` });
         answer.data.join = { op: 'added', name: request.name };
+        if (seeds.length) {
+            answer.data.sigSkills = seededData(seeds);
+            answer.summary = `${answer.summary} ${fill(J.skillsSeeded, { n: seeds.length })}`;
+        }
         return giveGear(ctx, answer, request.name, head.definition.id);
+    }
+    // ---- a cast member's signature skills (cast.js `skills`, RPG.md "Signature skills") ----
+    // Seeded only when the member JOINS (or comes back): the skills fill free slots, marked in the Skills block's `sig`, and what was seeded is written in the join's
+    // receipt (`data.sigSkills`). Members who joined before the pack had skills keep what they have; nothing is added later by an update of the pack. A Re-read of
+    // the join reply plans it again from what the reply itself seeded (`ctx.standing`, the reply as it stood), never from the pack as it is now.
+    // The Skills block of the person called `who` in a state: { module, definition, fields } or null.
+    function skillsBlockOf(state, who) {
+        const domain = state?.domains?.dataModules;
+        for (const module of Object.keys(domain?.active ?? {})) {
+            const definition = activeDefinition(state, module), fields = instanceOf(state, module)?.fields;
+            if (definition?.role === 'skills' && fields && typeof fields.who === 'string' && fold(fields.who) === fold(who)) return { module, definition, fields };
+        }
+        return null;
+    }
+    const skillCapacity = definition => Math.min(SKILL_SLOTS_MAX, Object.keys(definition?.state ?? {}).filter(key => /^skill\d+$/u.test(key)).length);
+    const skillRow = (fields, n) => ({ name: fields[`skill${n}`], about: typeof fields[`about${n}`] === 'string' ? fields[`about${n}`] : '', stat: fields[`stat${n}`], uses: fields[`uses${n}`] ?? 'stamina', rank: Number.isSafeInteger(fields[`rank${n}`]) ? fields[`rank${n}`] : 0 });
+    // The skills to seed for `name` on this join: [{ name, about, stat, uses, rank }], the ones the person does not hold by name already.
+    function castSeeds(ctx, name) {
+        const held = skillsBlockOf(stateOf(ctx), name);
+        const have = new Set(Array.from({ length: SKILL_SLOTS_MAX }, (_, i) => fold(held?.fields?.[`skill${i + 1}`] ?? '')).filter(Boolean));
+        if (ctx.standing) {
+            // (a Re-read: what this very reply seeded, read from the reply as it stood; a block without the mark has none to tell, so anything new on it counts)
+            const after = skillsBlockOf({ domains: { dataModules: ctx.standing.domains?.dataModules } }, name);
+            if (!after) return [];
+            const marked = Object.hasOwn(after.definition.state ?? {}, 'sig');
+            const rows = [];
+            for (let n = 1; n <= SKILL_SLOTS_MAX; n += 1) if (typeof after.fields[`skill${n}`] === 'string' && after.fields[`skill${n}`] && (!marked || signatureAt(after.fields.sig, n)) && !have.has(fold(after.fields[`skill${n}`]))) rows.push(skillRow(after.fields, n));
+            return rows;
+        }
+        let found = null;
+        try { found = castSkillsOf(packs?.packs?.() ?? [], name); } catch { found = null; }
+        return (found?.skills ?? []).filter(skill => !have.has(fold(skill.name)));
+    }
+    // The tiles of the join's receipt and its summary words.
+    const seededData = seeds => seeds.map(skill => ({ name: skill.name, stat: skill.stat, uses: skill.uses, rank: skill.rank }));
+    // Coming back: the seeds go into the free slots of the Skills block the person already has.
+    function reseed(ctx, answer, name) {
+        const prefix = stateOf(ctx), block = skillsBlockOf(prefix, name);
+        if (!block) return answer;
+        const seeds = castSeeds(ctx, name);
+        if (!seeds.length) return answer;
+        // A block made before the signature mark (or the extra slots) is extended first, so the skills can be marked (growSkills).
+        let definition = block.definition;
+        if (!Object.hasOwn(definition.state ?? {}, 'sig') || skillCapacity(definition) < SKILL_SLOTS_MAX) definition = growSkills(ctx, prefix, draftOf(ctx), block.module) ?? definition;
+        const fields = atPath(draftOf(ctx), instancePath(block.module, 'chat')).fields, capacity = skillCapacity(definition), marks = Object.hasOwn(definition.state ?? {}, 'sig');
+        const placed = [];
+        for (const skill of seeds) {
+            const slot = Array.from({ length: capacity }, (_, i) => i + 1).find(n => !fields[`skill${n}`]);
+            if (!slot) { answer.problem = [answer.problem, `${name}'s ${skill.name} has no free skill slot.`].filter(Boolean).join(' '); continue; }
+            Object.assign(fields, { [`skill${slot}`]: skill.name, [`about${slot}`]: skill.about, [`stat${slot}`]: skill.stat, [`uses${slot}`]: skill.uses, [`rank${slot}`]: skill.rank, [`practice${slot}`]: 0 });
+            if (marks) fields.sig = (Number.isSafeInteger(fields.sig) ? fields.sig : 0) + 2 ** (slot - 1);
+            placed.push(skill);
+        }
+        if (placed.length) {
+            answer.data.sigSkills = seededData(placed);
+            answer.summary = `${answer.summary} ${fill(J.skillsSeeded, { n: placed.length })}`;
+        }
+        return answer;
     }
     // The party actor of the Character block `module` (`party.actors`: the one whose ID is the block's, which a rename never changes), else, when a module of
     // another make answers the roster, the one of that name; 'party' when nothing answers or no one is so. The joiner's own block is in the roster at once
@@ -662,7 +729,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (check.returning) return leave(ctx, check.returning, false, call);
         if (rpg().joinMode(settings()) === 'ask') {
             // Ask: nothing is made. The line is kept in this reply's own receipt, and the card under the reply (rpg.joins) is read from it.
-            const offer = { op: 'offer', name: read.name, about: read.about, soul: read.soul, best: read.best };
+            const seeds = castSeeds(ctx, read.name);
+            const offer = { op: 'offer', name: read.name, about: read.about, soul: read.soul, best: read.best, ...(seeds.length ? { skills: seeds } : {}) };
             return { summary: fill(J.offerNote, { name: read.name }), narrate: false, data: { join: offer } };
         }
         return makeParty(ctx, read, check.soul, call);
@@ -686,6 +754,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             }
         }
         if (left) return answer;
+        reseed(ctx, answer, person.name);
         const back = restoreKept(ctx, person);
         const out = giveGear(ctx, answer, person.name, person.module, back);
         // (giveGear stops early when gear is off or the cast no longer knows them: what came back is still said)
@@ -761,24 +830,63 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const keys = new Set(top.map(slot => words(slot.name)));
         return keys.size === 1 && top.length === 1 ? top[0] : null;
     }
-    // The Skills block's story lines never overwrite a slot (USER, 3 Nov). `learn-N` of a name some slot already holds updates that slot;
-    // a new name goes to slot N if it is empty, else the first empty one, else the line is refused. `practice-N` whose reason names one of the
-    // skills credits that skill's slot. → { kind, slot, name, update? } | { refuse } | null (not one of these lines: as written).
-    function skillRoute(fields, kindName, args, reason) {
-        const learn = /^learn-([1-5])$/u.exec(kindName), practice = /^practice-([1-5])$/u.exec(kindName);
+    // The Skills block's story lines never overwrite a slot (USER, 3 Nov). `learn-N` of a name some slot already holds updates that slot (a signature skill, one a
+    // pack's cast member brought, is never updated: it keeps its name and slot); a new name goes to slot N if it is empty and open, else the first open one, else the
+    // line is refused. A slot is open when the block has it and the character's level has opened it (names.js skillSlots: 5, a sixth at Lv 20, a seventh at 40, an
+    // eighth at 60; a level drop only closes the empty ones). `practice-N` whose reason names one of the skills credits that skill's slot.
+    // → { kind, slot, name, update? } | { refuse } | null (not one of these lines: as written).
+    function skillRoute(fields, kindName, args, reason, room = SKILL_SLOTS_BASE) {
+        const learn = /^learn-([1-8])$/u.exec(kindName), practice = /^practice-([1-8])$/u.exec(kindName);
         if (!learn && !practice) return null;
-        const slots = [1, 2, 3, 4, 5].map(n => ({ n, name: typeof fields[`skill${n}`] === 'string' ? fields[`skill${n}`] : '' }));
+        const slots = Array.from({ length: SKILL_SLOTS_MAX }, (_, i) => ({ n: i + 1, name: typeof fields[`skill${i + 1}`] === 'string' ? fields[`skill${i + 1}`] : '', signature: signatureAt(fields.sig, i + 1) }));
         if (learn) {
             const wanted = fold(args.name);
             const same = wanted ? slots.find(slot => slot.name && fold(slot.name) === wanted) : undefined;
+            if (same?.signature) return { refuse: fill(J.signature, { who: typeof fields.who === 'string' ? fields.who : '', skill: same.name }) };
             if (same) return { kind: `learn-${same.n}`, slot: same.n, name: same.name, update: true };
             const at = Number(learn[1]);
-            const free = slots[at - 1].name ? slots.find(slot => !slot.name)?.n : at;
-            return free ? { kind: `learn-${free}`, slot: free, name: args.name } : { refuse: `No free skill slot for ${args.name}.` };
+            const free = at <= room && !slots[at - 1].name ? at : slots.find(slot => slot.n <= room && !slot.name)?.n;
+            if (free) return { kind: `learn-${free}`, slot: free, name: args.name };
+            return { refuse: `No free skill slot for ${args.name}.${room < SKILL_SLOTS_MAX ? ` ${fill(J.slotLater, { level: (room - SKILL_SLOTS_BASE + 1) * SKILL_SLOTS_EVERY })}` : ''}` };
         }
         const named = skillNamed(slots, reason);
         const slot = named ? named.n : Number(practice[1]);
         return { kind: `practice-${slot}`, slot, name: slots[slot - 1].name };
+    }
+    // How many skill slots a Skills block has open: the slots it has, as far as its character's level opens them (names.js skillSlots); a Skills block no Character names is read at level 1.
+    function skillRoom(state, definition, fields) {
+        const capacity = Math.min(SKILL_SLOTS_MAX, Object.keys(definition.state ?? {}).filter(key => /^skill\d+$/u.test(key)).length);
+        let level = 1;
+        try { level = readSheet(state).characters.find(person => fold(person.who) === fold(fields.who))?.level ?? 1; } catch { level = 1; }
+        return Math.min(capacity, skillSlots(level));
+    }
+    // The slots the character's level opens (names.js skillSlots), whatever the block has.
+    function skillWant(state, fields) {
+        let level = 1;
+        try { level = readSheet(state).characters.find(person => fold(person.who) === fold(fields.who))?.level ?? 1; } catch { level = 1; }
+        return skillSlots(level);
+    }
+    // The additive upgrade of a Skills block made before the extra slots (five slots, no `sig`; templates.js grownSkills): when it is first needed (a learn line once the level
+    // has opened a slot the block lacks, or a cast member's skills to mark), the block's pin is replaced by the same definition with the missing slots and the mark added.
+    // Nothing is removed or renamed; the fields it adds start at their defaults and every existing skill keeps its rank and practice. It is part of the action that needed it:
+    // its ops carry the new pin and a Re-read plans it again from the same prefix, so rebuild, Re-read and reload all give the same block (the pack is not asked).
+    // → the new definition (the draft holds it), or null when nothing was missing.
+    function growSkills(ctx, prefix, draft, module) {
+        const domain = prefix.domains.dataModules, old = domain?.active?.[module], current = activeDefinition(prefix, module);
+        if (!old || !current || current.role !== 'skills' || current.pack !== 'chat' || domain.pins[old.hash]?.packId !== 'chat') return null;
+        const grown = rpg().grownSkills(rawDefinition(current));
+        if (!grown) return null;
+        const catalog = Object.keys(domain.active).map(id => activeDefinition(prefix, id)).filter(Boolean);
+        const checked = validateDataModules([grown], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions: catalog });
+        if (!checked.ok) return null;
+        const definition = checked.definitions[0], hash = dataModuleHash(definition);
+        if (Object.keys(draft.pins).length >= L.pins + 1) return null;
+        draft.pins[hash] = copy({ definition, packId: 'chat', packVersion: '0', packHash: null, interpreter: 1 });
+        draft.active[module] = { ...copy(old), hash, generation: Math.max(ctx.rev, old.generation + 1) };
+        const fields = atPath(draft, instancePath(module, 'chat')).fields;
+        for (const [key, value] of Object.entries(dataModuleDefaults(definition.state))) if (!Object.hasOwn(fields, key)) fields[key] = value;
+        if (old.hash !== hash && !Object.values(draft.active).some(entry => entry.hash === old.hash)) delete draft.pins[old.hash];
+        return definition;
     }
     // A Foes block of the Levels rules (its set-slot kind has a `level` label): a line that gives a level keeps it; one that gives a rank gets a level drawn inside that
     // rank's band (the `rpg.rank` query names the ranks); one that gives neither gets a level within ±2 of the party's average. The draw is from the reply's seed, so a
@@ -800,10 +908,19 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     }
     function act(ctx, payload, line = null, call = {}) {
         if (ctx.caller !== null) refuse('REFUSED', '', 'A data action cannot be called by another module.');
-        const prefix = stateOf(ctx), module = resolveModule(prefix, line?.name ?? payload.module), definition = activeDefinition(prefix, module);
+        const prefix = stateOf(ctx), module = resolveModule(prefix, line?.name ?? payload.module);
+        let definition = activeDefinition(prefix, module);
         call.label = definition?.name ?? module;
         if (!definition) refuse('DM_SCHEMA', '', 'Unsupported or damaged pin.');
         dependency(definition, prefix);
+        // A learn line for a Skills block made before the extra slots, once the character's level has opened a slot it lacks: the block is extended first (growSkills).
+        let grown = null;
+        if (line && definition.role === 'skills' && !/^practice/u.test(String(line.labels?.kind ?? ''))) {
+            const have = Object.keys(definition.state).filter(key => /^skill\d+$/u.test(key)).length, fields = instanceOf(prefix, module)?.fields;
+            // (the guard re-asks the conditions an action answered on the block as it was before; the new slots are empty by construction, so a grown action records none)
+            if (fields && have < Math.min(SKILL_SLOTS_MAX, skillWant(prefix, fields))) grown = growSkills(ctx, prefix, draftOf(ctx), module);
+            if (grown) definition = grown;
+        }
         const given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
         const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
         // A foe group the narrator sets may give `level: N` or `rank: <name>`, or neither: then its level is drawn from the reply's seed (see foeLevelLabels).
@@ -813,7 +930,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
         // Practice comes only from rolled skill uses: on a reply captured under that rule (turn.js marks it, `ctx.carrier.practiceRule`; an older reply has no mark
         // and keeps its practice lines on a Re-read, an edit, a rebuild and a reload) the narrator's practice line changes nothing.
-        if (ctx.cause === 'story' && definition.role === 'skills' && /^practice-[1-5]$/u.test(labels.kind) && ctx.carrier?.practiceRule === 'rolls') refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
+        if (ctx.cause === 'story' && definition.role === 'skills' && /^practice-[1-8]$/u.test(labels.kind) && ctx.carrier?.practiceRule === 'rolls') refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
         // The XP rate (lean-rpg/levels.js): the narrator's XP line for a character is multiplied by the rate in force (the RPG on), which the line's record keeps
         // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.
@@ -834,7 +951,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         evaluation.timers();
         // A foe group the narrator sets by a name already on a slot of the same Foes block (the pre-call may have opened this very fight, lean-rpg/open.js)
         // is that group: the slot is updated (count and class), never a second slot with the same name; its health stays as it is.
-        const route = definition.role === 'skills' && line ? skillRoute(instance.fields, labels.kind, args, line.text) : null;
+        const route = definition.role === 'skills' && line ? skillRoute(instance.fields, labels.kind, args, line.text, skillRoom(prefix, definition, instance.fields)) : null;
         if (route?.refuse) refuse('DM_CONDITION', '', route.refuse);
         const same = definition.role === 'foes' && /^set-slot-\d$/u.test(labels.kind) && typeof args.name === 'string'
             ? [1, 2, 3, 4].find(n => typeof instance.fields[`foe${n}`] === 'string' && instance.fields[`count${n}`] > 0 && fold(instance.fields[`foe${n}`]) === fold(args.name)) : undefined;
@@ -850,7 +967,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), imports: prefixImports(definition),
-            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds, ...(xpRate !== XP_RATE.default ? { xpRate } : {}) } });
+            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
         // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is
@@ -861,7 +978,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         // reply's rolls give by code can put back what the narrator added for the same skill.
         const practiceFrom = ctx.cause === 'story' && route && route.kind.startsWith('practice-')
             ? { [module]: { [route.slot]: Object.fromEntries(['practice', 'rank'].filter(key => Number.isSafeInteger(fieldsBefore[`${key}${route.slot}`])).map(key => [key, fieldsBefore[`${key}${route.slot}`]])) } } : null;
-        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
+        const answer = finish(ctx, prefix, draft, recorded, { pin: Boolean(grown), visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }

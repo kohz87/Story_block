@@ -19,6 +19,10 @@ Your own equipment, set up by hand (gear on).
   come from the pack"); the story's pieces and bound gear are unchanged.
 - Style: equal 32 px controls in a form row, groups stacked below 600 px for any grouped form, and the editing row using the full width on a phone.
 
+Extra skill slots and cast signature skills.
+- **Extra skill slots:** a sixth skill at Lv 20, a seventh at Lv 40, an eighth at Lv 60 (five to start). The `learn-N` and `practice-N` lines run 1..8, character files hold up to eight skills, a level drop keeps every skill. New Skills blocks have eight slots; a block made earlier is extended automatically (additive, recorded with the action) when its character first needs a slot it lacks or a returning cast member's skills need marking. Static prompt: the Skills block's description grows by 49 characters (Classic; 47 Standard); tail: up to about 45 tokens for each skill past five.
+- **Cast signature skills:** a pack's cast entry may list `skills` (name, about, stat, uses, rank). They fill the member's free slots when they join (never retroactively, never twice), carry a lock mark, cannot be renamed or replaced by the story (one Problems line), keep rank and practice when the member leaves and returns, and show as one tile each in the join's receipt. Ersveil gives its 12 cast members 2 to 4 skills each.
+
 ## 2.21.0
 
 The card offer: a character card can bring its whole world, and Story Block offers it with one click.

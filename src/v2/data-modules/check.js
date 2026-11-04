@@ -509,7 +509,7 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
             else show.tabName = oneLine(show.tabName);
         }
         if (byteLength(JSON.stringify(definition)) > L.definitionBytes) add('DM_BUDGET', at, `A definition must fit ${L.definitionBytes} UTF-8 JSON bytes.`);
-        for (const [key, schema] of named(definition.state, L.fields, `${at}.state`, add)) scalar(schema, `${at}.state.${key}`, add);
+        for (const [key, schema] of named(definition.state, definition.role === 'skills' ? L.skillsFields : L.fields, `${at}.state`, add)) scalar(schema, `${at}.state.${key}`, add);
         if (definition.role !== undefined) stageFields(definition, at, add);
         imports(definition, at, add); // forms first, linking before expression analysis below
         migrations(definition, at, add);

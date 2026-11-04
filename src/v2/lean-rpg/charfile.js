@@ -1,5 +1,5 @@
 // A saved character (Export / Import a character): the file the Party tab's Export writes and the New character wizard's Import reads.
-// Pure: no DOM. It holds only what the user chose to carry between chats: Soul Class, unspent points, the seven stats, up to five skills
+// Pure: no DOM. It holds only what the user chose to carry between chats: Soul Class, unspent points, the seven stats, up to eight skills
 // (name, what it does, stat (left out for a skill whose block has none: a stat is never guessed), Stamina or Mana, rank), and, if left on, the things the character carries and the purse.
 //
 //   { "storySuiteCharacter": 1, "soul": 2, "points": 3, "stats": { "str": 14, … "cha": 10 },
@@ -11,7 +11,7 @@
 
 import { KINDS, RARITIES } from '../domains/inventory.js';
 import { formatAmount } from '../domains/money.js';
-import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from './names.js';
+import { CREATION, RANK_NAMES, SKILL_SLOTS_MAX, STATS, USES } from './names.js';
 import { classOfLevel, levelOfClass } from './formula.js';
 import { RPG_STRINGS, fill } from './strings.js';
 
@@ -43,7 +43,7 @@ export function buildCharacterFile({ level, soul, points, stats, skills = [], it
     const file = {
         [CHAR_FILE]: CHAR_VERSION, level: shown, soul: Number.isSafeInteger(soul) ? soul : classOfLevel(shown), points,
         stats: Object.fromEntries(STATS.map(stat => [stat, stats[stat]])),
-        skills: skills.slice(0, SKILL_SLOTS).map(skill => ({ name: skill.name, about: skill.about, ...(STATS.includes(skill.stat) ? { stat: skill.stat } : {}), uses: skill.uses, rank: skill.rank })),
+        skills: skills.slice(0, SKILL_SLOTS_MAX).map(skill => ({ name: skill.name, about: skill.about, ...(STATS.includes(skill.stat) ? { stat: skill.stat } : {}), uses: skill.uses, rank: skill.rank })),
     };
     if (Array.isArray(items)) {
         file.items = items.map(item => ({ name: item.name, qty: item.qty, ...(item.note ? { note: item.note } : {}),
@@ -104,7 +104,7 @@ export function parseCharacterFile(text) {
             stats[stat] = data.stats[stat];
         }
         const rawSkills = data.skills ?? [];
-        if (!Array.isArray(rawSkills) || rawSkills.length > SKILL_SLOTS) return bad(fill(F.skills, { max: SKILL_SLOTS }));
+        if (!Array.isArray(rawSkills) || rawSkills.length > SKILL_SLOTS_MAX) return bad(fill(F.skills, { max: SKILL_SLOTS_MAX }));
         const skills = [];
         for (const [at, entry] of rawSkills.entries()) {
             const skill = readSkill(entry);
