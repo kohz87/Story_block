@@ -246,7 +246,15 @@ export function dataModuleGuard(view, info) {
     } catch { return { ok: false, reason: 'Damaged or unsupported data module pin/guard.' }; }
 }
 
-const valueText = value => (typeof value === 'string' ? JSON.stringify(oneLine(value)) : String(value));
+const valueText = value => (typeof value === 'string' ? JSON.stringify(oneLine(value)) : Array.isArray(value) ? `${value.length} ${value.length === 1 ? 'entry' : 'entries'}` : String(value));
+// A List of entries in the tail, short: each entry by its number and title and then its choices and numbers ("1 \"Find the key\" active; 2 \"Meet Wren\" done"),
+// never its longer texts. The story needs the numbers and titles to name an entry, and what is still open.
+const entriesText = (definition, key, list) => {
+    const schema = definition.state[key], parts = Object.entries(schema.of);
+    const title = (dmOwn(schema.of, definition.roles?.title) && definition.roles.field === key ? definition.roles.title : null) ?? parts.find(([, sub]) => sub.type === 'text')?.[0];
+    const text = list.map((entry, at) => [`${at + 1}`, title ? valueText(entry[title]) : null, ...parts.filter(([part, sub]) => part !== title && sub.type !== 'text').map(([part]) => String(entry[part]))].filter(Boolean).join(' '));
+    return `${key}: ${text.length ? text.join('; ') : 'none'}`;
+};
 // A number whose field has display names is shown (to a person and to the story) by its name; stored, it stays the number.
 // The Standard formula's bars (a field with `blocks`) have no fixed names: their stage word depends on the bar's size, which `at` ({ fields, key }, the
 // block's fields as they were then) gives; without it the number shows, as for any number.
@@ -256,7 +264,7 @@ const barText = (schema, value, at) => {
 };
 const shownText = (schema, value, at = null) => dmNameOf(schema, value) ?? (at && barOf(schema) ? barText(schema, value, at) : valueText(value));
 // A hidden field (`prompt: false`) is left out: the story is never told it.
-const fieldText = (definition, key, value) => (value !== null && typeof value === 'object'
+const fieldText = (definition, key, value) => (Array.isArray(value) ? entriesText(definition, key, value) : value !== null && typeof value === 'object'
     ? `${key}: ${Object.entries(value).map(([name, item]) => `${name} ${valueText(item)}`).join(', ')}` : `${key} ${shownText(definition.state[key], value)}`);
 const fieldsText = (definition, fields) => Object.entries(fields).filter(([key]) => !dmHidden(definition.state[key])).map(([key, value]) => fieldText(definition, key, value)).join('; ');
 // The named fields a root changed, for its summary: "Soul Class II → III". Empty for a block with no display names.
@@ -944,7 +952,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const subject = definition.scope === 'chat' ? 'chat' : resolveActor(prefix, labels.who, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx);
         const instance = atPath(draft, instancePath(module, subject)), inputs = inputsOf(prefix, definition);
-        const claim = `dm:${pairKey(ctx.source)}:${module}:${labels.kind}:${subject}:${hashJson(kind.oncePerReply.map(key => args[key]))}`;
+        // (a line that works a List of entries is told apart by everything it says: two quests in one reply are two lines, the same line twice is one)
+        const entryLine = kind.effects?.some(effect => ['entryAdd', 'entrySet', 'entryDrop'].includes(effect?.op));
+        const claim = `dm:${pairKey(ctx.source)}:${module}:${labels.kind}:${subject}:${hashJson(entryLine ? args : kind.oncePerReply.map(key => args[key]))}`;
         if (!ctx.claim(claim)) refuse('CLAIMED', '', `${labels.kind} was already applied for this in this reply`);
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
         const fieldsBefore = copy(instance.fields);

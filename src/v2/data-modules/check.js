@@ -1,5 +1,5 @@
 // Pure data-modules-v1 checker. The pack validator and Studio share these entry points.
-import { DM_DESCRIPTORS as D, DM_LIMITS as L, DM_BLOCK_BARS, DATA_MODULES_CAPABILITY, dmObject, dmOwn, dmSlug, dmInt, dmId, dmKindWritesHidden } from './schema.js';
+import { DM_DESCRIPTORS as D, DM_LIMITS as L, DM_BLOCK_BARS, DM_ENTRY_EFFECTS, DATA_MODULES_CAPABILITY, dmObject, dmOwn, dmSlug, dmInt, dmId, dmKindWritesHidden } from './schema.js';
 import { ROLES } from '../lean-rpg/names.js';
 import { HASH_BASIS_V1 } from './hash-basis-v1.js';
 import { fieldType, compatible, expressionType, conditionType, pathType } from './expressions.js';
@@ -79,8 +79,9 @@ function normalizedKeys(value, path, add) {
 function scalar(schema, path, add, { label = false, map = true } = {}) {
     const schemas = label ? D.labels : D.fields;
     const descriptor = dmOwn(schemas, schema?.type) && schemas[schema.type];
-    if (!descriptor || (!map && schema.type === 'map')) { add(label ? 'DM_LABEL' : 'DM_SCHEMA', path, fill(E.declaredSchema, { schema: label ? E.labelSchema : E.fieldSchema })); return; }
+    if (!descriptor || (!map && (schema.type === 'map' || schema.type === 'entries'))) { add(label ? 'DM_LABEL' : 'DM_SCHEMA', path, fill(E.declaredSchema, { schema: label ? E.labelSchema : E.fieldSchema })); return; }
     if (!shape(schema, descriptor, path, add, label ? 'DM_LABEL' : 'DM_SCHEMA')) return;
+    if (schema.optional !== undefined && (!label || typeof schema.optional !== 'boolean')) add('DM_SCHEMA', `${path}.optional`, STRINGS.blocks.entryLabel);
     if (!label && schema.edit !== undefined && typeof schema.edit !== 'boolean') add('DM_SCHEMA', `${path}.edit`, E.editBoolean);
     if (!label && schema.label !== undefined) {
         if (typeof schema.label !== 'string' || !oneLine(schema.label) || [...schema.label].length > 60) add('DM_SCHEMA', `${path}.label`, STRINGS.blocks.labelLimit);
@@ -112,6 +113,21 @@ function scalar(schema, path, add, { label = false, map = true } = {}) {
         distinct(schema.keys, `${path}.keys`, add, { max: L.mapKeys, keys: true });
         scalar(schema.values, `${path}.values`, add, { map: false });
     }
+    if (schema.type === 'entries') entriesField(schema, path, add);
+}
+
+// A List of entries: at most `max` entries, each holding the small set of sub-fields in `of` (text, number or choice). A sub-field's name is one lowercase word,
+// because it is also the label a story line writes it under ("| status: done"); `at`, `kind` and `who` belong to the line itself.
+function entriesField(schema, path, add) {
+    if (schema.max !== undefined && !dmInt(schema.max, 1, L.entriesMax)) add('DM_BOUNDS', `${path}.max`, fill(STRINGS.blocks.entriesMax, { max: L.entriesMax }));
+    if (!sized(schema.of, L.entrySubs, `${path}.of`, add, { min: 1 })) return;
+    for (const [key, sub] of Object.entries(schema.of)) {
+        const at = `${path}.of.${key}`;
+        if (!/^[a-z]{1,20}$/.test(key) || ['at', 'kind', 'who'].includes(key)) add('DM_SCHEMA', at, STRINGS.blocks.entrySubName);
+        if (!dmObject(sub) || !['text', 'int', 'enum'].includes(sub.type)) { add('DM_SCHEMA', at, STRINGS.blocks.entrySubType); continue; }
+        if (sub.edit !== undefined || sub.list !== undefined) add('DM_SCHEMA', at, STRINGS.blocks.entrySubType);
+        scalar(sub, at, add, { map: false });
+    }
 }
 
 const foldedName = text => String(text).normalize('NFKC').toLowerCase();
@@ -133,7 +149,7 @@ function names(schema, path, add) {
 
 export function dataModuleDefaults(state) {
     return Object.fromEntries(entries(state).map(([key, schema]) => [key, schema.type === 'map'
-        ? Object.fromEntries(schema.keys.map(key => [key, schema.values.default])) : schema.default]));
+        ? Object.fromEntries(schema.keys.map(key => [key, schema.values.default])) : schema.type === 'entries' ? [] : schema.default]));
 }
 
 function rewardTypes(reward, path, add) {
@@ -160,6 +176,29 @@ function rewardTypes(reward, path, add) {
     return out;
 }
 
+// The line a List of entries field is worked by: the labels are the field's sub-fields (each one the sub-field's own type, no wider) and, to change or drop
+// one, `at` (a number or a title). An add may leave a sub-field out (it keeps its default); a change names at least one to change.
+function entryEffect(effect, env, at, add) {
+    const path = Array.isArray(effect.path) && effect.path.length === 1 && typeof effect.path[0] === 'string' ? effect.path : null;
+    const field = path && dmOwn(env.state, path[0]) ? env.state[path[0]] : null;
+    if (field?.type !== 'entries') { add('DM_SCHEMA', `${at}.path`, STRINGS.blocks.entryPath); return; }
+    const labels = env.args ?? {}, subs = field.of ?? {};
+    const needsAt = effect.op !== 'entryAdd';
+    for (const [key, label] of Object.entries(labels)) {
+        if (key === 'at') {
+            if (!needsAt || label?.type !== 'text' || !dmInt(label.max, 1, L.entryAt)) add('DM_LABEL', `${at}.labels.at`, STRINGS.blocks.entryAt);
+            continue;
+        }
+        const sub = dmOwn(subs, key) ? subs[key] : null;
+        const fits = sub && label?.type === sub.type && (sub.type === 'text' ? label.max <= sub.max
+            : sub.type === 'int' ? label.min >= sub.min && label.max <= sub.max : array(label.values).every(value => array(sub.values).includes(value)));
+        if (effect.op === 'entryDrop' || !fits) add('DM_LABEL', `${at}.labels.${key}`, STRINGS.blocks.entryLabel);
+    }
+    if (needsAt && !dmOwn(labels, 'at')) add('DM_LABEL', `${at}.labels.at`, STRINGS.blocks.entryAt);
+    const named = Object.keys(labels).filter(key => key !== 'at');
+    if (effect.op === 'entrySet' && !named.length) add('DM_LABEL', `${at}.labels`, STRINGS.blocks.entryLabel);
+}
+
 function effects(list, env, path, add, { timer = false, reward = false, plain = false } = {}) {
     if (!sized(list, L.effects, path, add, { list: true })) return;
     list.forEach((effect, i) => {
@@ -170,6 +209,11 @@ function effects(list, env, path, add, { timer = false, reward = false, plain = 
         if (timer && effect.op !== 'add') add('DM_SCHEMA', at, 'Timer effects must be additive field changes, optionally clamped; no checks, rewards or offers.');
         if (reward && ['reward', 'offer', 'award'].includes(effect.op)) add('DM_SCHEMA', at, 'Reward templates cannot dispatch rewards, offers or awards recursively.');
         if (plain && ['reward', 'offer', 'award'].includes(effect.op)) add('DM_SCHEMA', at, STRINGS.blocks.replyEndPlain);
+        if (DM_ENTRY_EFFECTS.includes(effect.op)) {
+            if (timer || reward || plain || !env.args) add('DM_SCHEMA', at, STRINGS.blocks.entryKindOnly);
+            else entryEffect(effect, env, at, add);
+            return;
+        }
         if (['set', 'add', 'clamp'].includes(effect.op)) {
             const target = pathType(effect.path, { ...env, writing: true }, `${at}.path`, add, (v, p) => expressionType(v, env, p, add));
             if (effect.op === 'clamp') {
@@ -410,6 +454,37 @@ function viewPath(definition, path, at, add) {
     if (!field || parts.length > (field.type === 'map' ? 2 : 1) || (parts.length === 2 && !array(field.keys).includes(parts[1]))) add('DM_SCHEMA', at, 'Unknown module view field or fixed map key.');
 }
 
+// How the host draws a block: `layout` ("cards", "bars" or "fields"), the `roles` a list of cards reads from one List of entries field (`field`, and the
+// sub-fields that are its `title`, `status` and `step`), and the `tones` of the status values. Display only: none of it changes what the story can write.
+function layoutKeys(definition, at, add) {
+    const { layout, roles, tones } = definition;
+    const state = dmObject(definition.state) ? definition.state : {};
+    if (layout !== undefined && !D.layouts.includes(layout)) { add('DM_SCHEMA', `${at}.layout`, STRINGS.blocks.layoutInvalid); return; }
+    if (layout === 'bars' && !Object.values(state).every(schema => schema?.type === 'int')) add('DM_SCHEMA', `${at}.layout`, STRINGS.blocks.layoutBarsNumbers);
+    if (layout === 'cards' && roles === undefined) add('DM_SCHEMA', `${at}.roles`, STRINGS.blocks.rolesNeeded);
+    let status = null;
+    if (roles !== undefined) {
+        if (layout !== 'cards') add('DM_SCHEMA', `${at}.roles`, STRINGS.blocks.rolesCards);
+        if (!shape(roles, { required: ['field', 'title'], optional: ['status', 'step'] }, `${at}.roles`, add)) return;
+        const field = typeof roles.field === 'string' && dmOwn(state, roles.field) ? state[roles.field] : null;
+        if (field?.type !== 'entries') { add('DM_SCHEMA', `${at}.roles.field`, STRINGS.blocks.rolesField); return; }
+        const sub = (key, type) => {
+            if (roles[key] === undefined) return null;
+            const schema = typeof roles[key] === 'string' && dmOwn(field.of, roles[key]) ? field.of[roles[key]] : null;
+            if (schema?.type !== type) add('DM_SCHEMA', `${at}.roles.${key}`, STRINGS.blocks.rolesSub);
+            return schema?.type === type ? schema : null;
+        };
+        sub('title', 'text'); sub('step', 'text');
+        status = sub('status', 'enum');
+    }
+    if (tones !== undefined) {
+        if (!dmObject(tones) || !status) { add('DM_SCHEMA', `${at}.tones`, STRINGS.blocks.tonesNeedStatus); return; }
+        for (const [value, tone] of Object.entries(tones)) {
+            if (!status.values.includes(value) || !D.toneNames.includes(tone)) add('DM_SCHEMA', `${at}.tones.${value}`, STRINGS.blocks.tonesInvalid);
+        }
+    }
+}
+
 // The RPG draws a role block's health, mana, stamina and foe-health fields as stage bars, one cell and one choice for each stage, so
 // those fields stay small: at most ten stages counted up from empty (0), whatever else the block holds.
 const STAGE_FIELD = /^(health|mana|stamina|hurt[1-4])$/;
@@ -506,13 +581,14 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
         if (definition.show !== undefined) {
             const show = definition.show;
             if (!dmObject(show) || Object.keys(show).some(key => !['tab', 'card', 'tabName', 'icon', 'into'].includes(key))
-                || (show.into !== undefined && !(typeof show.into === 'string' && TAB_ID.test(show.into)))
                 || typeof show.tab !== 'boolean' || typeof show.card !== 'boolean'
+                || (show.into !== undefined && (typeof show.into !== 'string' || !TAB_ID.test(show.into) || show.tab !== true))
                 || typeof show.tabName !== 'string' || !show.tabName.trim() || [...show.tabName].length > 24 || !hasIcon(show.icon)) add('DM_SCHEMA', `${at}.show`, STRINGS.blocks.showOptions);
             else show.tabName = oneLine(show.tabName);
         }
         if (byteLength(JSON.stringify(definition)) > L.definitionBytes) add('DM_BUDGET', at, `A definition must fit ${L.definitionBytes} UTF-8 JSON bytes.`);
         for (const [key, schema] of named(definition.state, definition.role === 'skills' ? L.skillsFields : L.fields, `${at}.state`, add)) scalar(schema, `${at}.state.${key}`, add);
+        layoutKeys(definition, at, add);
         if (definition.role !== undefined) stageFields(definition, at, add);
         imports(definition, at, add); // forms first, linking before expression analysis below
         migrations(definition, at, add);

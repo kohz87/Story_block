@@ -30,9 +30,11 @@ const fullyNamed = scalar => {
 // (`loadRpgTemplates` reads the list the first time the chooser needs it; a test hands in its own)
 // (`rpgFormula()` is the stat formula the chat plays on, 'standard' or 'classic': a Standard chat is offered the Standard templates. A loader may
 // hand back one list, or `{ classic, standard }`.)
+// `tabs()`: the tabs this chat has, [{ id, title }], for Show in tab (empty until the host can merge a block into a tab). `renderPreview(parent, { definition,
+// values, layout })`: the host's drawing of a block in the new layouts, used by the editor's preview (a plain sketch without it).
 export function createBlockWidgets({ templates, directorOn = () => true, leanRpgOn = () => false, navigate = () => {}, rpgFormula = () => 'standard', tabs = () => [], renderPreview = null,
     loadRpgTemplates = () => import('../lean-rpg/templates.js').then(loaded => ({ classic: loaded.LEAN_RPG_TEMPLATES, standard: loaded.STANDARD_TEMPLATES })) } = {}) {
-    const shared = { mode: 'list', draft: null, module: null, note: '' };
+    const shared = { mode: 'list', draft: null, module: null, note: '', meta: {}, starters: false };
     // The RPG templates are read (a dynamic import) only when the feature is on and the chooser is open.
     let rpgTemplates = null, rpgLoading = false;
     const loadRpg = () => {
@@ -57,6 +59,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         if (!draft) return false;
         shared.draft = draft;
         shared.module = row?.module ?? null;
+        shared.meta = {}; shared.starters = !row;
         shared.mode = 'editor';
         tell();
         if (move) navigate();
@@ -120,10 +123,12 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
                 if (schema.type === 'entries') {
                     if (entriesRoles(definition, field)) drawEntries(env, root, { definition, module: row.module, field, list: values[field] });
                     else {
-                        const line = h(doc, 'div', 'ss-block-value'); root.appendChild(line);
-                        line.appendChild(h(doc, 'span', 'ss-block-value-name', schema.label ?? field));
+                        // A List of entries without roles as plain rows: one row for each entry, its parts in the order of the list's definition.
                         const list = Array.isArray(values[field]) ? values[field] : [];
-                        line.appendChild(h(doc, 'span', 'ss-block-value-shown', list.map(entry => Object.values(entry ?? {}).join(' · ')).join('; ')));
+                        const line = h(doc, 'div', 'ss-block-value'); root.appendChild(line);
+                        line.appendChild(h(doc, 'span', 'ss-block-value-name', `${schema.label ?? field} (${list.length})`));
+                        const slot = h(doc, 'span', 'ss-block-value-slot'); line.appendChild(slot);
+                        for (const entry of list) slot.appendChild(h(doc, 'div', 'ss-block-value-shown', Object.keys(schema.of).map(part => String(entry?.[part] ?? '')).filter(Boolean).join(' · ')));
                     }
                     continue;
                 }
@@ -255,7 +260,9 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
             const definition = JSON.parse(JSON.stringify(row.pinnedDefinition));
             delete definition.id; delete definition.pack;
             const was = definition.show ?? { tabName: [...definition.name].slice(0, 24).join(''), icon: 'ph-bookmark-simple' };
-            definition.show = { tab: value === 'tab' || value === 'both', card: value === 'card' || value === 'both', tabName: was.tabName, icon: was.icon, ...(was.into ? { into: was.into } : {}) };
+            definition.show = { tab: value === 'tab' || value === 'both', card: value === 'card' || value === 'both', tabName: was.tabName, icon: was.icon,
+                // (a block that joins another tab keeps doing so while it has a tab at all)
+                ...(was.into && (value === 'tab' || value === 'both') ? { into: was.into } : {}) };
             const result = await api.command?.('dm.redefine', { module: row.module, definition });
             say(result?.ok ? fill(P.shownAs, { name: definition.name, how: P.show[value] }) : refusalText(result, STRINGS.editable.failed));
         }
@@ -326,7 +333,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
                 const draft = editableBlockDraft(entry.definition);
                 if (!draft) { status.textContent = S.unsupportedEdit; return; }
                 shared.draft = draft; delete shared.draft.slug;
-                shared.module = null; shared.mode = 'editor'; tell();
+                shared.module = null; shared.meta = {}; shared.starters = false; shared.mode = 'editor'; tell();
             });
             let rpg = [];
             if (leanRpgOn()) {
@@ -351,7 +358,10 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
             if (!chatOpen()) { root.appendChild(h(doc, 'p', 'ss-blocks-empty', P.noChat)); return; }
             const rows = rowsOf(api).filter(row => row.packId === 'chat');
             if (shared.mode === 'editor' && shared.draft) {
+                let joinable = [];
+                try { joinable = tabs() ?? []; } catch { joinable = []; }
                 editor = renderBlockEditor(root, { draft: shared.draft, used: rows.map(row => row.module), directorOn: directorOn(),
+                    starters: shared.starters, meta: shared.meta, renderPreview, tabs: joinable,
                     onCancel: () => { shared.mode = 'list'; shared.draft = null; shared.module = null; tell(); },
                     onSave: async definition => {
                         const result = await api.command?.(shared.module ? 'dm.redefine' : 'dm.define',

@@ -21,9 +21,16 @@ export function scalarHolds(schema, value) {
     if (schema.type === 'enum') return schema.values.includes(value);
     if (schema.type === 'text') return typeof value === 'string' && [...value].length <= schema.max
         && (schema.list !== true || !value || value.split(';').length <= 12);
+    if (schema.type === 'entries') return entriesHold(schema, value);
     return schema.type === 'map' && dmObject(value) && Object.keys(value).length === schema.keys.length
         && schema.keys.every(key => dmOwn(value, key) && scalarHolds(schema.values, value[key]));
 }
+
+// A List of entries holds when it is a list of at most `max` entries, each one an object with exactly the parts of `of`, every part holding its own type.
+// (text parts are kept short and on one line; an empty text is allowed, for a part the story has not filled in)
+const entriesHold = (schema, value) => Array.isArray(value) && value.length <= (schema.max ?? L.entriesDefault) && value.every(entry => dmObject(entry)
+    && Object.keys(entry).length === Object.keys(schema.of).length
+    && Object.entries(schema.of).every(([key, sub]) => dmOwn(entry, key) && (sub.type === 'text' ? typeof entry[key] === 'string' && [...entry[key]].length <= sub.max : scalarHolds(sub, entry[key]))));
 
 /** "guild, watch or compact" */
 export const orList = values => {
@@ -49,6 +56,7 @@ export function parseLabels(definition, kind, labels, { text = false } = {}) {
     const allowed = ['kind', ...(definition.scope === 'character' ? ['who'] : []), ...Object.keys(kind.labels)];
     for (const key of Object.keys(labels)) if (!allowed.includes(key)) refuse('DM_LABEL', key, key === 'who' ? 'this module has no characters, so who is not allowed' : `${key} is not a label of this line (${orList(allowed.filter(name => name !== 'kind'))})`);
     for (const [key, schema] of Object.entries(kind.labels)) {
+        if (!dmOwn(labels, key) && schema.optional === true) continue;
         if (!dmOwn(labels, key)) refuse('DM_LABEL', key, `${key} is missing`);
         let value = labels[key];
         // A number the story may write as one of its display names; the stored value is always the number.
@@ -174,6 +182,36 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         parent[path.at(-1)] = value;
         written.add(JSON.stringify(path));
     }
+    // A List of entries line. The entry is found by `at`: its number in the list (1 is the first), else its title (the first text part, matched with case and
+    // spacing ignored). An add keeps a part the line leaves out at its default, and a list that is full refuses.
+    function entryEffect(effect, env) {
+        const [name] = effect.path, schema = field([name]), args = env.arg ?? {};
+        const list = [...(atPath(instance.fields, [name]) ?? [])];
+        const titleKey = Object.keys(schema.of).find(key => schema.of[key].type === 'text');
+        const find = () => {
+            const at = String(args.at ?? '').trim();
+            if (/^\d+$/.test(at)) {
+                const n = Number(at);
+                if (n >= 1 && n <= list.length) return n - 1;
+                refuse('DM_BOUNDS', 'at', STRINGS.blocks.entryMissing);
+            }
+            const wanted = oneLine(at).toLowerCase();
+            const hits = titleKey ? list.map((entry, index) => (oneLine(entry[titleKey]).toLowerCase() === wanted ? index : -1)).filter(index => index >= 0) : [];
+            if (hits.length > 1) refuse('DM_BOUNDS', 'at', STRINGS.blocks.entryAmbiguous);
+            if (!hits.length) refuse('DM_BOUNDS', 'at', STRINGS.blocks.entryMissing);
+            return hits[0];
+        };
+        const parts = Object.fromEntries(Object.keys(schema.of).filter(key => dmOwn(args, key)).map(key => [key, args[key]]));
+        if (effect.op === 'entryAdd') {
+            if (list.length >= (schema.max ?? L.entriesDefault)) refuse('DM_BUDGET', name, STRINGS.blocks.entriesFull);
+            list.push(Object.fromEntries(Object.entries(schema.of).map(([key, sub]) => [key, dmOwn(parts, key) ? parts[key] : sub.default])));
+        } else {
+            const at = find();
+            if (effect.op === 'entryDrop') list.splice(at, 1);
+            else list[at] = { ...list[at], ...parts };
+        }
+        write([name], list);
+    }
     function freezeReward(template, bindings, env) {
         const reward = definition.rewards[template];
         if (!reward) refuse('DM_SCHEMA', template, 'Unknown reward template.');
@@ -218,7 +256,8 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
                     }
                 }
                 write(path, value);
-            } else if (effect.op === 'reward') settle(freezeReward(effect.template, effect.bind, env));
+            } else if (['entryAdd', 'entrySet', 'entryDrop'].includes(effect.op)) entryEffect(effect, env);
+            else if (effect.op === 'reward') settle(freezeReward(effect.template, effect.bind, env));
             else if (effect.op === 'offer') {
                 read(['offers', effect.key]); read(['settled', effect.key]);
                 if (dmOwn(instance.offers, effect.key) || dmOwn(instance.settled, effect.key)) refuse('CLAIMED', effect.key, 'This offer key has already been used.');
