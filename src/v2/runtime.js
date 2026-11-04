@@ -400,7 +400,11 @@ export function createRuntime({
             if (!message || message.is_user) return false;
             // (the opening greeting's own record is the chat's starting point: the one that carries the checkpoint at the head of the line; any other record is a reply)
             const record = readRecord(message);
-            return !record || (record.checkpoint !== undefined && message === seen[0]);
+            if (!record || (record.checkpoint !== undefined && message === seen[0])) return true;
+            // (a greeting that carries only the reader's own edits, receipts of cause `ui` and no story block, is still a greeting: the kit's own adds are recorded on it)
+            const receipts = Array.isArray(record.receipts) ? record.receipts : [];
+            return receipts.length > 0 && receipts.every(receipt => receipt?.cause === 'ui') && !(record.narrated?.length)
+                && (record.spans ?? []).every(span => span?.story === false);
         });
     };
     let chatterReaders = null;   // the timeline's readers of earlier messages for the Inner chatter tail line and its two queries
