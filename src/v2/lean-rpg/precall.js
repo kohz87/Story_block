@@ -49,7 +49,8 @@ const SHARED_RULES = [
     '- A foe the message or scene names but the list lacks: new (never invent); level or rank only if the story says.',
 ];
 const TAIL_RULES = [
-    '- A defender\'s fitting skill (dodge, parry, ward) goes on the foe line.',
+    '- Name a defender\'s skill on a foe line only if the message asks to defend with it; else leave skill out.',
+    '- Skills ordered "A, then B": skill: A, then: B (B from round 2).',
     '- pace: careful if the reader is careful, all if they fight it out. edge: trap -2.',
     '- A skill used before a fight to get the drop (hide, sneak, lure, distract, slip behind; judge by its description) is a check with that skill and ambush, in the same plan as the attack. No ambush edge without one.',
     '- Outside a fight a risky attempt (sneak, persuade, climb) is a check.',

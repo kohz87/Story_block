@@ -51,9 +51,11 @@ async function reloads(host) {
 }
 const told = host => host.turn.problems().filter(problem => problem.message === PRACTICE_HELD);
 
-test('the planner heads ask for a defending skill whenever one fits (Classic and Standard)', () => {
-    assert.match(PRECALL_HEAD, /A defender's fitting skill \(dodge, parry, ward\) goes on the foe line\./);
-    assert.match(PRECALL_HEAD_STANDARD, /A defender's fitting skill \(dodge, parry, ward\) goes on the foe line\./);
+test('the planner heads name a defender\'s skill on the foe line only when the message asks for it (Classic and Standard)', () => {
+    // (PINNED CHANGE, USER option A: the line used to say a fitting skill always goes on the foe line)
+    assert.match(PRECALL_HEAD, /Name a defender's skill on a foe line only if the message asks to defend with it; else leave skill out\./);
+    assert.match(PRECALL_HEAD_STANDARD, /Name a defender's skill on a foe line only if the message asks to defend with it; else leave skill out\./);
+    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.doesNotMatch(head, /fitting skill/);
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.doesNotMatch(head, /plausibly fits/);
 });
 

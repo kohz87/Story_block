@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Follow-up skills, defence skills only when asked, and clearer Mana and Stamina notes.
+- **Follow-up skill `then:`:** an act line may carry `then: <skill>`. Round 1 (and an opening or quick-start action) uses `skill:`, rounds 2 on use
+  `then:`, with that skill's own type, stat, rank and resource. `else:` applies to whichever skill is current when its resource runs out. The planner
+  is told in one line to put "A, then B" in `skill:` and `then:` (Standard and Classic heads, +100 bytes each). Practice counts each skill rolled.
+  Rolls carry rules mark 3; rolls of mark 2 or none replay byte for byte and dice for dice.
+- **Defence skill only when asked:** the planner names a defender's skill on a foe line only when the message asks to defend with it.
+- **Spent note:** the cue says which pool is spent and that the other is untouched ("Shadow Cut's Mana is spent, Stamina is not") so the narrator
+  no longer blames the wrong one; told only when the other pool is not empty (mark 3 rolls).
+- **Battle log arrows:** a resource change names its bar ("Astra Mana Empty", "Astra Stamina Tired") and sits on the first line whose recorded cost moved it.
+
 ## 2.21.0
 
 The card offer: a character card can bring its whole world, and Story Block offers it with one click.

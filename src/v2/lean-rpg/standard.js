@@ -109,8 +109,8 @@ function sideStd(character, type, skill, { fit = null, edge = 0, againstMagic = 
  * The plan against the sheet under Standard `rules`: what can be rolled, what is refused, the witness (every sheet number the roll
  * depends on, which the replay guard asks again) and the roster (the bars). → { acts, foes, checks, refused, plainRefused, witness, roster }
  */
-export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false, fix = false } = {}) {
-    // (`fix`: the stage-65 fallback of a spent skill, see FIX_VERSION in open.js; a roll made before keeps the plain roll it had: the plan's own type, the skill's area, no `else:`)
+export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false, fix = false, then = false } = {}) {
+    // (`then`: the mark of the follow-up skill, plan.js; without it an act's `then:` is not read.) (`fix`: the stage-65 fallback of a spent skill, see FIX_VERSION in open.js; a roll made before keeps the plain roll it had: the plan's own type, the skill's area, no `else:`)
     const out = { acts: [], foes: [], checks: [], refused: [], plainRefused: [] };
     const roster = rosterOf(sheet, maxOf);
     // A foe's side of the roll: from a roll of the Levels rules (`lv`) the foe adds floor(level / divisor), else foeClassWeight × class, as it did.
@@ -151,6 +151,19 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         const type = typeOf({}, skill);
         return { type, skill: skill.skill, uses: skill.uses, area: false, pc: sideStd(character, type, skill, extra, rules) };
     };
+    // The act's `then:` skill (plan.js), the one rounds 2 on use: prepared like the first skill (its own type, stat, rank and resource; spent at the start it
+    // goes on with the `else:` skill or a plain attack), but with no refusal text, as it is not told before its round. → the entry's changing fields, or null.
+    const laterOf = (character, act) => {
+        const extra = { fit: act.fit ?? act.stat, edge: act.edge };
+        const skill = skillStd(character, act.then, act);
+        const gone = !skill.skill && skill.spentName ? skill : null;
+        const swap = gone ? altOf(character, act, extra) : null;
+        const type = swap ? swap.type : gone ? plainType(act, { skill: gone.spentName }) : typeOf(act, skill);
+        const { side: own, check } = skillSide(character, skill, type, extra);
+        if (check.refusal) return null;
+        return { type, skill: swap ? swap.skill : skill.skill, ...(swap ? { uses: swap.uses } : {}), ...(gone ? { without: gone.spentName, withoutUses: gone.uses, ...(swap ? {} : { area: false }) } : {}),
+            ...withSkill(swap ? { skill: swap.skill, uses: swap.uses } : skill, character, type, extra, plainType(act, skill), altOf(character, act, extra)), ...(act.area === true && !gone ? { area: true } : {}), pc: swap ? swap.pc : own };
+    };
     for (const [at, act] of (plan.acts ?? []).entries()) {
         const actor = ready(act.who);
         const label = `${act.who} → ${act.target}`;
@@ -169,11 +182,12 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         const side = swap ? swap.pc : ownSide;
         if (check.refusal) { refuse(act.who, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused && !swap) refuse(act.who, skill.refused, skill.refusedPlain);
-        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: swap ? swap.skill : skill.skill, ...(swap ? { uses: swap.uses } : {}), ...(spent ? { without: spent.spentName, withoutUses: spent.uses, ...(swap ? {} : { area: false }) } : {}), ...withSkill(swap ? { skill: swap.skill, uses: swap.uses } : skill, actor.character, type, { fit: act.fit ?? act.stat, edge: act.edge }, fix ? plainType(act, skill) : typeOf(act, NONE), altOf(actor.character, act, { fit: act.fit ?? act.stat, edge: act.edge })), ...(act.why ? { why: act.why } : {}), pc: side };
+        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: swap ? swap.skill : skill.skill, ...(swap ? { uses: swap.uses } : {}), ...(spent ? { without: spent.spentName, withoutUses: spent.uses, ...(swap ? {} : { area: false }), ...(then && actor.character[spent.uses === 'mana' ? 'stamina' : 'mana'] > 0 ? { otherUp: true } : {}) } : {}), ...withSkill(swap ? { skill: swap.skill, uses: swap.uses } : skill, actor.character, type, { fit: act.fit ?? act.stat, edge: act.edge }, fix ? plainType(act, skill) : typeOf(act, NONE), altOf(actor.character, act, { fit: act.fit ?? act.stat, edge: act.edge })), ...(act.why ? { why: act.why } : {}), pc: side };
         if (support) {
             out.acts.push({ ...entry, support: true, difficulty: act.difficulty, dc: LIMITS.dc[act.difficulty], target: { id: charId(mate), name: mate.who } });
         } else {
-            out.acts.push({ ...entry, ...(act.area === true && !spent ? { area: true } : {}), foe: foeSide(foe) });
+            const later = then && act.then ? laterOf(actor.character, act) : null;
+            out.acts.push({ ...entry, ...(act.area === true && !spent ? { area: true } : {}), ...(later ? { then: later } : {}), foe: foeSide(foe) });
         }
     }
     for (const [at, entry] of (plan.foes ?? []).entries()) {
@@ -200,7 +214,8 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         if (skill.refused) refuse(entry.who, skill.refused, skill.refusedPlain);
         out.checks.push({ at, kind: 'check', actor: charId(actor.character), type, skill: skill.skill, ...(entry.ambush === true ? { ambush: true } : {}), ...withSkill(skill, actor.character, type, { fit: entry.fit ?? entry.stat }), difficulty: entry.difficulty, dc: LIMITS.dc[entry.difficulty], pc: side });
     }
-    const bare = list => list.map(({ at: _, ...entry }) => ({ ...entry, pc: (({ statHidden: _hidden, ...pc }) => pc)(entry.pc) }));
+    const noHidden = ({ statHidden: _hidden, ...pc }) => pc;
+    const bare = list => list.map(({ at: _, ...entry }) => ({ ...entry, pc: noHidden(entry.pc), ...(entry.then ? { then: { ...entry.then, pc: noHidden(entry.then.pc) } } : {}) }));
     const standing = bar => ({ id: bar.id, name: bar.name, value: bar.value, size: bar.size });
     out.roster = roster;
     // The witness: the sheet numbers the roll depends on (the entries as prepared, and every bar and agility that decides who stands and in
@@ -249,7 +264,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null, opened = null, fix = false } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null, opened = null, fix = false, then = false } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -266,7 +281,9 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const usable = entry => {
         const bar = entry.skill && entry.plain ? bars.get(`${entry.actor}:${entry.uses}`) : null;
         if (!(bar && bar.value === 0)) return entry;
-        const spentOn = { without: entry.skill, ...(fix ? { withoutUses: entry.uses } : {}), base: entry.base ?? entry };
+        // (from the mark of `then:`, the line also says when the actor's other pool is not empty, so the cue never blames the wrong one)
+        const other = then ? bars.get(`${entry.actor}:${entry.uses === 'mana' ? 'stamina' : 'mana'}`) : null;
+        const spentOn = { without: entry.skill, ...(fix ? { withoutUses: entry.uses } : {}), ...(other && other.value > 0 ? { otherUp: true } : {}), base: entry.base ?? entry };
         const backup = entry.alt ? bars.get(`${entry.actor}:${entry.alt.uses}`) : null;
         if (entry.alt && backup && backup.value > 0) return { ...entry, ...entry.alt, plain: undefined, alt: undefined, ...spentOn };
         return { ...entry, ...entry.plain, alt: undefined, ...spentOn };
@@ -275,7 +292,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const spent = (use, lines) => {
         if (!lines.length) return lines;
         const cost = use.skill && use.uses ? damageOf(bars.get(`${use.actor}:${use.uses}`), 1) : undefined;
-        return [{ ...lines[0], ...(use.without ? { without: use.without, ...(use.withoutUses ? { withoutUses: use.withoutUses } : {}) } : {}), ...(cost ? { cost } : {}) }, ...lines.slice(1)];
+        return [{ ...lines[0], ...(use.without ? { without: use.without, ...(use.withoutUses ? { withoutUses: use.withoutUses } : {}), ...(use.otherUp ? { otherUp: true } : {}) } : {}), ...(cost ? { cost } : {}) }, ...lines.slice(1)];
     };
     const damageOf = (bar, blocks) => (blocks === 0 ? undefined : move(bar, blocks) ?? undefined);
     const checks = prepared.checks.map(base => {
@@ -350,7 +367,13 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         return done.lines ? { lines: spent(use, done.lines) } : done;
     };
     // (an ambush that worked: the party's acts of round 1, and their opening actions, roll with the edge)
-    const doAct = (base, round = 0) => withUse(ambushedStandard(base, round, ambush), actOf);
+    // (from round 2 an act with a `then:` skill rolls with it: the same dice, the entry's own place in the plan)
+    const laterOf = base => {
+        if (!base.then) return base;
+        const { without: _w, withoutUses: _u, uses: _s, area: _a, plain: _p, alt: _l, then: later, ...rest } = base;
+        return { ...rest, ...later, base: base.base ?? base };
+    };
+    const doAct = (base, round = 0) => withUse(ambushedStandard(round > 1 ? laterOf(base) : base, round, ambush), actOf);
     const doFoe = base => withUse(base, foeOf);
 
     // The opening action: a character who leads a foe by the margin acts once against it before the first round.

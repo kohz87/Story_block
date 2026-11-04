@@ -57,6 +57,21 @@ test('the breakdown text: the d20 and each term, then the other side', () => {
     assert.equal(rollText(null), '');
 });
 
+test('THEN-FIX 3: a Mana or Stamina arrow names its bar and sits on the first line whose recorded cost moved that bar; a record with no cost keeps the last line the actor took', () => {
+    const cost = (who, bar) => ({ id: `c:${who}:${bar}`, kind: 'char', name: who, blocks: 1, from: 3, to: 2, size: 5 });
+    const act = (who, stat, extra = {}) => ({ kind: 'act', outcome: 'fail', skill: 'Spark', pc: pc(who, stat), foe: foe('Sluice Rat B', { slot: 2 }), ...extra });
+    const costed = { ...result(), rounds: [
+        { n: 1, decisive: false, lines: [act('Ren', 'int', { cost: cost('ren', 'stamina') }), act('Wessel', 'str', { skill: null })] },
+        { n: 2, decisive: false, lines: [act('Ren', 'int', { cost: cost('ren', 'stamina') }), act('Ren', 'int', { skill: null })] },
+    ] };
+    const arrows = record => panelModel({ resolve: readResolve(record), state: after, before, roleOf }).rounds.flatMap(round => round.lines).map(line => line.arrows.filter(text => /Stamina|Mana/.test(text)));
+    assert.deepEqual(arrows(costed), [['Ren Stamina Tired'], [], [], []], 'the first line that paid the Stamina');
+    const bare = { ...costed, rounds: costed.rounds.map(round => ({ ...round, lines: round.lines.map(({ cost: _, ...line }) => line) })) };
+    assert.deepEqual(arrows(bare), [[], [], [], ['Ren Stamina Tired']], 'no recorded cost: the last line Ren took, now naming the bar');
+    const mana = panelModel({ resolve: readResolve(costed), state: state({ wessel: { mana: 0 }, ren: { stamina: 2 } }), before: state({ wessel: { mana: 3 }, ren: { stamina: 2 } }), roleOf });
+    assert.deepEqual(mana.rounds[0].lines.map(line => line.arrows)[1], ['Wessel Mana Empty'], 'a Mana change names Mana');
+});
+
 test('resolveOf takes the rpg.resolve receipt the replay kept, not one it skipped', () => {
     const record = { receipts: [{ id: 'a', type: 'inventory.add' }, { id: 'b', type: RESOLVE, summary: '[Rolls] cue', data: { v2: { result: result() } } }] };
     assert.equal(resolveOf(record).rounds.length, 1);
@@ -67,7 +82,7 @@ test('resolveOf takes the rpg.resolve receipt the replay kept, not one it skippe
 test('the model: arrows on the last action aimed at the name, status for who fought, the foes line', () => {
     const model = panelModel({ resolve: readResolve(result()), state: after, before, roleOf });
     const lines = model.rounds[0].lines;
-    assert.deepEqual(lines.map(line => line.arrows), [['Wessel Scratched'], ['Sluice Rat A Wounded'], ['Sluice Rat B Hurt', 'Ren Tired']]);
+    assert.deepEqual(lines.map(line => line.arrows), [['Wessel Scratched'], ['Sluice Rat A Wounded'], ['Sluice Rat B Hurt', 'Ren Stamina Tired']]);
     assert.deepEqual(model.status.map(who => who.name), ['Wessel', 'Ren']);
     assert.deepEqual(model.status[0].rows.map(row => [row.key, row.word]), [['health', 'Scratched'], ['mana', 'Steady'], ['stamina', 'Tired']]);
     // (PINNED CHANGE, FIGHT-FIX 1 addendum: the Foes line lists only the groups that took part in this reply's rolls; "Sluice Rats ×4" did not roll)
@@ -95,7 +110,7 @@ test('the panel: short lines, the coloured result word, (26 vs 16), the arrow, a
     assert.deepEqual(node.querySelectorAll('.rpg-act-text').map(line => line.textContent), [
         'Sluice Rat A attacks Wessel — Hit (15 vs 12) → Wessel Scratched',
         'Wessel uses Iron Breath on Sluice Rat A — Success (26 vs 16) → Sluice Rat A Wounded',
-        'Ren uses Spark on Sluice Rat B — Success at a cost (17 vs 18) → Sluice Rat B Hurt, Ren Tired',
+        'Ren uses Spark on Sluice Rat B — Success at a cost (17 vs 18) → Sluice Rat B Hurt, Ren Stamina Tired',
     ]);
     assert.deepEqual(node.querySelectorAll('.rpg-out').map(word => word.className), ['rpg-out rpg-out-fail', 'rpg-out rpg-out-success', 'rpg-out rpg-out-cost']);
     assert.equal(node.querySelector('.rpg-skill').textContent, 'Iron Breath');

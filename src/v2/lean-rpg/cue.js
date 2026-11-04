@@ -1,7 +1,7 @@
 // The [Rolls] cue (SPEC_RPG_v1 §4.5.3 step 5): what the narrator is told under [Happened], and what a refused action
 // says. Short lines, one per roll; the numbers are always "the party member's total vs the foe's (or the difficulty)".
 // Model-facing text, kept to the cue budget (names.js LIMITS.cueTokens).
-import { BATTLE_MARKER, FIX_VERSION, LIMITS, RESOLVE, STAGES, stageWord } from './names.js';
+import { BATTLE_MARKER, LIMITS, RESOLVE, STAGES, stageWord } from './names.js';
 
 export const wearLine = ({ item, to }) => `${item} ${to === 'broken' ? 'breaks' : 'is worn'} (${to[0].toUpperCase() + to.slice(1)})`;
 export const OUTCOME_WORD = Object.freeze({ success: 'SUCCESS', cost: 'SUCCESS AT A COST', fail: 'FAIL' });
@@ -61,12 +61,12 @@ export function lineText(line, { compact = false, names = 0, shown = name => nam
 
 // The Standard formula's act and foe attack: the verdict first, as in the log, then what the roll did to the bars.
 function standardLine(line, { names, shown, word, who, legacy = false }) {
-    // (`legacy`: a roll before `fix: 2` is told as 2.20.0 told it; the cue's length decides how many rounds are told)
+    // (`legacy`: a roll before `fix: 2` is told as 2.20.0 told it)
     const foe = line.kind === 'foe', d = line.decisive;
     const verdict = legacy || !d ? word : line.outcome === 'fail' ? `${word}, DECISIVE` : `DECISIVE ${word}`;
     const hit = line.damage ? (foe ? `, hits ${who}${d ? ' hard' : ''}` : legacy ? `, a ${d ? 'decisive ' : ''}hit` : ', a hit') : (legacy && d ? ', decisive' : '');
-    // A spent skill: its `else:` skill is named, else the roll is a plain weapon attack that names no skill.
-    const gone = cut(line.without ?? '', names), resource = line.withoutUses ? `${gone}'s ${line.withoutUses === 'mana' ? 'Mana' : 'Stamina'} is spent` : `${gone} unavailable: resource spent`;
+    // A spent skill: its `else:` skill is named, else a plain weapon attack (`otherUp`: the other pool is not empty).
+    const gone = cut(line.without ?? '', names), resource = line.withoutUses ? `${gone}'s ${line.withoutUses === 'mana' ? 'Mana' : 'Stamina'} is spent${line.otherUp ? `, ${line.withoutUses === 'mana' ? 'Stamina' : 'Mana'} is not` : ''}` : `${gone} unavailable: resource spent`;
     const bare = !line.without ? '' : legacy ? ` (${resource})` : line.skill ? ` (${resource}; ${cut(line.skill, names)} instead)` : ` (no skill: ${resource}; a plain weapon attack \u2014 name no skill)`;
     const by = line.skill ? ` (${cut(line.skill, names)})` : '';
     if (foe) return `${shown(line.foe.name)} attacks ${who}${by}${bare}: ${verdict} for ${who} ${numbers(line)}${hit}`;
@@ -205,7 +205,7 @@ export function cueOfResult(result, shape = 0) {
         const end = flow2 && ['won', 'lost', 'heavy'].includes(result.stop) ? result.stop : null;
         return cueText({
             checks: result.checks, rounds, refused: (result.refused ?? []).map(entry => entry.text), decisive,
-            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}), ...(result.wear ? { wear: result.wear } : {}), ...(result.fix === FIX_VERSION ? { opened: result.opened, carriedDrop: result.ambush?.spent === true } : { legacy: true }),
+            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}), ...(result.wear ? { wear: result.wear } : {}), ...(result.fix >= 2 ? { opened: result.opened, carriedDrop: result.ambush?.spent === true } : { legacy: true }),
         }, Number.isInteger(shape) ? shape : 0);
     } catch { return ''; }
 }
