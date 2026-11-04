@@ -280,6 +280,12 @@ test('the 32 px control rule is only for a roomy screen with a fine pointer; a p
     assert.ok(!css.slice(media, rule).includes('}\n'), 'and that query has not closed before it');
 });
 
+test('controls inside a form group carry no host margin, so the Bonus select and its points box start on one line', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../../src/v2/view/widgets/styles.js', import.meta.url), 'utf8');
+    assert.match(css, /^\.ss-w-editable-group input, \.ss-w-editable-group select \{ margin: 0; \}$/m);
+});
+
 test('"+ Add item" groups as approved: Count and Kind share a row, Slot and Rarity share a row, the rarity word is coloured, the reader is "Astra (you)"', { skip }, async t => {
     const host = await world(t);
     const { el } = draw(host);

@@ -63,6 +63,8 @@ export const widgetCss = `
 :where(.ss-w-editable-group .ss-w-editable-item-label) { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
 :where(.ss-w-editable-group .ss-w-editable-item-label:last-child) { grid-column: auto; }
 :where(.ss-w-editable-group input, .ss-w-editable-group select) { width: 100%; min-width: 0; letter-spacing: 0; text-transform: none; color: var(--ss-w-fg); }
+/* the host gives selects a bottom margin; inside a group it would push a select above the input next to it */
+.ss-w-editable-group input, .ss-w-editable-group select { margin: 0; }
 :where(.ss-w-editable-row) { display: grid; grid-template-columns: repeat(auto-fit, minmax(5em, 1fr)); gap: 8px; }
 :where(.ss-w-editable-row:has(> :nth-child(4))) { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.7fr); }
 :where(.ss-w-editable-help) { margin: 0; font-size: 12px; color: var(--ss-w-muted); }
