@@ -1,5 +1,5 @@
 // How a block (or a data module's screen) draws its values, by the shape of the data (BLOCKS-UI, USER 4 Nov):
-//   * a list of records (fields that share a `group`, or an `entries` field read through the block's `roles`): compact cards, a title and a status
+//   * a list of records (an `entries` field read through the block's `roles`): compact cards, a title and a status
 //     chip, the description clamped to 2 lines with More, the current step with an icon; the open ones first, the others under "Finished (n)";
 //   * a map of numbers (a map field of whole numbers, or several number fields): a header, a row with a value and a bar for each key, highest
 //     first; the ones still at their default under "Not known yet (n)"; one pencil column;
@@ -7,24 +7,13 @@
 // Pure DOM building from plain data (createElement and textContent only); the editors are the editable widget's, and every change is one dm.set.
 import { h, iconNode, humanize } from '../view/widgets/dom.js';
 import { editable } from '../view/widgets/editable.js';
-import { dmNameOf, dmObject, dmOwn, DM_RECORD_ROLES } from '../data-modules/schema.js';
+import { dmNameOf, dmObject, dmOwn } from '../data-modules/schema.js';
 import { ensureLayoutStyles } from '../layout/styles.js';
 import { STRINGS, fill } from '../strings.js';
 
 const V = STRINGS.blocks.view;
 const TONE_CLASS = { accent: 'accent', active: 'accent', done: 'good', good: 'good', failed: 'bad', bad: 'bad', warn: 'warn', neutral: 'neutral' };
 const FAILED = /fail|lost|abandon|dead|cancel|refus|broken/i;
-
-/** The record groups of a state: [{ group, fields: { title, text, step, status }  (the field names) }], in order of first use. */
-export function recordGroupsOf(state) {
-    const out = new Map();
-    for (const [name, schema] of Object.entries(state ?? {})) {
-        if (!dmObject(schema) || typeof schema.group !== 'string' || !DM_RECORD_ROLES.includes(schema.as)) continue;
-        if (!out.has(schema.group)) out.set(schema.group, { group: schema.group, fields: {} });
-        out.get(schema.group).fields[schema.as] = name;
-    }
-    return [...out.values()].filter(entry => entry.fields.title);
-}
 
 /** The tone of a status value: the block's `tones` entry, else the first value of the choice is open and the rest are done (or failed by their word). */
 export function statusTone(definition, values, value) {
@@ -151,30 +140,6 @@ export function drawCards(env, parent, items, { key = 'cards' } = {}) {
     }
     if (!open.length && !done.length) root.appendChild(h(doc, 'p', 'ss-b-none', V.nothing));
     return root;
-}
-
-/** The records of a `group`/`as` quest set in a block's values → cards (each with one pencil that opens a form over its fields). */
-export function drawRecordGroups(env, parent, { definition, module, who, values, groups }) {
-    const items = groups.map(entry => {
-        const state = definition.state, f = entry.fields;
-        const status = f.status ? state[f.status] : null;
-        const value = f.status ? values?.[f.status] ?? status.default : null;
-        const tone = status ? statusTone(definition, status.values, value) : 'active';
-        const specs = ['title', 'text', 'step', 'status'].filter(role => f[role]).map(role => {
-            const schema = state[f[role]];
-            return { role, name: f[role], schema, label: schema.label ?? humanize(f[role]), value: values?.[f[role]] ?? schema.default };
-        });
-        const title = String(values?.[f.title] ?? '') || state[f.title].label || humanize(f.title);
-        const edit = state[f.title].edit === false ? null : {
-            kind: 'fields', bare: false, label: fill(V.editQuest, { name: title }),
-            fields: specs.filter(spec => spec.schema.edit !== false).map(spec => ({ key: spec.name, label: spec.label, value: spec.value,
-                ...(spec.role === 'status' ? { type: 'choice', options: spec.schema.values } : { type: 'text', maxLength: spec.schema.max }) })),
-            plan: changed => ({ steps: Object.entries(changed).map(([field, value]) => ({ command: 'dm.set', payload: { module, field, ...(who ? { who } : {}), value }, keys: [field] })) }),
-        };
-        return { id: entry.group, title, text: f.text ? String(values?.[f.text] ?? '') : '', step: f.step ? String(values?.[f.step] ?? '') : '',
-            tone, statusLabel: f.status ? String(value) : '', edit };
-    });
-    return drawCards(env, parent, items, { key: `${module}:${who ?? ''}:groups` });
 }
 
 // ---- entries (a list of records the block keeps in one field) -------------------------------------------------------------------------

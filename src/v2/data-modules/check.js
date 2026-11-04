@@ -1,5 +1,5 @@
 // Pure data-modules-v1 checker. The pack validator and Studio share these entry points.
-import { DM_DESCRIPTORS as D, DM_LIMITS as L, DM_BLOCK_BARS, DATA_MODULES_CAPABILITY, dmObject, dmOwn, dmSlug, dmInt, dmId, dmKindWritesHidden, DM_RECORD_ROLES } from './schema.js';
+import { DM_DESCRIPTORS as D, DM_LIMITS as L, DM_BLOCK_BARS, DATA_MODULES_CAPABILITY, dmObject, dmOwn, dmSlug, dmInt, dmId, dmKindWritesHidden } from './schema.js';
 import { ROLES } from '../lean-rpg/names.js';
 import { HASH_BASIS_V1 } from './hash-basis-v1.js';
 import { fieldType, compatible, expressionType, conditionType, pathType } from './expressions.js';
@@ -54,19 +54,6 @@ function named(value, max, path, add, { label = false, min = 0 } = {}) {
     }
     return Object.entries(value);
 }
-// Fields that share a `group` are one record: one title, at most one each of text, step and status.
-function recordGroups(state, path, add) {
-    const groups = new Map();
-    for (const [key, schema] of entries(state)) if (dmObject(schema) && typeof schema.group === 'string' && typeof schema.as === 'string') {
-        if (!groups.has(schema.group)) groups.set(schema.group, []);
-        groups.get(schema.group).push([key, schema.as]);
-    }
-    for (const [group, members] of groups) {
-        const roles = members.map(([, role]) => role);
-        if (members.length > DM_RECORD_ROLES.length) add('DM_SCHEMA', `${path}.${members[0][0]}.group`, STRINGS.blocks.groupSize);
-        else if (new Set(roles).size !== roles.length || !roles.includes('title')) add('DM_SCHEMA', `${path}.${members[0][0]}.group`, STRINGS.blocks.groupTitle);
-    }
-}
 function distinct(values, path, add, { max = L.enumValues, keys = false } = {}) {
     if (!Array.isArray(values) || !values.length || values.length > max || values.some(value => keys ? !dmSlug(value)
         : !(value === null || typeof value === 'string' || typeof value === 'boolean' || dmInt(value)))) {
@@ -104,11 +91,6 @@ function scalar(schema, path, add, { label = false, map = true } = {}) {
     // `blocks` marks an int field as one of the Standard formula's bars: its value counts the blocks left, the bar's size comes from the stats.
     if (!label && schema.prompt !== undefined && (typeof schema.prompt !== 'boolean' || !map)) add('DM_SCHEMA', `${path}.prompt`, STRINGS.blocks.hiddenFlag);
     if (schema.names !== undefined && !map) add('DM_SCHEMA', `${path}.names`, STRINGS.blocks.namesKey);
-    // `group` and `as` make a field one part of a record (a quest card); both or neither, on a field of the state itself.
-    if (schema.group !== undefined || schema.as !== undefined) {
-        if (label || !map || !dmSlug(schema.group) || !DM_RECORD_ROLES.includes(schema.as)) add('DM_SCHEMA', `${path}.group`, STRINGS.blocks.groupKeys);
-        else if ((schema.as === 'status') !== (schema.type === 'enum') || (schema.type !== 'enum' && schema.type !== 'text') || schema.list === true) add('DM_SCHEMA', `${path}.as`, STRINGS.blocks.groupType);
-    }
     if (schema.blocks !== undefined && (label || !map || schema.type !== 'int' || !DM_BLOCK_BARS.includes(schema.blocks))) add('DM_SCHEMA', `${path}.blocks`, STRINGS.blocks.blocksKey);
     if (schema.type === 'int') {
         if (!dmInt(schema.min) || !dmInt(schema.max) || schema.min > schema.max) add('DM_BOUNDS', path, 'Integer bounds must be ordered safe integers.');
@@ -531,7 +513,6 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
         }
         if (byteLength(JSON.stringify(definition)) > L.definitionBytes) add('DM_BUDGET', at, `A definition must fit ${L.definitionBytes} UTF-8 JSON bytes.`);
         for (const [key, schema] of named(definition.state, L.fields, `${at}.state`, add)) scalar(schema, `${at}.state.${key}`, add);
-        recordGroups(definition.state, `${at}.state`, add);
         if (definition.role !== undefined) stageFields(definition, at, add);
         imports(definition, at, add); // forms first, linking before expression analysis below
         migrations(definition, at, add);

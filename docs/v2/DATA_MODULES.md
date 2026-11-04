@@ -166,14 +166,11 @@ shown by the RPG's tabs while the feature is on.
 
 The block card and a pack module's tab draw values by the shape of the data, with no author work except the one hint below.
 
-- **A list of records** (quests). Text and choice fields that share a `group` are one record; `as` says what each is
-  (`title`, `text` the description, `step` the current step, `status` a choice). Both keys come together, a record has one
-  title and at most one each of the others, `title`/`text`/`step` are text fields and `status` is a choice. Each record is
-  a card: the title with a status chip, the description clamped to two lines with a More button, the step with an icon;
-  the first value of the status choice is the open state (accent); the open records come first and the rest sit under a
-  collapsed "Finished (n)". A block with an `entries` field (a list of records the block keeps in one field) reads it
-  through the block keys `layout` (`cards`, `bars` or `fields`), `roles` (`{ field, title, status, step }`, the sub-keys of
-  that field) and `tones` (`{ <status value>: active | done | failed | neutral }`); a block without them draws plain rows.
+- **A list of records** (quests): an `entries` field (a list of records the block keeps in one field) read through the block keys
+  `layout` (`cards`, `bars` or `fields`), `roles` (`{ field, title, status, step }`, the sub-keys of that field) and `tones`
+  (`{ <status value>: active | done | failed | neutral }`). `cards` draws each entry as a card: the title with a status chip,
+  the description (the first other text sub-field) clamped to two lines with a More button, the step with an icon; the open
+  entries come first and the rest sit under a collapsed "Finished (n)". A block without those keys draws plain rows.
 - **A map of numbers** (a map field whose values are whole numbers) has a header, a row for each key with its value and a bar
   (from a centre line when the range runs below zero), highest first. Keys still at their default are listed under a
   collapsed "Not known yet (n)", and their pencils still set them. One pencil sits at the end of every row.

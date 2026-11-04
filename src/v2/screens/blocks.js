@@ -10,7 +10,7 @@ import { exportBlockPack } from '../data-modules/block-templates.js';
 import { saveTextFile } from '../view/download.js';
 import { STRINGS, fill, refusalText } from '../strings.js';
 import { ROLES_WITHOUT_TAB } from '../lean-rpg/names.js';
-import { drawEntries, drawNumberMap, drawRecordGroups, entriesRoles, numberRows, recordGroupsOf } from './block-layouts.js';
+import { drawEntries, drawNumberMap, entriesRoles, numberRows } from './block-layouts.js';
 
 const S = STRINGS.blocks;
 const P = S.page;
@@ -106,18 +106,12 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         const memory = (shared.memory ??= new Map());
         for (const { values, who, name } of subjects) {
             if (who !== null) root.appendChild(h(doc, 'h4', 'ss-block-subject', name));
-            // The shapes that read better than rows: records (fields that share a group), entries read through the block's roles, maps of numbers.
+            // The shapes that read better than rows: entries read through the block's roles, maps of numbers.
             const screenOf = () => parent.closest?.('[data-ss-screen]') ?? doc;
             const env = { doc, api, handles, memory, after: mark => {
                 [...screenOf().querySelectorAll('.ss-w-editable-pencil')].find(node => Object.entries(mark ?? {}).every(([part, value]) => node.getAttribute(`data-block-${part}`) === String(value ?? '')))?.focus?.();
             } };
-            const groups = recordGroupsOf(definition.state), grouped = new Set(groups.flatMap(entry => Object.values(entry.fields)));
-            let groupsDrawn = false;
             for (const [field, schema] of Object.entries(definition.state)) {
-                if (grouped.has(field)) {
-                    if (!groupsDrawn) { drawRecordGroups(env, root, { definition, module: row.module, who, values, groups }); groupsDrawn = true; }
-                    continue;
-                }
                 if (schema.type === 'entries') {
                     if (entriesRoles(definition, field)) drawEntries(env, root, { definition, module: row.module, field, list: values[field] });
                     else {

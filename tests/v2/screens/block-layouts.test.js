@@ -26,80 +26,6 @@ const render = (doc, api, module) => {
     const view = createBlockWidgets({}).widgets[BLOCK_WIDGET].render(el, { module }, api);
     return { el, view };
 };
-const questDefinition = () => {
-    const state = {};
-    for (const n of [1, 2, 3]) Object.assign(state, {
-        [`quest-${n}`]: { type: 'text', max: 60, default: '', label: `Quest ${n}`, group: `q${n}`, as: 'title' },
-        [`about-${n}`]: { type: 'text', max: 240, default: '', label: `About ${n}`, group: `q${n}`, as: 'text' },
-        [`step-${n}`]: { type: 'text', max: 120, default: '', label: `Step ${n}`, group: `q${n}`, as: 'step' },
-        [`status-${n}`]: { type: 'enum', values: ['active', 'done', 'failed'], default: 'active', label: `Status ${n}`, group: `q${n}`, as: 'status' },
-    });
-    return { slug: 'goals', name: 'Goals', schema: 1, stateVersion: 1, scope: 'chat', kinds: {}, state, show: { tab: true, card: false, tabName: 'Goals', icon: 'ph-bookmark-simple' } };
-};
-const fillQuests = async (host, module) => {
-    const rows = [['The missing ledger', 'The clerk swears the ledger vanished the night before the audit. '.repeat(3), 'Question the porter', 'active'],
-        ['Letter for the Guild', 'Deliver the letter.', 'Delivered', 'done'], ['The lost boat', 'Find it.', 'Gone', 'failed']];
-    for (const [i, [quest, about, step, status]] of rows.entries()) for (const [field, value] of [['quest', quest], ['about', about], ['step', step], ['status', status]]) await set(host, module, `${field}-${i + 1}`, value);
-};
-
-test('a list of records is cards: title and status chip, description, step; the open ones first, the rest under Finished (n)', async t => {
-    const { doc, host, api } = await world(t);
-    const module = await define(host, questDefinition());
-    await fillQuests(host, module);
-    const { el, view } = render(doc, api, module);
-    t.after(() => view.destroy());
-    const cards = el.querySelectorAll('.ss-b-quest');
-    assert.equal(cards.length, 3, 'one card for each record, not twelve rows');
-    assert.equal(el.querySelectorAll('.ss-block-value').length, 0);
-    assert.deepEqual(el.querySelectorAll('.ss-section-label').map(node => node.textContent), ['Active (1)']);
-    const fold = el.querySelector('details.ss-b-fold');
-    assert.equal(fold.querySelector('summary').textContent, 'Finished (2)');
-    assert.equal(fold.hasAttribute('open'), false, 'Finished starts collapsed');
-    const [open, done, failed] = cards;
-    assert.equal(open.querySelector('.ss-b-qt').textContent, 'The missing ledger');
-    assert.equal(open.querySelector('.ss-b-chip').textContent, 'active');
-    assert.ok(has(open.querySelector('.ss-b-chip'), 'ss-l-tone-accent'));
-    assert.ok(has(done.querySelector('.ss-b-chip'), 'ss-l-tone-good'), 'done is green');
-    assert.ok(has(failed.querySelector('.ss-b-chip'), 'ss-l-tone-bad'), 'failed is red');
-    assert.equal(open.querySelector('.ss-b-step').textContent, 'Question the porter');
-    assert.equal(fold.querySelectorAll('.ss-b-quest').length, 2, 'the finished ones are inside the fold');
-    assert.equal(cards.filter(card => card.querySelectorAll('.ss-w-editable-pencil').length === 1).length, 3, 'one pencil for each card');
-});
-
-test('a long description is clamped (data-open false) with a More that opens it and a Less that closes it again', async t => {
-    const { doc, host, api } = await world(t);
-    const module = await define(host, questDefinition());
-    await fillQuests(host, module);
-    const { el, view } = render(doc, api, module);
-    t.after(() => view.destroy());
-    const [open, done] = el.querySelectorAll('.ss-b-quest');
-    const text = open.querySelector('.ss-b-q2'), more = open.querySelector('.ss-b-more');
-    assert.equal(text.getAttribute('data-open'), 'false');
-    assert.equal(more.hidden, false, 'a long text offers More');
-    assert.equal(more.textContent, 'More');
-    more.click();
-    assert.equal(text.getAttribute('data-open'), 'true');
-    assert.equal(more.textContent, 'Less');
-    assert.equal(more.getAttribute('aria-expanded'), 'true');
-    assert.equal(done.querySelector('.ss-b-more').hidden, true, 'a short text needs no More');
-});
-
-test('a record with no step or text draws no empty line, and a block without the hints keeps its plain rows', async t => {
-    const { doc, host, api } = await world(t);
-    const bare = await define(host, { slug: 'bare', name: 'Bare', schema: 1, stateVersion: 1, scope: 'chat', kinds: {}, show: { tab: true, card: false, tabName: 'Bare', icon: 'ph-bookmark-simple' },
-        state: { name: { type: 'text', max: 40, default: 'Only', group: 'g', as: 'title' }, mood: { type: 'text', max: 20, default: 'calm' } } });
-    const { el, view } = render(doc, api, bare);
-    t.after(() => view.destroy());
-    assert.equal(el.querySelector('.ss-b-q3').hidden, true);
-    assert.equal(el.querySelectorAll('.ss-block-value').length, 1, 'the loose field is a plain row');
-    const plain = await define(host, { slug: 'plain', name: 'Plain', schema: 1, stateVersion: 1, scope: 'chat', kinds: {}, show: { tab: true, card: false, tabName: 'Plain', icon: 'ph-bookmark-simple' },
-        state: { a: { type: 'text', max: 40, default: 'x' }, b: { type: 'int', min: 0, max: 5, default: 2 } } });
-    const second = render(doc, api, plain);
-    t.after(() => second.view.destroy());
-    assert.equal(second.el.querySelectorAll('.ss-block-value').length, 2);
-    assert.equal(second.el.querySelectorAll('.ss-b-quest').length, 0);
-});
-
 const mapDefinition = (min = 0, max = 100) => ({ slug: 'fame', name: 'Fame', schema: 1, stateVersion: 1, scope: 'chat', kinds: {}, show: { tab: true, card: false, tabName: 'Fame', icon: 'ph-bookmark-simple' },
     state: { fame: { type: 'map', label: 'Fame by region', keys: ['north', 'south', 'east', 'west', 'old-town'], values: { type: 'int', min, max, default: 0 } } } });
 
@@ -257,4 +183,31 @@ test('the editor preview draws entries in a layout with no editors (renderPrevie
     const bars = doc.createElement('div');
     renderBlockPreview(bars, { definition: entriesFixture('bars', { field: 'quests', title: 'title', status: 'reward' }), values: { quests: entryValues() }, layout: 'bars' });
     assert.equal(bars.querySelectorAll('.ss-b-row').length, 3);
+});
+
+test('a long description is clamped (data-open false) with a More that opens it and a Less that closes it; a short one has no More', async t => {
+    const { doc } = await world(t);
+    const definition = entriesFixture();
+    const list = entryValues(); list[0].about = 'The clerk swears the ledger vanished the night before the audit. '.repeat(3);
+    const { el, view } = render(doc, stub(definition, { quests: list }), definition.id);
+    t.after(() => view.destroy());
+    const [open, won] = el.querySelectorAll('.ss-b-quest');
+    const text = open.querySelector('.ss-b-q2'), more = open.querySelector('.ss-b-more');
+    assert.equal(text.getAttribute('data-open'), 'false');
+    assert.equal(more.hidden, false);
+    more.click();
+    assert.equal(text.getAttribute('data-open'), 'true');
+    assert.equal(more.textContent, 'Less');
+    assert.equal(more.getAttribute('aria-expanded'), 'true');
+    assert.equal(won.querySelector('.ss-b-more').hidden, true);
+});
+
+test('a block with plain fields keeps its plain rows', async t => {
+    const { doc, host, api } = await world(t);
+    const plain = await define(host, { slug: 'plain', name: 'Plain', schema: 1, stateVersion: 1, scope: 'chat', kinds: {}, show: { tab: true, card: false, tabName: 'Plain', icon: 'ph-bookmark-simple' },
+        state: { a: { type: 'text', max: 40, default: 'x' }, b: { type: 'int', min: 0, max: 5, default: 2 } } });
+    const { el, view } = render(doc, api, plain);
+    t.after(() => view.destroy());
+    assert.equal(el.querySelectorAll('.ss-block-value').length, 2);
+    assert.equal(el.querySelectorAll('.ss-b-quest').length, 0);
 });

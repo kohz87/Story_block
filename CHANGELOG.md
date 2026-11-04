@@ -3,9 +3,8 @@
 ## Unreleased
 
 Blocks and data modules draw by the shape of their data, and Ersveil's reputation is one tab (BLOCKS).
-- **Quest cards.** Fields that share a `group` (and say what each is with `as`: title, text, step, status) are one card: the title
-  with a status chip, the description clamped to two lines with More, the step with an icon. The open ones come first; the others
-  sit under a collapsed "Finished (n)". A block's `entries` field is read through `layout`, `roles` and `tones` (BLOCKEDIT).
+- **Quest cards.** A block's `entries` field is read through `layout`, `roles` and `tones` (BLOCKEDIT): cards with a title and status chip, the
+  description clamped to two lines with More, the step with an icon; the open ones first, the others under a collapsed "Finished (n)".
 - **A map of numbers** (fame, standing) has a header, a row with a value and a bar for each key, highest first, and the keys
   still at their default under a collapsed "Not known yet (n)". One pencil column per screen.
 - **A record card** for a module's plain fields (the Guild), and meters with no `max` show their values.

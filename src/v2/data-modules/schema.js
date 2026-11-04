@@ -45,7 +45,7 @@ export const DM_DESCRIPTORS = freeze({
     scope: ['chat', 'character'],
     fields: {
         int: { required: ['type', 'min', 'max', 'default'], optional: ['edit', 'label', 'names', 'prompt', 'blocks'] }, bool: { required: ['type', 'default'], optional: ['edit', 'label', 'prompt'] },
-        enum: { required: ['type', 'values', 'default'], optional: ['edit', 'label', 'prompt', 'group', 'as'] }, text: { required: ['type', 'max', 'default'], optional: ['edit', 'list', 'label', 'prompt', 'group', 'as'] },
+        enum: { required: ['type', 'values', 'default'], optional: ['edit', 'label', 'prompt'] }, text: { required: ['type', 'max', 'default'], optional: ['edit', 'list', 'label', 'prompt'] },
         map: { required: ['type', 'keys', 'values'], optional: ['edit', 'label', 'prompt'] },
     },
     labels: { int: { required: ['type', 'min', 'max'], optional: ['names'] }, bool: ['type'], enum: ['type', 'values'], text: ['type', 'max'] },
@@ -82,10 +82,6 @@ export const DM_DESCRIPTORS = freeze({
     migration: { required: ['from', 'to', 'add'], optional: [] },
     v11Effects: ['grantCoin', 'grantItem', 'grantXp'],
 });
-
-// A block shows fields that share a `group` as one record (a quest card); `as` says what each is in it. A group has one title, and at most one
-// of each of the others: `text` (the description) and `step` are text, `status` is a choice whose first value is the open state.
-export const DM_RECORD_ROLES = Object.freeze(['title', 'text', 'step', 'status']);
 
 export const dmObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 export const dmOwn = (value, key) => dmObject(value) && typeof key === 'string' && Object.hasOwn(value, key);
