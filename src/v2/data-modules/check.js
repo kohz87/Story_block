@@ -4,7 +4,7 @@ import { ROLES } from '../lean-rpg/names.js';
 import { HASH_BASIS_V1 } from './hash-basis-v1.js';
 import { fieldType, compatible, expressionType, conditionType, pathType } from './expressions.js';
 import { byteLength, checkPlain } from '../packs/safety.js';
-import { LIMITS as PACK_LIMITS } from '../packs/limits.js';
+import { LIMITS as PACK_LIMITS, TAB_ID } from '../packs/limits.js';
 import { validateLayout } from '../layout/validate.js';
 import { validateScreen } from '../view/screens.js';
 import { parseHtml } from '../view/template/html.js';
@@ -13,6 +13,7 @@ import { sha256Hex as sha256 } from '../domains/digest.js';
 import { STRINGS, fill } from '../strings.js';
 import { oneLine } from '../../text.js';
 import { fullModuleGrammar } from './grammar.js';
+import { BLOCK_NODE_WIDGETS, FIELDS_WIDGET, fieldsNodeProblems } from './fields-widget.js';
 import { hasIcon } from '../view/icons/index.js';
 
 const E = STRINGS.editMessages;
@@ -254,7 +255,7 @@ function migrations(definition, path, add) {
         if (!dmInt(step.from, 1, Number.MAX_SAFE_INTEGER - 1) || step.to !== step.from + 1 || step.to > definition.stateVersion) add('DM_SCHEMA', at, 'Migrations must move forward one adjacent stateVersion, up to this definition version.');
         if (seen.has(step.from) || (i && definition.migrations[i - 1]?.to !== step.from)) add('DM_SCHEMA', at, 'Migrations must form one ordered chain without cycles or branches.');
         seen.add(step.from);
-        for (const [field, schema] of named(step.add, L.fields, `${at}.add`, add, { min: 1 })) {
+        for (const [field, schema] of named(step.add, L.fields, `${at}.add`, add, { min: 0 })) {
             scalar(schema, `${at}.add.${field}`, add);
             if (fields.has(field) || !dmOwn(definition.state, field) || !same(definition.state[field], schema)) add('DM_SCHEMA', `${at}.add.${field}`, 'A migration adds a field once, with exactly its current schema and default.');
             fields.add(field);
@@ -291,7 +292,7 @@ function presentation(definition, path, add) {
     if (!Array.isArray(definition.layouts)) add('DM_SCHEMA', `${path}.layouts`, 'layouts must be a list of existing renderer layouts.');
     const seen = new Set();
     array(definition.layouts).forEach((layout, i) => {
-        rendererCheck(() => validateLayout(layout), `${path}.layouts[${i}]`);
+        rendererCheck(() => validateLayout(layout, { widgets: BLOCK_NODE_WIDGETS }), `${path}.layouts[${i}]`);
         if (seen.has(layout?.id)) add('DM_SCHEMA', `${path}.layouts[${i}].id`, 'Duplicate module layout ID.');
         seen.add(layout?.id);
     });
@@ -304,6 +305,7 @@ function presentation(definition, path, add) {
                 if (value.path !== undefined) viewPath(definition, value.path, `${at}.path`, add);
             } else if (!entries(definition.imports).some(([, entry]) => entry?.query === value.query && same(entry.args ?? {}, value.args ?? {}))) add('DM_SCHEMA', `${at}.query`, 'Module presentation queries must use its own view or an explicitly declared public import.');
         }
+        if (value.type === FIELDS_WIDGET) for (const { at: where, message } of fieldsNodeProblems(definition, value.props)) add('DM_SCHEMA', `${at}.props${where}`, message);
         if (dmOwn(value, 'command')) {
             if (value.command !== 'dm.act') add('DM_SCHEMA', `${at}.command`, 'Data module actions may call only dm.act.');
             else actionPayload(definition, value.payload, `${at}.payload`, add);
@@ -316,7 +318,7 @@ function presentation(definition, path, add) {
     array(definition.screens).forEach((screen, i) => {
         const at = `${path}.screens[${i}]`;
         if (dmObject(screen)) rendererCheck(() => validateScreen({ ...screen, mounts: screen.mounts ?? ['tab'] }), at);
-        if (screen?.layout) rendererCheck(() => validateLayout(screen.layout, { meta: false }), `${at}.layout`);
+        if (screen?.layout) rendererCheck(() => validateLayout(screen.layout, { meta: false, widgets: BLOCK_NODE_WIDGETS }), `${at}.layout`);
         const template = (text, where) => {
             if (typeof text !== 'string') return;
             // Read the same HTML tree as the renderer, including decoded attributes.
@@ -503,7 +505,8 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
         else if (definition.role !== undefined && definition.scope === 'character') add('DM_SCHEMA', `${at}.role`, STRINGS.blocks.roleChat);
         if (definition.show !== undefined) {
             const show = definition.show;
-            if (!dmObject(show) || Object.keys(show).some(key => !['tab', 'card', 'tabName', 'icon'].includes(key))
+            if (!dmObject(show) || Object.keys(show).some(key => !['tab', 'card', 'tabName', 'icon', 'into'].includes(key))
+                || (show.into !== undefined && !(typeof show.into === 'string' && TAB_ID.test(show.into)))
                 || typeof show.tab !== 'boolean' || typeof show.card !== 'boolean'
                 || typeof show.tabName !== 'string' || !show.tabName.trim() || [...show.tabName].length > 24 || !hasIcon(show.icon)) add('DM_SCHEMA', `${at}.show`, STRINGS.blocks.showOptions);
             else show.tabName = oneLine(show.tabName);

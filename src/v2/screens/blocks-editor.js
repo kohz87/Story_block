@@ -192,7 +192,7 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
             control(row, S.comparison, fn.when.op, { type: 'choice', options: COMPARISONS }, value => { fn.when.op = value; }, null);
             control(row, S.whenValue, fn.when.value, { type: 'text', max: 240 }, value => { fn.when.value = value; }, `function:${index}:when`);
         };
-        const KINDS = { button: S.button, rule: S.rule, timer: S.timer, card: S.card, 'reply-end': S.replyEnd };
+        const KINDS = { button: S.button, rule: S.rule, timer: S.timer, card: S.cardKind, 'reply-end': S.replyEnd };
         for (const [index, fn] of draft.functions.entries()) {
             const row = node('div', 'ss-block-function ss-glass', '', functions);
             node('span', 'ss-pill', KINDS[fn.type] ?? S.timer, row);

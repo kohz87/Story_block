@@ -173,7 +173,7 @@ test('the editor shows a card and a reply-end function, keeps them on save, and 
     const screen = blocksPage(ui);
     input(screen(), fill(P.editFor, { name: 'Gauge' })).click();
     const pills = screen().querySelectorAll('.ss-block-function .ss-pill').map(node => node.textContent);
-    assert.deepEqual(pills, [S.button, S.rule, S.replyEnd, S.card]);
+    assert.deepEqual(pills, [S.button, S.rule, S.replyEnd, S.cardKind]);
     assert.equal(input(screen(), S.cardTitleLabel).value, 'Strained');
     assert.equal(input(screen(), S.cardButtonLabel).value, 'Rest');
     // renaming the button keeps the card's button

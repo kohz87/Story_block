@@ -23,17 +23,18 @@ const expected = {
     'pack.ersveil/guild-membership': { registered: true, letter: 'F', standing: 'probation', dues: 50, 'unpaid-years': 0, 'idle-years': 0, 'member-years': 0 },
 };
 
-function assertPinned(host, offerPackHash = packHash) {
+// `offered`: the hash the pack now offers for each module (the same as the pin unless the pack's own copy of the module changed since).
+function assertPinned(host, offerPackHash = packHash, offered = hashes, status = 'Pinned') {
     const domain = host.head().domains.dataModules;
     for (const [module, hash] of Object.entries(hashes)) {
         assert.equal(domain.active[module].hash, hash, module);
         assert.equal(domain.pins[hash].packHash, packHash, module);
         assert.deepEqual(host.sdk.query('dataModules.view', { module }), { chat: expected[module] }, module);
         const offer = host.sdk.query('dataModules.offers').find(row => row.module === module);
-        assert.equal(offer.hash, hash, `fresh offer for ${module}`);
+        assert.equal(offer.hash, offered[module], `fresh offer for ${module}`);
         assert.equal(offer.packHash, offerPackHash, `fresh pack identity for ${module}`);
         const row = host.sdk.query('dataModules.setup').find(row => row.module === module);
-        assert.equal(row.status, 'Pinned', module);
+        assert.equal(row.status, status, module);
     }
     assert.deepEqual(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), []);
 }
@@ -124,7 +125,11 @@ test('re-importing the example pack as 2.6.1 keeps the 2.6.1 pins, values and st
     assert.equal(installed.ok, true, installed.message);
     const fresh = host.sdk.query('dataModules.offers').find(row => row.module === 'pack.ersveil/standing').packHash;
     assert.notEqual(fresh, packHash);
-    assertPinned(host, fresh);
+    // Ersveil's Standing, Fame and Guild now draw their screens by the host's own layouts (the Reputation tab), so the pack offers a
+    // new copy of each (stateVersion 2, an additive migration with nothing added); the chat keeps the pin it has (hash, values, status) until the reader updates it.
+    const offered = Object.fromEntries(Object.keys(hashes).map(module => [module, host.sdk.query('dataModules.offers').find(row => row.module === module).hash]));
+    for (const module of Object.keys(hashes)) assert.notEqual(offered[module], hashes[module], `${module}: its screens changed in this release`);
+    assertPinned(host, fresh, offered, 'Migration available');
     host.store.rebuild();
-    assertPinned(host, fresh);
+    assertPinned(host, fresh, offered, 'Migration available');
 });

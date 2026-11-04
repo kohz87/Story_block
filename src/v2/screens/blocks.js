@@ -10,6 +10,7 @@ import { exportBlockPack } from '../data-modules/block-templates.js';
 import { saveTextFile } from '../view/download.js';
 import { STRINGS, fill, refusalText } from '../strings.js';
 import { ROLES_WITHOUT_TAB } from '../lean-rpg/names.js';
+import { drawEntries, drawNumberMap, entriesRoles, numberRows } from './block-layouts.js';
 
 const S = STRINGS.blocks;
 const P = S.page;
@@ -29,7 +30,7 @@ const fullyNamed = scalar => {
 // (`loadRpgTemplates` reads the list the first time the chooser needs it; a test hands in its own)
 // (`rpgFormula()` is the stat formula the chat plays on, 'standard' or 'classic': a Standard chat is offered the Standard templates. A loader may
 // hand back one list, or `{ classic, standard }`.)
-export function createBlockWidgets({ templates, directorOn = () => true, leanRpgOn = () => false, navigate = () => {}, rpgFormula = () => 'standard',
+export function createBlockWidgets({ templates, directorOn = () => true, leanRpgOn = () => false, navigate = () => {}, rpgFormula = () => 'standard', tabs = () => [], renderPreview = null,
     loadRpgTemplates = () => import('../lean-rpg/templates.js').then(loaded => ({ classic: loaded.LEAN_RPG_TEMPLATES, standard: loaded.STANDARD_TEMPLATES })) } = {}) {
     const shared = { mode: 'list', draft: null, module: null, note: '' };
     // The RPG templates are read (a dynamic import) only when the feature is on and the chooser is open.
@@ -102,12 +103,39 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         const subjects = definition.scope === 'chat' ? [{ values: view.chat ?? {}, who: null }]
             : (row.subjects ?? []).map((who, index) => ({ who, values: view.characters?.[index] ?? {},
                 name: row.actors?.find(actor => actor.id === who)?.name ?? who }));
+        const memory = (shared.memory ??= new Map());
         for (const { values, who, name } of subjects) {
             if (who !== null) root.appendChild(h(doc, 'h4', 'ss-block-subject', name));
+            // The shapes that read better than rows: entries read through the block's roles, maps of numbers.
+            const screenOf = () => parent.closest?.('[data-ss-screen]') ?? doc;
+            const env = { doc, api, handles, memory, after: mark => {
+                [...screenOf().querySelectorAll('.ss-w-editable-pencil')].find(node => Object.entries(mark ?? {}).every(([part, value]) => node.getAttribute(`data-block-${part}`) === String(value ?? '')))?.focus?.();
+            } };
+            // Plain fields are the record card (a small card, label and value in two columns, a pencil at the end of each line); a block whose own
+            // layout is cards or bars keeps loose rows.
+            let rec = null;
+            const recordHost = () => (['cards', 'bars'].includes(definition.layout) ? root : (rec ??= root.appendChild(h(doc, 'div', 'ss-glass ss-b-plain'))));
             for (const [field, schema] of Object.entries(definition.state)) {
+                if (schema.type === 'entries' || (schema.type === 'map' && schema.values.type === 'int')) rec = null;
+                if (schema.type === 'entries') {
+                    if (entriesRoles(definition, field)) drawEntries(env, root, { definition, module: row.module, field, list: values[field] });
+                    else {
+                        const line = h(doc, 'div', 'ss-block-value'); root.appendChild(line);
+                        line.appendChild(h(doc, 'span', 'ss-block-value-name', schema.label ?? field));
+                        const list = Array.isArray(values[field]) ? values[field] : [];
+                        line.appendChild(h(doc, 'span', 'ss-block-value-shown', list.map(entry => Object.values(entry ?? {}).join(' · ')).join('; ')));
+                    }
+                    continue;
+                }
+                if (schema.type === 'map' && schema.values.type === 'int') {
+                    const title = schema.label ?? field.replace(/[-_]+/g, ' ');
+                    drawNumberMap(env, root, { title: title.charAt(0).toUpperCase() + title.slice(1), memoryKey: `${row.module}:${who ?? ''}:${field}`,
+                        rows: numberRows({ definition, module: row.module, who, values, field }) });
+                    continue;
+                }
                 const scalar = schema.type === 'map' ? schema.values : schema;
                 for (const key of schema.type === 'map' ? schema.keys : [null]) {
-                    const line = h(doc, 'div', 'ss-block-value'); root.appendChild(line);
+                    const line = h(doc, 'div', 'ss-block-value'); recordHost().appendChild(line);
                     const label = [schema.label ?? field, key].filter(Boolean).join(' · ');
                     line.appendChild(h(doc, 'span', 'ss-block-value-name', label));
                     const slot = h(doc, 'span', 'ss-block-value-slot'); line.appendChild(slot);
@@ -227,7 +255,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
             const definition = JSON.parse(JSON.stringify(row.pinnedDefinition));
             delete definition.id; delete definition.pack;
             const was = definition.show ?? { tabName: [...definition.name].slice(0, 24).join(''), icon: 'ph-bookmark-simple' };
-            definition.show = { tab: value === 'tab' || value === 'both', card: value === 'card' || value === 'both', tabName: was.tabName, icon: was.icon };
+            definition.show = { tab: value === 'tab' || value === 'both', card: value === 'card' || value === 'both', tabName: was.tabName, icon: was.icon, ...(was.into ? { into: was.into } : {}) };
             const result = await api.command?.('dm.redefine', { module: row.module, definition });
             say(result?.ok ? fill(P.shownAs, { name: definition.name, how: P.show[value] }) : refusalText(result, STRINGS.editable.failed));
         }

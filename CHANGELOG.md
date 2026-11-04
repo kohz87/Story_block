@@ -23,6 +23,17 @@ Extra skill slots and cast signature skills.
 - **Extra skill slots:** a sixth skill at Lv 20, a seventh at Lv 40, an eighth at Lv 60 (five to start). The `learn-N` and `practice-N` lines run 1..8, character files hold up to eight skills, a level drop keeps every skill. New Skills blocks have eight slots; a block made earlier is extended automatically (additive, recorded with the action) when its character first needs a slot it lacks or a returning cast member's skills need marking. Static prompt: the Skills block's description grows by 49 characters (Classic; 47 Standard); tail: up to about 45 tokens for each skill past five.
 - **Cast signature skills:** a pack's cast entry may list `skills` (name, about, stat, uses, rank). They fill the member's free slots when they join (never retroactively, never twice), carry a lock mark, cannot be renamed or replaced by the story (one Problems line), keep rank and practice when the member leaves and returns, and show as one tile each in the join's receipt. Ersveil gives its 12 cast members 2 to 4 skills each.
 
+Blocks and data modules draw by the shape of their data, and Ersveil's reputation is one tab (BLOCKS).
+- **Quest cards.** A block's `entries` field is read through `layout`, `roles` and `tones` (BLOCKEDIT): cards with a title and status chip, the
+  description clamped to two lines with More, the step with an icon; the open ones first, the others under a collapsed "Finished (n)".
+- **A map of numbers** (fame, standing) has a header, a row with a value and a bar for each key, highest first, and the keys
+  still at their default under a collapsed "Not known yet (n)". One pencil column per screen.
+- **A record card** for a module's plain fields (the Guild), and meters with no `max` show their values.
+- **Screens that share a `tab` are one tab** (`tab`, `tabTitle`, `order` on a pack screen; `show.into` on a block).
+- Ersveil: Standing, Fame, Guild and Court favour are sections of one Reputation tab (Court favour has a screen now). The pack
+  data is ready; at integration set `requires.storyBlock` to `^2.22.0` in examples/packs/ersveil/pack.json and rebuild the zip.
+- Display only: the prompt is byte for byte the same (tests/v2/packs/ersveil-reputation.test.js).
+
 ## 2.21.0
 
 The card offer: a character card can bring its whole world, and Story Block offers it with one click.
