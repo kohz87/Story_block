@@ -71,6 +71,9 @@ test('skills are refused: not a list, empty, too many, a repeat, an unknown key,
     refused([person({ skills: [{ name: 'Spark', stat: 'int' }] })], 'content.cast[0].skills[0].about');
     refused([one({ about: 'a <b> tag' })], 'content.cast[0].skills[0].about');
     refused([person({ skills: [7] })], 'content.cast[0].skills[0]');
+    // the cast problem prefix, like every other cast problem
+    assert.match(refused([one({ stat: 'wis' })], 'content.cast[0].skills[0].stat').message, /^Cast "Mara": /);
+    assert.match(dup.message, /^Cast "Mara": /);
 });
 
 test('the pack checker\'s lists are the RPG\'s: the seven stats and the most slots a character can hold', () => {
