@@ -197,7 +197,7 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
         head.appendChild(h(doc, 'h3', 'rpg-sheet-name', fill(K.title, { name: character.name })));
         const pills = h(doc, 'div', 'rpg-pills');
         pills.appendChild(h(doc, 'span', 'ss-pill rpg-level-pill', character.levelText));
-        pills.appendChild(h(doc, 'span', 'ss-pill rpg-slots', fill(K.slots, { n: character.skills.length, max: SKILL_SLOTS })));
+        pills.appendChild(h(doc, 'span', 'ss-pill rpg-skill-slots', fill(K.slots, { n: character.skills.length, max: SKILL_SLOTS })));
         head.appendChild(pills);
         root.appendChild(head);
         const legend = h(doc, 'div', 'rpg-skill-legend');

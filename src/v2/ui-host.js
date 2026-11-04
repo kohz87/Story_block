@@ -71,7 +71,7 @@ import { createShowMoreWidget, SHOW_MORE_WIDGET } from './screens/show-more.js';
 import { createInventoryAddWidget, INVENTORY_ADD_WIDGET } from './screens/inventory-add.js';
 import { createCardOffer, enableDataModules } from './packs/card-offer.js';
 import { renderCardOffers } from './packs/card-offer-ui.js';
-import { readCharacterLorebook } from './packs/st-adapter.js';
+import { readCharacterLorebook, saveSettingsNow } from './packs/st-adapter.js';
 import { buildReport, captureConsole, caughtSoFar, reportFileName } from './diagnostics.js';
 import { createThemeBridge } from './view/theme.js';
 import { activeNow } from './view/mounts/common.js';
@@ -149,7 +149,7 @@ function readerStore(ctx) {
  * setHidden(id, hidden), reset(), isDefault()), syncScreens(), destroy() }.
  * Re-read uses `sdk.reread(index)` (or `runtime.turn.reread(index)`) when the runtime has one.
  */
-export function mountUi({ runtime, ctx, doc = globalThis.document, version = '', loadLeanRpg = () => import('./lean-rpg/view/index.js'), readLorebook = readCharacterLorebook }) {
+export function mountUi({ runtime, ctx, doc = globalThis.document, version = '', loadLeanRpg = () => import('./lean-rpg/view/index.js'), readLorebook = readCharacterLorebook, flushSettings = saveSettingsNow }) {
     const { registry, store, sdk, settings, events } = runtime;
     // A screen asking a query no module answers (an optional module that is not installed, like NSD's
     // npc.portrait) gets null, not a problem line.
@@ -766,6 +766,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         },
         single: () => !(liveCtx()?.groupId),
         enableModules: packId => enableDataModules({ sdk, packId, save: () => store.saveSoon?.() }),
+        flushSettings: () => flushSettings(),
         report: entry => {
             cardLog.push(entry.message);
             if (cardLog.length > 30) cardLog.shift();

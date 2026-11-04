@@ -78,10 +78,10 @@ export async function enableDataModules({ sdk, packId, save = null }) {
 /**
  * `readLorebook()` → `{ character, card, entries, problem }`; `packs`: installed.js; `cardSettings`: card-settings.js;
  * `remember`: `{ read() → { [key]: true }, write(map) }` for "Not now"; `single()`: true in a single-character chat;
- * `enableModules(packId)` → `{ pinned, failed, total }`; `report({ code, message })`: Diagnostics.
+ * `enableModules(packId)` → `{ pinned, failed, total }`; `flushSettings()` → `{ ok, message }` (SillyTavern's settings saved now, not after its debounce); `report({ code, message })`: Diagnostics.
  * → `{ refresh, offers, waiting, install, notNow, dismiss, clearDone, subscribe }`.
  */
-export function createCardOffer({ readLorebook, packs, cardSettings, remember, single = () => true, enableModules = async () => ({ pinned: 0, failed: [], total: 0 }), report = () => {} } = {}) {
+export function createCardOffer({ readLorebook, packs, cardSettings, remember, single = () => true, enableModules = async () => ({ pinned: 0, failed: [], total: 0 }), flushSettings = async () => ({ ok: true, message: '' }), report = () => {} } = {}) {
     let token = 0;
     let list = [];
     let card = '';
@@ -217,6 +217,16 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
             for (const item of refused) line('CARD_PORTRAIT_SKIPPED', `Card portrait ${item.file} was not stored: ${item.message}`, { always: true });
             done.push(`${result.action === 'updated' ? 'Updated' : result.action === 'unchanged' ? 'Already installed:' : 'Installed'} ${result.name} ${offer.version}${stored ? ` with ${plural(stored, 'portrait')}` : ''}.`);
             if (refused.length) done.push(`${plural(refused.length, 'portrait')} not used.`);
+            // The pack list and the portrait index are on disk before anything is pinned in the chat: a reload now never finds modules
+            // pinned for a pack that was not kept.
+            const first = await flushSettings();
+            if (!first.ok) {
+                offer.state = 'failed';
+                offer.result = `${offer.name} was installed here, but ${first.message || 'the settings could not be saved'} Nothing else was done; reload and try Install again.`;
+                line('CARD_REFUSED', offer.result, { always: true });
+                tell();
+                return { ok: false, text: offer.result };
+            }
             if (!offer.update) {
                 const modules = await enableModules(offer.packId);
                 if (modules.pinned) done.push(`${plural(modules.pinned, 'data module')} turned on in this chat.`);
@@ -234,6 +244,15 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
                     if (applied.failed.length) done.push(`${joinWords(applied.failed.map(item => item.id))} could not be applied.`);
                     for (const item of applied.failed) line('CARD_KEY_SKIPPED', `Card setting ${item.id} was not applied: ${item.message}`, { always: true });
                 }
+            }
+            // The applied settings go to disk too, before the notice says it is done.
+            const last = await flushSettings();
+            if (!last.ok) {
+                offer.state = 'failed';
+                offer.result = `${done.join(' ')} But ${last.message || 'the settings could not be saved'} They may be lost if the page reloads.`;
+                line('CARD_REFUSED', offer.result, { always: true });
+                tell();
+                return { ok: false, text: offer.result };
             }
             offer.state = 'done';
             offer.result = done.join(' ');

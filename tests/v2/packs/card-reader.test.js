@@ -1,7 +1,7 @@
 // st-adapter.js readCharacterLorebook: a card's embedded [storysuite:…] entries are read when its linked world lacks them or is missing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readCharacterLorebook } from '../../../src/v2/packs/st-adapter.js';
+import { readCharacterLorebook, saveSettingsNow } from '../../../src/v2/packs/st-adapter.js';
 
 const embedded = (...titles) => ({ name: 'Embedded', entries: titles.map((comment, id) => ({ id, comment, content: `${comment} body`, keys: ['k'] })) });
 const world = (...titles) => ({ entries: Object.fromEntries(titles.map((comment, uid) => [uid, { uid, comment, content: `${comment} world`, key: ['k'] }])) });
@@ -42,4 +42,20 @@ test('a card with no linked world still reads its embedded book whole, as before
     const got = await read(t, { linked: undefined, book: embedded('Lore', 'P [storysuite:pack]'), load: async () => world() });
     assert.deepEqual(titles(got), ['Embedded:Lore', 'Embedded:P [storysuite:pack]']);
     assert.equal(got.card, 'ilsa.png');
+});
+
+test('saveSettingsNow: ok when SillyTavern says its settings were saved, not ok when it does not, ok where there is no page', async t => {
+    t.after(() => { delete globalThis.SillyTavern; });
+    assert.deepEqual(await saveSettingsNow(), { ok: true, message: '' }, 'no SillyTavern: nothing to flush');
+    const listeners = [];
+    const make = save => ({ eventTypes: { SETTINGS_UPDATED: 'settings_updated' }, eventSource: { once: (type, fn) => listeners.push([type, fn]) }, saveSettings: save });
+    let ctx = make(async () => { listeners.forEach(([, fn]) => fn()); });
+    globalThis.SillyTavern = { getContext: () => ctx };
+    assert.deepEqual(await saveSettingsNow(), { ok: true, message: '' });
+    ctx = make(async () => {});   // SillyTavern swallowed a failed save (a toast, no event)
+    const lost = await saveSettingsNow({ timeoutMs: 20 });
+    assert.equal(lost.ok, false);
+    assert.match(lost.message, /did not confirm/);
+    ctx = make(async () => { throw new Error('offline'); });
+    assert.match((await saveSettingsNow()).message, /offline/);
 });

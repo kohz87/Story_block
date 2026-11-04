@@ -28,7 +28,7 @@ export const goodPortrait = (name = 'fenna.webp', seed = 1) => ({ [name]: dataUr
  * `entries`: the card's lorebook entries (a function is read at each read); `installed`: packs to install first;
  * `group`: a group chat. → { doc, st, ui, runtime, offer, files, reads, box() }.
  */
-export async function cardWorld(t, { entries = [], installed = [], group = false, rpg = undefined, settings = {}, errors = null } = {}) {
+export async function cardWorld(t, { entries = [], installed = [], group = false, rpg = undefined, settings = {}, errors = null, flushSettings = undefined } = {}) {
     t.mock.method(console, 'warn', () => {});
     const doc = setupDom();
     const st = createFakeContext({ extensionSettings: { storySuite: structuredClone(settings) } });
@@ -57,7 +57,7 @@ export async function cardWorld(t, { entries = [], installed = [], group = false
         if (held) { await held.gate; return { character: 'Ilsa', card: 'ilsa.png', entries: held.entries, problem: '' }; }
         return { character: 'Ilsa', card: 'ilsa.png', entries: typeof entries === 'function' ? entries() : entries, problem: '' };
     };
-    ui = mountUi({ runtime, ctx: st.ctx, doc, readLorebook });
+    ui = mountUi({ runtime, ctx: st.ctx, doc, readLorebook, ...(flushSettings ? { flushSettings } : {}) });
     runtime.turn.install({ globalName: null });
     st.interceptor = runtime.turn.interceptor;
     t.after(() => runtime.turn.uninstall({ globalName: null }));

@@ -17,6 +17,8 @@ The card offer: a character card can bring its whole world, and Story Block offe
   never writes another extension's settings: they register through `sdk.registerCardSettings` (internal sdk, not the public api).
 - **Packs list:** a pack of data modules alone reads "4 data modules" instead of "no content".
 - **Docs:** BUILD-A-CARD.md "Ship your whole world inside the card", PACKS.md "In a character card".
+- **Fix:** the Skills card's "of 5 slots" pill no longer takes the gear card's slot-grid class, so it is a pill again and not a tall grey oval.
+- **Fix:** Install saves SillyTavern's settings at once, before it pins anything in the chat and before it says "Installed", so a quick reload cannot leave pinned modules for a pack that was not kept; if that save fails the notice says so.
 - Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
 
 ## 2.20.0

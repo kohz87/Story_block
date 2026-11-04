@@ -253,3 +253,58 @@ test('the Packs row says "N data modules" for a pack that holds data modules and
     const listed = world.runtime.packs.packs.list()[0];
     assert.equal(addsLine(listed), '1 data module');
 });
+
+test('Install saves SillyTavern\'s settings now (not after its debounce): the pack list, portraits and settings are on disk before the chat pins anything and before the notice says "Installed"', async t => {
+    const pack = cardPack({ portraits: ['fenna.webp'] });
+    const disk = [];
+    let world = null;
+    const flushSettings = async () => {
+        const root = world.st.ctx.extensionSettings.storySuite;
+        disk.push({ packs: (root.packs ?? []).map(entry => entry.id), portraits: Object.keys(root.portraits?.sealcrown ?? {}), rpg: root.features?.['story-block.rpg'] ?? null,
+            pinned: world.runtime.sdk.query('dataModules.setup').filter(row => row.pinned).length, noticeState: world.notices()[0]?.dataset.state });
+        return { ok: true, message: '' };
+    };
+    world = await cardWorld(t, { entries: [packEntry(pack), portraitsEntry(pack, goodPortrait()), settingsEntry({ 'story-block.rpg': true })], flushSettings });
+    world.button(world.notices()[0], 'Install').click();
+    await settle();
+    assert.equal(disk.length, 2, 'once after the install, once after the settings');
+    assert.deepEqual(disk[0], { packs: ['sealcrown'], portraits: ['fenna.webp'], rpg: null, pinned: 0, noticeState: 'working' }, 'the pack and the portrait index are saved before any pin');
+    assert.deepEqual(disk[1], { packs: ['sealcrown'], portraits: ['fenna.webp'], rpg: true, pinned: 1, noticeState: 'working' }, 'then the pins and settings, still before the notice says done');
+    assert.equal(world.notices()[0].dataset.state, 'done');
+});
+
+test('if the immediate settings save fails the notice says so and does not claim success; a failure after the install pins nothing', async t => {
+    const pack = cardPack();
+    const first = await cardWorld(t, { entries: [packEntry(pack)], flushSettings: async () => ({ ok: false, message: 'SillyTavern did not confirm that its settings were saved.' }) });
+    first.button(first.notices()[0], 'Install').click();
+    await settle();
+    const text0 = text(first.notices()[0]);
+    assert.equal(first.notices()[0].dataset.state, 'failed');
+    assert.match(text0, /was installed here, but SillyTavern did not confirm that its settings were saved\. Nothing else was done/);
+    assert.doesNotMatch(text0, /^Installed/);
+    assert.equal(first.runtime.sdk.query('dataModules.setup').filter(row => row.pinned).length, 0, 'no chat pin for a pack that may not be kept');
+    let calls = 0;
+    const second = await cardWorld(t, { entries: [packEntry(pack), settingsEntry({ 'story-block.rpg': true })], flushSettings: async () => (++calls === 1 ? { ok: true, message: '' } : { ok: false, message: 'SillyTavern did not confirm that its settings were saved.' }) });
+    second.button(second.notices()[0], 'Install').click();
+    await settle();
+    assert.equal(second.notices()[0].dataset.state, 'failed');
+    assert.match(text(second.notices()[0]), /^Installed Sealcrown Blocks 1\.0\.0\..* But SillyTavern did not confirm .* They may be lost if the page reloads\.$/);
+});
+
+test('a chat that pins a module whose pack is not installed loads without harm: the module stays pinned and listed, and the offer comes back', async t => {
+    const pack = cardPack();
+    const world = await cardWorld(t, { entries: [packEntry(pack)] });
+    world.button(world.notices()[0], 'Install').click();
+    await settle();
+    // the settings save was lost (a reload within a second, before the fix): the pack list is gone but the chat kept its pins
+    await world.runtime.packs.packs.remove('sealcrown');
+    world.ui.refresh();
+    const rows = world.runtime.sdk.query('dataModules.setup');
+    assert.deepEqual(rows.map(row => [row.module, row.pinned, row.status]), [['pack.sealcrown/reputation', true, 'Pinned']]);
+    assert.doesNotThrow(() => world.runtime.sdk.query('dataModules.view', { module: 'pack.sealcrown/reputation' }));
+    await world.offer.refresh();
+    assert.equal(world.notices().length, 1, 'the card offers the pack again');
+    world.button(world.notices()[0], 'Install').click();
+    await settle();
+    assert.equal(world.runtime.sdk.query('dataModules.setup').filter(row => row.pinned).length, 1, 'still one pin: nothing doubled');
+});

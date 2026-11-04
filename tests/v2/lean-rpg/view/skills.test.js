@@ -106,7 +106,9 @@ test('an empty slot is a dashed line, one per slot, and a skill-less character h
     const bare = draw({}, { who: 'Wessel' });
     assert.equal(bare.el.querySelectorAll('.rpg-skill-empty').length, 5);
     assert.equal(rows(bare.el).length, 0);
-    assert.equal(bare.el.querySelector('.rpg-slots').textContent, '0 of 5 slots');
+    // (pinned selector changed from `.rpg-slots`: that class is the gear card's 2×4 slot grid and made this pill a tall oval)
+    assert.equal(bare.el.querySelector('.rpg-skill-slots').textContent, '0 of 5 slots');
+    assert.equal(bare.el.querySelector('.rpg-slots'), null, 'the skills pill does not carry the gear grid class');
 });
 
 test('a skill from a block with no stat of its own says what it can: the stat is the story\'s pick', () => {

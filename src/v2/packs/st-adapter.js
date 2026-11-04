@@ -85,6 +85,35 @@ function storysuiteFallback(linkedEntries, embedded) {
 }
 
 /**
+ * Saves SillyTavern's settings now instead of after its debounce (about a second), and says whether it worked: `{ ok, message }`.
+ * SillyTavern's context only offers the debounced save, so the page's own `saveSettings` (script.js) is used, found on the context if a
+ * later version gives it there. It never throws: SillyTavern tells its own failure with a toast and no error, so success is its
+ * `settings_updated` event; no event within `timeoutMs` is a failure. Where there is no SillyTavern page (tests) there is nothing to
+ * flush and it answers ok.
+ */
+export async function saveSettingsNow({ timeoutMs = 8000 } = {}) {
+    const ctx = context();
+    if (!ctx) return { ok: true, message: '' };
+    try {
+        const save = typeof ctx.saveSettings === 'function' ? ctx.saveSettings.bind(ctx) : (await import('/script.js')).saveSettings;
+        const source = ctx.eventSource;
+        const type = (ctx.eventTypes ?? ctx.event_types)?.SETTINGS_UPDATED;
+        if (typeof save !== 'function' || typeof source?.once !== 'function' || !type) return { ok: false, message: 'SillyTavern\'s settings could not be saved from here.' };
+        let timer = null;
+        const told = new Promise(resolve => {
+            source.once(type, () => resolve(true));
+            timer = setTimeout(() => resolve(false), timeoutMs);
+        });
+        await save();
+        const ok = await told;
+        clearTimeout(timer);
+        return ok ? { ok: true, message: '' } : { ok: false, message: 'SillyTavern did not confirm that its settings were saved.' };
+    } catch (error) {
+        return { ok: false, message: `SillyTavern's settings could not be saved (${error?.message ?? error}).` };
+    }
+}
+
+/**
  * Capability names the running Story Block offers (module ids and their domain names), or
  * null while the sdk is not up, in which case requires.capabilities is not enforced.
  */
