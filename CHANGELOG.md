@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.22.3
+
+Reading the story no longer replays it: dossiers and other modules' queries stop freezing the page.
+
+### Speed
+
+- **Queries keep the timeline's proof.** Before every query (`sdk.query`), the timeline proves that each module stands on
+  the checkpoints of the selected reply (`settle` → `selectionPlan` → `store.prefixWitness`). Nothing kept that proof, so
+  every query replayed and hashed each archived prefix again. NPC State Delta asks many queries per dossier action, so in a
+  long chat opening a dossier froze the page for 5–6 s, reopening the panel the same, the editor about 0.8 s, and loading the
+  chat up to 3 s. Now the answers are kept for as long as nothing they depend on changed: every message (its record, swipe,
+  text and swipe copies), the chat, its metadata and archive, the modules' replay marks and the Features on. Any of these
+  changing, or any write, rebuild or rewind, starts afresh. Measured in a real chat: dossier open 5.6–6.0 s → 55–94 ms,
+  reopen 5.6–6.2 s → 67–86 ms, editor open under 50 ms, chat load 3.1 s → 0.4 s.
+- One check of the chat per timeline pass (`store.witnessScope`), and no fixed size: a chat with hundreds of boundaries stays
+  fast (300 boundaries: 723 ms → 82 ms for 5 queries; +0.2 MB kept for 600, the answers share the state they come from).
+- Answers are the same as before: a fuzz test compares every kept answer with a fresh replay (tests/v2/query-cache.test.js;
+  docs/v2/PERFORMANCE.md). `scripts/bench-query.mjs` measures it.
+
 ## 2.22.2
 
 The safety net no longer moves the scene somewhere the reply did not go.

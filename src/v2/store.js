@@ -113,7 +113,7 @@ export function createStore({
     chat, save, now = null, apply = applyOps, onSaveError = null, timers = globalThis,
     checkpointEvery = CHECKPOINT_EVERY, checkpointBytes = CHECKPOINT_BYTES, recordId = newRecordId, validate = null,
     chatId = () => undefined, place = () => null, rescue = null, scratch = null, receiptKeep = RECEIPT_KEEP,
-    confirm = null, memo = null, metadata = () => null, marked = () => false,
+    confirm = null, memo = null, metadata = () => null, marked = () => false, replayEnv = () => '',
 } = {}) {
     if (typeof chat !== 'function') throw new TypeError('createStore needs a chat() function.');
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
@@ -136,7 +136,8 @@ export function createStore({
     let lineMemo = null;       // { epoch, key, receipts?, untold? }
     let atMemo = new Map();    // index → { arr, epoch, from, refs: [message, record, swipe, mes][], state }
     const AT_MEMO_MAX = 64;
-    const counts = { replays: 0, recordsRead: 0, lineScans: 0 };
+    let witnessGen = null;     // the generation of timeline witnesses kept now (see witnessGeneration)
+    const counts = { replays: 0, recordsRead: 0, lineScans: 0, witnessMisses: 0 };
     // Guarded replay (REPLAY.md): how a block's guard is asked, and the mark that says the answer may differ.
     let guardCheck = null;
     let guardMark = null;
@@ -1490,6 +1491,64 @@ export function createStore({
         tail = null;
         lineMemo = null;
         atMemo = new Map();
+        witnessGen = null;
+    }
+
+    // The timeline asks for the witness of every archived boundary on every read (sdk.query → settle → selectionPlan), and each
+    // answer is a replay of that prefix plus hashes. Everything an answer reads is the same for all boundaries of one chat: the
+    // chat's messages (their records, swipes, text and swipe copies), the guards' mark, the chat/metadata it is read in, the source
+    // archive, the Features. So ONE generation holds that fingerprint once, checked once per call, and each boundary keeps only its
+    // answer in it. The generation changes (and every answer of the old one is dropped) when anything it read is not the same:
+    // another array or a message's record, swipe, text or swipe copies differing, another `epoch` (any write, rebuild, guard or
+    // lifecycle change bumps it), mark, chat id, metadata, archive or Features. The memo holds every boundary of the generation (no
+    // cap: the boundaries are the archive's, which the timeline walks in full each query); it is not read or written while a replay
+    // is running (`applying`) or a Re-read's overlay is staged (`staged`). A caller gets a new object each time; the state in it is
+    // deep-frozen.
+    function witnessKeyOf(cursor) {
+        if (!isObject(cursor) || typeof cursor.sid !== 'string' || typeof cursor.swipeKey !== 'string' || !Number.isSafeInteger(cursor.op)) return null;
+        return `${cursor.sid}\u0000${cursor.swipeKey}\u0000${cursor.op}`;
+    }
+
+    // Every input of the chat the witness reads, as a flat list of values compared with ===. `visit` returns false to stop.
+    function walkChat(arr, visit) {
+        if (!visit(arr.length)) return false;
+        for (const message of arr) {
+            const info = message?.swipe_info;
+            const infos = Array.isArray(info) ? info : null;
+            if (!visit(message) || !visit(message?.extra) || !visit(message?.extra?.[KEY]) || !visit(message?.swipe_id) || !visit(message?.mes)
+                || !visit(message?.is_user) || !visit(info) || !visit(infos?.length)) return false;
+            if (infos) for (const each of infos) if (!visit(each?.extra?.[KEY])) return false;
+        }
+        return true;
+    }
+
+    // What else a replay's answer may hang on (the Features the reader has on: they change what the registry validates and scratches).
+    const envNow = () => { try { return String(replayEnv()); } catch { return '?'; } };
+    const metaNow = () => { try { return metadata(); } catch { return null; } };
+    const markSeen = () => (guardSeen ? markNow() : '');
+
+    function witnessEnv(arr) {
+        const fingerprint = [];
+        walkChat(arr, value => { fingerprint.push(value); return true; });
+        return { epoch, arr, mark: markSeen(), chatId: chatId(), meta: metaNow(), archived: archive().size, marked: marked(), env: envNow(), fingerprint, answers: new Map() };
+    }
+
+    function witnessHolds(gen, arr) {
+        if (gen.epoch !== epoch || gen.arr !== arr || gen.chatId !== chatId() || gen.marked !== marked() || gen.env !== envNow() || gen.archived !== archive().size) return false;
+        if (gen.meta !== metaNow() || gen.mark !== markSeen()) return false;
+        let at = 0;
+        return walkChat(arr, value => gen.fingerprint[at++] === value) && at === gen.fingerprint.length;
+    }
+
+    // Inside `witnessScope` (one synchronous, read-only pass over many boundaries) the chat cannot change under the reader but through
+    // a write or a lifecycle change, which move `epoch`: the generation is checked in full once at the start, then by `epoch` and
+    // array alone.
+    let witnessScoped = null;   // { gen, epoch }
+    function witnessGeneration(arr) {
+        if (witnessScoped && witnessGen && witnessScoped.gen === witnessGen && witnessScoped.epoch === epoch && witnessGen.arr === arr) return witnessGen;
+        if (!witnessGen || !witnessHolds(witnessGen, arr)) witnessGen = witnessEnv(arr);
+        if (witnessScoped) witnessScoped = { gen: witnessGen, epoch };
+        return witnessGen;
     }
 
     // The memo of the whole line of history (receipts, untold) for the chat as it is now.
@@ -1643,6 +1702,35 @@ export function createStore({
         if (ops === undefined || ops === null) return [];
         if (!Array.isArray(ops)) throw new TypeError('Ops must be an array.');
         return structuredClone(ops);
+    }
+
+    function prefixWitnessUncached(arr, cursor) {
+        const matches = carrierIndexes(arr).filter(index => {
+            const source = api.sourceAt(index);
+            return source?.sid === cursor.sid && source?.swipeKey === cursor.swipeKey;
+        });
+        if (matches.length !== 1) return null;
+        const index = matches[0];
+        const record = readRecord(arr[index]);
+        if (!record || !Number.isSafeInteger(cursor.op) || cursor.op < 0) return null;
+        const parts = blockParts(record);
+        const earlier = [];
+        let count = 0;
+        for (const part of parts) {
+            if (count === cursor.op) break;
+            count += part.ops.length;
+            earlier.push(part);
+        }
+        if (count !== cursor.op) return null;
+        const base = baseFor(arr, index);
+        if (!base) return null;
+        const ops = earlier.flatMap(part => part.ops);
+        const revs = new Set(ops.filter(op => op.path === '/meta/rev').map(op => op.value));
+        const state = replayRecord(base, { ...record, ops, spans: earlier.map(part => ({ ...part.span, n: part.ops.length })), receipts: record.receipts.filter(receipt => revs.has(receipt.rev)) }, index, [], null, arr[index]);
+        return {
+            index, op: count, state,
+            prefixHash: hashJson({ p: chainHash(arr, index), k: cursor.swipeKey, t: payloadHashOf(arr[index]), b: blocksBefore(earlier) }),
+        };
     }
 
     const api = {
@@ -1968,32 +2056,40 @@ export function createStore({
         // including the state its guards accepted. Never match by revision or by message index.
         prefixWitness(cursor) {
             const arr = list();
-            const matches = carrierIndexes(arr).filter(index => {
-                const source = api.sourceAt(index);
-                return source?.sid === cursor.sid && source?.swipeKey === cursor.swipeKey;
-            });
-            if (matches.length !== 1) return null;
-            const index = matches[0];
-            const record = readRecord(arr[index]);
-            if (!record || !Number.isSafeInteger(cursor.op) || cursor.op < 0) return null;
-            const parts = blockParts(record);
-            const earlier = [];
-            let count = 0;
-            for (const part of parts) {
-                if (count === cursor.op) break;
-                count += part.ops.length;
-                earlier.push(part);
+            // Queries ask this for every archived boundary on every read; on an unchanged chat the answer is the same (witnessGeneration).
+            const key = witnessKeyOf(cursor);
+            if (key === null || applying || staged) return prefixWitnessUncached(arr, cursor);
+            const gen = witnessGeneration(arr);
+            if (gen.answers.has(key)) {
+                const hit = gen.answers.get(key);
+                return hit === null ? null : { ...hit };
             }
-            if (count !== cursor.op) return null;
-            const base = baseFor(arr, index);
-            if (!base) return null;
-            const ops = earlier.flatMap(part => part.ops);
-            const revs = new Set(ops.filter(op => op.path === '/meta/rev').map(op => op.value));
-            const state = replayRecord(base, { ...record, ops, spans: earlier.map(part => ({ ...part.span, n: part.ops.length })), receipts: record.receipts.filter(receipt => revs.has(receipt.rev)) }, index, [], null, arr[index]);
-            return {
-                index, op: count, state,
-                prefixHash: hashJson({ p: chainHash(arr, index), k: cursor.swipeKey, t: payloadHashOf(arr[index]), b: blocksBefore(earlier) }),
-            };
+            counts.witnessMisses++;
+            const answer = prefixWitnessUncached(arr, cursor);
+            // (the replay may have seen guarded blocks for the first time: the mark then reads differently, though nothing else did)
+            if (gen === witnessGen && gen.mark === '' && guardSeen && gen.epoch === epoch) gen.mark = markSeen();
+            gen.answers.set(key, answer);
+            return answer === null ? null : { ...answer };
+        },
+
+        /**
+         * Runs `read` (synchronous, read-only: it must not write to the chat) with the witness memo checked in full once instead
+         * of on each `prefixWitness` call inside it (the timeline's pass over every boundary). → what `read` returns.
+         */
+        witnessScope(read) {
+            if (witnessScoped || applying || staged) return read();
+            witnessScoped = { gen: null, epoch };
+            try { witnessGeneration(list()); return read(); } finally { witnessScoped = null; }
+        },
+
+        /** The timeline witnesses kept for the chat as it is now (tests). */
+        witnessMemoSize() {
+            return witnessGen ? witnessGen.answers.size : 0;
+        },
+
+        /** `prefixWitness` worked out afresh, never from the memo (tests compare the two). */
+        witnessFresh(cursor) {
+            return prefixWitnessUncached(list(), cursor);
         },
 
         /** Marks the chat as changed outside its records (the timeline's archive in the chat's metadata): the next save writes it. */
@@ -2500,7 +2596,7 @@ export function createStore({
         /**
          * How much replay work the store has done (for tests that count work rather than time): `replays`
          * (state rebuilt from a checkpoint), `recordsRead` (carriers replayed), `lineScans` (whole-chat
-         * passes for receipts or untold). A copy.
+         * passes for receipts or untold), `witnessMisses` (timeline witnesses worked out, not found in the memo). A copy.
          */
         work() {
             return { ...counts };

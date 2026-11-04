@@ -44,7 +44,7 @@ import { createRpgLoader } from './rpg-lazy.js';
 import { createPublicApi } from './public-api.js';
 import { createPublicPaths } from './public-paths.js';
 
-export const VERSION = '2.22.2';
+export const VERSION = '2.22.3';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to
@@ -496,7 +496,7 @@ export function createRuntime({
         }
     });
     const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page) });
-    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
+    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name), replayEnv: () => registry.features().map(feature => `${feature.id}${registry.featureOn(feature.id) ? '+' : '-'}`).join(','), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
     saveOnUnload(store, page, { fits: saving.keepaliveFits });
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();
