@@ -27,3 +27,7 @@ Yes, since 2.21.0. When you open a chat with a card that carries a pack, its por
 ## A pack was updated: how do I move my running chat to its new layout?
 
 A running chat keeps the old modules and keeps working. To take the new version of a module, open Settings → Tabs & Packs → Data modules, choose **Migrate** on the module, read the preview and confirm. Do this for each module the pack changed (Ersveil 2.7.0 changes four: Standing, Fame, Adventurer Guild membership and Court favour). Only the drawing changes, your values stay, and the choice is saved with the latest reply. A new chat needs nothing.
+
+## Why is my added item Common?
+
+With Gear in fights on, "+ Add item" opens the grouped form. Rarity and Bonus can be set only in the **starting kit**: while the chat holds the opening greeting and no message from you yet (a greeting swipe keeps it open; deleting your own messages while a reply stays, a narrator or member speaking on its own, or a chat with no greeting keep it closed). After the kit, an added piece is always Common with no bonus, and Edit shows Rarity and Bonus read-only on pieces you added. A name that a story or pack piece already has never copies its rarity or bonus: you get your own Common piece ("Your Ash-grey Longsword"); adding to a piece you made yourself still stacks. A saved character's gear is kept as written only while the kit is open; afterwards it comes in Common with no bonus and the Problems list says so.

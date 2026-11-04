@@ -1,40 +1,17 @@
 # Changelog
 
-## Unreleased
+## 2.22.0
 
-- **Integration (2.22.0 drafts together):** the Skills slots pill stays removed; story `practice-N` is refused under the rolled-practice rule for all eight slots (and the reply is marked for them); a block layout never shows a status tone the editor did not give (an untoned value such as "paused" is neutral and open); a map of numbers folds only the rows whose default is 0 or the minimum (Court favour at 40/35/25 lists all three); the editor preview draws the bars and fields layouts, and a bars block of plain numbers is one map of numbers; a list's line in the prompt tail stays within its 250 tokens and, with every entry open, hides the oldest behind "+N more"; `show.into` is a lowercase tab id and needs the block's own tab.
+Blocks that hold lists of entries, a Reputation tab for Ersveil 2.7.0, extra skill slots with cast signature skills, hand-set starting gear, and public paths for modules.
+
+### Integration
+
+- the Skills slots pill stays removed; story `practice-N` is refused under the rolled-practice rule for all eight slots (and the reply is marked for them); a block layout never shows a status tone the editor did not give (an untoned value such as "paused" is neutral and open); a map of numbers folds only the rows whose default is 0 or the minimum (Court favour at 40/35/25 lists all three); the editor preview draws the bars and fields layouts, and a bars block of plain numbers is one map of numbers; a list's line in the prompt tail stays within its 250 tokens and, with every entry open, hides the oldest behind "+N more"; `show.into` is a lowercase tab id and needs the block's own tab.
 - **Moving a running chat to a changed pack version:** Settings → Tabs & Packs → Data modules → **Migrate** on each changed module (preview, then confirm); Ersveil 2.7.0 changes four. The preview no longer prints "New fields: {}" when nothing is added. See docs/v2/ERSVEIL.md and docs/FAQ.md.
 
-- **Public paths from modules (internal sdk):** `sdk.registerPublicPaths({ owner, prefix, paths, get, hidden })` lets a module offer
-  its values under one prefix. `StoryBlock.api.get`, `paths()`, `{{sb::…}}` and the `story:changed` lists include them, with the same
-  rules (frozen plain copies, hidden values never returned, read-only). One owner per prefix; Story Block's own roots cannot be
-  taken. NPC State Delta 1.10.0 uses it for `npc.<name>.<meter>`. See docs/v2/PUBLIC-API.md.
+### Blocks, data modules and the Reputation tab
 
-Your own equipment, set up by hand (gear on).
-- **"+ Add item" opens the grouped form** (the one the Game view's Edit uses) when Gear in fights is on: Item (Name, Count, Kind, Note) and, for
-  Equipment, Gear (Slot, Rarity, Bonus up to 2 stats held to the rarity's points with a live "N of M points" line, Equip on: the reader or a party member).
-  Save adds the piece and puts it on in one command; a second accessory goes to Accessory 2. With gear off nothing changes.
-- **Starting kit:** Rarity and Bonus can be set only while the chat has no message from you yet (a greeting swipe keeps it open; deleting your messages
-  or rewinding to the greeting opens it again). Afterwards "+ Add item" still offers Kind, Slot and Equip on, but Rarity is Common with no Bonus, and Edit
-  shows Rarity and Bonus read-only on pieces you added. The commands (`inventory.add`, `inventory.edit`) hold these rules themselves: a bonus over the
-  rarity's budget, and Rarity or Bonus after your first message, are refused.
-- **Edit of a piece you added** shows the same fields; Kind can change (Equipment later is Common with no Bonus). A pack's item gets one hint ("Kind, slot and rarity
-  come from the pack"); the story's pieces and bound gear are unchanged.
-- **The kit is only the opening greeting:** it is open while the chat holds the greeting and nothing else. Deleting only your own messages while a reply stays, a narrator or
-  member speaking on its own (group auto mode), or a chat with no greeting at all, keep it closed. The form says "Starting kit belongs to this greeting."
-- **Why is my added item Common?** After the kit, "+ Add item" always makes a Common piece with no bonus. A name that a story or pack piece already has never copies its
-  rarity or bonus: you get your own Common piece ("Your Ash-grey Longsword"); adding to a piece you made yourself still stacks. A saved character's gear (`starting: true`)
-  is kept as written only while the kit is open; after it, it comes in as Common with no bonus and the Problems list says so.
-- A saved character file keeps a hand-set piece's slot and bonus exactly (`slot`, `stats` on the item).
-- Style: the 32 px controls only on a roomy screen with a fine pointer (a phone keeps 44 px); groups as in the mockup (Count and Kind, Slot and Rarity share a row, the rarity
-  word in its colour, "Astra (you)"), stacked below 600 px, and the editing row using the full width on a phone. Goods made Equipment in the kit saves the Rarity shown.
-
-Extra skill slots and cast signature skills.
-- **Extra skill slots:** a sixth skill at Lv 20, a seventh at Lv 40, an eighth at Lv 60 (five to start). The `learn-N` and `practice-N` lines run 1..8, character files hold up to eight skills, a level drop keeps every skill. New Skills blocks have eight slots; a block made earlier is extended automatically (additive, recorded with the action) when its character first needs a slot it lacks or a returning cast member's skills need marking. Static prompt: the Skills block's description grows by 49 characters (Classic; 47 Standard); tail: up to 47 tokens (measured, the longest line one skill makes) for each skill held past five; an empty slot reserves nothing.
-- **Cast signature skills:** a pack's cast entry may list `skills` (name, about, stat, uses, rank). They fill the member's free slots when they join (never retroactively, never twice), carry a lock mark, cannot be renamed or replaced by the story (one Problems line), keep rank and practice when the member leaves and returns, and show as one tile each in the join's receipt. Ersveil gives its 12 cast members 2 to 4 skills each.
-- **Re-read and the Skills blocks (fixes):** a Re-read of a join made before the extra slots rebuilds the five-slot block that reply made (no signature mark), and a Re-read of such a join or return seeds nothing and leaves its learn lines alone, so skills learned later are kept; a Re-read of a join seeds from the Skills block the join pinned, so a pencil edit on the reply changes nothing; a block made earlier is extended only when a learn line would otherwise have no slot (and a Re-read extends it only when the reply, as it stands, holds the extended block); a learn line that names a slot the block lacks goes to a free one. Ask mode: a Re-read of the offer reply keeps the offered skills, and Edit first keeps signature skills as the pencil does (name and wording only; no re-stat, no removal) and writes the join's tiles. A character file keeps all its skills (up to eight) after a level drop. The refusal after a level drop says when every slot is full instead of promising a slot at Lv 40, and an unknown kind lists only the learn kinds the block has.
-
-Blocks and data modules draw by the shape of their data, and Ersveil's reputation is one tab (BLOCKS).
+Blocks and data modules draw by the shape of their data, and Ersveil's reputation is one tab.
 - **Quest cards.** A block's `entries` field is read through `layout`, `roles` and `tones` (BLOCKEDIT): cards with a title and status chip, the
   description clamped to two lines with More, the step with an icon; the open ones first, the others under a collapsed "Finished (n)".
 - **A map of numbers** (fame, standing) has a header, a row with a value and a bar for each key, highest first, and the keys
@@ -42,10 +19,10 @@ Blocks and data modules draw by the shape of their data, and Ersveil's reputatio
 - **A record card** for a module's plain fields (the Guild), and meters with no `max` show their values.
 - **Screens that share a `tab` are one tab** (`tab`, `tabTitle`, `order` on a pack screen; `show.into` on a block).
 - Ersveil: Standing, Fame, Guild and Court favour are sections of one Reputation tab (Court favour has a screen now). The pack
-  data is ready; at integration set `requires.storyBlock` to `^2.22.0` in examples/packs/ersveil/pack.json and rebuild the zip.
+  data needs Story Block ^2.22.0 (`requires.storyBlock` in examples/packs/ersveil/pack.json, Ersveil 2.7.0).
 - Display only: the prompt is byte for byte the same (tests/v2/packs/ersveil-reputation.test.js).
 
-Draft for 2.22.0 (the lead integrates it). The block editor and a new field type, **List of entries**.
+The block editor and a new field type, **List of entries**.
 - **List of entries (`type: "entries"`):** a block field that holds a list of small records, each with its own parts
   (`of`: up to 8 text, number or choice parts) and a most-entries `max` (default 30, at most 50). The story adds, changes and
   drops entries with its own lines: `+ dm quests — why | kind: add-quests | title: …`, `~ … | kind: set-quests | at: <number or title> | status: done`
@@ -70,8 +47,40 @@ Draft for 2.22.0 (the lead integrates it). The block editor and a new field type
   has 250 tokens (100 before), shows open entries first, never cuts an entry and ends "+N more"; deleting an earlier reply no
   longer makes later adds stale (changes and drops still wait for a Re-read); a block saved again keeps its bytes (no `layout`
   is written for the default or for an old block the author did not change).
-- The cards themselves are drawn by the block-layouts work; until it is merged the preview is a plain sketch and Show in tab is
-  empty (the editor takes `tabs` and `renderPreview` from the host).
+- The cards are drawn by the block layouts above (the editor takes `tabs` and `renderPreview` from the host).
+
+### Public paths
+
+- **Public paths from modules (internal sdk):** `sdk.registerPublicPaths({ owner, prefix, paths, get, hidden })` lets a module offer
+  its values under one prefix. `StoryBlock.api.get`, `paths()`, `{{sb::…}}` and the `story:changed` lists include them, with the same
+  rules (frozen plain copies, hidden values never returned, read-only). One owner per prefix; Story Block's own roots cannot be
+  taken. NPC State Delta 1.10.0 uses it for `npc.<name>.<meter>`. See docs/v2/PUBLIC-API.md.
+
+### Gear and skills
+
+Your own equipment, set up by hand (gear on).
+- **"+ Add item" opens the grouped form** (the one the Game view's Edit uses) when Gear in fights is on: Item (Name, Count, Kind, Note) and, for
+  Equipment, Gear (Slot, Rarity, Bonus up to 2 stats held to the rarity's points with a live "N of M points" line, Equip on: the reader or a party member).
+  Save adds the piece and puts it on in one command; a second accessory goes to Accessory 2. With gear off nothing changes.
+- **Starting kit:** Rarity and Bonus can be set only while the chat has no message from you yet (a greeting swipe keeps it open; deleting your messages
+  or rewinding to the greeting opens it again). Afterwards "+ Add item" still offers Kind, Slot and Equip on, but Rarity is Common with no Bonus, and Edit
+  shows Rarity and Bonus read-only on pieces you added. The commands (`inventory.add`, `inventory.edit`) hold these rules themselves: a bonus over the
+  rarity's budget, and Rarity or Bonus after your first message, are refused.
+- **Edit of a piece you added** shows the same fields; Kind can change (Equipment later is Common with no Bonus). A pack's item gets one hint ("Kind, slot and rarity
+  come from the pack"); the story's pieces and bound gear are unchanged.
+- **The kit is only the opening greeting:** it is open while the chat holds the greeting and nothing else. Deleting only your own messages while a reply stays, a narrator or
+  member speaking on its own (group auto mode), or a chat with no greeting at all, keep it closed. The form says "Starting kit belongs to this greeting."
+- **Why is my added item Common?** After the kit, "+ Add item" always makes a Common piece with no bonus. A name that a story or pack piece already has never copies its
+  rarity or bonus: you get your own Common piece ("Your Ash-grey Longsword"); adding to a piece you made yourself still stacks. A saved character's gear (`starting: true`)
+  is kept as written only while the kit is open; after it, it comes in as Common with no bonus and the Problems list says so.
+- A saved character file keeps a hand-set piece's slot and bonus exactly (`slot`, `stats` on the item).
+- Style: the 32 px controls only on a roomy screen with a fine pointer (a phone keeps 44 px); groups as in the mockup (Count and Kind, Slot and Rarity share a row, the rarity
+  word in its colour, "Astra (you)"), stacked below 600 px, and the editing row using the full width on a phone. Goods made Equipment in the kit saves the Rarity shown.
+
+Extra skill slots and cast signature skills.
+- **Extra skill slots:** a sixth skill at Lv 20, a seventh at Lv 40, an eighth at Lv 60 (five to start). The `learn-N` and `practice-N` lines run 1..8, character files hold up to eight skills, a level drop keeps every skill. New Skills blocks have eight slots; a block made earlier is extended automatically (additive, recorded with the action) when its character first needs a slot it lacks or a returning cast member's skills need marking. Static prompt: the Skills block's description grows by 49 characters (Classic; 47 Standard); tail: up to 47 tokens (measured, the longest line one skill makes) for each skill held past five; an empty slot reserves nothing.
+- **Cast signature skills:** a pack's cast entry may list `skills` (name, about, stat, uses, rank). They fill the member's free slots when they join (never retroactively, never twice), carry a lock mark, cannot be renamed or replaced by the story (one Problems line), keep rank and practice when the member leaves and returns, and show as one tile each in the join's receipt. Ersveil gives its 12 cast members 2 to 4 skills each.
+- **Re-read and the Skills blocks (fixes):** a Re-read of a join made before the extra slots rebuilds the five-slot block that reply made (no signature mark), and a Re-read of such a join or return seeds nothing and leaves its learn lines alone, so skills learned later are kept; a Re-read of a join seeds from the Skills block the join pinned, so a pencil edit on the reply changes nothing; a block made earlier is extended only when a learn line would otherwise have no slot (and a Re-read extends it only when the reply, as it stands, holds the extended block); a learn line that names a slot the block lacks goes to a free one. Ask mode: a Re-read of the offer reply keeps the offered skills, and Edit first keeps signature skills as the pencil does (name and wording only; no re-stat, no removal) and writes the join's tiles. A character file keeps all its skills (up to eight) after a level drop. The refusal after a level drop says when every slot is full instead of promising a slot at Lv 40, and an unknown kind lists only the learn kinds the block has.
 
 ## 2.21.2
 

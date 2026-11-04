@@ -255,7 +255,7 @@ test('templates keep the new keys and open in the editor; an export of them asks
     assert.equal(exported.ok, true, JSON.stringify(exported.errors));
     assert.equal(exported.pack.requires.storyBlock, '^2.22.0');
     assert.equal(validatePack(exported.text, { hostVersion: '2.22.0' }).ok, true);
-    assert.equal(validatePack(exported.text).ok, false, 'an older Story Block refuses it by its version');
+    assert.equal(validatePack(exported.text, { hostVersion: '2.21.2' }).ok, false, 'an older Story Block refuses it by its version');
     // a block with none of the new keys keeps the old requirement
     const plain = buildBlock({ name: 'Notes', fields: [{ name: 'Mood', type: 'text', max: 30, default: 'calm' }], functions: [], prompt: '', show: { tab: true, card: false, tabName: 'Notes', icon: 'ph-star' } });
     assert.equal(exportBlockPack(plain.checked).pack.requires.storyBlock, '^2');
