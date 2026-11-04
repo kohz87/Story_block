@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.22.4
+
+Equipment you add as Equipment is equipment, and the Party card's buttons fit.
+
+### Fixes
+
+- **"+ Add item" as Equipment.** A name that already had a definition (an item added earlier as goods, or a character file's
+  goods, even after it was removed from the bag) kept that old kind: Kind, Slot and Equip on were dropped, or refused with "Slot,
+  bonus and Equip on are for equipment." Now the reader's Kind = Equipment remakes their own item as equipment, in the same add
+  (recorded with it, so replay, swipes and Re-read agree): an item they made whose only copies are their own single pieces, or one
+  with no copy left. Pack items, items the story gave or a bound piece are never changed ("Remove it first and add it again, or
+  give this one another name."). Equipment with no slot anywhere asks for one ("Choose a slot for …"). Items already saved as
+  goods: remove them, then add them again as Equipment (docs/v2/GEAR.md).
+- **Slots from compound names.** A story line's item name now finds its slot in common compound gear words too (Longsword,
+  Warhammer, Battleaxe, Longbow, Crossbow, Breastplate, Chainmail…), from a fixed list matched as whole words — never by a word's
+  ending, so a Lucky Horseshoe or a Crossword Puzzle stays goods. Gauntlets, gloves, bracers and bracelets are accessories.
+- **Party card buttons.** With gear on, the card's four buttons (Stats or Spend points, Skills, Inventory, Export) no longer spill
+  their labels in a narrow card: the row wraps instead.
+
 ## 2.22.3
 
 Reading the story no longer replays it: dossiers and other modules' queries stop freezing the page.

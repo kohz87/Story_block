@@ -44,7 +44,7 @@ import { createRpgLoader } from './rpg-lazy.js';
 import { createPublicApi } from './public-api.js';
 import { createPublicPaths } from './public-paths.js';
 
-export const VERSION = '2.22.3';
+export const VERSION = '2.22.4';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to

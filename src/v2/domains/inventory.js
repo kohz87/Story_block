@@ -12,7 +12,7 @@ import {
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
 import { WALLET_KEY, coinValue, countedMoney, formatAmount, formatWallet, isCurrencyName, parseAmount, resolveCurrency } from './money.js';
 import { DEF_ID, isId } from '../check.js';
-import { GEAR, atLimit, condMark, createGearQueries, gearDefine, handDef, itemCarryOf, packBonus, placeOf, slotWordOf, statsFor, statsOf, stepDown, stepUp, valueByCond } from './gear.js';
+import { GEAR, atLimit, condMark, createGearQueries, gearDefine, gearSlotOf, handDef, itemCarryOf, packBonus, placeOf, slotWordOf, statsFor, statsOf, stepDown, stepUp, valueByCond } from './gear.js';
 import { STRINGS, fill } from '../strings.js';
 
 const E = STRINGS.editMessages;
@@ -1324,6 +1324,27 @@ function handSlot(ctx, raw) {
     return word;
 }
 
+/**
+ * "+ Add item" with Kind = Equipment names a definition that already exists and is not equipment (or is the reader's own equipment with no slot): the
+ * reader's choice wins and the definition is made equipment in this same add (its own recorded op, so a replay does the same), only when nobody but
+ * the reader has a claim on it:
+ *  - never a pack's definition (`pack.…`), a bound piece's, or anything with a stack the story gave (`story: true`);
+ *  - a definition marked `hand` (made by a reader's add): also while the reader's own stacks of it are held (each of one, as equipment does not stack);
+ *  - any other `story/` definition (older saves did not mark the reader's): only while no stack of it is left, as when the reader has deleted it.
+ * Anything else is refused with a sentence that says what to do.
+ */
+function remakeAsEquipment(ctx, inv, def, keep, slot) {
+    const fixable = def.kind !== 'equipment' || (!def.slot && Boolean(slot));
+    if (!fixable) return;
+    const stacks = Object.values(inv.stacks).filter(stack => stack.def === def.id);
+    const theirs = def.id.startsWith('story/') && !stacks.some(stack => stack.story === true || stack.bound !== undefined)
+        && (def.hand === true ? stacks.every(stack => stack.qty === 1) : stacks.length === 0);
+    if (!theirs) ctx.fail('REFUSED', fill(E.kitExisting, { name: def.name, kind: def.kind }));
+    const place = keep.slot ?? def.slot ?? gearSlotOf(null, def.name);
+    Object.assign(inv.defs[def.id], { kind: 'equipment', stack: false, slot: place ?? null, stats: keep.stats ?? {}, hand: true });
+    def.kind = 'equipment'; def.stack = false; def.slot = place ?? null; def.stats = keep.stats ?? {};
+}
+
 // Where a piece of `slot` goes on `owner`: an accessory takes the place named when it is free, else the other one when that is free
 // (a second accessory goes to Accessory 2), else the place named. Other slots are their own place.
 function handPlace(inv, owner, stackId, slot) {
@@ -1600,6 +1621,10 @@ export function createInventoryCommands(env) {
                 if (Object.keys(stats).length) keep.stats = stats;
             }
             const { def, created } = defineByName(ctx, inv, written, env, { note, owner }, true, keep);
+            // The reader's explicit Kind = Equipment wins over a definition of the reader's own that this name already reached (see `remakeAsEquipment`).
+            if (gear && payload.starting !== true && !created && keep.kind === 'equipment' && written === name) remakeAsEquipment(ctx, inv, def, keep, slot);
+            // Equipment with no place to be worn is refused here (the reader's Slot, else a slot word in the name, else the definition's own).
+            if (gear && payload.starting !== true && keep.kind === 'equipment' && def.kind === 'equipment' && !def.slot) ctx.fail('REFUSED', fill(E.kitNoSlot, { name: def.name }));
             // (slot, bonus and putting on are for equipment: judged on the def the name means, which may be a pack's or the story's own)
             if (gear && payload.starting !== true && (slot || Object.keys(stats).length) && def.kind !== 'equipment') ctx.fail('INVALID', E.gearNeedsEquipment);
             if (created && gear && def.id.startsWith('story/')) inv.defs[def.id].hand = true;

@@ -125,7 +125,21 @@ const NAME_SLOT = Object.freeze({
     cloak: 'cloak', cape: 'cloak', mantle: 'cloak',
     boot: 'feet', shoe: 'feet', sandal: 'feet',
     ring: 'accessory', amulet: 'accessory', pendant: 'accessory', belt: 'accessory',
+    gauntlet: 'accessory', glove: 'accessory', bracer: 'accessory', bracelet: 'accessory',
 });
+// Real compound gear words ("Longsword", "Warhammer", "Breastplate", "Longbow"), each matched as a whole word (a plural s is allowed, as for the nouns above).
+// No word is read by its ending: "horseshoe", "reboot", "windshield", "crossword", "flagstaff" and "rainbow" are not gear.
+const COMPOUND_SLOT = Object.freeze({
+    longsword: 'weapon', shortsword: 'weapon', broadsword: 'weapon', greatsword: 'weapon', bastardsword: 'weapon', twohandedsword: 'weapon',
+    warhammer: 'weapon', battleaxe: 'weapon', greataxe: 'weapon', handaxe: 'weapon', warstaff: 'weapon', quarterstaff: 'weapon',
+    longbow: 'weapon', shortbow: 'weapon', crossbow: 'weapon', greatbow: 'weapon', warbow: 'weapon',
+    breastplate: 'body', chainmail: 'body', platemail: 'body', ringmail: 'body',
+});
+const slotOfWord = word => {
+    if (Object.hasOwn(NAME_SLOT, word)) return { slot: NAME_SLOT[word] };
+    if (Object.hasOwn(COMPOUND_SLOT, word)) return { slot: COMPOUND_SLOT[word] };
+    return null;
+};
 const foldHand = text => String(text ?? '').normalize('NFKC').toLowerCase().replace(/off[\s-]*hand/g, 'offhand');
 
 // The stat a kind of thing raises when nothing else says (the name's last matching noun), else the slot's own (GEAR.slotStat).
@@ -157,8 +171,8 @@ export const placeOf = slot => (slot === 'accessory' ? 'accessory-1' : slot);
 export function gearSlotOf(kindWord, name) {
     const said = slotWordOf(kindWord);
     if (said) return said;
-    const nouns = words(name).map(singular).filter(word => Object.hasOwn(NAME_SLOT, word));
-    return nouns.length ? NAME_SLOT[nouns[nouns.length - 1]] : null;
+    const found = words(name).map(singular).map(slotOfWord).filter(Boolean);
+    return found.length ? found.at(-1).slot : null;
 }
 
 // The five rarity words and their usual synonyms (a `rarity:` or `quality:` label).
