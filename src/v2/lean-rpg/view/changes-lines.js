@@ -4,7 +4,7 @@
 // fields' `names`). They come in the shape `replyCardLines` gives (ui-host.js adds them to the card's `moduleLines`).
 // Pure: no DOM.
 
-import { FIGHT, FORMULA, RESOLVE } from '../index.js';
+import { FIGHT, FORMULA, PRACTICE_STEP, RESOLVE } from '../index.js';
 import { STANDARD, normalizeRules } from '../rules.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { rpgBlocks, readParty, skillsOf } from './party-data.js';
@@ -95,6 +95,24 @@ export function fightLines(record, problems = []) {
 }
 
 /**
+ * The practice code gave for the skills this reply's rolls used (practice.js), one line each: "Astra's Shadow Cut +6 practice (rolled)", from the
+ * step's own receipt (`data.v2.result.practice.skills`): a swipe or a delete takes the receipt and so the line away, and a step the replay skipped is not told.
+ */
+export function practiceLines(record, problems = []) {
+    const skipped = new Set(list(problems).flatMap(problem => list(problem?.receipts)));
+    const out = [];
+    for (const receipt of list(record?.receipts)) {
+        if (receipt?.type !== PRACTICE_STEP || skipped.has(receipt.id)) continue;
+        for (const entry of list(receipt.data?.v2?.result?.practice?.skills)) {
+            const who = words(entry?.who), skill = words(entry?.skill);
+            if (!who || !skill || !Number.isSafeInteger(entry.amount) || entry.amount <= 0) continue;
+            out.push(line({ icon: 'fa-dumbbell', tone: 'good', text: fill(C.practice, { who, skill, amount: entry.amount }), summary: fill(C.practiceSummary, { who, skill, amount: entry.amount }), note: C.practiceNote }));
+        }
+    }
+    return out;
+}
+
+/**
  * The RPG's lines for one reply. `state` is the reply's state, `before` the one before it (null for the first reply: no
  * rises are told then), `record` the reply's record, `problems` the replay problems of that reply. `rules`: the numbers in force
  * now, used only for a reply that has no roll of its own (its roll's recorded numbers win).
@@ -110,6 +128,7 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
     }
     out.push(...partyLines(record, problems));
     out.push(...fightLines(record, problems));
+    out.push(...practiceLines(record, problems));
     if (!before) return out;
     const then = new Map(readParty(before, { roleOf }).map(character => [`${character.module}|${character.subject}`, character]));
     for (const character of readParty(state, { roleOf })) {

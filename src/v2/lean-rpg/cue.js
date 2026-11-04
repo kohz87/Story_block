@@ -9,6 +9,8 @@ export const OUTCOME_WORD = Object.freeze({ success: 'SUCCESS', cost: 'SUCCESS A
 /** Tokens as the prompt budget counts them (§5): about four characters each. */
 export const cueTokens = text => Math.ceil(String(text ?? '').length / 4);
 
+// An ambush check (ambush.js) tells the narrator what it did: the party has the drop, or there is no surprise.
+const ambushNote = line => (line.ambush === true ? (line.outcome === 'success' ? '; ambush works, the party strikes first' : '; ambush fails, no surprise') : '');
 const numbers = line => `(${line.pc.total} vs ${line.kind === 'check' ? line.dc : line.foe.total})`;
 
 // Names are cut at this many characters only as the last way to fit the cue (shape 3 below).
@@ -48,10 +50,10 @@ export function lineText(line, { compact = false, names = 0, shown = name => nam
     if (line.type && line.kind !== 'check') return standardLine(line, { names, shown, word, who });
     if (line.type && line.support) return `${who} → ${shown(line.target)}${line.skill ? ` (${cut(line.skill, names)}, support)` : ' (support)'}: ${word} ${numbers(line)}${line.damage ? `, heals${line.decisive ? ' well' : ''}` : ''}`;
     if (line.kind === 'check') {
-        if (compact) return `${who} — ${line.difficulty} check: ${word} ${numbers(line)}`;
+        if (compact) return `${who} — ${line.difficulty} check: ${word} ${numbers(line)}${ambushNote(line)}`;
         // a stat the pack hides is not named (review 163)
-        if (line.pc.statHidden && !plain) return `${who} — ${line.skill ? cut(line.skill, names) : 'check'}, ${line.difficulty}: ${word} ${numbers(line)}`;
-        return `${who} — ${cut(line.skill ?? line.pc.stat.toUpperCase(), names)} (${line.pc.stat.toUpperCase()}), ${line.difficulty}: ${word} ${numbers(line)}`;
+        if (line.pc.statHidden && !plain) return `${who} — ${line.skill ? cut(line.skill, names) : 'check'}, ${line.difficulty}: ${word} ${numbers(line)}${ambushNote(line)}`;
+        return `${who} — ${cut(line.skill ?? line.pc.stat.toUpperCase(), names)} (${line.pc.stat.toUpperCase()}), ${line.difficulty}: ${word} ${numbers(line)}${ambushNote(line)}`;
     }
     if (line.kind === 'foe') return `${shown(line.foe.name)} attacks ${who}${line.skill ? ` (${cut(line.skill, names)})` : ''}: ${word} for ${who} ${numbers(line)}`;
     return `${who} → ${shown(line.foe.name)}${line.skill ? ` (${cut(line.skill, names)})` : ''}: ${word} ${numbers(line)}`;

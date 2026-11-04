@@ -34,6 +34,8 @@ export const NOTE_LABEL = 'Reader\'s instructions:';
 export const ANSWER_TOKENS = 250;
 export const MESSAGE_LIMIT = 800;
 export const EXCERPT_LIMIT = 600;
+/** The most of a skill's own description the planner is shown. */
+export const ABOUT_LIMIT = 70;
 
 const STAT_LIST = STATS.map(stat => stat.toUpperCase()).join('|');
 const DIFFICULTY = 'difficulty: easy|normal|hard|very hard';
@@ -47,7 +49,8 @@ const SHARED_RULES = [
 ];
 const TAIL_RULES = [
     '- A defender\'s fitting skill (dodge, parry, ward) goes on the foe line.',
-    '- pace: careful if the reader is careful, all if they fight it out. edge: ambush +2, trap -2.',
+    '- pace: careful if the reader is careful, all if they fight it out. edge: trap -2.',
+    '- A skill used before a fight to gain the drop on the foes (hide, sneak, lure, distract, slip behind them; judge by its description) is a check with that skill and ambush. No ambush edge without one.',
     '- Outside a fight a risky attempt (sneak, persuade, climb) is a check.',
 ];
 const FOE_NEW = 'foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?';
@@ -60,7 +63,7 @@ export const PRECALL_HEAD = [
     'foe <foe> | target: <who> | defend: <stat> | skill: <skill>?',
     'foe <foe> | hold',
     FOE_NEW,
-    `check <who> | skill: <skill>? | stat: <stat>? | ${DIFFICULTY}`,
+    `check <who> | skill: <skill>? | stat: <stat>? | ${DIFFICULTY} | ambush?`,
     'none',
     'Rules:',
     ...SHARED_RULES,
@@ -76,11 +79,11 @@ export const PRECALL_HEAD_STANDARD = [
     'foe <foe> | target: <who> | skill: <skill>? | magic?',
     'foe <foe> | hold',
     FOE_NEW,
-    `check <who> | skill: <skill>? | type: social|check | fit: ${STAT_LIST}? | ${DIFFICULTY}`,
+    `check <who> | skill: <skill>? | type: social|check | fit: ${STAT_LIST}? | ${DIFFICULTY} | ambush?`,
     'none',
     'Rules:',
     ...SHARED_RULES,
-    '- Use listed names only. A skill brings its stat: write none.',
+    '- Use listed names only. A skill brings its own stat; leave the stat out.',
     '- type: physical (blades), magic (spells, mana), social (talk, bluff), check (rest). area: all foes. support: heals or helps. magic on a foe: a spell.',
     '- fit: the stat a check leans on (STR climb, AGI sneak, INT lore).',
     ...TAIL_RULES,
@@ -101,7 +104,10 @@ export function sheetText(sheet, { standard = false, rankAt = null } = {}) {
         const skillText = skill => {
             const open = part => !(skill.hidden ?? []).includes(part);
             const parts = [open('rank') ? word(RANK_NAMES, skill.rank) : '', skill.stat && open('stat') ? skill.stat.toUpperCase() : '', skill.uses === 'mana' && open('uses') ? 'mana' : ''].filter(Boolean);
-            return parts.length ? `${skill.name} (${parts.join(', ')})` : skill.name;
+            // What the skill does, cut short: the planner judges from it whether a skill sets up a fight (an ambush check).
+            const about = skill.about && open('about') ? clip(skill.about.replace(/\s+/g, ' ').trim(), ABOUT_LIMIT) : '';
+            const inside = [parts.join(', '), about].filter(Boolean).join(': ');
+            return inside ? `${skill.name} (${inside})` : skill.name;
         };
         const skills = entry.skills.length ? entry.skills.map(skillText).join(', ') : 'none';
         const down = entry.alive === false || (entry.health === 0 && shown('health')) ? ' DOWN' : '';

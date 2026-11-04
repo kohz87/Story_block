@@ -51,6 +51,7 @@
 //     flow?: 2,                                                  the rule the rounds stopped by (FLOW_VERSION)
 //     checks: [Line], rounds: [{ n, decisive, lines: [Line] }],   the rounds TOLD to the narrator, in order
 //     refused: [{ who, text }],                              not rolled, or a skill refused (text is a plain sentence)
+//     ambush?: { who, skill, outcome, total, dc, success }  an ambush check's result (ambush.js); a success gave the party's round-1 acts +2
 //     summary: { exchanges, acts: [{ kind, who, target, skill, stat, outcomes: ['success'|'cost'|'fail', …] }], refused: n } }
 // and a Line is
 //   { kind: 'act' | 'foe' | 'check', outcome: 'success'|'cost'|'fail', skill: string|null, why?: string,
@@ -76,6 +77,7 @@ import { applyGear, earnedLegend, gearMarkOf, gearMatches, gearValid, noteGear, 
 import { condWord, stepDown } from '../domains/gear.js';
 import { partyLevels, averageLevel, settleOpen } from './foes.js';
 import { rng as seededRandom } from '../rng.js';
+import { ambushOf, ambushedClassic } from './ambush.js';
 
 export const RESULT_VERSION = 1;
 /** The version of the dice scheme a payload asks for (`dice` in the payload of `rpg.resolve`): 2 = dice per action position. */
@@ -197,7 +199,7 @@ export function prepare(plan, sheet, rules = STANDARD, options = {}) {
         const stat = statOf(actor.character, skill.stat, skill.statHidden);
         if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`, `${label}: not rolled (${stat.plain ?? stat.refusal}).`); continue; }
         if (skill.refused) refuse(check.who, skill.refused, skill.refusedPlain);
-        out.checks.push({ at, kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules, skill.statHidden) });
+        out.checks.push({ at, kind: 'check', skill: skill.skill, ...(check.ambush === true ? { ambush: true } : {}), difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules, skill.statHidden) });
     }
     // (From a roll of the Levels rules, `options.lv`, a foe adds floor(level / divisor); else classWeight × class, as it did.)
     const foeSide = foe => (options.lv
@@ -234,7 +236,7 @@ function classicRoster(sheet) {
 
 const rolled = (entry, pcDie, foeDie, rules) => {
     const pcTotal = pcDie + entry.pc.statBonus + entry.pc.classBonus + entry.pc.rank + entry.pc.edge;
-    const line = { kind: entry.kind, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), pc: { ...entry.pc, die: pcDie, total: pcTotal } };
+    const line = { kind: entry.kind, skill: entry.skill, ...(entry.ambush === true ? { ambush: true } : {}), ...(entry.why ? { why: entry.why } : {}), pc: { ...entry.pc, die: pcDie, total: pcTotal } };
     if (entry.kind === 'check') return { ...line, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeOf(pcDie, pcTotal, entry.dc, rules) };
     const foeTotal = foeDie + entry.foe.base + entry.foe.classBonus;
     const decisive = [pcDie, foeDie].some(die => die === 1 || die === FORMULA.die) || Math.abs(pcTotal - foeTotal) >= rules.decisiveMargin;
@@ -275,8 +277,9 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
     if (flow === FLOW_VERSION && source.positional === true && prepared.roster) return rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf);
     const most = fight.length ? Math.min(PACE[plan.pace], rules.roundCap) : 0;
     const all = [];
+    const ambush = ambushOf(checks);
     for (let n = 1; n <= most; n += 1) {
-        const lines = fight.map(entry => { const roll = diceOf(entry); return rolled(entry, roll(), roll(), rules); });
+        const lines = fight.map(entry => { const roll = diceOf(entry); return rolled(ambushedClassic(entry, n, ambush), roll(), roll(), rules); });
         const decisive = lines.some(line => line.decisive);
         all.push({ n, decisive, lines: lines.map(({ decisive: _, ...line }) => line) });
         if (decisive) break;
@@ -288,7 +291,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
     const decisive = rounds.length > 0 && rounds.at(-1).decisive;
     const stop = !rounds.length ? 'none' : fits < all.length ? 'budget' : decisive ? 'decisive' : rounds.length === PACE[plan.pace] ? 'pace' : 'cap';
     const text = cue.text;
-    return { checks, rounds, stop, text, shape: cue.shape, summary: summaryOf(checks, rounds, prepared.refused) };
+    return { checks, rounds, stop, text, shape: cue.shape, summary: summaryOf(checks, rounds, prepared.refused), ...(ambush && fight.length ? { ambush } : {}) };
 }
 
 // Classic under the flow of stage 49: the rounds go on until the fight is won, lost or heavy, the cap or the careful pace (see the top). `checks` and `fight`
@@ -302,6 +305,7 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = 
     const standing = id => (bars.get(id)?.value ?? 0) > 0;
     const most = fight.length ? (plan.pace === 'careful' ? 1 : rules.roundCap) : 0;
     const all = [];
+    const ambush = ambushOf(checks);
     for (let n = 1; n <= most; n += 1) {
         const lines = [], idle = [];
         const said = (id, who, kind, why) => { if (!idle.some(item => item.id === id && item.why === why)) idle.push({ n, id, who, kind, why }); };
@@ -316,7 +320,7 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = 
                 if (!standing(theirs.id)) { said(theirs.id, theirs.name, 'foe', 'beaten'); continue; }
                 if (!standing(mine.id)) { said(theirs.id, theirs.name, 'foe', 'no-target'); continue; }
             }
-            const line = rolled(entry, pcDie, foeDie, rules);
+            const line = rolled(ambushedClassic(entry, n, ambush), pcDie, foeDie, rules);
             const pcTotal = line.pc.total, foeTotal = line.foe.total;
             const hit = entry.kind === 'act' ? line.outcome !== 'fail' : line.outcome === 'fail';
             if (hit) {
@@ -338,7 +342,7 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = 
     const told = all.slice(0, cue.count);
     const rounds = told.map(({ end: _, ...round }) => round);
     const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : told.at(-1).end ?? (plan.pace === 'careful' ? 'pace' : 'cap');
-    return { checks, rounds, stop, text: cue.text, shape: cue.shape, summary: summaryStd(checks, rounds, prepared.refused) };
+    return { checks, rounds, stop, text: cue.text, shape: cue.shape, summary: summaryStd(checks, rounds, prepared.refused), ...(ambush && fight.length ? { ambush } : {}) };
 }
 
 // "Rolled for you: N exchanges": one entry per action of the plan with its outcome in each round told.
@@ -452,7 +456,7 @@ export function resolve(ctx, payload = {}) {
     ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
     const result = {
         v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(gear ? { gear } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
-        refused: prepared.refused, summary: dice.summary, ...(opening ? { opened } : {}), ...(wear.length ? { wear } : {}), ...(legend ? { legend: 1 } : {}),
+        refused: prepared.refused, summary: dice.summary, ...(dice.ambush ? { ambush: dice.ambush } : {}), ...(opening ? { opened } : {}), ...(wear.length ? { wear } : {}), ...(legend ? { legend: 1 } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
     if (std) writeBars(ctx, dice.hurts);

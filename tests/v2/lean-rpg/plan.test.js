@@ -52,7 +52,8 @@ test('the full answer is read into the plan', () => {
         pace: 'normal',
         acts: [
             // a skill the character has brings its own stat and resource: the lines' STR, INT and mana are not kept
-            { who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats', edge: 2, why: 'ambush from the drain lip' },
+            // (PRACTICE-FIX 4: the act's own "+2 ambush" edge is dropped: there is no ambush check in this plan)
+            { who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' },
             { who: 'Ren', skill: 'Spark', target: 'Sluice Rats' },
         ],
         foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }],

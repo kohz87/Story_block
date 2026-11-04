@@ -173,7 +173,10 @@ export function readResolve(result, { soulOf = () => null } = {}) {
         ...(rolledAt.has(fold(words(item.name, 40))) && Number.isFinite(rolledAt.get(fold(words(item.name, 40)))) ? { level: rolledAt.get(fold(words(item.name, 40))) } : {}) })).filter(item => item.name);
     const order = entries.length ? entries.map(item => item.name) : [...new Set(rounds[0]?.lines.map(line => line.who) ?? [])];
     const quickStart = list(result.quickStart).filter(isRecord).map(item => ({ who: words(item.who, 40), against: words(item.against, 40) })).filter(item => item.who && item.against);
-    return { rounds, checks, refused, order, ...(entries.length ? { orderEntries: entries } : {}), ...(quickStart.length ? { quickStart } : {}), ...(opening.length ? { opening } : {}), ended: '' };
+    // An ambush check's result (ambush.js): told in one line before Round 1.
+    const ambush = isRecord(result.ambush) && words(result.ambush.who, 40) && typeof result.ambush.success === 'boolean'
+        ? { who: words(result.ambush.who, 40), what: words(result.ambush.skill, 40) ? `${words(result.ambush.skill, 40)} check` : 'check', success: result.ambush.success, total: Number.isFinite(result.ambush.total) ? result.ambush.total : '?', dc: Number.isFinite(result.ambush.dc) ? result.ambush.dc : '?' } : null;
+    return { rounds, checks, refused, order, ...(ambush ? { ambush } : {}), ...(entries.length ? { orderEntries: entries } : {}), ...(quickStart.length ? { quickStart } : {}), ...(opening.length ? { opening } : {}), ended: '' };
 }
 
 /** The recorded rolls of a reply's record: the result of its `rpg.resolve` receipt that the replay kept, or null. */
@@ -343,6 +346,7 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
     if (model.order.length) body.appendChild(el(doc, 'p', 'rpg-bl-order', `${B.turnOrder} ${(model.orderEntries ?? model.order.map(name => ({ name, total: null }))).map(item => { const name = item.level ? fill(RPG_STRINGS.blocks.orderNameLevel, item) : item.name; return item.total === null ? name : `${name} ${item.total}`; }).join(' > ')}`));
     for (const item of model.quickStart ?? []) body.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-quick', fill(RPG_STRINGS.blocks.quickStartLine, item)));
     for (const check of model.checks) body.appendChild(lineNode(doc, check, { check: true }));
+    if (model.ambush && model.rounds.length) body.appendChild(el(doc, 'p', `rpg-bl-note rpg-bl-ambush rpg-bl-ambush-${model.ambush.success ? 'won' : 'lost'}`, fill(RPG_STRINGS.blocks[model.ambush.success ? 'ambushWon' : 'ambushLost'], model.ambush)));
     if (model.opening?.length) {
         const box = el(doc, 'div', 'rpg-bl-round rpg-bl-opening');
         box.appendChild(el(doc, 'p', 'rpg-bl-round-title', B.opening));

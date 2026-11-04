@@ -26,6 +26,8 @@ export const RPG_STRINGS = Object.freeze({
         orderLine: 'Turn order: {list}',
         quickStart: '{who} gets an opening action against {against}: 10 or more ahead in the turn order.',
         quickStartLine: 'Quick start: {who} acts first against {against}.',
+        ambushWon: 'Ambush: {who}\'s {what} — Success ({total} vs {dc}): the party strikes first, +2 this round',
+        ambushLost: 'Ambush: {who}\'s {what} — Failed: no surprise',
         // Why a group or character does not act (the record's `idle`).
         idle: Object.freeze({
             beaten: '{who} does not act: beaten before its turn.',
@@ -425,6 +427,9 @@ export const RPG_STRINGS = Object.freeze({
         fightXp: '{who} +{xp} XP (fight won)',
         fightXpSummary: '{who} +{xp} XP',
         fightXpNote: 'given by code for the fight',
+        practice: '{who}\'s {skill} +{amount} practice (rolled)',
+        practiceSummary: '{who}\'s {skill} +{amount}',
+        practiceNote: 'given by code for the skill\'s rolled use',
         joined: '{who} joined the party',
         joinedSummary: '{who} joined',
         joinedNote: 'a Character and a Skills block were made',

@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING } from '../../../src/v2/lean-rpg/index.js';
+import { practiceLines, rpgReplyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { PRACTICE_HELD, usesOf } from '../../../src/v2/lean-rpg/practice.js';
 import { PRECALL_HEAD, PRECALL_HEAD_STANDARD } from '../../../src/v2/lean-rpg/precall.js';
 import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
@@ -146,6 +147,19 @@ test('rank-up: practice past 100 by code raises the rank by the block\'s rule an
     const f = sheetFields(host, 'skills');
     assert.deepEqual([f.rank1, f.practice1], [1, 0], '98 + 5 = 103: Adept, practice starts again');
     agree(host);
+});
+
+test('the reply card tells the practice code gave, in the fight XP line\'s style, from the step\'s receipt; a swipe takes it away', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3, answers: [PLAN, PLAN] });
+    await host.send('I strike.', reply());
+    const record = host.ctx.chat.at(-1).extra.storySuite;
+    assert.deepEqual(practiceLines(record).map(line => line.text), ['Astra\'s Dodge +3 practice (rolled)', 'Astra\'s Iron Breath +3 practice (rolled)']);
+    assert.equal(practiceLines(record)[0].summary, 'Astra\'s Dodge +3');
+    assert.deepEqual(rpgReplyLines({ state: host.head(), before: null, record }).map(line => line.text).filter(text => /practice/.test(text)), ['Astra\'s Dodge +3 practice (rolled)', 'Astra\'s Iron Breath +3 practice (rolled)'], 'the card shows them beside the rolls');
+    assert.deepEqual(practiceLines({ receipts: [] }), []);
+    assert.deepEqual(practiceLines({ receipts: [{ type: 'rpg.practice', id: 'x', data: { v2: { result: { practice: { skills: [{ who: 'A', skill: 'S', amount: 0 }, { who: '', skill: 'S', amount: 2 }] } } } } }] }), [], 'nothing without a name or an amount');
+    await host.swipe('Again.');
+    assert.equal(practiceLines(host.ctx.chat.at(-1).extra.storySuite).length, 2, 'the swiped reply has its own');
 });
 
 test('a roll made before practice by code has no mark and gives nothing, byte for byte as it was', { skip }, async t => {

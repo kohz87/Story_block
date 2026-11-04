@@ -4,7 +4,7 @@
 //     acts:   [{ who, skill?, uses?, stat?, target, edge?, why? }],  a party member's action against a foe
 //     foes:   [{ slot, target, defend, skill? } | { slot, hold: true }],  what a foe slot does (a number 1–4); `skill`: the
 //                                                                         defender's skill that counts when they defend
-//     checks: [{ who, skill?, uses?, stat?, difficulty }] }         a roll outside a fight
+//     checks: [{ who, skill?, uses?, stat?, difficulty, ambush? }] }  a roll outside a fight; `ambush`: a skill used to set up the fight (ambush.js)
 //
 // A skill the character has brings its own stat and resource (the Skills block's `statN` and `usesN`): an act or check
 // that names one carries no `stat` or `uses` of its own, and any it does carry are not read. `stat` is for an act with no
@@ -96,7 +96,8 @@ export function validatePlan(plan) {
     (Array.isArray(plan.checks) ? plan.checks : []).forEach((check, n) => {
         const where = `check ${n + 1}`;
         if (!isObject(check)) { errors.push(`${where} must be an object.`); return; }
-        known(check, ['who', 'skill', 'uses', 'stat', 'difficulty', ...(std ? ['type', 'fit'] : [])], where);
+        known(check, ['who', 'skill', 'uses', 'stat', 'difficulty', 'ambush', ...(std ? ['type', 'fit'] : [])], where);
+        if (check.ambush !== undefined && check.ambush !== true) errors.push(`${where} ambush must be true.`);
         text(check, 'who', where); text(check, 'skill', where, false);
         stat(check, 'stat', where, !std && check.skill === undefined);
         if (std) {
@@ -138,7 +139,7 @@ function lineOf(raw) {
     for (const part of rest) {
         const at = part.indexOf(':');
         if (at < 0) {
-            const flag = /^\s*(hold|area|magic|support|new)\s*$/i.exec(part);
+            const flag = /^\s*(hold|area|magic|support|new|ambush)\s*$/i.exec(part);
             if (flag) labels[flag[1].toLowerCase()] = true;
             continue;
         }
@@ -258,12 +259,16 @@ export function parsePlanAnswer(answer, sheet, { formula = 'classic' } = {}) {
                 if (!who || !difficulty || plan.checks.length >= LIMITS.checks) { dropped += 1; continue; }
                 const type = ['social', 'check'].includes(typeOf(labels.type)) ? typeOf(labels.type) : null;
                 const fit = statOf(labels.fit ?? labels.stat);
-                plan.checks.push({ who: who.who, ...skill.entry, ...(type ? { type } : {}), ...(fit && !skill.entry.stat ? { fit } : {}), difficulty });
+                plan.checks.push({ who: who.who, ...skill.entry, ...(type ? { type } : {}), ...(fit && !skill.entry.stat ? { fit } : {}), difficulty, ...(labels.ambush ? { ambush: true } : {}) });
                 continue;
             }
             if (!who || !(skill.stat || skill.named) || !difficulty || plan.checks.length >= LIMITS.checks) { dropped += 1; continue; }
-            plan.checks.push({ who: who.who, ...skill.entry, difficulty });
+            plan.checks.push({ who: who.who, ...skill.entry, difficulty, ...(labels.ambush ? { ambush: true } : {}) });
         }
+    }
+    // No ambush edge without an ambush check: an act's own "+2 ambush" is dropped when the plan has no check that carries `ambush` (ambush.js).
+    if (!plan.checks.some(check => check.ambush === true)) {
+        for (const act of plan.acts) if (act.edge && /\bambush/i.test(act.why ?? '')) { delete act.edge; delete act.why; }
     }
     if (none && !read) return { none: true };
     if (!read && !none) return { error: `"${oneLine(text, 80)}" has no pace, act, foe or check line and is not "none"` };

@@ -18,6 +18,7 @@
 // `area`, `support` (target = the one healed) and `opening` mark those lines. The result adds `order` = [{ id, name, total, die, bonus,
 // agi, party, fresh }] (the turn order for the fight), `quickStart` = [{ who, against }], `opening` = [Line], `idle` = [{ n, id, who,
 // kind, why }] and `hurts` = [{ id, kind, name, module, field, from, to, size }].
+import { ambushOf, ambushedStandard } from './ambush.js';
 import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, levelBonus, luckWindow, quickStart, statPart, turnOrder } from './formula.js';
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
@@ -180,7 +181,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         const { side, check } = skillSide(actor.character, skill, type, { fit: entry.fit ?? entry.stat });
         if (check.refusal) { refuse(entry.who, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(entry.who, skill.refused, skill.refusedPlain);
-        out.checks.push({ at, kind: 'check', actor: charId(actor.character), type, skill: skill.skill, ...withSkill(skill, actor.character, type, { fit: entry.fit ?? entry.stat }), difficulty: entry.difficulty, dc: LIMITS.dc[entry.difficulty], pc: side });
+        out.checks.push({ at, kind: 'check', actor: charId(actor.character), type, skill: skill.skill, ...(entry.ambush === true ? { ambush: true } : {}), ...withSkill(skill, actor.character, type, { fit: entry.fit ?? entry.stat }), difficulty: entry.difficulty, dc: LIMITS.dc[entry.difficulty], pc: side });
     }
     const bare = list => list.map(({ at: _, ...entry }) => ({ ...entry, pc: (({ statHidden: _hidden, ...pc }) => pc)(entry.pc) }));
     const standing = bar => ({ id: bar.id, name: bar.name, value: bar.value, size: bar.size });
@@ -258,9 +259,10 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const checks = prepared.checks.map(base => {
         const entry = usable(base), roll = diceOf(entry), die = roll();
         const total = die + entry.pc.statBonus + entry.pc.classBonus + entry.pc.rank + entry.pc.edge;
-        const [line] = spent(entry, [{ kind: 'check', type: entry.type, skill: entry.skill, pc: { ...entry.pc, die, total }, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeStd(die, total, entry.dc, rules) }]);
+        const [line] = spent(entry, [{ kind: 'check', type: entry.type, skill: entry.skill, ...(entry.ambush === true ? { ambush: true } : {}), pc: { ...entry.pc, die, total }, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeStd(die, total, entry.dc, rules) }]);
         return line;
     });
+    const ambush = ambushOf(checks);
     const most = fight.length ? Math.min(flow === 2 && plan.pace !== 'careful' ? rules.roundCap : PACE[plan.pace], rules.roundCap) : 0;
 
     // The turn order: kept when the fight goes on (a foe of the carried order is still there), else rolled here. A late arrival rolls on entry.
@@ -325,7 +327,8 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const use = usable(base), done = run(use);
         return done.lines ? { lines: spent(use, done.lines) } : done;
     };
-    const doAct = base => withUse(base, actOf);
+    // (an ambush that worked: the party's acts of round 1, and their opening actions, roll with the edge)
+    const doAct = (base, round = 0) => withUse(ambushedStandard(base, round, ambush), actOf);
     const doFoe = base => withUse(base, foeOf);
 
     // The opening action: a character who leads a foe by the margin acts once against it before the first round.
@@ -333,9 +336,10 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     if (fight.length && !goesOn) {
         for (const base of prepared.acts) {
             if (base.support || base.area) continue;
-            const entry = usable(base);
+            const entry = usable(ambushedStandard(base, 1, ambush));
             const mine = entries.find(item => item.id === owner(entry)), theirs = entries.find(item => item.id === foeId(entry.foe.slot));
-            if (!mine || !theirs || !quickStart(mine.total, theirs.total, rules.quickStartMargin)) continue;
+            // (an ambush that worked is the lead: the party strikes first without the margin)
+            if (!mine || !theirs || !(ambush?.success || quickStart(mine.total, theirs.total, rules.quickStartMargin))) continue;
             if (quick.some(item => item.who === entry.pc.who)) continue;
             const roll = source('open', base.at ?? 0), pcDie = roll(), foeDie = roll();
             const me = bars.get(owner(entry)), target = bars.get(foeId(entry.foe.slot));
@@ -357,7 +361,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
                 const mine = prepared.acts.filter(entry => owner(entry) === id);
                 let said = false;
                 for (const entry of mine) {
-                    const done = doAct(entry);
+                    const done = doAct(entry, n);
                     if (done.idle) { if (!said) { roundIdle.push({ n, id, who: bar.name, kind: 'char', why: standing(id) ? done.idle : 'down' }); said = true; } continue; }
                     roundLines.push(...done.lines);
                 }
@@ -397,7 +401,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const toldIdle = told.flatMap(round => round.idle ?? []);
     return {
         checks, rounds, stop, text: cue.text, shape: cue.shape, opening, order, quickStart: quick, idle: toldIdle, hurts,
-        summary: summaryStd(checks, rounds, prepared.refused),
+        summary: summaryStd(checks, rounds, prepared.refused), ...(ambush && fight.length ? { ambush } : {}),
     };
 }
 

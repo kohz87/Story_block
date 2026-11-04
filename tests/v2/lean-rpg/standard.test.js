@@ -136,8 +136,8 @@ test('Classic output is byte-identical to the build before the Standard formula:
     }, {
         // (Changed on purpose in the prompt diet (stage 59): the planner head is shorter, so `prompt` and `head` moved; the sheet, cue, rounds and witness are the same bytes.)
         // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
-        prompt: '453a9ac02ca10d32', head: 'e875787a7ea273c2', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
-        parsed: 'b0eedb0e4d7e0c16', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
+        prompt: 'd4c34c3bea6686e7', head: 'bfc6e45fa7f1b0b4', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        parsed: 'f3d9eb8728e780eb', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
     });
 });
 
@@ -180,7 +180,8 @@ test('the planner\'s Standard lines read into a plan against the sheet; a Classi
     assert.deepEqual(plan, {
         formula: 'standard', pace: 'all',
         acts: [
-            { who: 'Wessel', skill: 'Iron Breath', type: 'physical', target: 'Sluice Rats', edge: 2, why: 'ambush' },
+            // (PRACTICE-FIX 4: an act's own "+2 ambush" edge is dropped when the plan has no ambush check)
+            { who: 'Wessel', skill: 'Iron Breath', type: 'physical', target: 'Sluice Rats' },
             { who: 'Ren', skill: 'Spark', type: 'magic', area: true, target: 'Sluice Rats' },
             { who: 'Ren', skill: 'Mend', type: 'magic', support: true, difficulty: 'hard', target: 'Wessel' },
             { who: 'Wessel', type: 'social', target: 'Sluice Rats' },

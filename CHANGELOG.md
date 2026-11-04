@@ -19,6 +19,18 @@ The card offer: a character card can bring its whole world, and Story Block offe
 - **Docs:** BUILD-A-CARD.md "Ship your whole world inside the card", PACKS.md "In a character card".
 - **Fix:** the Skills card's "of 5 slots" pill no longer takes the gear card's slot-grid class, so it is a pill again and not a tall grey oval.
 - **Fix:** Install saves SillyTavern's settings at once, before it pins anything in the chat and before it says "Installed", so a quick reload cannot leave pinned modules for a pack that was not kept; if that save fails the notice says so.
+- **Fight gate fix (a 2.19.0 regression):** the planner gate also opens when the reader's message reads as combat (a sword, a foe named), and
+  cut, slice, cleave, hack, slaughter and butcher count as risky words, so "cut the gnashers down with my cane-sword" is planned.
+- **Practice comes only from rolls:** with the RPG on and Rolls automatic, skill practice comes only from a skill's rolled use. The narrator is
+  offered `learn-N` only (no `practice-N`), the XP guide and the Skills text no longer ask it to practise skills, and a story `practice-N` line is
+  refused with a Problems line ("Practice comes from rolled skill uses"). A quiet RPG-on reply's instructions are about 90 to 120 characters
+  shorter. With Rolls off everything is as before.
+- **Practice line on the reply card:** "Astra's Shadow Cut +6 practice (rolled)", beside the fight XP line.
+- **Ambush check:** a skill used before a fight to gain the drop on the foes (hiding, sneaking, luring, slipping behind them, judged from the skill's
+  description) is a planner `check` with `ambush`. A successful one gives the party's round-1 acts +2 (and, under Standard, the quick start); a
+  failed one gives nothing. The battle log says it in one line before Round 1. Without such a check there is no ambush edge (the planner head no
+  longer offers a free "edge +2" for an ambush). The planner now sees each skill's description (cut at 70 characters) and its head is about 200
+  characters longer.
 - Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
 
 ## 2.20.0
