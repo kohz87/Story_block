@@ -54,7 +54,8 @@
     background: linear-gradient(var(--ss-accent-soft, transparent), var(--ss-accent-soft, transparent)), var(--ss-glass-strong, var(--story-suite-bg));
 }
 .story-suite-bar .menu_button[hidden] { display: none; }
-.story-suite-bar .story-suite-notice {
+.story-suite-bar .story-suite-notice,
+.story-suite-sheet .story-suite-notice {
     display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0;
     padding: 6px 8px 6px 14px; border-radius: var(--ss-radius-l, 14px);
     border: 1px solid var(--ss-accent, var(--story-suite-accent));
@@ -62,9 +63,41 @@
     -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
     box-shadow: var(--ss-shadow, none);
 }
-/* The notice's class is shared with the other modules' own notices (their Extensions drawers): only the bar's gets the glass. */
+/* The notice's class is shared with the other modules' own notices (their Extensions drawers): only the bar's and the Story panel's get the glass. */
 .story-suite-notice[hidden] { display: none; }
 .story-suite-notice-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 0.9em; }
+/* The card offer at the top of the Story panel (packs/card-offer-ui.js): the notice, an optional "Also apply" line, muted lines, Install and Not now. */
+.ss-card-offers { flex: none; display: grid; gap: 8px; padding: 8px 12px 0; }
+.ss-card-offers[hidden] { display: none; }
+.story-suite-sheet .story-suite-notice.ss-card-offer {
+    display: grid; grid-template-columns: 1.1em minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; flex: none;
+    padding: 8px 10px; margin: 0;
+}
+.ss-card-offer > .ss-card-offer-icon { grid-column: 1; grid-row: 1; }
+.ss-card-offer > .story-suite-notice-text { grid-column: 2 / -1; }
+.ss-card-offer > .story-suite-notice-close { grid-column: 3; grid-row: 1; }
+.ss-card-offer:is([data-state="done"], [data-state="failed"]) > .story-suite-notice-text { grid-column: 2; grid-row: 1; }
+.story-suite-sheet .ss-card-offer .story-suite-notice-close {
+    width: 36px; height: 36px; min-height: 36px; margin: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--ss-border, var(--story-suite-line)); border-radius: 999px; background: var(--ss-tile, transparent); color: var(--ss-text, inherit);
+}
+.ss-card-offer .ss-card-offer-settings { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: 0; font-size: 0.9em; }
+.ss-card-offer .ss-card-offer-settings input { flex: none; width: 1.1em; height: 1.1em; margin: 0; }
+.ss-card-offer .ss-card-offer-note { grid-column: 2 / -1; margin: 0; font-size: 12px; }
+.ss-card-offer .ss-card-offer-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.ss-card-offer .ss-card-offer-actions .ss-button { min-height: 36px; flex: 0 0 auto; white-space: nowrap; padding-inline: 16px; }
+/* Only a pack: the buttons sit beside the text on one row. */
+.ss-card-offer:is([data-state="offer"], [data-state="working"]):not(:has(.ss-card-offer-settings, .ss-card-offer-note)) .ss-card-offer-actions { grid-column: 3; grid-row: 1; flex-wrap: nowrap; }
+.ss-card-offer:is([data-state="offer"], [data-state="working"]):not(:has(.ss-card-offer-settings, .ss-card-offer-note)) > .story-suite-notice-text { grid-column: 2; grid-row: 1; }
+@media (max-width: 759.98px) {
+    .ss-card-offer .ss-card-offer-actions .ss-button, .story-suite-sheet .ss-card-offer .story-suite-notice-close { width: 44px; height: 44px; min-height: 44px; }
+    .ss-card-offer:is([data-state="offer"], [data-state="working"]):not(:has(.ss-card-offer-settings, .ss-card-offer-note)) .ss-card-offer-actions { grid-column: 1 / -1; grid-row: auto; flex-wrap: wrap; }
+    .ss-card-offer:is([data-state="offer"], [data-state="working"]):not(:has(.ss-card-offer-settings, .ss-card-offer-note)) > .story-suite-notice-text { grid-column: 2 / -1; }
+}
+/* The dot on the Story button while an offer waits: the alert dot, put at the button's own top-right corner. */
+.story-suite-bar-story { position: relative; }
+.story-suite-bar-story > .ss-screenbar-alert { top: 3px; right: 3px; }
+.story-suite-bar-story > .ss-screenbar-alert[hidden] { display: none; }
 .story-suite-bar .story-suite-notice .menu_button { min-height: 28px; padding: 0 10px; }
 
 /* ---- the story panel: a bottom sheet on phones, a side sheet from 760px (the line the game view switches at) ----

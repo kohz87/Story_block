@@ -4,7 +4,10 @@
 // What it uses of `SillyTavern.getContext()`: `extensionSettings` and `saveSettingsDebounced`
 // (the installed list), `characters` and `characterId` (the open card), and `loadWorldInfo`
 // (the card's linked lorebook). A card whose lorebook was never imported still carries it
-// embedded as `data.character_book`; that copy is read when no lorebook is linked.
+// embedded as `data.character_book`; that copy is read when no lorebook is linked, and its [storysuite:…] entries also when the linked
+// one lacks them or cannot be loaded.
+
+import { isPackTitle, isPortraitsTitle, isSettingsTitle } from './lorebook.js';
 
 const context = () => globalThis.SillyTavern?.getContext?.() ?? null;
 
@@ -28,7 +31,7 @@ export function stSettings() {
 
 /**
  * The open character's lorebook entries as plain objects:
- * `{ character, entries: [{ book, uid, title, keys, content }], problem }` (`problem` is '' or why
+ * `{ character, card, entries: [{ book, uid, title, keys, content }], problem }` (`problem` is '' or why
  * nothing could be read, in plain words).
  */
 export async function readCharacterLorebook() {
@@ -37,7 +40,19 @@ export async function readCharacterLorebook() {
     const character = ctx.characters?.[ctx.characterId];
     if (!character) return { character: '', entries: [], problem: 'Open a chat with a character first (group chats have no single card).' };
     const name = String(character.name ?? '');
+    // Which card this is, for what is remembered about it (the card's own file name, else its name).
+    const card = String(character.avatar || name);
     const linked = character.data?.extensions?.world;
+    const book = character.data?.character_book;
+    const embedded = book && Array.isArray(book.entries)
+        ? book.entries.map((entry, index) => ({
+            book: String(book.name || name),
+            uid: entry?.id ?? index,
+            title: String(entry?.comment || entry?.name || ''),
+            keys: Array.isArray(entry?.keys) ? entry.keys.map(String) : [],
+            content: String(entry?.content ?? ''),
+        }))
+        : null;
     if (linked && typeof ctx.loadWorldInfo === 'function') {
         let data = null;
         try {
@@ -45,28 +60,28 @@ export async function readCharacterLorebook() {
         } catch {
             data = null;
         }
-        if (!data) return { character: name, entries: [], problem: `The lorebook "${linked}" could not be loaded.` };
-        const entries = Object.values(data.entries ?? {}).map(entry => ({
+        const entries = data ? Object.values(data.entries ?? {}).map(entry => ({
             book: linked,
             uid: entry?.uid ?? '',
             title: String(entry?.comment ?? ''),
             keys: Array.isArray(entry?.key) ? entry.key.map(String) : [],
             content: String(entry?.content ?? ''),
-        }));
-        return { character: name, entries, problem: '' };
+        })) : [];
+        // A linked world that is stale, missing (SillyTavern may answer an empty one) or never imported from the card leaves the card's own
+        // embedded copy unread: its [storysuite:…] entries are added for each tag the linked world lacks. The linked world still comes first
+        // and everything else (market lines, the rest of the lorebook) is read from it exactly as before.
+        const extra = embedded ? storysuiteFallback(entries, embedded) : [];
+        if (!data && !extra.length) return { character: name, card, entries: [], problem: `The lorebook "${linked}" could not be loaded.` };
+        return { character: name, card, entries: [...entries, ...extra], problem: '' };
     }
-    const book = character.data?.character_book;
-    if (book && Array.isArray(book.entries)) {
-        const entries = book.entries.map((entry, index) => ({
-            book: String(book.name || name),
-            uid: entry?.id ?? index,
-            title: String(entry?.comment || entry?.name || ''),
-            keys: Array.isArray(entry?.keys) ? entry.keys.map(String) : [],
-            content: String(entry?.content ?? ''),
-        }));
-        return { character: name, entries, problem: '' };
-    }
+    if (embedded) return { character: name, card, entries: embedded, problem: '' };
     return { character: name, entries: [], problem: `${name || 'This character'} has no lorebook.` };
+}
+
+const TAGS = [isPackTitle, isPortraitsTitle, isSettingsTitle];
+/** The embedded entries carrying a [storysuite:…] tag that no entry of the linked world carries. */
+function storysuiteFallback(linkedEntries, embedded) {
+    return embedded.filter(entry => TAGS.some(test => test(entry.title) && !linkedEntries.some(other => test(other.title))));
 }
 
 /**

@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.21.0
+
+The card offer: a character card can bring its whole world, and Story Block offers it with one click.
+- **Card entries:** besides `[storysuite:pack]`, a card's disabled lorebook entries may be tagged `[storysuite:portraits]`
+  (the pack's portraits as base64, at most 24 files, 200 KB each, 3 MB together) and `[storysuite:settings]` (recommended
+  settings from a fixed list: RPG, Gear, XP rate, and NPC State Delta's portrait prompt format and Scan every). Anything
+  rejected or skipped writes a line to Settings → Diagnostics (Card offers).
+- **The offer:** when a single-character chat opens, one notice per pack the card brings (at most three) sits at the top of
+  the Story panel, with a dot on the Story button until it is answered. **Install** installs the pack with its portraits,
+  turns its data modules on in this chat at once (the tab shows without a reload or a reply; the chat is saved straight
+  away), applies the ticked settings, and says exactly what was done. **Not now** is remembered per card, pack id and version.
+  An update offer keeps the chat's own module choice. A pack that needs a missing module (for example Story Director for
+  world events) shows why and Install stays off; a missing NPC State Delta only drops its settings.
+- **Recommended settings** list only what differs from yours, ticked by default and applied only with the click. Story Block
+  never writes another extension's settings: they register through `sdk.registerCardSettings` (internal sdk, not the public api).
+- **Packs list:** a pack of data modules alone reads "4 data modules" instead of "no content".
+- **Docs:** BUILD-A-CARD.md "Ship your whole world inside the card", PACKS.md "In a character card".
+- Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
+
 ## 2.20.0
 
 Story Block as a platform, part 1: a small public API for scripts and cards.

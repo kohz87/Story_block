@@ -86,7 +86,7 @@ export async function createHost(options = {}) {
     markReady();
 
     return {
-        st, ctx, registry, settings, features: runtime.features, store, bus, events, sdk, api, turn, packs: runtime.packs, timeline, rpgLoader: runtime.rpgLoader,
+        st, ctx, registry, settings, features: runtime.features, store, bus, events, sdk, api, turn, packs: runtime.packs, timeline, rpgLoader: runtime.rpgLoader, cardSettings: runtime.cardSettings,
         send: (text, reply = '', { stopped = false } = {}) => st.send(text, { reply, stopped }),
         swipe: (reply = '') => st.generate('swipe', { reply }),
         regenerate: (reply = '') => st.generate('regenerate', { reply }),

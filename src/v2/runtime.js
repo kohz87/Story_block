@@ -25,7 +25,9 @@ import { createCommandBus as realBus } from './commands.js';
 import { CORE_MODULE_ID, createCoreModule } from './domains/index.js';
 import { WALLET_KEY } from './domains/money.js';
 import { SETTING as ASSIST_SETTING, TIMEOUT_MS as ASSIST_TIMEOUT_MS, createAssistPart } from './assist/index.js';
-import { CORE_FEATURE, createFeatureStore } from './features.js';
+import { CORE_FEATURE, GEAR_FEATURE, createFeatureStore } from './features.js';
+import { createCardSettings } from './packs/card-settings.js';
+import { XP_RATE_SETTING, xpRateFrom, xpRateOf } from './lean-rpg/levels.js';
 import { applyStart, createPacksPart } from './packs/index.js';
 import { MODEL_CALL_ERRORS, createCallQueue, createModelCalls, createOwnCalls, profileName, stModelCall } from './model-call.js';
 import { carryRecord } from './persist.js';
@@ -41,7 +43,7 @@ import { createTurn, substituteNames } from './turn.js';
 import { createRpgLoader } from './rpg-lazy.js';
 import { createPublicApi } from './public-api.js';
 
-export const VERSION = '2.20.0';
+export const VERSION = '2.21.0';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to
@@ -375,6 +377,8 @@ export function createRuntime({
     const settings = withRuleOverlay(withPackCurrency(base, () => packPart.startState().currency), {
         registry, state: () => { try { return store.head(); } catch { return null; } },
     });
+    // The settings a card may recommend (packs/card-settings.js); Story Block's own are registered below, the others' through sdk.registerCardSettings.
+    const cardSettings = createCardSettings();
     let sdk = null;
     let bus = null;
     let timeline = null;
@@ -510,8 +514,37 @@ export function createRuntime({
     };
     const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
         substitute: text => substituteNames(text, ctx), dialog: (screenId, opts) => dialogOpener?.(screenId, opts) ?? null,
-        dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel, timeline, seed: () => turn?.seed() });
+        dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel, timeline, seed: () => turn?.seed(), cardSettings });
     sdk = made.sdk;
+    registerOwnCardSettings();
+    // Story Block's own owner of card settings: the RPG, Gear in fights and the XP rate. Applying persists exactly as Settings → RPG does
+    // (the feature store's set, the settings' set).
+    function registerOwnCardSettings() {
+        const onOff = value => (value ? 'on' : 'off');
+        cardSettings.register({
+            owner: CORE_MODULE_ID,
+            label: 'Story Block',
+            keys: {
+                rpg: { label: 'RPG', valueText: onOff, valid: value => typeof value === 'boolean' },
+                gear: { label: 'Gear', valueText: onOff, valid: value => typeof value === 'boolean' },
+                rpgXpRate: { label: 'XP rate', valueText: value => `${value}%`, valid: value => xpRateOf(value) !== null },
+            },
+            read: key => (key === 'rpg' ? registry.featureOn(CORE_FEATURE.leanRpg) === true
+                : key === 'gear' ? registry.featureOn(GEAR_FEATURE) === true
+                    : xpRateFrom(settings(CORE_MODULE_ID) ?? {})),
+            apply: async values => {
+                const applied = [];
+                for (const [key, value] of Object.entries(values)) {
+                    if (key === 'rpg' || key === 'gear') {
+                        if (features.set(key === 'rpg' ? CORE_FEATURE.leanRpg : GEAR_FEATURE, value) !== undefined) applied.push(key);
+                    } else if (key === 'rpgXpRate' && xpRateOf(value) !== null) {
+                        if (settings.set(CORE_MODULE_ID, XP_RATE_SETTING, value) !== undefined) applied.push(key);
+                    }
+                }
+                return { applied };
+            },
+        });
+    }
     const initial = () => initialWithStart(registry);
     // The RPG's code comes in before a chat that needs it is read (the turn awaits `prepare`), and the moment the reader switches the feature on.
     const rpgLoader = createRpgLoader({
@@ -540,5 +573,5 @@ export function createRuntime({
         dialogOpener = typeof fn === 'function' ? fn : null;
         dialogCurrent = typeof current === 'function' ? current : null;
     };
-    return { registry, settings, features, store, bus, events, sdk, api, turn, rpgLoader, markReady: made.markReady, initial, packs: packPart, setDialog, display, ownCalls, callQueue, timeline };
+    return { registry, settings, features, store, bus, events, sdk, api, turn, rpgLoader, markReady: made.markReady, initial, packs: packPart, cardSettings, setDialog, display, ownCalls, callQueue, timeline };
 }
