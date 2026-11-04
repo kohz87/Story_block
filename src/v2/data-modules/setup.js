@@ -86,7 +86,7 @@ export function renderDataModules(root, api = {}) {
         const facts = [`Definition ${row.hash}`, `Pack ${row.packId} ${row.packVersion} (${row.packHash})`];
         if (type === 'dm.pin' && row.definition.scope === 'character') facts.push(subjects.length ? `Characters: ${subjects.join(', ')}` : 'Characters: none yet (attach them afterwards)');
         for (const [alias, value] of Object.entries(row.baseline ?? {})) facts.push(`Starts from ${alias}: ${value === null ? 'not set yet; the first set value becomes the baseline' : JSON.stringify(value)}`);
-        if (row.additions) facts.push(`New fields: ${JSON.stringify(row.additions)}`);
+        if (row.additions && Object.keys(row.additions).length) facts.push(`New fields: ${JSON.stringify(row.additions)}`);
         facts.push('Nothing is applied backwards; the choice is saved with the latest reply.');
         const ul = make('ul', 'ss-dm-list', '', box);
         for (const fact of facts) make('li', '', fact, ul);

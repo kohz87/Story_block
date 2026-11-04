@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Integration (2.22.0 drafts together):** the Skills slots pill stays removed; story `practice-N` is refused under the rolled-practice rule for all eight slots (and the reply is marked for them); a block layout never shows a status tone the editor did not give (an untoned value such as "paused" is neutral and open); a map of numbers folds only the rows whose default is 0 or the minimum (Court favour at 40/35/25 lists all three); the editor preview draws the bars and fields layouts, and a bars block of plain numbers is one map of numbers; a list's line in the prompt tail stays within its 250 tokens and, with every entry open, hides the oldest behind "+N more"; `show.into` is a lowercase tab id and needs the block's own tab.
+- **Moving a running chat to a changed pack version:** Settings → Tabs & Packs → Data modules → **Migrate** on each changed module (preview, then confirm); Ersveil 2.7.0 changes four. The preview no longer prints "New fields: {}" when nothing is added. See docs/v2/ERSVEIL.md and docs/FAQ.md.
+
 - **Public paths from modules (internal sdk):** `sdk.registerPublicPaths({ owner, prefix, paths, get, hidden })` lets a module offer
   its values under one prefix. `StoryBlock.api.get`, `paths()`, `{{sb::…}}` and the `story:changed` lists include them, with the same
   rules (frozen plain copies, hidden values never returned, read-only). One owner per prefix; Story Block's own roots cannot be

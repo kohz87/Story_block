@@ -155,3 +155,16 @@ legendary 4; common none) and a piece raises two stats at most.
 Import the new file (same id `ersveil`: it replaces the old one and keeps its switch), then start a new
 chat. Changing values in the pack: keep this page, `tests/v2/packs/ersveil-pack.test.js`,
 `tests/v2/packs/ersveil-timeline.test.js` and the pack's version in step.
+
+### Moving a running chat to 2.7.0 (Reputation tab)
+
+Ersveil 2.7.0 lays Standing, Fame, Guild and Court favour out as sections of one Reputation tab and needs Story Block 2.22.0. A chat that is
+already running keeps its old modules and keeps working: nothing changes until you choose to migrate. To take the new layout in a running chat,
+migrate each of the four modules, one at a time:
+
+1. Import the 2.7.0 file (Settings → Tabs & Packs → Packs). The four modules show "Migration available".
+2. Open Settings → Tabs & Packs → Data modules.
+3. For each of Standing, Fame, Adventurer Guild membership and Court favour: **Migrate**, read the preview, then confirm. That is four times (two clicks each).
+
+A migration changes only how the module is drawn; its values stay as they are, and it is saved with the latest reply (a swipe or a delete of that
+reply takes it back). A new chat starts on 2.7.0 with nothing to migrate.

@@ -88,3 +88,22 @@ test('each starter\'s editor preview is not empty, and a bars block of plain num
     assert.equal(tab.el.querySelectorAll('.ss-b-map').length, 1, 'one map of numbers for the four fields');
     assert.equal(tab.el.querySelectorAll('.ss-b-row').length + tab.el.querySelectorAll('details .ss-b-row').length > 0, true);
 });
+
+test('a block with no layout draws in its tab as one card of fields, the same lines in the same order as the editor preview', async t => {
+    const { doc, host, api } = await world(t);
+    const definition = { slug: 'plainer', name: 'Plainer', schema: 1, stateVersion: 1, scope: 'chat', kinds: {}, show: { tab: true, card: false, tabName: 'P', icon: 'ph-star' },
+        state: { member: { type: 'text', label: 'Member', max: 40, default: 'Ren' }, rank: { type: 'enum', label: 'Rank', values: ['initiate', 'member'], default: 'initiate' }, dues: { type: 'int', label: 'Dues owed', min: 0, max: 500, default: 20 } } };
+    assert.equal(definition.layout, undefined);
+    success(await host.sdk.command('dm.define', { definition }));
+    const tab = render(doc, api, 'pack.chat/plainer');
+    t.after(() => tab.view.destroy());
+    assert.equal(tab.el.querySelectorAll('.ss-b-plain').length, 1, 'one card of fields');
+    const preview = doc.createElement('div');
+    const handle = renderBlockPreview(preview, { definition, values: {}, layout: definition.layout ?? 'fields' });
+    t.after(() => handle.destroy());
+    assert.equal(preview.querySelectorAll('.ss-b-card').length, 1, 'the preview: one card of fields');
+    const tabLabels = tab.el.querySelectorAll('.ss-block-value-name').map(node => node.textContent);
+    const previewLabels = preview.querySelectorAll('.ss-b-line dt').map(node => node.textContent);
+    assert.deepEqual(tabLabels, ['Member', 'Rank', 'Dues owed']);
+    assert.deepEqual(previewLabels, tabLabels);
+});

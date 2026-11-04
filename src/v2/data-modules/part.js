@@ -251,16 +251,16 @@ export function dataModuleGuard(view, info) {
 const valueText = value => (typeof value === 'string' ? JSON.stringify(oneLine(value)) : Array.isArray(value) ? `${value.length} ${value.length === 1 ? 'entry' : 'entries'}` : String(value));
 // A List of entries in the tail, short: each entry by its number and title and then its choices and numbers ("1 \"Find the key\" active; 2 \"Meet Wren\" done"),
 // never its longer texts. The story needs the numbers and titles to name an entry, and what is still open. When the list does not fit `room` (characters), the
-// open entries (by the status role's tone: not done or failed) come first, then the finished ones, newest first; an entry is never cut in the middle, and
+// open entries (by the status role's tone: not done or failed) come first, then the finished ones, each newest first; an entry is never cut in the middle, and
 // the line ends "+N more". The entries shown keep their numbers and their order.
-const LIST_ROOM_LEAST = 300;
 const entriesText = (definition, key, list, room = L.listTailTokens * 4) => {
     const schema = definition.state[key], parts = Object.entries(schema.of), title = titlePart(definition, key);
     const status = definition.roles?.field === key ? definition.roles.status : null;
     const pieces = list.map((entry, at) => [`${at + 1}`, title ? valueText(entry[title]) : null, ...parts.filter(([part, sub]) => part !== title && sub.type !== 'text').map(([part]) => String(entry[part]))].filter(Boolean).join(' '));
     const open = at => !status || ['active', 'neutral'].includes(definition.tones?.[list[at][status]] ?? dmDefaultTone(list[at][status]));
-    const order = [...list.keys()].filter(open).concat([...list.keys()].filter(at => !open(at)).reverse());
-    const budget = Math.max(room, LIST_ROOM_LEAST) - `${key}: `.length;
+    // (newest first within each: when entries must go behind "+N more" the oldest are the ones hidden)
+    const order = [...list.keys()].filter(open).reverse().concat([...list.keys()].filter(at => !open(at)).reverse());
+    const budget = room - `${key}: `.length;
     const shown = [];
     let used = 0;
     for (const at of order) {
@@ -288,7 +288,7 @@ const fieldsText = (definition, fields, room = Infinity) => {
     const shown = Object.entries(fields).filter(([key]) => !dmHidden(definition.state[key]));
     const lists = shown.filter(([, value]) => Array.isArray(value)).length;
     const left = lists ? (room - shown.filter(([, value]) => !Array.isArray(value)).reduce((sum, [key, value]) => sum + fieldText(definition, key, value).length + 2, 0)) / lists : 0;
-    return shown.map(([key, value]) => fieldText(definition, key, value, Math.floor(left) || undefined)).join('; ');
+    return shown.map(([key, value]) => fieldText(definition, key, value, lists ? Math.max(0, Math.floor(left)) : undefined)).join('; ');
 };
 // The named fields a root changed, for its summary: "Soul Class II → III". Empty for a block with no display names.
 const namedChanges = (definition, before, after) => Object.entries(definition.state).filter(([key, schema]) => (schema.names || barOf(schema)) && before[key] !== after[key])
@@ -318,12 +318,12 @@ export function summaryOf(state, module, { rpg = true } = {}) {
             named: (key, value) => shownText(definition.state[key], value) });
         return line && cutAt(`${line}${waiting}`, tailRoom(definition, rpg) * 4);
     }
-    const limit = tailRoom(definition, rpg) * 4, lists = Object.values(definition.state).some(schema => schema.type === 'entries');
+    const limit = tailRoom(definition, rpg) * 4;
     const room = limit - definition.name.length - 4 - waiting.length;
     const body = definition.scope === 'chat' ? fieldsText(definition, view.chat, room)
         : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(definition, fields, Math.floor(room / view.characters.length) - name.length - 2)}`).join(' | ') || 'no one attached';
-    // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget (a block with a list keeps the room its list needs at least).
-    return cutAt(`${definition.name} — ${body}.${waiting}`, limit + (lists ? LIST_ROOM_LEAST : 0));
+    // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget.
+    return cutAt(`${definition.name} — ${body}.${waiting}`, limit);
 }
 // A timer whose clock has moved past its cursor.
 const timerDue = (timer, inputs, instance) => {

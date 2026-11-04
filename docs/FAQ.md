@@ -18,8 +18,12 @@ With Mana empty, name a Stamina skill or rest; a planned skill falls back to its
 
 ## How many skills can a character have?
 
-Five slots. The story never overwrites a filled slot. You can change a skill yourself with its pencil (its name and what it does); its rank and practice only move through play.
+Five slots to start, then one more at Lv 20, one at Lv 40 and one at Lv 60 (up to eight). A level drop never takes a skill away. The story never overwrites a filled slot. You can change a skill yourself with its pencil (its name and what it does); its rank and practice only move through play.
 
 ## Can a card bring its own world?
 
 Yes, since 2.21.0. When you open a chat with a card that carries a pack, its portraits or recommended settings, a notice at the top of the Story panel offers **Install** or **Not now**. Nothing is installed or changed without your click, and recommended settings are ticked by default and only listed when they differ from yours. Card authors: see [Build your first card](v2/BUILD-A-CARD.md), "Ship your whole world inside the card".
+
+## A pack was updated: how do I move my running chat to its new layout?
+
+A running chat keeps the old modules and keeps working. To take the new version of a module, open Settings → Tabs & Packs → Data modules, choose **Migrate** on the module, read the preview and confirm. Do this for each module the pack changed (Ersveil 2.7.0 changes four: Standing, Fame, Adventurer Guild membership and Court favour). Only the drawing changes, your values stay, and the choice is saved with the latest reply. A new chat needs nothing.

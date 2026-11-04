@@ -259,7 +259,7 @@ test('B5: a long list ends on an entry boundary with +N more, the open entries c
     await host.send('More.', reply(...lines.slice(15)));
     assert.equal(problems(), '');
     const line = summaryOf(host.head(), 'pack.dm-test/quests');
-    assert.ok(line.length <= 1000 + 300, `${line.length} characters`);
+    assert.ok(line.length <= 1000, `${line.length} characters`);
     assert.match(line, /\+\d+ more; gold 0\.$/, 'ends on a whole entry, then +N more, then the other fields');
     assert.doesNotMatch(line, /Quest number \d+( of( the( long)?)?)?[;.]? *$/m, 'no entry is cut');
     for (const open of [5, 10, 15, 20, 25, 30]) assert.match(line, new RegExp(`${open} "Quest number ${open} of the long road" active`), `open entry ${open} is named`);
@@ -303,4 +303,34 @@ test('F1: the adds after a deleted reply hold; a later change or drop, which rea
     assert.equal(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE').length, 1);
     assert.equal((await host.turn.reread(third - 1)).ok, true);
     assert.deepEqual(quest(host).map(entry => [entry.title, entry.status]), [['B', 'done']]);
+});
+
+test('INT-222: when every entry is open and some go behind "+N more", the oldest are hidden and the newest kept', async t => {
+    listen(t);
+    const definition = quests();
+    definition.state.quests.max = 30;
+    definition.state.quests.of.title = text(60);
+    const host = await world(t, pack([definition]));
+    await pin(host);
+    const lines = Array.from({ length: 30 }, (_, at) => `+ dm quests — x | kind: add-quests | title: Quest number ${at + 1} of the long road | status: active`);
+    await host.send('Many.', reply(...lines.slice(0, 15)));
+    await host.send('More.', reply(...lines.slice(15)));
+    const line = summaryOf(host.head(), 'pack.dm-test/quests');
+    assert.match(line, /\+\d+ more/);
+    assert.match(line, /30 "Quest number 30 of the long road" active/, 'the newest is kept');
+    assert.doesNotMatch(line, /\b1 "Quest number 1 of the long road"/, 'the oldest is behind +N more');
+    assert.ok(line.length <= 1000, `${line.length} characters`);
+});
+
+test('INT-222: the list tail never passes its 250 tokens (1000 characters), also with long titles and long other fields', async t => {
+    listen(t);
+    const definition = quests();
+    definition.state.quests.max = 30;
+    definition.state.quests.of.title = text(60);
+    const host = await world(t, pack([definition]));
+    await pin(host);
+    const lines = Array.from({ length: 30 }, (_, at) => `+ dm quests — x | kind: add-quests | title: ${`T${at + 1} `.repeat(14).slice(0, 59).trim()} | status: ${at % 3 ? 'active' : 'done'}`);
+    await host.send('Many.', reply(...lines.slice(0, 15)));
+    await host.send('More.', reply(...lines.slice(15)));
+    assert.ok(summaryOf(host.head(), 'pack.dm-test/quests').length <= 1000);
 });

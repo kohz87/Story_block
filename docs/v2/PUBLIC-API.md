@@ -107,6 +107,8 @@ A module that keeps values of its own offers them to this API under one prefix. 
 
 For module authors (the internal `sdk`, which changes between releases): `sdk.registerPublicPaths({ owner, prefix, paths(), get(path), hidden(path), values()? })` returns `unregister()`; `unregister.changed()` tells the API that the values moved. One owner per prefix; the prefix is one lowercase word and may not be `scene`, `money`, `items`, `party` or `blocks`. `values()` is optional: every path and value in one call, for a module whose `get` is costly (it is used when the API compares for `story:changed`). A module that throws is read as having no paths. An older Story Block has no `registerPublicPaths`; a module checks for it and does nothing without it.
 
+Two limits of module paths. A name that contains `|` or `::` cannot be read by the `{{sb::…}}` macro (the macro splits on those marks for its fallback); read such a name with `api.get`. When a shown meter is hidden, the change list of `story:changed` reports one change of that path, to `null`; after that the path is not returned and not in `paths()`.
+
 ## Not in version 1
 
 Writes (an allow-list of commands may come in a version 2). Blocks defined on a character card's worldbook are a separate follow-up. For a first walk-through, see [BUILD-A-CARD.md](BUILD-A-CARD.md).
