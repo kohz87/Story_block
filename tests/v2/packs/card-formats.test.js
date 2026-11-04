@@ -87,3 +87,15 @@ test('the settings entry keeps the allow-listed keys and skips the rest with a l
     assert.match(got.lines[0], /story-block\.tailBudget skipped: it is not one a card may recommend/);
     for (const bad of ['nope', '{"v":2,"settings":{}}', '{"v":1}', '[]']) assert.equal(readSettingsEntry(bad).ok, false, bad);
 });
+
+test('a picture is size-checked from its base64 length before it is decoded: an oversize one is never run through atob', t => {
+    const spy = t.mock.method(globalThis, 'atob');
+    const huge = `data:image/webp;base64,${'A'.repeat(5 * 1024 * 1024)}`;
+    const nearly = dataUri(webp(CARD_LIMITS.fileBytes + 10));
+    const got = readPortraitsEntry(entry({ 'fenna.webp': huge, 'sera.png': nearly.replace('webp', 'png') }), pack);
+    assert.equal(got.ok, true);
+    assert.deepEqual(got.files, []);
+    assert.equal(spy.mock.callCount(), 0, 'nothing was decoded');
+    assert.match(got.lines[0], /fenna\.webp skipped: it is about 3840 KB; at most 200 KB/);
+    assert.match(got.lines[1], /sera\.png skipped/);
+});

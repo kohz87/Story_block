@@ -765,7 +765,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             },
         },
         single: () => !(liveCtx()?.groupId),
-        enableModules: packId => enableDataModules({ sdk, packId, save: () => store.saveSoon?.() }),
+        enableModules: (packId, options) => enableDataModules({ sdk, packId, save: () => store.saveSoon?.(), ...options }),
+        chatId: () => { try { return String((typeof (liveCtx() ?? ctx).getCurrentChatId === 'function' ? (liveCtx() ?? ctx).getCurrentChatId() : (liveCtx() ?? ctx).chatId) ?? ''); } catch { return ''; } },
+        notify: text => globalThis.toastr?.warning?.(text, 'Story Block'),
         flushSettings: () => flushSettings(),
         report: entry => {
             cardLog.push(entry.message);

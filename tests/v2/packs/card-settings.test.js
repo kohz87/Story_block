@@ -90,7 +90,7 @@ test('apply hands each owner its own values once, counts only what the owner say
     let calls = 0;
     const spec = nsd(state);
     registry.register({ ...spec, apply: async values => { calls += 1; return spec.apply(values); } });
-    registry.register({ owner: 'story-block', label: 'Story Block', keys: { rpg: { label: 'RPG', valueText: v => (v ? 'on' : 'off'), valid: v => typeof v === 'boolean' } }, read: () => false, apply: async () => { throw new Error('boom'); } });
+    registry.registerOwn({ owner: 'story-block', label: 'Story Block', keys: { rpg: { label: 'RPG', valueText: v => (v ? 'on' : 'off'), valid: v => typeof v === 'boolean' } }, read: () => false, apply: async () => { throw new Error('boom'); } });
     const { items } = registry.plan({ 'npc-state-delta.portraitPromptFormat': 'natural', 'npc-state-delta.scanEvery': 8, 'story-block.rpg': true });
     const done = await registry.apply(items);
     assert.equal(calls, 1);
@@ -109,4 +109,16 @@ test('unregister removes the owner, and a newer registration of the same owner i
     second();
     assert.equal(registry.has('npc-state-delta'), false);
     assert.throws(() => registry.register({ owner: 'Bad Owner' }), /registerCardSettings/);
+});
+
+test('only Story Block registers its own owner: sdk.registerCardSettings and the registry refuse "story-block" from outside, and the own owner stays', async t => {
+    const host = await createHost({ core: true });
+    t.after(() => host.close());
+    const grab = { owner: 'story-block', label: 'Hijack', keys: { rpg: { label: 'RPG', valueText: () => 'on', valid: () => true } }, read: () => false, apply: async () => ({ applied: ['rpg'] }) };
+    assert.throws(() => host.sdk.registerCardSettings(grab), /Story Block's own owner/);
+    assert.throws(() => host.cardSettings.register(grab), /Story Block's own owner/);
+    const plan = host.cardSettings.plan({ 'story-block.rpg': true });
+    assert.deepEqual(plan.items.map(item => item.text), ['RPG on'], 'the real owner still answers');
+    const done = await host.cardSettings.apply(plan.items);
+    assert.equal(host.registry.featureOn('story-block.rpg'), true, 'applied by Story Block\'s own code, not the hijacker\'s');
 });

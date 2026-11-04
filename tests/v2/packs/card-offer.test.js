@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { countsLine, addsLine } from '../../../src/v2/packs/panel.js';
 import { buildReport } from '../../../src/v2/diagnostics.js';
-import { cardPack, cardWorld, goodPortrait, packEntry, portraitsEntry, settingsEntry, settle } from './helpers/card.js';
+import { cardPack, cardWorld, goodPortrait, packEntry, portraitsEntry, settingsEntry, settle, tick } from './helpers/card.js';
 
 const nsd = (state = { portraitPromptFormat: 'hybrid' }) => ({
     owner: 'npc-state-delta', label: 'NPC State Delta',
@@ -273,22 +273,51 @@ test('Install saves SillyTavern\'s settings now (not after its debounce): the pa
     assert.equal(world.notices()[0].dataset.state, 'done');
 });
 
-test('if the immediate settings save fails the notice says so and does not claim success; a failure after the install pins nothing', async t => {
+test('if an immediate settings save fails the install goes on (pin, apply, flush again) and the notice warns that settings may not be saved; it never says "nothing else was done"', async t => {
     const pack = cardPack();
-    const first = await cardWorld(t, { entries: [packEntry(pack)], flushSettings: async () => ({ ok: false, message: 'SillyTavern did not confirm that its settings were saved.' }) });
+    const warn = /Settings may not have been saved; if Sealcrown Blocks is missing after a reload, import it from Settings → Tabs & Packs\.$/;
+    const first = await cardWorld(t, { entries: [packEntry(pack), settingsEntry({ 'story-block.rpg': true })], flushSettings: async () => ({ ok: false, message: 'SillyTavern did not confirm that its settings were saved.' }) });
     first.button(first.notices()[0], 'Install').click();
     await settle();
-    const text0 = text(first.notices()[0]);
-    assert.equal(first.notices()[0].dataset.state, 'failed');
-    assert.match(text0, /was installed here, but SillyTavern did not confirm that its settings were saved\. Nothing else was done/);
-    assert.doesNotMatch(text0, /^Installed/);
-    assert.equal(first.runtime.sdk.query('dataModules.setup').filter(row => row.pinned).length, 0, 'no chat pin for a pack that may not be kept');
+    const done = first.notices()[0];
+    assert.equal(done.dataset.state, 'done');
+    assert.match(text(done), /^Installed Sealcrown Blocks 1\.0\.0\. 1 data module turned on in this chat\. RPG is on\./);
+    assert.match(text(done), warn);
+    assert.doesNotMatch(text(done), /Nothing else was done/);
+    assert.equal(first.runtime.sdk.query('dataModules.setup').filter(row => row.pinned).length, 1, 'pinned all the same');
+    assert.equal(first.runtime.registry.featureOn('story-block.rpg'), true);
+    assert.equal(problems(first).length, 2, 'each failed save writes a line');
     let calls = 0;
-    const second = await cardWorld(t, { entries: [packEntry(pack), settingsEntry({ 'story-block.rpg': true })], flushSettings: async () => (++calls === 1 ? { ok: true, message: '' } : { ok: false, message: 'SillyTavern did not confirm that its settings were saved.' }) });
+    const second = await cardWorld(t, { entries: [packEntry(pack)], flushSettings: async () => (++calls === 1 ? { ok: true, message: '' } : { ok: false, message: 'SillyTavern did not confirm that its settings were saved.' }) });
     second.button(second.notices()[0], 'Install').click();
     await settle();
-    assert.equal(second.notices()[0].dataset.state, 'failed');
-    assert.match(text(second.notices()[0]), /^Installed Sealcrown Blocks 1\.0\.0\..* But SillyTavern did not confirm .* They may be lost if the page reloads\.$/);
+    assert.equal(second.notices()[0].dataset.state, 'done');
+    assert.match(text(second.notices()[0]), /^Installed Sealcrown Blocks 1\.0\.0\. 1 data module turned on in this chat\. Settings may not have been saved/);
+});
+
+test('a chat switch during Install: nothing is pinned in the new chat, the player is told by notice, toast and Diagnostics, and the working offer survives the refresh', async t => {
+    const pack = cardPack();
+    const toasts = [];
+    globalThis.toastr = { warning: (...args) => toasts.push(args) };
+    t.after(() => { delete globalThis.toastr; });
+    let release = null;
+    const gate = new Promise(resolve => { release = resolve; });
+    const world = await cardWorld(t, { entries: [packEntry(pack)], flushSettings: async () => { await gate; return { ok: true, message: '' }; } });
+    world.button(world.notices()[0], 'Install').click();
+    await tick();
+    assert.equal(world.notices()[0].dataset.state, 'working');
+    // the player opens another chat while the settings save is on its way (the testkit's loadChat tells CHAT_CHANGED; the card of the new chat has the pack too)
+    await world.st.loadChat([{ name: 'Narrator', is_user: false, mes: 'Another chat.', send_date: '' }], 'chat-B');
+    assert.equal(world.notices().length, 1, 'the working offer is not thrown away by the chat change');
+    release();
+    await settle();
+    assert.deepEqual(world.runtime.packs.packs.list().map(entry => entry.id), ['sealcrown'], 'installed');
+    assert.equal(world.runtime.sdk.query('dataModules.setup').filter(row => row.pinned).length, 0, 'no pin in chat-B');
+    const done = world.notices().find(node => node.dataset.pack === 'sealcrown');
+    assert.equal(done.dataset.state, 'done');
+    assert.match(text(done), /Installed Sealcrown Blocks 1\.0\.0\. The chat changed, so its data modules were not turned on/);
+    assert.deepEqual(toasts.map(args => args[0]), ['Sealcrown Blocks is installed. Turn its modules on in Settings → Data modules for that chat.']);
+    assert.ok(problems(world).some(item => /chat changed during the install/.test(item.message)), 'a Diagnostics line');
 });
 
 test('a chat that pins a module whose pack is not installed loads without harm: the module stays pinned and listed, and the offer comes back', async t => {

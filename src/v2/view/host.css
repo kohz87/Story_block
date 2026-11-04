@@ -85,7 +85,7 @@
 .ss-card-offer .ss-card-offer-settings input { flex: none; width: 1.1em; height: 1.1em; margin: 0; }
 .ss-card-offer .ss-card-offer-note { grid-column: 2 / -1; margin: 0; font-size: 12px; }
 .ss-card-offer .ss-card-offer-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
-.ss-card-offer .ss-card-offer-actions .ss-button { min-height: 36px; flex: 0 0 auto; white-space: nowrap; padding-inline: 16px; }
+.ss-card-offer .ss-card-offer-actions .ss-button { min-height: 36px; flex: 0 0 auto; min-width: 44px; white-space: nowrap; padding-inline: 16px; }
 /* Only a pack: the buttons sit beside the text on one row. */
 .ss-card-offer:is([data-state="offer"], [data-state="working"]):not(:has(.ss-card-offer-settings, .ss-card-offer-note)) .ss-card-offer-actions { grid-column: 3; grid-row: 1; flex-wrap: nowrap; }
 .ss-card-offer:is([data-state="offer"], [data-state="working"]):not(:has(.ss-card-offer-settings, .ss-card-offer-note)) > .story-suite-notice-text { grid-column: 2; grid-row: 1; }

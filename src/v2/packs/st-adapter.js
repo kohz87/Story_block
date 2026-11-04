@@ -7,7 +7,8 @@
 // embedded as `data.character_book`; that copy is read when no lorebook is linked, and its [storysuite:…] entries also when the linked
 // one lacks them or cannot be loaded.
 
-import { isPackTitle, isPortraitsTitle, isSettingsTitle } from './lorebook.js';
+import { entryText, isPackTitle, isPortraitsTitle, isSettingsTitle } from './lorebook.js';
+import { compareVersions, parseVersion } from './version.js';
 
 const context = () => globalThis.SillyTavern?.getContext?.() ?? null;
 
@@ -70,18 +71,45 @@ export async function readCharacterLorebook() {
         // A linked world that is stale, missing (SillyTavern may answer an empty one) or never imported from the card leaves the card's own
         // embedded copy unread: its [storysuite:…] entries are added for each tag the linked world lacks. The linked world still comes first
         // and everything else (market lines, the rest of the lorebook) is read from it exactly as before.
-        const extra = embedded ? storysuiteFallback(entries, embedded) : [];
-        if (!data && !extra.length) return { character: name, card, entries: [], problem: `The lorebook "${linked}" could not be loaded.` };
-        return { character: name, card, entries: [...entries, ...extra], problem: '' };
+        const merged = embedded ? mergeStorysuite(entries, embedded) : { entries, extra: [] };
+        // A linked world that cannot be loaded is still told as before (the market lines and the Packs panel say so); the card's own embedded
+        // storysuite entries are offered all the same.
+        return { character: name, card, entries: [...merged.entries, ...merged.extra], problem: data ? '' : `The lorebook "${linked}" could not be loaded.` };
     }
     if (embedded) return { character: name, card, entries: embedded, problem: '' };
     return { character: name, entries: [], problem: `${name || 'This character'} has no lorebook.` };
 }
 
 const TAGS = [isPackTitle, isPortraitsTitle, isSettingsTitle];
-/** The embedded entries carrying a [storysuite:…] tag that no entry of the linked world carries. */
-function storysuiteFallback(linkedEntries, embedded) {
-    return embedded.filter(entry => TAGS.some(test => test(entry.title) && !linkedEntries.some(other => test(other.title))));
+const packIdentity = entry => {
+    try {
+        const pack = JSON.parse(entryText(entry.content));
+        return typeof pack?.id === 'string' ? { id: pack.id, version: parseVersion(pack.version) } : null;
+    } catch { return null; }
+};
+
+/**
+ * The linked world's entries and the embedded book's storysuite entries put together: `{ entries, extra }` (`entries`: the linked world's, a pack entry
+ * left out where the embedded copy of the same pack id is a higher version; `extra`: the embedded storysuite entries to add after them).
+ * Pack entries are matched by pack id and the higher version wins (a stale linked world never hides a card update; equal keeps the linked one);
+ * the portraits and settings entries come from the embedded book only for a tag the linked world lacks.
+ */
+function mergeStorysuite(linkedEntries, embedded) {
+    const linkedPacks = new Map();
+    for (const entry of linkedEntries) if (isPackTitle(entry.title)) { const who = packIdentity(entry); if (who) linkedPacks.set(who.id, { entry, version: who.version }); }
+    const dropped = new Set();
+    const extra = [];
+    for (const entry of embedded) {
+        if (isPackTitle(entry.title)) {
+            const who = packIdentity(entry);
+            const there = who ? linkedPacks.get(who.id) : null;
+            if (!there) { if (!who && linkedEntries.some(other => isPackTitle(other.title))) continue; extra.push(entry); continue; }
+            if (who.version && there.version && compareVersions(who.version, there.version) > 0) { dropped.add(there.entry); extra.push(entry); }
+            continue;
+        }
+        if (TAGS.some(test => test(entry.title) && !linkedEntries.some(other => test(other.title)))) extra.push(entry);
+    }
+    return { entries: linkedEntries.filter(entry => !dropped.has(entry)), extra };
 }
 
 /**
@@ -94,22 +122,26 @@ function storysuiteFallback(linkedEntries, embedded) {
 export async function saveSettingsNow({ timeoutMs = 8000 } = {}) {
     const ctx = context();
     if (!ctx) return { ok: true, message: '' };
+    let timer = null;
     try {
         const save = typeof ctx.saveSettings === 'function' ? ctx.saveSettings.bind(ctx) : (await import('/script.js')).saveSettings;
         const source = ctx.eventSource;
         const type = (ctx.eventTypes ?? ctx.event_types)?.SETTINGS_UPDATED;
         if (typeof save !== 'function' || typeof source?.once !== 'function' || !type) return { ok: false, message: 'SillyTavern\'s settings could not be saved from here.' };
-        let timer = null;
+        const forget = fn => { try { (source.removeListener ?? source.off)?.call(source, type, fn); } catch { /* it is gone already */ } };
         const told = new Promise(resolve => {
-            source.once(type, () => resolve(true));
-            timer = setTimeout(() => resolve(false), timeoutMs);
+            const onSaved = () => resolve(true);
+            source.once(type, onSaved);
+            // (a save that never answers is raced against the timer, and the listener is taken away when the timer wins)
+            timer = setTimeout(() => { forget(onSaved); resolve(false); }, timeoutMs);
         });
-        await save();
+        await Promise.race([Promise.resolve().then(() => save()), told]);
         const ok = await told;
-        clearTimeout(timer);
         return ok ? { ok: true, message: '' } : { ok: false, message: 'SillyTavern did not confirm that its settings were saved.' };
     } catch (error) {
         return { ok: false, message: `SillyTavern's settings could not be saved (${error?.message ?? error}).` };
+    } finally {
+        clearTimeout(timer);
     }
 }
 

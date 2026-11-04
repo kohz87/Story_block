@@ -521,7 +521,7 @@ export function createRuntime({
     // (the feature store's set, the settings' set).
     function registerOwnCardSettings() {
         const onOff = value => (value ? 'on' : 'off');
-        cardSettings.register({
+        cardSettings.registerOwn({
             owner: CORE_MODULE_ID,
             label: 'Story Block',
             keys: {

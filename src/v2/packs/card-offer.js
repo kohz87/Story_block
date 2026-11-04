@@ -56,15 +56,18 @@ export function settingsDone(applied) {
 /**
  * Turns on the data modules of pack `packId` in this chat, one by one, as Settings → Data modules' "Enable for this chat" does (`dm.pin`
  * with the hashes the offer shows), and saves the chat at once so the choice is on disk and the tab shows without a reply or a reload.
- * `sdk`: query and command; `save()`: the store's save now. → `{ pinned, failed: [message], total }`.
+ * `sdk`: query and command; `save()`: the store's save now; `still()`: false once the chat the click was made in is not the open one (nothing more is
+ * pinned then). → `{ pinned, failed: [message], total, moved }`.
  */
-export async function enableDataModules({ sdk, packId, save = null }) {
+export async function enableDataModules({ sdk, packId, save = null, still = () => true }) {
     let rows = [];
     try { rows = sdk.query('dataModules.setup') ?? []; } catch { rows = []; }
     const mine = rows.filter(row => row?.packId === packId);
-    const out = { pinned: 0, failed: [], total: mine.length };
+    const out = { pinned: 0, failed: [], total: mine.length, moved: false };
     for (const row of mine) {
         if (row.pinned) continue;
+        // Checked before each pin: the chat may have changed while the earlier ones were on their way.
+        if (!still()) { out.moved = true; break; }
         if (row.available === false) { out.failed.push(`${row.definition?.name ?? row.module} is waiting: ${row.reason || 'not ready'}`); continue; }
         let result = null;
         try { result = await sdk.command('dm.pin', { module: row.module, hash: row.hash, packHash: row.packHash, subjects: [] }); } catch (error) { result = { ok: false, message: error?.message ?? String(error) }; }
@@ -78,10 +81,10 @@ export async function enableDataModules({ sdk, packId, save = null }) {
 /**
  * `readLorebook()` → `{ character, card, entries, problem }`; `packs`: installed.js; `cardSettings`: card-settings.js;
  * `remember`: `{ read() → { [key]: true }, write(map) }` for "Not now"; `single()`: true in a single-character chat;
- * `enableModules(packId)` → `{ pinned, failed, total }`; `flushSettings()` → `{ ok, message }` (SillyTavern's settings saved now, not after its debounce); `report({ code, message })`: Diagnostics.
+ * `enableModules(packId, { still })` → `{ pinned, failed, total, moved }` (`still()`: false once the chat changed: nothing more is pinned); `flushSettings()` → `{ ok, message }` (SillyTavern's settings saved now, not after its debounce); `chatId()`: the open chat's id; `notify(text)`: a toast; `report({ code, message })`: Diagnostics.
  * → `{ refresh, offers, waiting, install, notNow, dismiss, clearDone, subscribe }`.
  */
-export function createCardOffer({ readLorebook, packs, cardSettings, remember, single = () => true, enableModules = async () => ({ pinned: 0, failed: [], total: 0 }), flushSettings = async () => ({ ok: true, message: '' }), report = () => {} } = {}) {
+export function createCardOffer({ readLorebook, packs, cardSettings, remember, single = () => true, enableModules = async () => ({ pinned: 0, failed: [], total: 0, moved: false }), flushSettings = async () => ({ ok: true, message: '' }), chatId = () => '', notify = () => {}, report = () => {} } = {}) {
     let token = 0;
     let list = [];
     let card = '';
@@ -101,13 +104,15 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
 
     async function refresh() {
         const mine = ++token;
-        list = [];
+        // An offer whose install is running is not thrown away by a chat change: its notice is told when it ends.
+        const working = list.filter(offer => offer.state === 'working');
+        list = working;
         tell();
         if (!single()) return;
         let read = null;
         try { read = await readLorebook(); } catch { return; }
         // The answer of a read that another chat's open overtook is dropped (as the market lines are).
-        if (mine !== token || !read || read.problem) return;
+        if (mine !== token || !read) return;   // (a `problem` with entries is a linked world that did not load while the embedded book still offers)
         card = String(read.card ?? read.character ?? '');
         const entries = read.entries ?? [];
         const found = findPackEntries(entries);
@@ -154,7 +159,7 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
             for (const text of got.lines) line(got.ok ? 'CARD_KEY_SKIPPED' : 'CARD_REFUSED', text);
             if (got.ok) values = got.values;
         });
-        list = offers.map(offer => ({
+        const fresh = offers.map(offer => ({
             id: `${offer.pack.id}@${offer.pack.version}`,
             packId: offer.pack.id,
             name: offer.pack.name,
@@ -169,6 +174,7 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
             state: 'offer',
             result: '',
         }));
+        list = [...working, ...fresh.filter(offer => !working.some(item => item.id === offer.id))];
         tell();
     }
 
@@ -200,9 +206,13 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
         if (!offer || offer.state !== 'offer') return null;
         const now = view(offer);
         if (now.blocked) return null;
+        // The chat and the read this click was made in: what is pinned goes only into that chat.
+        const here = chatId(), readToken = token;
+        const still = () => token === readToken && chatId() === here;
         offer.state = 'working';
         tell();
         const done = [];
+        let unsaved = false;
         try {
             const result = await packs.install(offer.text, { source: 'lorebook', origin: offer.origin, files: offer.files });
             if (!result.ok) {
@@ -217,19 +227,19 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
             for (const item of refused) line('CARD_PORTRAIT_SKIPPED', `Card portrait ${item.file} was not stored: ${item.message}`, { always: true });
             done.push(`${result.action === 'updated' ? 'Updated' : result.action === 'unchanged' ? 'Already installed:' : 'Installed'} ${result.name} ${offer.version}${stored ? ` with ${plural(stored, 'portrait')}` : ''}.`);
             if (refused.length) done.push(`${plural(refused.length, 'portrait')} not used.`);
-            // The pack list and the portrait index are on disk before anything is pinned in the chat: a reload now never finds modules
-            // pinned for a pack that was not kept.
+            // The pack list and the portrait index go to disk before anything is pinned in the chat: a reload now never finds modules
+            // pinned for a pack that was not kept. A failed save does not stop the install (the pack is in): the notice warns at the end.
             const first = await flushSettings();
-            if (!first.ok) {
-                offer.state = 'failed';
-                offer.result = `${offer.name} was installed here, but ${first.message || 'the settings could not be saved'} Nothing else was done; reload and try Install again.`;
-                line('CARD_REFUSED', offer.result, { always: true });
-                tell();
-                return { ok: false, text: offer.result };
-            }
+            if (!first.ok) { unsaved = true; line('CARD_REFUSED', `${offer.name}: ${first.message || 'the settings could not be saved'}`, { always: true }); }
             if (!offer.update) {
-                const modules = await enableModules(offer.packId);
+                // A chat switch since the click leaves the modules unpinned: they would go into the wrong chat, or none.
+                const modules = still() ? await enableModules(offer.packId, { still }) : { pinned: 0, failed: [], total: 0, moved: true };
                 if (modules.pinned) done.push(`${plural(modules.pinned, 'data module')} turned on in this chat.`);
+                if (modules.moved) {
+                    done.push('The chat changed, so its data modules were not turned on (Settings, Tabs & Packs, Data modules).');
+                    line('CARD_REFUSED', `Card data modules of ${offer.name} were not turned on: the chat changed during the install.`, { always: true });
+                    try { notify(`${offer.name} is installed. Turn its modules on in Settings → Data modules for that chat.`); } catch { /* a missing toast is not an error */ }
+                }
                 if (modules.failed.length) {
                     done.push(`${plural(modules.failed.length, 'data module')} could not be turned on (Settings, Tabs & Packs, Data modules).`);
                     for (const text of modules.failed) line('CARD_REFUSED', `Card data module not turned on: ${text}`, { always: true });
@@ -247,13 +257,8 @@ export function createCardOffer({ readLorebook, packs, cardSettings, remember, s
             }
             // The applied settings go to disk too, before the notice says it is done.
             const last = await flushSettings();
-            if (!last.ok) {
-                offer.state = 'failed';
-                offer.result = `${done.join(' ')} But ${last.message || 'the settings could not be saved'} They may be lost if the page reloads.`;
-                line('CARD_REFUSED', offer.result, { always: true });
-                tell();
-                return { ok: false, text: offer.result };
-            }
+            if (!last.ok) { unsaved = true; line('CARD_REFUSED', `${offer.name}: ${last.message || 'the settings could not be saved'}`, { always: true }); }
+            if (unsaved) done.push(`Settings may not have been saved; if ${offer.name} is missing after a reload, import it from Settings → Tabs & Packs.`);
             offer.state = 'done';
             offer.result = done.join(' ');
         } catch (error) {

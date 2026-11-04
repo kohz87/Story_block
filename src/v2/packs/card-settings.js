@@ -20,15 +20,19 @@ const same = (a, b) => {
     try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
 };
 
+/** The owner ids only Story Block itself registers (through `registerOwn`): a module's `registerCardSettings` is refused for them. */
+export const RESERVED_OWNERS = Object.freeze(['story-block']);
+
 export function createCardSettings() {
     const owners = new Map();
     const listeners = new Set();
     const tell = () => { for (const fn of [...listeners]) { try { fn(); } catch { /* a listener never stops the others */ } } };
 
-    function register(spec) {
+    function register(spec, { own = false } = {}) {
         const bad = message => { throw new TypeError(`registerCardSettings: ${message}`); };
         if (!spec || typeof spec !== 'object') bad('a definition is needed.');
         if (typeof spec.owner !== 'string' || !OWNER.test(spec.owner)) bad('"owner" must be a module id such as "story-block".');
+        if (!own && RESERVED_OWNERS.includes(spec.owner)) bad(`"${spec.owner}" is Story Block's own owner; another module registers under its own id.`);
         if (typeof spec.label !== 'string' || !spec.label) bad('"label" must be text.');
         if (typeof spec.read !== 'function' || typeof spec.apply !== 'function') bad('"read" and "apply" must be functions.');
         if (!spec.keys || typeof spec.keys !== 'object' || Array.isArray(spec.keys) || !Object.keys(spec.keys).length) bad('"keys" must name at least one setting.');
@@ -109,7 +113,9 @@ export function createCardSettings() {
     }
 
     return {
-        register,
+        register: spec => register(spec),
+        /** Story Block's own registration (runtime.js): the only way to take a reserved owner. */
+        registerOwn: spec => register(spec, { own: true }),
         plan,
         apply,
         has: owner => owners.has(owner),

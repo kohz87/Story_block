@@ -31,6 +31,13 @@ The card offer: a character card can bring its whole world, and Story Block offe
   failed one gives nothing. The battle log says it in one line before Round 1. Without such a check there is no ambush edge (the planner head no
   longer offers a free "edge +2" for an ambush). The planner now sees each skill's description (cut at 70 characters) and its head is about 200
   characters longer.
+- **Install and a chat switch:** modules are pinned only in the chat the click was made in. If the chat changed during the install nothing is pinned
+  anywhere else; the notice, a toast and Diagnostics say to turn the modules on in Settings → Data modules for that chat.
+- **A failed settings save no longer ends Install:** the install goes on and the notice warns that settings may not have been saved (and where to import
+  the pack if it is missing after a reload). The settings save no longer waits for ever.
+- **Card reading:** the card's embedded pack is offered when its version is higher than the linked world's copy; a linked world that cannot be loaded still
+  lets the embedded book offer; a portrait's size is checked before it is decoded; only Story Block registers the `story-block` card-settings owner.
+- **FAQ:** docs/FAQ.md answers the questions players ask most (a missing item, skill practice, ambush, skill slots, cards that bring a world); the README links to it.
 - Group chats show no offer; a chat whose card has none of these entries behaves exactly as 2.20.0.
 
 ## 2.20.0

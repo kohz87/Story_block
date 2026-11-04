@@ -26,7 +26,7 @@ test('a missing world file (an empty dummy, or a failed load) falls back to the 
     assert.deepEqual(titles(dummy), ['Embedded:P [storysuite:pack]', 'Embedded:S [storysuite:settings]']);
     const failed = await read(t, { linked: 'Gone', book: embedded('P [storysuite:pack]'), load: async () => { throw new Error('no file'); } });
     assert.deepEqual(titles(failed), ['Embedded:P [storysuite:pack]']);
-    assert.equal(failed.problem, '');
+    assert.equal(failed.problem, 'The lorebook "Gone" could not be loaded.', 'still told for the market lines and the Packs panel, as in 2.20.0');
     const nothing = await read(t, { linked: 'Gone', book: embedded('Lore'), load: async () => null });
     assert.equal(nothing.problem, 'The lorebook "Gone" could not be loaded.', 'no embedded tags: as before');
 });
@@ -58,4 +58,30 @@ test('saveSettingsNow: ok when SillyTavern says its settings were saved, not ok 
     assert.match(lost.message, /did not confirm/);
     ctx = make(async () => { throw new Error('offline'); });
     assert.match((await saveSettingsNow()).message, /offline/);
+});
+
+test('saveSettingsNow: a save that never answers ends at the timer (not stuck) and the listener is taken away', async t => {
+    t.after(() => { delete globalThis.SillyTavern; });
+    const listeners = new Set();
+    const eventSource = { once: (type, fn) => listeners.add(fn), removeListener: (type, fn) => listeners.delete(fn) };
+    globalThis.SillyTavern = { getContext: () => ({ eventTypes: { SETTINGS_UPDATED: 'settings_updated' }, eventSource, saveSettings: () => new Promise(() => {}) }) };
+    const started = Date.now();
+    const result = await saveSettingsNow({ timeoutMs: 30 });
+    assert.equal(result.ok, false);
+    assert.ok(Date.now() - started < 1000, 'ended at the timer');
+    assert.equal(listeners.size, 0, 'the listener is gone');
+});
+
+const pack = (id, version) => JSON.stringify({ id, version, name: id });
+const withPack = (title, id, version) => ({ id: 0, comment: title, content: pack(id, version), keys: [] });
+
+test('pack entries are merged by pack id and the higher version wins: a stale linked world does not hide a card update; equal or older keeps the linked one', async t => {
+    const newer = await read(t, { linked: 'World', book: { name: 'Embedded', entries: [withPack('P [storysuite:pack]', 'ersveil', '2.7.0')] }, load: async () => ({ entries: { 0: { uid: 0, comment: 'P [storysuite:pack]', content: pack('ersveil', '2.6.1'), key: [] }, 1: { uid: 1, comment: 'Place', content: 'Lore.', key: [] } } }) });
+    assert.deepEqual(newer.entries.map(entry => [entry.book, entry.title, /^\{/.test(entry.content) ? JSON.parse(entry.content).version : null]), [['World', 'Place', null], ['Embedded', 'P [storysuite:pack]', '2.7.0']], 'the linked 2.6.1 is replaced by the embedded 2.7.0; the rest of the world is read as before');
+    for (const embeddedVersion of ['2.6.1', '2.5.0']) {
+        const kept = await read(t, { linked: 'World', book: { name: 'Embedded', entries: [withPack('P [storysuite:pack]', 'ersveil', embeddedVersion)] }, load: async () => ({ entries: { 0: { uid: 0, comment: 'P [storysuite:pack]', content: pack('ersveil', '2.6.1'), key: [] } } }) });
+        assert.deepEqual(titles(kept), ['World:P [storysuite:pack]'], embeddedVersion);
+    }
+    const other = await read(t, { linked: 'World', book: { name: 'Embedded', entries: [withPack('Q [storysuite:pack]', 'other-pack', '1.0.0')] }, load: async () => ({ entries: { 0: { uid: 0, comment: 'P [storysuite:pack]', content: pack('ersveil', '2.6.1'), key: [] } } }) });
+    assert.deepEqual(titles(other), ['World:P [storysuite:pack]', 'Embedded:Q [storysuite:pack]'], 'a different pack id is a second pack');
 });

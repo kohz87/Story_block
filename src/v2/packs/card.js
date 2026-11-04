@@ -70,8 +70,13 @@ export function readPortraitsEntry(text, pack, { limits = CARD_LIMITS } = {}) {
         const skip = message => lines.push(`Card portrait ${name.slice(0, 80)} skipped: ${message}`);
         if (!named.has(name)) { skip('no cast member of the pack names that file.'); continue; }
         const given = data.files[name];
+        // The size is read from the text's length, before anything is decoded or matched: a huge entry costs nothing to refuse.
+        if (typeof given === 'string' && given.length > Math.ceil(limits.fileBytes * 4 / 3) + 64) { skip(`it is about ${kb(Math.floor(given.length * 3 / 4))}; at most ${kb(limits.fileBytes)}.`); continue; }
         const found = typeof given === 'string' ? DATA_URI.exec(given) : null;
         if (!found) { skip('it is not a base64 data: address of a webp, png or jpeg picture.'); continue; }
+        // (the encoded length is held to the limit again here, with the data: prefix off)
+        const decoded = Math.floor(found[2].length * 3 / 4) - (found[2].match(/=+$/)?.[0].length ?? 0);
+        if (decoded > limits.fileBytes) { skip(`it is ${kb(decoded)}; at most ${kb(limits.fileBytes)}.`); continue; }
         let bytes;
         try { bytes = bytesOf(found[2]); } catch { skip('its base64 could not be read.'); continue; }
         if (bytes.length > limits.fileBytes) { skip(`it is ${kb(bytes.length)}; at most ${kb(limits.fileBytes)}.`); continue; }
