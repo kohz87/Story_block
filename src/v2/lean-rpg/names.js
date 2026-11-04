@@ -136,5 +136,5 @@ export const JOIN_SETTING = 'rpgJoin';
 export const JOINS = Object.freeze(['ask', 'auto', 'off']);
 export const PARTY_MAX = 8;
 
-/** A roll's rules mark (`fix` in the `rpg.resolve` payload, stage 65): without it a roll replays as before. */
-export const FIX_VERSION = 2;
+/** A roll's rules mark (`fix` in `rpg.resolve`; 2: stage 65, 3: `then:`); none replays as before. */
+export const FIX_VERSION = 3;

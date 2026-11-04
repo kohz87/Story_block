@@ -50,7 +50,7 @@ function run({ blocks, plan, rules, dice, flow, seed }) {
     const random = rng(seed);
     const ctx = { cause: 'system', caller: null, module: 'story-block', epoch: 1, source: {}, fail: (code, message) => { throw new Error(`${code}: ${message}`); },
         read: () => domain, draft: () => structuredClone(domain), claim: () => true, rng: random, roll: expression => roll(random, expression), hash: hashJson, replayGuard() {} };
-    // (PINNED CHANGE: the roll is a current one, `fix: 2`, as the cue it is compared with is made by prepare()'s current rules)
+    // (PINNED CHANGE: the roll is a current one, `fix: 3` (`then: true` below), as the cue it is compared with is made by prepare()'s current rules)
     const payload = { key: '1-abc', plan, rules, fix: FIX_VERSION, ...(dice ? { dice: DICE_VERSION } : {}), ...(flow ? { flow: FLOW_VERSION } : {}) };
     const out = resolve(ctx, payload);
     // The same dice, drawn again from the same seed: the cue as the roll itself wrote it.
@@ -58,7 +58,7 @@ function run({ blocks, plan, rules, dice, flow, seed }) {
     const flowAsked = flow && (dice || standard) ? FLOW_VERSION : 1;
     const source = dice || standard ? positionalDice(Math.floor(again() * 4294967296) >>> 0) : () => roll(again, 'd20').total;
     const sheet = readSheet({ domains: { dataModules: domain } });
-    const made = rollPrepared(plan, prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow: flowAsked, fix: true }), source, rules, { earlier: !dice && !standard, flow: flowAsked, fix: true });
+    const made = rollPrepared(plan, prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow: flowAsked, fix: true, then: true }), source, rules, { earlier: !dice && !standard, flow: flowAsked, fix: true, then: true });
     return { out, text: made.text, result: out.data.v2.result, shape: out.data.v2.shape };
 }
 

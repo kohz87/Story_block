@@ -122,8 +122,8 @@ export function openFoes(domain, open, { fix = FIX_VERSION } = {}) {
         // group of the same name replaces it, else the first empty or Down slot takes the new group, so five fights in a row never stall the block.
         const same = sheet.foes.find(foe => foe.filled && fold(foe.name) === fold(entry.name));
         // (A roll made before `fix: 2` keeps the earlier rule exactly: a filled group of the name stops the entry, only an empty slot is free, nothing is cleared.)
-        if (fix !== FIX_VERSION ? same : same && same.hurt > 0) continue;
-        const free = fix !== FIX_VERSION ? sheet.foes.find(foe => foe.count === 0) : same ?? sheet.foes.find(foe => foe.count === 0 || (foe.filled && foe.hurt === 0));
+        if (fix < 2 ? same : same && same.hurt > 0) continue;
+        const free = fix < 2 ? sheet.foes.find(foe => foe.count === 0) : same ?? sheet.foes.find(foe => foe.count === 0 || (foe.filled && foe.hurt === 0));
         if (!free) continue;
         const n = ((free.slot - 1) % FOE_SLOTS) + 1;
         const pin = domain.pins?.[domain.active?.[free.module]?.hash];
@@ -142,7 +142,7 @@ export function openFoes(domain, open, { fix = FIX_VERSION } = {}) {
     // A new fight has opened: the Down groups left from earlier replies are cleared in the same step (the block's own clear kind, else its four fields), so the Foes
     // block, the log's Status and the prompts show only this fight's foes. Opening happens before this reply's rolls, so a group that goes Down in this reply stays
     // until the next fight opens and its XP is still paid.
-    if (placed.length && fix === FIX_VERSION) {
+    if (placed.length && fix >= 2) {
         const taken = new Set(placed.map(entry => entry.slot));
         for (const stale of readSheet({ domains: { dataModules: domain } }).foes.filter(foe => foe.filled && foe.hurt === 0 && !taken.has(foe.slot))) {
             const n = ((stale.slot - 1) % FOE_SLOTS) + 1;

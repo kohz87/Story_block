@@ -61,7 +61,7 @@ test('a roll made before `fix: 2` opens foes as it did (replay safety): a filled
     assert.deepEqual(openFoes(fresh, [{ name: 'Boars', count: 2, level: 1 }]).map(entry => entry.slot), [1], 'the current rule takes the first Down slot');
     const { host, model } = await world(t);
     const { roll } = await fight(host, model, 'rats');
-    assert.equal(roll.data.v2.result.fix, 2, 'the roll asks for the foe-slot rule');
+    assert.equal(roll.data.v2.result.fix, 3, 'the roll asks for the current rules mark (3 includes the foe-slot rule of 2)');
 });
 
 test('a Down group of the name is not "already there" for the planner: vetOpen lets a new group of that name through, a standing one is still passed over', () => {
