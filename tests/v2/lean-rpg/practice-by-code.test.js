@@ -53,8 +53,8 @@ const told = host => host.turn.problems().filter(problem => problem.message === 
 
 test('the planner heads name a defender\'s skill on the foe line only when the message asks for it (Classic and Standard)', () => {
     // (PINNED CHANGE, USER option A: the line used to say a fitting skill always goes on the foe line)
-    assert.match(PRECALL_HEAD, /Name a defender's skill on a foe line only if the message asks to defend with it; else leave skill out\./);
-    assert.match(PRECALL_HEAD_STANDARD, /Name a defender's skill on a foe line only if the message asks to defend with it; else leave skill out\./);
+    assert.match(PRECALL_HEAD, /Defending with a skill \(evade, dodge, parry, block\): guard: that skill on the act; else leave it out\./);
+    assert.match(PRECALL_HEAD_STANDARD, /Defending with a skill \(evade, dodge, parry, block\): guard: that skill on the act; else leave it out\./);
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.doesNotMatch(head, /fitting skill/);
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.doesNotMatch(head, /plausibly fits/);
 });

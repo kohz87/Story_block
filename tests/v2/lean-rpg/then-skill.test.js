@@ -126,7 +126,7 @@ test('a defender\'s skill goes on the foe line only when the message asks for it
     const plain = parsePlanAnswer('pace: all\nact Astra | skill: Iaijutsu | type: physical | target: Rats\nfoe Rats | target: Astra', s, { formula: 'standard' }).plan;
     assert.equal('skill' in plain.foes[0], false, 'not asked: no skill on the foe line');
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.includes('- Name a defender\'s skill on a foe line only if the message asks to defend with it; else leave skill out.'));
+        assert.ok(head.includes('- Defending with a skill (evade, dodge, parry, block): guard: that skill on the act; else leave it out.'));
         assert.match(head, /\nfoe <foe> \| target: <who> \|[^\n]*skill: <skill>\?/, 'the foe line still takes a skill');
     }
     // an old reply replays as it was made: its plan is recorded, so the roll of a plan that names a defender's skill is the same under both marks

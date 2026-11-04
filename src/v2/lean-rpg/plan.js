@@ -171,6 +171,14 @@ function elseOf(character, labels, skill) {
     return found ? { else: found.name } : {};
 }
 
+// "guard: Shadow Step": the skill the character defends with in this message (evade, dodge, parry, block). It is copied onto the foe lines aimed at
+// the character at parse time, so the plan recorded holds it on the foe lines and a replay never works it out again.
+const guardOf = (character, labels) => {
+    const named = oneLine(labels.guard);
+    if (!named || /^(none|no|-|—)$/i.test(named)) return null;
+    return (character ? matchSkill(character, named) : null)?.name ?? null;
+};
+
 // "then: Iaijutsu": the skill an act uses from round 2 on (round 1 and an opening action use `skill:`). A skill the character has, other than the first.
 function thenOf(character, labels, skill) {
     const named = oneLine(labels.then);
@@ -222,6 +230,7 @@ export function parsePlanAnswer(answer, sheet, { formula = 'classic' } = {}) {
     let read = 0;
     let dropped = 0;
     let none = false;
+    const guards = new Map();
     for (const raw of text.split(/\r?\n/)) {
         const line = lineOf(raw);
         if (!line) {
@@ -237,6 +246,8 @@ export function parsePlanAnswer(answer, sheet, { formula = 'classic' } = {}) {
             const who = matchCharacter(sheet, name);
             const skill = skillOf(who, labels);
             const stat = skill.stat;
+            const guard = who ? guardOf(who, labels) : null;
+            if (guard && !guards.has(who.who)) guards.set(who.who, guard);
             if (std) {
                 // Standard: the type decides the stat, so a line needs only a character and a target (a foe, or an ally for support).
                 const support = labels.support !== undefined && !/^(no|none|false|-|—)$/i.test(String(labels.support));
@@ -282,6 +293,8 @@ export function parsePlanAnswer(answer, sheet, { formula = 'classic' } = {}) {
             plan.checks.push({ who: who.who, ...skill.entry, difficulty, ...(labels.ambush ? { ambush: true } : {}) });
         }
     }
+    // A guard skill goes on every foe line aimed at that character that names no skill of its own (a hold line has no target, and a skill the planner gave stays).
+    for (const foe of plan.foes) if (!foe.hold && !foe.skill && guards.has(foe.target)) foe.skill = guards.get(foe.target);
     // No ambush edge without an ambush check: an act's own "+2 ambush" is dropped when the plan has no check that carries `ambush` (ambush.js).
     if (!plan.checks.some(check => check.ambush === true)) {
         for (const act of plan.acts) if (act.edge && /\bambush/i.test(act.why ?? '')) { delete act.edge; delete act.why; }

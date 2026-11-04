@@ -140,7 +140,10 @@ chat, replay does not apply the block, even when deleting the earliest replies w
 state forward (`carriedTo`); a replay that still lists the deleted reply fails the block's prerequisite ("its reply was deleted").
 A swipe away from the reply does the same as it does for any block of that swipe, and a Re-read of the reply takes the block
 and its receipt too (`replaceStory` does not keep it; a block built under it is replayed without it and stays off, as after a
-delete); a Re-read of any other reply leaves it alone. Use it for a choice the rest of the owner's state depends on (a module's saved choice): taking the
+delete); a Re-read of any other reply leaves it alone. The one exception is the reader's own chat-block setup (Story Block's
+`dm.*` blocks with a `ui` receipt: define, redefine, remove, pin, attach, migrate, Add to party): it is an action on the reply, not
+the reply's story, so a Re-read of its reply keeps it (replayed as stored, its guard asked again) as it keeps the reader's other
+actions; a swipe or a delete still takes it (`tests/v2/blocks/reread-opening.test.js`). Use it for a choice the rest of the owner's state depends on (a module's saved choice): taking the
 reply away takes the choice and what was built on it, never one without the other. Tests: `tests/v2/reply-bound.test.js`.
 When the earliest replies are deleted, the state they ended with is worked out by replaying them **whole**, from the first
 one's checkpoint and past any later checkpoint among them (a checkpoint holds what the blocks before it did without asking
@@ -177,7 +180,7 @@ display data. That data is retained for the newest 200 carriers; older cards no 
 ## Chat block definitions
 
 `dm.define`, `dm.redefine` and `dm.remove` are reply-bound guarded actions. Swiping or deleting the
-reply that made one retracts it. A definition is stored as a checked `pack.chat/<slug>` pin, without
+reply that made one retracts it; a Re-read of that reply keeps it (the reader's action, above). A definition is stored as a checked `pack.chat/<slug>` pin, without
 installing a pack. A redefine carries a field's value only when its name and type match and the value
 still fits; otherwise it uses the new default. Removed fields disappear. The guard witnesses the old
 generation and instance, so an earlier change that invalidates the decision leaves the later action
