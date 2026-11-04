@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+Your own equipment, set up by hand (gear on).
+- **"+ Add item" opens the grouped form** (the one the Game view's Edit uses) when Gear in fights is on: Item (Name, Count, Kind, Note) and, for
+  Equipment, Gear (Slot, Rarity, Bonus up to 2 stats held to the rarity's points with a live "N of M points" line, Equip on: the reader or a party member).
+  Save adds the piece and puts it on in one command; a second accessory goes to Accessory 2. With gear off nothing changes.
+- **Starting kit:** Rarity and Bonus can be set only while the chat has no message from you yet (a greeting swipe keeps it open; deleting your messages
+  or rewinding to the greeting opens it again). Afterwards "+ Add item" still offers Kind, Slot and Equip on, but Rarity is Common with no Bonus, and Edit
+  shows Rarity and Bonus read-only on pieces you added. The commands (`inventory.add`, `inventory.edit`) hold these rules themselves: a bonus over the
+  rarity's budget, and Rarity or Bonus after your first message, are refused.
+- **Edit of a piece you added** shows the same fields; Kind can change (Equipment later is Common with no Bonus). A pack's item gets one hint ("Kind, slot and rarity
+  come from the pack"); the story's pieces and bound gear are unchanged.
+- Style: equal 32 px controls in a form row, groups stacked below 600 px for any grouped form, and the editing row using the full width on a phone.
+
 ## 2.20.0
 
 Story Block as a platform, part 1: a small public API for scripts and cards.
