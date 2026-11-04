@@ -1148,7 +1148,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     }
     function selectionPlan(limit = null) {
         if (!archive.exists()) return {};
-        return withWholePrefixes(() => {
+        return withWholePrefixes(() => (store.witnessScope ?? (read => read()))(() => {
             const result = { ...archive.baseline() };
             const through = limit ? store.prefixWitness(limit) : null;
             if (limit && !through) throw new Error('The marker root no longer has a unique prefix.');
@@ -1165,7 +1165,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                 if (candidates.length) result[module] = candidates.at(-1).mapping.after;
             }
             return result;
-        });
+        }));
     }
     function withWholePrefixes(fn) {
         const was = registry.restore();

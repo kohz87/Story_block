@@ -330,13 +330,16 @@ guide says the same (docs/v2/GUIDE.md, "Slow disk?").
 boundary: a replay of that prefix plus its hashes, to check that each participant stands on the checkpoint the selected head
 names. A dossier open makes dozens of queries, so the same replays ran dozens of times on a chat that had not moved.
 
-The store now keeps each witness (`witnessMemo`, at most 256) while everything it reads is as it was: the same chat array with every
-message's record, swipe, text and swipe copies the same, the same `epoch` (any write, rebuild, guard or lifecycle change forgets it),
-the guards' mark, the chat id and metadata, the source archive, the Features the reader has on. A new reply, swipe, edit, delete, save
-point, rewind, reload, chat switch or Feature switch answers afresh. Settings are not an input of a replay, so they do not. The
-timeline also hashes a witness's state once per state object. Each caller gets a new answer object; the state in it is deep-frozen.
+The store now keeps the witnesses in one generation per chat state (`witnessGen`): the chat's fingerprint (every message's record,
+swipe, text and swipe copies), the `epoch` (any write, rebuild, guard or lifecycle change bumps it), the guards' mark, chat id,
+metadata, source archive and the Features the reader has on are held once, and each boundary keeps only its answer. When anything
+changes, the whole generation is dropped, so the memo holds exactly the boundaries of the current chat, with no cap and no thrash.
+The timeline reads a whole pass inside `store.witnessScope`, which checks the generation in full once. A new reply, swipe, edit,
+delete, save point, rewind, reload, chat switch or Feature switch answers afresh; settings are not an input of a replay, so they do
+not. It is not used while a replay runs or a Re-read's overlay is staged. The timeline also hashes a witness's state once per
+state object. Each caller gets a new answer object; the state in it is deep-frozen and shares its unchanged parts with the head.
 
-`node scripts/bench-query.mjs` (600 replies, 50 queries): replays 100 → 1.
+`node scripts/bench-query.mjs` (600 replies, 50 queries): replays 100 → 0 after the first. With `--boundaries 300` (a native change after each of 300 replies, 5 queries): 3000 replays, 723 ms → 300 replays (the first query only), 82 ms.
 
 ## Memory of the caches
 
