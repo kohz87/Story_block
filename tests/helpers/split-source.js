@@ -13,6 +13,9 @@ export const SPLIT_PARTS = Object.freeze({
         'src/v2/domains/inventory/state.js', 'src/v2/domains/inventory/validate.js', 'src/v2/domains/inventory/queries.js', 'src/v2/domains/inventory/prompt.js',
     ],
     'src/v2/host-ui.js': ['src/v2/host-ui/text.js', 'src/v2/host-ui/controls.js', 'src/v2/host-ui/sent.js', 'src/v2/host-ui/tab-host.js'],
+    'src/v2/packs/validate.js': [
+        'src/v2/packs/validate/core.js', 'src/v2/packs/validate/items.js', 'src/v2/packs/validate/events-economy.js', 'src/v2/packs/validate/world.js', 'src/v2/packs/validate/theme.js',
+    ],
     'src/v2/view/template/render.js': ['src/v2/view/template/render/dom.js', 'src/v2/view/template/render/page-ids.js'],
 });
 

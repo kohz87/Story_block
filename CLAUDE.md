@@ -27,7 +27,7 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 - `src/v2/prompt.js`: static part + tail assembly, tail budget, context share.
 - `src/v2/registry.js`, `src/v2/sdk.js`, `src/v2/features.js`: module definitions, the public sdk, Features (F100).
 - `src/v2/domains/`: `scene`, `inventory`, `money`, name matching: the reference module. `domains/inventory/`: parts of `inventory.js` (`state.js`, `validate.js`, `queries.js`, `prompt.js`); inventory.js keeps its path and exports.
-- `src/v2/packs/`: pack validation, safety walls, lorebook packs, content queries, ranks.
+- `src/v2/packs/`: pack validation (`validate.js` is the entry; its checks are in `validate/`), safety walls, lorebook packs, content queries, ranks.
 - `src/v2/events/`, `src/v2/assist/`: pack events and conditions; optional classifier and extractor.
 - `src/v2/view/`: screens registry, template renderer (`view/template/render.js` + `render/`) + sanitiser, CSS scoper, binding, mounts, widgets, tab order.
 - `src/v2/screens/`: the host's own screens (home, inventory, scene, changes card, inspector, save points).

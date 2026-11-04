@@ -26,7 +26,7 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
 ## Key files and functions
 
 - `src/v2/packs/index.js`: `createPacksPart`, `part`, `packs`, `resolveItem`, `startState`, `economy`, `refreshLore`, `marketsOf`.
-- `src/v2/packs/validate.js`: `validatePack`, `slugify`, `unsafeCss`, `HOST_VERSION`.
+- `src/v2/packs/validate.js`: `validatePack` and `normalize` (the entry; keeps its path and exports `slugify`, `unsafeCss`, `checkScreens`, `HOST_VERSION`). The checks live in `src/v2/packs/validate/`: `core.js` (shared helpers, `slugify`, `HOST_VERSION`), `items.js`, `events-economy.js`, `world.js`, `theme.js` (`unsafeCss`, `checkScreens`).
 - `src/v2/packs/safety.js` (`unsafeText`, `checkPlain`, `byteLength`), `limits.js`, `version.js`.
 - `src/v2/packs/content.js`: `itemDef`, `contentOf`, `calendarOf`, `economyOf`, `craftsOf`, `resolveItemIn`,
   `mergeStart`, `applyStart`.
