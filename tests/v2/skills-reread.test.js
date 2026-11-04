@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { createHost, hostAvailable } from '../../testkit/index.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
 import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
-import { skillSlots } from '../../src/v2/lean-rpg/names.js';
+import { skillSlots } from '../../src/v2/skill-slots.js';
 import { partyLines } from '../../src/v2/lean-rpg/view/changes-lines.js';
 import { joinCard, joinDraft, joinOffers } from '../../src/v2/lean-rpg/join.js';
 import { buildDefinitions, draftSlots, readDraft, withImport, withSet, withSkill, withSkillPatch, withoutSkill } from '../../src/v2/lean-rpg/view/wizard-data.js';
