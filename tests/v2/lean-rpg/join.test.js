@@ -351,7 +351,7 @@ function prng(seed) {
     };
 }
 const NAMES = ['Mara', 'Ilse', 'Dov', 'Pip', 'Wessel'];
-// (The reply that holds the reader's own Wessel blocks, message 2, is left alone: Re-reading or deleting it takes those blocks away, which is the
+// (The reply that holds the reader's own Wessel blocks, message 2, is left alone: deleting it takes those blocks away, which is the
 // block engine's business and not the party line's; the test after this one says what a join does when that happens.)
 
 for (const seed of [1, 2, 3, 4, 5, 6]) {
@@ -393,12 +393,15 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
     });
 }
 
-test('when the blocks a companion joined are gone (the reply that made them was Re-read), the join is skipped with its reason, not failed', { skip }, async t => {
+test('when the blocks a companion joined are gone (the reply that made them was deleted), the join is skipped with its reason, not failed; a Re-read of that reply keeps them', { skip }, async t => {
     const host = await world();
     t.after(() => host.close());
     await host.send('Ilse walks in.', reply('+ party Ilse'));
     assert.equal(blocks(host).includes('pack.chat/ilse'), true);
     assert.equal((await host.turn.reread(2)).ok, true, 'message 2 holds the reader\'s Wessel blocks');
+    assert.deepEqual(blocks(host), ['pack.chat/ilse', 'pack.chat/ilse-skills', 'pack.chat/wessel', 'pack.chat/wessel-skills'], 'a Re-read keeps the reader\'s own blocks and the join');
+    await rebuilt(host, 'after a Re-read of the reply that made the blocks');
+    await host.st.deleteMessage(2);
     assert.equal(blocks(host).length, 0);
     const skipped = host.store.problems();
     assert.equal(skipped.length, 1);
