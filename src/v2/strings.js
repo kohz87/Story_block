@@ -121,6 +121,14 @@ export const STRINGS = deepFreeze({
     editMessages: {
         onlyReader: 'Only the reader can make this edit.', itemName: 'Give the item a name.',
         itemNameLength: 'An item needs a name of 1 to 60 characters.',
+        // Hand-set gear (the starting kit, docs/v2/GEAR.md "Your own gear"): the refusals of a reader's add or edit.
+        gearOff: 'Gear in fights is not switched on.', gearNeedsEquipment: 'Slot, bonus and Equip on are for equipment.',
+        kitClosed: 'Rarity and bonuses come from the story after the first message.',
+        kitBudget: '{a} {rarity} piece gives at most {max} {points}.', kitNoBonus: 'A common piece gives no bonus.',
+        kitStats: 'Choose at most {max} different stats, each worth a whole number of at least 1.',
+        kitSlot: 'The slot is one of {slots}.', kitNeedSlot: 'Choose a slot to put it on.', kitNotEquipment: '{name} is not equipment, so it cannot be put on.',
+        kitPack: 'Kind, slot and rarity come from the pack.', kitStory: 'Kind, slot and rarity come from the story.',
+        kitMany: 'Equipment is one piece each; at most {max} pieces.',
         itemKind: 'The kind of an item is one of {kinds}.', itemRarity: 'The rarity of an item is one of {rarities}.',
         itemAdded: 'You added {item}.', itemCount: '{name} to {qty}', itemNote: "{name}'s note",
         itemGroupRenamed: '{name} to {qty}; one renamed {renamed}',
@@ -399,6 +407,17 @@ export const STRINGS = deepFreeze({
             words: { good: 'Good', worn: 'Worn', torn: 'Torn', broken: 'Broken' }, noBonus: 'no bonus', brokenNoBonus: '\u2014 no bonus',
             condTitle: 'Condition: Good, Worn, Torn or Broken. A broken piece gives no bonus.',
             editSlot: 'Slot', editBy: 'Equipped by', none: 'None',
+            // The hand-set gear form (view/gear-form.js): "+ Add item" and the Edit of a piece the reader added.
+            form: {
+                groupItem: 'Item', groupGear: 'Gear', name: 'Name', count: 'Count', note: 'Note', kind: 'Kind', slot: 'Slot', rarity: 'Rarity', bonus: 'Bonus',
+                stat: 'Stat', amount: 'Points', equipOn: 'Equip on', equippedBy: 'Equipped by', noStat: 'No stat', choose: 'Choose\u2026',
+                kitHint: 'Starting kit: rarity and bonuses can be set until your first message.',
+                laterHint: 'Rarity and bonuses come from the story after the first message.',
+                packHint: 'Kind, slot and rarity come from the pack.',
+                laterTitle: 'Fixed after your first message',
+                points: '{n} of {max} points for {a} {rarity} piece', pointsNone: 'A common piece has no bonus',
+                kinds: { equipment: 'Equipment', consumable: 'Consumables', goods: 'Goods', quest: 'Quest items', material: 'Materials' },
+            },
             // A cast member's signature piece (bound): the chip, its title and the line under a locked Edit.
             bound: 'Bound', boundBy: 'Bound \u00b7 {name}', boundTitle: 'Bound to {name}: it cannot be unequipped, given away, sold or dropped',
             boundHint: 'Bound to {name}: it stays in this slot and leaves with {name}. Only the note can change.',
