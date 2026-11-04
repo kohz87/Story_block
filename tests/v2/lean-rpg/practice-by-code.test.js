@@ -136,6 +136,45 @@ test('with Rolls off the narrator\'s practice line works exactly as before', { s
     agree(host);
 });
 
+const LINE20 = '+ dm skills — practised Iron Breath | kind: practice-1 | amount: 20';
+
+test('a reply captured before the rule (Rolls off) keeps its accepted practice line on Re-read, an edit, a rebuild and a reload, even after Rolls goes automatic', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3, answers: ['none', 'none'] });
+    host.settings.set('story-block', 'rpgRolls', 'off');
+    await host.send('Training.', reply(LINE20));
+    const at = host.ctx.chat.length - 1;
+    assert.equal(sheetFields(host, 'skills').practice1, 20);
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, undefined, 'no mark: it was not captured under the rule');
+    host.settings.set('story-block', 'rpgRolls', 'automatic');
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(sheetFields(host, 'skills').practice1, 20, 'a Re-read keeps the practice the player had');
+    await host.st.editMessage(at, reply(LINE20.replace('amount: 20', 'amount: 12')));
+    assert.equal(sheetFields(host, 'skills').practice1, 20, 'an edit of the old message does not take its practice away either');
+    agree(host);
+    await reloads(host);
+    assert.equal(sheetFields(host, 'skills').practice1, 20);
+    assert.equal(refusals(host).length, 0);
+});
+
+test('a reply captured under the rule is marked on its record; its Re-read, an edit, a rebuild and a reload keep refusing the line, and the mark survives', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3, answers: ['none', 'none'] });
+    await host.send('Training.', reply(LINE20));
+    const at = host.ctx.chat.length - 1;
+    assert.equal(sheetFields(host, 'skills').practice1, 0);
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, 'rolls');
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(sheetFields(host, 'skills').practice1, 0, 'a Re-read refuses it again');
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, 'rolls');
+    await host.st.editMessage(at, reply(LINE20.replace('amount: 20', 'amount: 7')));
+    assert.equal(sheetFields(host, 'skills').practice1, 0, 'an edit of it too');
+    agree(host);
+    await reloads(host);
+    assert.equal(host.ctx.chat[at].extra.storySuite.practiceRule, 'rolls', 'the mark is saved with the reply');
+    // a reply with no practice line is not marked (nothing is written for it)
+    await host.send('Walking.', reply('~ place Docks'));
+    assert.equal(host.ctx.chat.at(-1).extra?.storySuite?.practiceRule, undefined);
+});
+
 test('rank-up: practice past 100 by code raises the rank by the block\'s rule and starts again', { skip }, async t => {
     const { host } = await world(t, { perUse: 5, answers: [PLAN] });
     // (the practice is brought to 98 with Rolls off, where the narrator's line still works; then Rolls goes automatic and a roll gives the last 5)

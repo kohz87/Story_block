@@ -811,8 +811,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(definition.kinds))}`);
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
-        // Practice comes only from rolled skill uses (the RPG on, Rolls automatic): the narrator's practice line changes nothing.
-        if (ctx.cause === 'story' && definition.role === 'skills' && /^practice-[1-5]$/u.test(labels.kind) && practiceFromRollsOnly(ctx.feature?.(LEAN_RPG_FEATURE), settings())) refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
+        // Practice comes only from rolled skill uses: on a reply captured under that rule (turn.js marks it, `ctx.carrier.practiceRule`; an older reply has no mark
+        // and keeps its practice lines on a Re-read, an edit, a rebuild and a reload) the narrator's practice line changes nothing.
+        if (ctx.cause === 'story' && definition.role === 'skills' && /^practice-[1-5]$/u.test(labels.kind) && ctx.carrier?.practiceRule === 'rolls') refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
         // The XP rate (lean-rpg/levels.js): the narrator's XP line for a character is multiplied by the rate in force (the RPG on), which the line's record keeps
         // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.
