@@ -125,7 +125,24 @@ const NAME_SLOT = Object.freeze({
     cloak: 'cloak', cape: 'cloak', mantle: 'cloak',
     boot: 'feet', shoe: 'feet', sandal: 'feet',
     ring: 'accessory', amulet: 'accessory', pendant: 'accessory', belt: 'accessory',
+    gauntlet: 'accessory', glove: 'accessory', bracer: 'accessory', bracelet: 'accessory',
 });
+// Compound words ("Longsword", "Warhammer", "Breastplate", "Longbow") end in a slot noun. Only nouns that are safe as an ending are listed
+// (not bow, helm, plate, mail, robe, cape, ring: "rainbow", "overwhelm", "template", "email", "wardrobe", "escape", "spring"); "password" is no sword.
+const ENDS_IN = Object.freeze({
+    sword: 'weapon', blade: 'weapon', hammer: 'weapon', spear: 'weapon', staff: 'weapon', dagger: 'weapon',
+    longbow: 'weapon', shortbow: 'weapon', crossbow: 'weapon', greatbow: 'weapon', warbow: 'weapon', pickaxe: 'weapon', battleaxe: 'weapon', greataxe: 'weapon', handaxe: 'weapon',
+    chainmail: 'body', ringmail: 'body', breastplate: 'body', cuirass: 'body',
+    shield: 'off-hand', buckler: 'off-hand', helmet: 'head', cloak: 'cloak', mantle: 'cloak',
+    boot: 'feet', shoe: 'feet', sandal: 'feet', amulet: 'accessory', pendant: 'accessory', gauntlet: 'accessory', bracer: 'accessory', bracelet: 'accessory',
+});
+const NOT_COMPOUND = new Set(['password']);
+const slotOfWord = word => {
+    if (Object.hasOwn(NAME_SLOT, word)) return { slot: NAME_SLOT[word] };
+    if (NOT_COMPOUND.has(word)) return null;
+    const end = Object.keys(ENDS_IN).find(noun => word.endsWith(noun));
+    return end ? { slot: ENDS_IN[end] } : null;
+};
 const foldHand = text => String(text ?? '').normalize('NFKC').toLowerCase().replace(/off[\s-]*hand/g, 'offhand');
 
 // The stat a kind of thing raises when nothing else says (the name's last matching noun), else the slot's own (GEAR.slotStat).
@@ -157,8 +174,8 @@ export const placeOf = slot => (slot === 'accessory' ? 'accessory-1' : slot);
 export function gearSlotOf(kindWord, name) {
     const said = slotWordOf(kindWord);
     if (said) return said;
-    const nouns = words(name).map(singular).filter(word => Object.hasOwn(NAME_SLOT, word));
-    return nouns.length ? NAME_SLOT[nouns[nouns.length - 1]] : null;
+    const found = words(name).map(singular).map(slotOfWord).filter(Boolean);
+    return found.length ? found.at(-1).slot : null;
 }
 
 // The five rarity words and their usual synonyms (a `rarity:` or `quality:` label).
