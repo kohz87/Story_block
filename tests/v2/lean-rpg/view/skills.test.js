@@ -260,7 +260,8 @@ test('on the real page: Skills opens the view, the pencil saves one dm.set, rank
     assert.equal(edits.length, 1, 'one action for both fields');
     assert.match(edits[0].summary, /Skill 1 .* → "Iron Breath II"/);
     rebuilt(host);
-    // The story practises the skill and it rises; the view shows it live.
+    // The story practises the skill and it rises; the view shows it live. (With Rolls automatic practice comes only from rolled uses: Rolls is off for this step.)
+    host.settings.set('story-block', 'rpgRolls', 'off');
     await host.send('Train.', reply('+ dm skills-1 — drills | kind: practice-1 | amount: 20'.replace('skills-1', 'wessel-skills')));
     assert.equal(fieldsOf(host, skills).practice1, 50);
     rebuilt(host);

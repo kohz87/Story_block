@@ -12,7 +12,7 @@ import { editableLayout } from './editable-layout.js';
 import { STRINGS, fill } from '../strings.js';
 import { blockTabScreen } from './block-screen.js';
 import { roleTail } from '../lean-rpg/tail.js';
-import { LEAN_RPG_FEATURE } from '../lean-rpg/names.js';
+import { LEAN_RPG_FEATURE, practiceFromRollsOnly } from '../lean-rpg/names.js';
 import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blocks.js';
 import { fold, readSheet } from '../lean-rpg/read.js';
 // (foes.js and levels.js are small and need nothing of the RPG's library: they stay static, like read.js)
@@ -133,7 +133,10 @@ export function pinnedPresentation(state, kind = 'screens', noTab = []) {
  * The static lines for the pinned modules (empty without a pin); they change only when a pin does, and (the RPG on) with a quiet reply
  * (`quiet`, the RPG's QUIET_GRAMMAR table, lean-rpg/quiet.js: no combat text and only the opening Foes line). A long list of values (the health words) is told once.
  */
-export function grammarFor(state, quiet = null) {
+export function grammarFor(state, quiet = null, { rolled = false } = {}) {
+    // `rolled` (the RPG on, Rolls automatic): skill practice comes only from rolled uses, so the narrator is not offered `practice-N` and the texts
+    // that told it to practise a skill say nothing of it (the Combat rules' XP guide line, the Skills block's description).
+    const noPractice = text => String(text ?? '').replace(/\s*Practice a skill 5 to 20 per use\./u, '').replace(/\s+and adds practice/u, '');
     const active = Object.keys(state?.domains?.dataModules?.active ?? {});
     const seen = new Map();
     const lines = active.map(id => {
@@ -142,9 +145,10 @@ export function grammarFor(state, quiet = null) {
         if (definition && only?.skip) {
             // (A skipped block may keep one line of its text: the XP guide stays on a quiet reply, whatever words the pinned block holds it in.)
             const kept = only.keep ? new RegExp(only.keep.source, 'u').exec(String(definition.prompt ?? ''))?.[0] : '';
-            return kept ? oneLine(kept) : '';
+            return kept ? oneLine(rolled ? noPractice(kept) : kept) : '';
         }
-        return definition ? moduleGrammar(definition, referenceOf(active, id), { seen, ...(only ?? {}) }) : '';
+        const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
+        return shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
 }
@@ -807,6 +811,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(definition.kinds))}`);
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
+        // Practice comes only from rolled skill uses (the RPG on, Rolls automatic): the narrator's practice line changes nothing.
+        if (ctx.cause === 'story' && definition.role === 'skills' && /^practice-[1-5]$/u.test(labels.kind) && practiceFromRollsOnly(ctx.feature?.(LEAN_RPG_FEATURE), settings())) refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
         // The XP rate (lean-rpg/levels.js): the narrator's XP line for a character is multiplied by the rate in force (the RPG on), which the line's record keeps
         // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.
@@ -1058,7 +1064,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         hooks: { afterCapture: afterCapture, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
         cards: blockCardSlots,
         context: {
-            static: hint => grammarFor(state(), rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null),
+            static: hint => grammarFor(state(), rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null, { rolled: practiceFromRollsOnly(hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()) }),
             tail: view => ({ lines: tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true), optional: [] }),
             // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
             extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id)), 0),

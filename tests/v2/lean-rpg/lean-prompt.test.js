@@ -120,12 +120,24 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     // What the narrator needs on every reply stays.
     assert.match(text, /kind: set-health/u);
     assert.match(text, /kind: learn-N/u);
+    // Practice comes only from rolled uses (the RPG on, Rolls automatic): no practice-N line is offered.
+    assert.doesNotMatch(text, /practice-N/u);
+    assert.match(text, /N = 1\.\.5 for learn-N\./u);
+});
+
+test('with Rolls off the quiet reply still offers practice-N and the Classic XP guide keeps its practice sentence', { skip }, async t => {
+    const { host } = await world(t, { templates: LEAN_RPG_TEMPLATES, settings: { modules: { 'story-block': { rpgRolls: 'off' } } } });
+    const { request } = await host.send('I walk on.', 'The road is quiet.');
+    const text = staticOf(request);
     assert.match(text, /kind: practice-N/u);
+    assert.match(text, /N = 1\.\.5 for learn-N and practice-N\./u);
+    assert.match(text, /Practice a skill 5 to 20 per use\./u);
+    assert.match(text, /and adds practice/u);
 });
 
 test('the XP guide stays on a quiet reply (Standard and Classic), once, and the rest of the combat text does not', { skip }, async t => {
     const expected = [[STANDARD_TEMPLATES, /XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\./u],
-        [LEAN_RPG_TEMPLATES, /XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\. Practice a skill 5 to 20 per use\./u]];
+        [LEAN_RPG_TEMPLATES, /XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\.(?! Practice)/u]];
     for (const [templates, guide] of expected) {
         const { host } = await world(t, { templates });
         const { request } = await host.send('I walk on.', 'The road is quiet.');

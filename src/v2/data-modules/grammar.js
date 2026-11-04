@@ -93,12 +93,12 @@ const offeredKinds = definition => Object.keys(definition.kinds).filter(name => 
 
 /**
  * The complete text used to measure the static budget before accepting a definition.
- * `options`: { prompt: false } leaves the module's description out; { only: /re/ } offers only the kinds whose name matches (the RPG's quiet prompt, lean-rpg/names.js
+ * `options`: { prompt: false } leaves the module's description out; { only: /re/ } offers only the kinds whose name matches, { without: /re/ } leaves out the kinds whose name matches (the RPG's quiet prompt, lean-rpg/names.js
  * QUIET_GRAMMAR); { seen } is a Map shared by the modules of one prompt (see kindGrammar).
  */
-export function fullModuleGrammar(definition, reference, { prompt: withPrompt = true, only = null, seen = null } = {}) {
+export function fullModuleGrammar(definition, reference, { prompt: withPrompt = true, only = null, without = null, seen = null } = {}) {
     const prompt = withPrompt && definition.prompt ? [...oneLine(definition.prompt)].slice(0, L.prompt).join('') : '';
-    const names = offeredKinds(definition).filter(name => !only || only.test(name));
+    const names = offeredKinds(definition).filter(name => (!only || only.test(name)) && !(without && without.test(name)));
     return [prompt, ...familyLines(definition, names, reference, seen)].filter(Boolean).join('\n');
 }
 

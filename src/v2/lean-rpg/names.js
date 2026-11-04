@@ -83,6 +83,8 @@ export const LIMITS = Object.freeze({
  */
 export const ROLLS_SETTING = 'rpgRolls';
 export const ROLLS = Object.freeze(['automatic', 'off']);
+/** Skill practice comes only from rolled uses while the RPG is on and Rolls is automatic (the narrator's `practice-N` line is not offered and is refused). */
+export const practiceFromRollsOnly = (rpgOn, values) => rpgOn === true && values?.[ROLLS_SETTING] !== 'off';
 
 /**
  * XP for a won fight (fight.js), worked out for each party member who has not Left, group by group from the member's level against the group's:

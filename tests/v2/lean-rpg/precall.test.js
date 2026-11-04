@@ -373,6 +373,21 @@ test('gate: the review phrases plan (draw, lunge, fire, aim, loose, flee, break,
     }
 });
 
+test('gate: a message that reads as combat opens it (cutting words, a weapon named); a calm sentence with a weapon is at worst one cheap "none"', { skip }, async () => {
+    for (const message of ['I bait the ditch with pork and cut the gnashers down with my cane-sword.', 'I slice through the rope.', 'I hack at the door.', 'I cleave the beam.', 'I butcher the pig.', 'I slaughter the hens.']) {
+        const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+        await host.send(message, 'Told.');
+        assert.equal(callModel.calls.length, 1, message);
+        host.close();
+    }
+    // "I hang my sword by the fire" names a weapon, so the gate opens and the model answers a cheap "none" (one call, no rolls).
+    const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
+    await host.send('I hang my sword by the fire.', 'Told.');
+    assert.equal(callModel.calls.length, 1);
+    assert.equal(rolled(host).length, 0, 'no rolls came of it');
+    host.close();
+});
+
 test('gate: a party skill matches by any word of its name of 4 letters or more, not only by the whole name', { skip }, async () => {
     for (const [message, calls] of [['I use my breath.', 1], ['The sparkling river.', 1], ['Nothing iron here.', 1], ['I sit down.', 0]]) {
         const { host, callModel } = await setup({ ...QUIET, answers: ['none'] });
