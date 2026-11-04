@@ -27,8 +27,8 @@ export const DM_LIMITS = freeze({
     // A block with a `role` (a Character or Skills sheet) says more in the tail: five skills with what each does, or a character with who they are.
     roleTailTokens: 300,
     // A Skills block (role `skills`) holds up to eight skill slots of six fields each, their `who` and the signature mark: more than other blocks' 32 (names.js SKILL_SLOTS_MAX).
-    // Its tail may be longer too, by 60 tokens for each skill past five (tailRoom in part.js).
-    skillsFields: 56, skillTailTokens: 60,
+    // Its tail may be longer too, by 47 tokens for each skill it holds past five (tailRoom in part.js: the longest line one skill makes, measured).
+    skillsFields: 56, skillTailTokens: 47,
     // The most stages a role block's bar field (health, mana, stamina, a foe's health) may have, counted up from 0.
     stages: 10,
     // A List of entries field (`type: "entries"`): the sub-fields of one entry, the entries a story may add (default and most), and the longest `at` a line may write.

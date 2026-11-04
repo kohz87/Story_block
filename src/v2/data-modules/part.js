@@ -296,10 +296,13 @@ const namedChanges = (definition, before, after) => Object.entries(definition.st
 
 // What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the RPG's sheets carry text the story reads).
 // `rpg` is whether the RPG feature is on: a block with a role is the RPG's to write only then; with it off the block is told like any other.
-// A Skills block with more than five slots (the extra ones come with levels) may say 60 tokens more for each.
-const tailRoom = (definition, rpg = true) => (rpg && definition?.role
-    ? L.roleTailTokens + (definition.role === 'skills' ? L.skillTailTokens * Math.max(0, Object.keys(definition.state ?? {}).filter(key => /^skill\d+$/u.test(key)).length - 5) : 0)
-    : Object.values(definition?.state ?? {}).some(schema => schema?.type === 'entries') ? L.listTailTokens : L.tailTokens);
+// A Skills block may say 47 tokens more for each skill it holds past five (the longest line one skill makes: a 40-character name and 120 of text, measured at 188
+// characters); a slot that holds no skill reserves nothing. `fields` is the block's fields (none: nothing is held).
+export const tailRoom = (definition, rpg = true, fields = null) => {
+    if (!(rpg && definition?.role)) return Object.values(definition?.state ?? {}).some(schema => schema?.type === 'entries') ? L.listTailTokens : L.tailTokens;
+    const held = definition.role === 'skills' && fields ? Array.from({ length: SKILL_SLOTS_MAX }, (_, i) => fields[`skill${i + 1}`]).filter(name => typeof name === 'string' && name.trim()).length : 0;
+    return L.roleTailTokens + L.skillTailTokens * Math.max(0, held - SKILL_SLOTS_BASE);
+};
 
 /**
  * One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role, written compact): "Survival — Wessel: hunger 12; fatigue 6."
@@ -316,7 +319,7 @@ export function summaryOf(state, module, { rpg = true } = {}) {
         const people = definition.scope === 'chat' ? [{ name: definition.name, fields: view.chat }] : view.characters.map(({ id, name, ...fields }) => ({ name, fields }));
         const line = roleTail(definition, people, { hidden: key => dmHidden(definition.state[key]), text: (key, value) => fieldText(definition, key, value),
             named: (key, value) => shownText(definition.state[key], value) });
-        return line && cutAt(`${line}${waiting}`, tailRoom(definition, rpg) * 4);
+        return line && cutAt(`${line}${waiting}`, tailRoom(definition, rpg, view.chat) * 4);
     }
     const limit = tailRoom(definition, rpg) * 4;
     const room = limit - definition.name.length - 4 - waiting.length;
@@ -575,6 +578,13 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module, generation },
             summary: fill(action === 'define' ? B.defined : B.redefined, { name: definition.name }) });
         answer.data.edit = true;
+        // "Edit first" on an Ask card makes the Skills block with the pack's signature skills marked in it (wizard-data.js): the receipt tells it as a join, tiles included.
+        const signed = action === 'define' && definition.role === 'skills' ? defaultSeeds(definition.state) : [];
+        if (signed.length && typeof definition.state.who?.default === 'string' && definition.state.who.default) {
+            answer.data.join = { op: 'added', name: definition.state.who.default };
+            answer.data.sigSkills = seededData(signed);
+            answer.summary = `${answer.summary} ${fill(J.skillsSeeded, { n: signed.length })}`;
+        }
         return answer;
     }
     // ---- companions who join (lean-rpg/join.js): `+ party` makes a Character and an empty Skills block as ONE guarded action ('dm.join'), `- party` sets `left` ----
@@ -587,8 +597,10 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         try { pack = rpg().packRulesOf(rpgRecords); } catch { pack = null; }
         const rules = rpg().rulesFromSettings(settings(), pack);
         // (a companion starts under the story's level cap: the pack's ranks record names one, else the reader's setting, else 99)
-        const seeds = castSeeds(ctx, request.name);
-        const made = rpg().joinDefinitions({ ...request, skills: seeds }, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap) });
+        // (a Re-read of a join made before the signature skills: the block that reply made had five slots and no mark, so it is built that way and seeds nothing)
+        const earlier = standingBlock(ctx, request.name), legacy = Boolean(earlier) && !Object.hasOwn(earlier.definition.state ?? {}, 'sig');
+        const seeds = legacy ? [] : castSeeds(ctx, request.name, 'join');
+        const made = rpg().joinDefinitions({ ...request, skills: seeds }, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap), legacy });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
         const first = rpg().partyOf(prefix).length === 0, plan = first ? rpg().extrasPlan(prefix) : { add: [], skipped: [] };
         const extras = rpg().extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug], formula: rpg().isStandard(rules) ? 'standard' : 'classic' });
@@ -633,22 +645,39 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     }
     const skillCapacity = definition => Math.min(SKILL_SLOTS_MAX, Object.keys(definition?.state ?? {}).filter(key => /^skill\d+$/u.test(key)).length);
     const skillRow = (fields, n) => ({ name: fields[`skill${n}`], about: typeof fields[`about${n}`] === 'string' ? fields[`about${n}`] : '', stat: fields[`stat${n}`], uses: fields[`uses${n}`] ?? 'stamina', rank: Number.isSafeInteger(fields[`rank${n}`]) ? fields[`rank${n}`] : 0 });
-    // The skills to seed for `name` on this join: [{ name, about, stat, uses, rank }], the ones the person does not hold by name already.
-    function castSeeds(ctx, name) {
+    // The Skills block of `name` in the state a Re-read's reply stands in (ctx.standing), or null.
+    const standingBlock = (ctx, name) => (ctx.standing ? skillsBlockOf({ domains: { dataModules: ctx.standing.domains?.dataModules } }, name) : null);
+    // The signature skills a Skills block's definition was made with: the slots marked in `sig.default`, as the defaults of their fields have them.
+    function defaultSeeds(state) {
+        const bits = Number.isSafeInteger(state?.sig?.default) ? state.sig.default : 0, rows = [];
+        for (let n = 1; n <= SKILL_SLOTS_MAX; n += 1) {
+            const name = state?.[`skill${n}`]?.default;
+            if (signatureAt(bits, n) && typeof name === 'string' && name) rows.push(skillRow(Object.fromEntries(['skill', 'about', 'stat', 'uses', 'rank'].map(key => [`${key}${n}`, state[`${key}${n}`]?.default])), n));
+        }
+        return rows;
+    }
+    // The skills the pack gives `name` now, the ones the person does not hold by name already (what a first read of a join, a return or an offer plans).
+    function packSeeds(ctx, name) {
         const held = skillsBlockOf(stateOf(ctx), name);
         const have = new Set(Array.from({ length: SKILL_SLOTS_MAX }, (_, i) => fold(held?.fields?.[`skill${i + 1}`] ?? '')).filter(Boolean));
-        if (ctx.standing) {
-            // (a Re-read: what this very reply seeded, read from the reply as it stood; a block without the mark has none to tell, so anything new on it counts)
-            const after = skillsBlockOf({ domains: { dataModules: ctx.standing.domains?.dataModules } }, name);
-            if (!after) return [];
-            const marked = Object.hasOwn(after.definition.state ?? {}, 'sig');
-            const rows = [];
-            for (let n = 1; n <= SKILL_SLOTS_MAX; n += 1) if (typeof after.fields[`skill${n}`] === 'string' && after.fields[`skill${n}`] && (!marked || signatureAt(after.fields.sig, n)) && !have.has(fold(after.fields[`skill${n}`]))) rows.push(skillRow(after.fields, n));
-            return rows;
-        }
         let found = null;
         try { found = castSkillsOf(packs?.packs?.() ?? [], name); } catch { found = null; }
         return (found?.skills ?? []).filter(skill => !have.has(fold(skill.name)));
+    }
+    // The skills to seed for `name` on this join (`mode` 'join') or return ('back'): [{ name, about, stat, uses, rank }], the ones the person does not hold by name already.
+    // A Re-read plans what its reply seeded, never what the pack says now: a join reads it from the definition defaults of the Skills block the reply pinned (the bits
+    // of `sig.default`, which the reader's pencil never touches); a return, which wrote the skills into the fields, reads the marked slots of the reply as it stood. A block
+    // without the mark was made before the signature skills (2.22) and seeded nothing.
+    function castSeeds(ctx, name, mode = 'join') {
+        if (!ctx.standing) return packSeeds(ctx, name);
+        const held = skillsBlockOf(stateOf(ctx), name);
+        const have = new Set(Array.from({ length: SKILL_SLOTS_MAX }, (_, i) => fold(held?.fields?.[`skill${i + 1}`] ?? '')).filter(Boolean));
+        const after = standingBlock(ctx, name);
+        if (!after || !Object.hasOwn(after.definition.state ?? {}, 'sig')) return [];
+        if (mode === 'join') return defaultSeeds(after.definition.state).filter(skill => !have.has(fold(skill.name)));
+        const rows = [];
+        for (let n = 1; n <= SKILL_SLOTS_MAX; n += 1) if (typeof after.fields[`skill${n}`] === 'string' && after.fields[`skill${n}`] && signatureAt(after.fields.sig, n) && !have.has(fold(after.fields[`skill${n}`]))) rows.push(skillRow(after.fields, n));
+        return rows;
     }
     // The tiles of the join's receipt and its summary words.
     const seededData = seeds => seeds.map(skill => ({ name: skill.name, stat: skill.stat, uses: skill.uses, rank: skill.rank }));
@@ -656,7 +685,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     function reseed(ctx, answer, name) {
         const prefix = stateOf(ctx), block = skillsBlockOf(prefix, name);
         if (!block) return answer;
-        const seeds = castSeeds(ctx, name);
+        const seeds = castSeeds(ctx, name, 'back');
         if (!seeds.length) return answer;
         // A block made before the signature mark (or the extra slots) is extended first, so the skills can be marked (growSkills).
         let definition = block.definition;
@@ -773,7 +802,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (check.returning) return leave(ctx, check.returning, false, call);
         if (rpg().joinMode(settings()) === 'ask') {
             // Ask: nothing is made. The line is kept in this reply's own receipt, and the card under the reply (rpg.joins) is read from it.
-            const seeds = castSeeds(ctx, read.name);
+            // (the pack as it is when the line is read, also on a Re-read: an offer changes nothing in the story's state, so there is no block to read it from)
+            const seeds = packSeeds(ctx, read.name);
             const offer = { op: 'offer', name: read.name, about: read.about, soul: read.soul, best: read.best, ...(seeds.length ? { skills: seeds } : {}) };
             return { summary: fill(J.offerNote, { name: read.name }), narrate: false, data: { join: offer } };
         }
@@ -891,7 +921,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             const at = Number(learn[1]);
             const free = at <= room && !slots[at - 1].name ? at : slots.find(slot => slot.n <= room && !slot.name)?.n;
             if (free) return { kind: `learn-${free}`, slot: free, name: args.name };
-            return { refuse: `No free skill slot for ${args.name}.${room < SKILL_SLOTS_MAX ? ` ${fill(J.slotLater, { level: (room - SKILL_SLOTS_BASE + 1) * SKILL_SLOTS_EVERY })}` : ''}` };
+            // (`full`: no open slot is free, the only reason a block is extended; the words say when the next slot opens, or that all eight hold a skill)
+            const held = slots.filter(slot => slot.name).length;
+            return { refuse: `No free skill slot for ${args.name}. ${held >= SKILL_SLOTS_MAX ? J.slotsFull : fill(J.slotLater, { level: Math.max(0, held + 1 - SKILL_SLOTS_BASE) * SKILL_SLOTS_EVERY })}`, full: true };
         }
         const named = skillNamed(slots, reason);
         const slot = named ? named.n : Number(practice[1]);
@@ -957,19 +989,29 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         call.label = definition?.name ?? module;
         if (!definition) refuse('DM_SCHEMA', '', 'Unsupported or damaged pin.');
         dependency(definition, prefix);
-        // A learn line for a Skills block made before the extra slots, once the character's level has opened a slot it lacks: the block is extended first (growSkills).
-        let grown = null;
-        if (line && definition.role === 'skills' && !/^practice/u.test(String(line.labels?.kind ?? ''))) {
-            const have = Object.keys(definition.state).filter(key => /^skill\d+$/u.test(key)).length, fields = instanceOf(prefix, module)?.fields;
-            // (the guard re-asks the conditions an action answered on the block as it was before; the new slots are empty by construction, so a grown action records none)
-            if (fields && have < Math.min(SKILL_SLOTS_MAX, skillWant(prefix, fields))) grown = growSkills(ctx, prefix, draftOf(ctx), module);
-            if (grown) definition = grown;
+        // A learn line for a Skills block made before the extra slots that would be refused for lack of a slot (every slot it has is full) while the character's level has
+        // opened one it lacks: the block is extended first (growSkills). Any other line leaves the block as it is. A Re-read grows it only when the reply, as it stands, holds
+        // the grown pin (the live reply did). A learn line that names a slot the block lacks, with a free one below, goes to the free one.
+        const shown = definition;
+        let grown = null, redirect = null;
+        if (line && definition.role === 'skills') {
+            const named = withKind(definition, line), fields = instanceOf(prefix, module)?.fields;
+            if (fields && /^learn-[1-8]$/u.test(String(named.kind ?? ''))) {
+                const probe = skillRoute(fields, named.kind, { name: String(named.name ?? '') }, line.text, skillRoom(prefix, definition, fields));
+                const standing = ctx.standing ? activeDefinition({ domains: { dataModules: ctx.standing.domains?.dataModules } }, module) : null;
+                // (the guard re-asks the conditions an action answered on the block as it was before; the new slots are empty by construction, so a grown action records none)
+                if (probe?.full && skillCapacity(definition) < Math.min(SKILL_SLOTS_MAX, skillWant(prefix, fields)) && (!ctx.standing || (standing && skillCapacity(standing) > skillCapacity(definition)))) {
+                    grown = growSkills(ctx, prefix, draftOf(ctx), module);
+                    if (grown) definition = grown;
+                } else if (probe?.slot && !dmOwn(definition.kinds, named.kind)) redirect = probe.kind;
+            }
         }
-        const given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
+        let given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
+        if (redirect) given = { ...given, kind: redirect };
         const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
         // A foe group the narrator sets may give `level: N` or `rank: <name>`, or neither: then its level is drawn from the reply's seed (see foeLevelLabels).
         const labels = kind && line && definition.role === 'foes' ? foeLevelLabels(given, kind, prefix, ctx, module) : given;
-        if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(definition.kinds))}`);
+        if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(shown.kinds))}`);
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
         // Practice comes only from rolled skill uses: on a reply captured under that rule (turn.js marks it, `ctx.carrier.practiceRule`; an older reply has no mark
@@ -1232,7 +1274,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             static: hint => grammarFor(state(), rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null, { rolled: practiceFromRollsOnly(hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()) }),
             tail: view => ({ lines: tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true), optional: [] }),
             // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
-            extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id)), 0),
+            extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id), true, instanceOf(state(), id)?.fields), 0),
         },
     };
 }

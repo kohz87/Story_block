@@ -141,8 +141,8 @@ export function joinDraft({ name = '', about = '', soul = 1, best = '', skills =
  * The two definitions a joining companion is made of (`used`: the ids of the story's blocks, so the slugs are free). The Character
  * starts with no unspent points: the named stat is raised and the rest left as it was, as the line said.
  */
-export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null, cap = null } = {}) =>
-    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap });
+export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null, cap = null, legacy = false } = {}) =>
+    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap, legacy });
 
 /**
  * The offers on a reply: the `+ party` lines that asked (Ask), read from the reply's receipts (`entries`: store.receipts() as a
