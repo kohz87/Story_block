@@ -25,7 +25,7 @@ const CUT = 'act Astra | skill: Shadow Cut | type: magic | target: Rats | area';
 const roll = (answer, options = {}) => {
     const s = sheet(...(options.sheet ?? []));
     const plan = parsePlanAnswer(['pace: all', answer].join('\n'), s, { formula: 'standard' }).plan;
-    return { plan, result: rollPrepared(plan, prepare(plan, s, rules), misses(), rules, { flow: 2 }) };
+    return { plan, result: rollPrepared(plan, prepare(plan, s, rules, { fix: true }), misses(), rules, { flow: 2, fix: true }) };
 };
 const actLines = result => result.rounds.map(round => round.lines.find(line => line.kind === 'act')).filter(Boolean);
 
@@ -51,7 +51,7 @@ test('2/3: with the Mana already empty at the start the action goes on with its 
     // (a payload without `fix` is prepared as it was: the plan's own type and area, no backup)
     const s = sheet(0, 4);
     const plan = parsePlanAnswer(['pace: all', `${CUT} | else: Iaijutsu`].join('\n'), s, { formula: 'standard' }).plan;
-    const old = rollPrepared(plan, prepare(plan, s, rules, { fix: false }), misses(), rules, { flow: 2 });
+    const old = rollPrepared(plan, prepare(plan, s, rules, { fix: false }), misses(), rules, { flow: 2, fix: false });
     assert.deepEqual(actLines(old).slice(0, 2).map(line => [line.skill ?? null, line.type, line.area === true]), [[null, 'magic', true], [null, 'magic', true]]);
 });
 
@@ -117,7 +117,21 @@ test('4: the verdict word comes first ("DECISIVE SUCCESS", "FAIL, DECISIVE"), th
 });
 
 test('4: one line for the groups a roll opened ("New foes: rats ×12 (Lv 2)"), so the prose uses the rolled count; none when nothing opened', () => {
-    const record = { v: 1, key: 'k', pace: 'all', stop: 'pace', checks: [], rounds: [{ n: 1, decisive: false, lines: [act({})] }], refused: [], opened: [{ slot: 1, module: 'pack.chat/foes', name: 'rats', count: 12, level: 2 }, { slot: 2, name: 'eels', count: 3 }] };
+    const record = { v: 1, fix: 2, key: 'k', pace: 'all', stop: 'pace', checks: [], rounds: [{ n: 1, decisive: false, lines: [act({})] }], refused: [], opened: [{ slot: 1, module: 'pack.chat/foes', name: 'rats', count: 12, level: 2 }, { slot: 2, name: 'eels', count: 3 }] };
     assert.match(cueOfResult(record), /\nNew foes: rats ×12 \(Lv 2\), eels ×3\.\n/);
     assert.doesNotMatch(cueOfResult({ ...record, opened: undefined }), /New foes/);
+});
+
+test('R1: a record or roll without `fix` is told in the 2.20.0 bytes (head, verdict, spent wording, no "New foes"), so the cue length and the rounds told never change', () => {
+    const record = { v: 1, key: 'k', pace: 'all', stop: 'pace', checks: [], rounds: [{ n: 1, decisive: true, lines: [act({ decisive: true, damage: { to: 0 } }), act({ skill: null, without: 'Shadow Cut', outcome: 'fail', decisive: true })] }], refused: [], opened: [{ slot: 1, module: 'pack.chat/foes', name: 'rats', count: 12, level: 2 }] };
+    const text = cueOfResult(record);
+    assert.match(text, /Tell them in this order and as given, and never invent a roll; write/);
+    assert.doesNotMatch(text, /Name only the skill|New foes/);
+    assert.match(text, /\(Iaijutsu\): SUCCESS \(24 vs 14\), a decisive hit\n/);
+    assert.match(text, /\(Shadow Cut unavailable: resource spent\): FAIL \(24 vs 14\), decisive$/m);
+    // a roll made before records no `withoutUses`, and rolls the same rounds as the old build: the legacy flag gives the legacy cue to fitCue too
+    const s = sheet(0, 4), plan = parsePlanAnswer(['pace: all', CUT].join('\n'), s, { formula: 'standard' }).plan;
+    const oldRoll = rollPrepared(plan, prepare(plan, s, rules, { flow: 2 }), misses(), rules, { flow: 2 });
+    assert.doesNotMatch(oldRoll.text, /Name only the skill|is spent/);
+    assert.ok(actLines(oldRoll).every(line => line.withoutUses === undefined));
 });

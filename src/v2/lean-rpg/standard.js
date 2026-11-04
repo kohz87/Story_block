@@ -109,7 +109,7 @@ function sideStd(character, type, skill, { fit = null, edge = 0, againstMagic = 
  * The plan against the sheet under Standard `rules`: what can be rolled, what is refused, the witness (every sheet number the roll
  * depends on, which the replay guard asks again) and the roster (the bars). → { acts, foes, checks, refused, plainRefused, witness, roster }
  */
-export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false, fix = true } = {}) {
+export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false, fix = false } = {}) {
     // (`fix`: the stage-65 fallback of a spent skill, see FIX_VERSION in open.js; a roll made before keeps the plain roll it had: the plan's own type, the skill's area, no `else:`)
     const out = { acts: [], foes: [], checks: [], refused: [], plainRefused: [] };
     const roster = rosterOf(sheet, maxOf);
@@ -249,7 +249,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null, opened = null } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null, opened = null, fix = false } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -266,7 +266,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const usable = entry => {
         const bar = entry.skill && entry.plain ? bars.get(`${entry.actor}:${entry.uses}`) : null;
         if (!(bar && bar.value === 0)) return entry;
-        const spentOn = { without: entry.skill, withoutUses: entry.uses, base: entry.base ?? entry };
+        const spentOn = { without: entry.skill, ...(fix ? { withoutUses: entry.uses } : {}), base: entry.base ?? entry };
         const backup = entry.alt ? bars.get(`${entry.actor}:${entry.alt.uses}`) : null;
         if (entry.alt && backup && backup.value > 0) return { ...entry, ...entry.alt, plain: undefined, alt: undefined, ...spentOn };
         return { ...entry, ...entry.plain, alt: undefined, ...spentOn };
@@ -409,7 +409,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const refused = prepared.refused.map(entry => entry.text);
     const start = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, bar]));
     const cueParts = { checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && (all.at(-1).decisive || all.at(-1).over), standard: { order, opening, quick, start },
-        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}), ...(wearOf ? { wearOf } : {}), ...(opened?.length ? { opened } : {}) };
+        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}), ...(wearOf ? { wearOf } : {}), ...(fix && opened?.length ? { opened } : {}), ...(fix && ambush?.carried ? { carriedDrop: true } : {}), ...(fix ? {} : { legacy: true }) };
     const cue = fitCue(cueParts);
     const rounds = all.slice(0, cue.count).map(({ over: _, end: _end, ...round }) => round);
     const told = all.slice(0, cue.count);

@@ -162,7 +162,7 @@ test('A2: a successful ambush check in a roll with no act is kept as a drop (the
     const record = { v: 1, key: 'k', pace: 'normal', stop: first.stop, checks: first.checks, rounds: [], refused: [], summary: first.summary, ambush: first.ambush };
     assert.match(cueOfResult(record), /; ambush works: you have the drop/);
     assert.doesNotMatch(cueOfResult(record), /strikes first/);
-    assert.match(panelText(readResolve(record)), /Ambush: Wessel's Shadow Step check — Success \(\d+ vs \d+\): you have the drop; \+2 on the next fight/);
+    assert.match(panelText(readResolve(record)), /Ambush: Wessel's Shadow Step check — Success \(\d+ vs \d+\): you have the drop; \+2 on the next reply's fight/);
     // the pre-call reads it from the previous reply's receipt into the payload
     const carried = carriedDrop({ query: (name, args) => (args.index === 4 ? { result: record } : null) }, 5);
     assert.deepEqual(carried, { who: 'Wessel', skill: 'Shadow Step', total: first.ambush.total, dc: first.ambush.dc });
@@ -173,6 +173,10 @@ test('A2: a successful ambush check in a roll with no act is kept as a drop (the
     const second = rollPrepared(attack, prepare(attack, sheet(), EARLIER_RULES), dice(), EARLIER_RULES, { drop: carried });
     assert.deepEqual(second.rounds.slice(0, 2).map(round => round.lines.find(line => line.kind === 'act').pc.edge), [2, 0]);
     assert.equal(second.ambush.spent, true);
+    // (a roll of stage 65 tells the narrator the drop is being spent; one made before says nothing of it)
+    const spentNow = rollPrepared(attack, prepare(attack, sheet(), EARLIER_RULES), dice(), EARLIER_RULES, { drop: carried, fix: true });
+    assert.match(spentNow.text, /\nAmbush from last time: the party strikes first\.\n/);
+    assert.doesNotMatch(second.text, /Ambush from last time/);
     assert.equal(dropOf({ ambush: second.ambush }), null, 'a spent drop is not carried again');
     // a roll with no act to strike with does not spend it
     const checksOnly = rollPrepared(only, prepare(only, sheet(), EARLIER_RULES), dice({ check0: [1] }), EARLIER_RULES, { drop: carried });

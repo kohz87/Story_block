@@ -264,8 +264,9 @@ export function positionalDice(base) {
  * are dropped). `rules` are the numbers in force (default: Standard); the most rounds is `rules.roundCap`. `earlier`: the cue is fitted as it
  * was for a roll of the earlier scheme (cue.js fitCue), so that its rounds and stop never change.
  */
-export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier = false, carried = null, flow = 1, wearOf = null, drop = null, opened = null } = {}) {
-    if (isStandard(rules)) return rollStandard(plan, prepared, source, rules, { carried, flow, wearOf, drop, opened });
+export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier = false, carried = null, flow = 1, wearOf = null, drop = null, opened = null, fix = false } = {}) {
+    // (`fix`: a roll of stage 65, FIX_VERSION; without it the cue is told exactly as before, because its length decides how many rounds are told)
+    if (isStandard(rules)) return rollStandard(plan, prepared, source, rules, { carried, flow, wearOf, drop, opened, fix });
     const own = new Map();
     const diceOf = entry => {
         if (source.positional !== true) return source;
@@ -274,7 +275,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
     };
     const checks = prepared.checks.map(entry => { const roll = diceOf(entry); return rolled(entry, roll(), 0, rules); });
     const fight = [...prepared.acts, ...prepared.foes];
-    if (flow === FLOW_VERSION && source.positional === true && prepared.roster) return rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf, drop, opened);
+    if (flow === FLOW_VERSION && source.positional === true && prepared.roster) return rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf, drop, opened, fix);
     const most = fight.length ? Math.min(PACE[plan.pace], rules.roundCap) : 0;
     const all = [];
     const ambush = ambushOf(checks, drop, fight.some(entry => entry.kind === 'act'));
@@ -285,7 +286,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
         if (decisive) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && all.at(-1).decisive, ...(wearOf ? { wearOf } : {}), ...(opened?.length && !earlier ? { opened } : {}) }, undefined, { earlier });
+    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && all.at(-1).decisive, ...(wearOf ? { wearOf } : {}), ...(fix && opened?.length && !earlier ? { opened } : {}), ...(fix && ambush?.carried ? { carriedDrop: true } : {}), ...(fix ? {} : { legacy: true }) }, undefined, { earlier });
     const fits = cue.count;
     const rounds = all.slice(0, fits);
     const decisive = rounds.length > 0 && rounds.at(-1).decisive;
@@ -298,7 +299,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
 // are already made; `diceOf` gives an action's stream. The bars are a count for the stop only (nothing is written): a hit by the party member (success or at
 // a cost) takes 1 stage from the foe group, one by the foe (the defender fails) 1 from the defender, 2 when the winner's natural 20, the loser's natural 1 or
 // a lead of the decisive margin made it (Standard's judge). An action whose party member or foe group is Down does not act (its dice are drawn all the same).
-function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = null, drop = null, opened = null) {
+function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = null, drop = null, opened = null, fix = false) {
     const bars = new Map([...prepared.roster.characters, ...prepared.roster.foes].map(bar => [bar.id, { ...bar }]));
     const chars = prepared.roster.characters, foesHere = prepared.roster.foes;
     const charOf = who => chars.find(bar => bar.name === who);
@@ -338,7 +339,7 @@ function rollClassicFlow(plan, prepared, checks, fight, diceOf, rules, wearOf = 
         if (end) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: false, flow: FLOW_VERSION, end: all.at(-1)?.end ?? null, ...(wearOf ? { wearOf } : {}), ...(opened?.length ? { opened } : {}) });
+    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: false, flow: FLOW_VERSION, end: all.at(-1)?.end ?? null, ...(wearOf ? { wearOf } : {}), ...(fix && opened?.length ? { opened } : {}), ...(fix && ambush?.carried ? { carriedDrop: true } : {}), ...(fix ? {} : { legacy: true }) });
     const told = all.slice(0, cue.count);
     const rounds = told.map(({ end: _, ...round }) => round);
     const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : told.at(-1).end ?? (plan.pace === 'careful' ? 'pace' : 'cap');
@@ -445,7 +446,7 @@ export function resolve(ctx, payload = {}) {
     // A roll that asks for the dice version draws one number from the seed, and each action's dice come from that and its place in
     // the plan; one made before has no version and draws its dice in one sequence, as it did.
     const source = positional ? positionalDice(base) : () => ctx.roll(`d${FORMULA.die}`).total;
-    const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, drop, opened: opened ?? null, flow, wearOf: gear ? (rounds, opening) => wearGear(ctx, gear, { opening, rounds, rules, condWord, stepDown }) : null });
+    const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, drop, opened: opened ?? null, fix: fix === FIX_VERSION, flow, wearOf: gear ? (rounds, opening) => wearGear(ctx, gear, { opening, rounds, rules, condWord, stepDown }) : null });
     // From stage 50 a payload may carry the practice per skill use (practice.js); a roll made before has none and gives none.
     const practice = practiceOf(payload.practice) ?? undefined;
     // Gear: each told line names what it rolled with, and a decisive hit taken or miss made wears a piece (gear.js); the wear is part of the roll's receipt.

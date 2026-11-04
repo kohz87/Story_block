@@ -8,7 +8,7 @@
 // (A plan made before the Levels rules has `class` (1–9) instead and is read as it was.)
 // Pure except openFoes, which writes the domain it is given (the transaction's draft, or a copy to look ahead).
 import { createEvaluation } from '../data-modules/interpreter.js';
-import { CLASS_NAMES, FOE_SLOTS } from './names.js';
+import { CLASS_NAMES, FIX_VERSION, FOE_SLOTS } from './names.js';
 import { FOE_LEVEL, bandOfRank, classOfLevel, foeLevelCap, levelOf, levelOfClass, partyLevels } from './foes.js';
 import { fold, readSheet } from './read.js';
 
@@ -105,8 +105,7 @@ const argsOf = entry => (entry.level !== undefined
     ? { level: entry.level, class: classOfLevel(entry.level) }
     : { class: entry.class ?? 1, level: levelOfClass(entry.class) ?? 1 });
 
-/** The foe-slot rule a roll opens by (`fix` in the payload of `rpg.resolve`, stage 65): 2 = Down foe groups are replaced and cleared, and a spent skill falls back to a plain physical single-target attack or its `else:` skill; a roll made before has none and keeps the earlier rules exactly. */
-export const FIX_VERSION = 2;
+export { FIX_VERSION };
 
 /**
  * Fills a free slot (empty or Down) of the Foes blocks in `domain` (the data-module domain) for each entry of `open`, in order, through the block's

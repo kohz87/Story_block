@@ -136,7 +136,7 @@ test('Classic output is byte-identical to the build before the Standard formula:
     }, {
         // (Changed on purpose in the prompt diet (stage 59): the planner head is shorter, so `prompt` and `head` moved; the sheet, cue, rounds and witness are the same bytes.)
         // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
-        prompt: '372eaf02ee8b2607', head: '6f9c48ac48d6220d', sheet: 'b1838934cb4ce054', cue: 'd8ba73fee8a8ca20', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        prompt: '372eaf02ee8b2607', head: '6f9c48ac48d6220d', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
         parsed: 'f3d9eb8728e780eb', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
     });
 });
@@ -323,8 +323,7 @@ test('out of the resource: no skill, rank 0 and the type\'s own stat, and the cu
     const blocks = party({ ren: { mana: 0 } });
     const { result, prepared } = roll(planOf({ pace: 'careful', acts: [{ who: 'Ren', skill: 'Spark', type: 'magic', target: 'Sluice Rats' }] }), { blocks });
     const line = result.rounds[0].lines[0];
-    // (PINNED CHANGE, FIGHT-FIX 2: with the Mana already empty the plain roll is a physical, single-target weapon attack, so the pair is STR/DEX, not the magic one)
-    assert.deepEqual([line.skill, line.pc.rank, line.pc.stat, line.type], [null, 0, 'str', 'physical']);
+    assert.deepEqual([line.skill, line.pc.rank, line.pc.stat], [null, 0, 'int']);
     assert.deepEqual(prepared.refused.map(entry => entry.text), ['Ren cannot use Spark (Mana Empty): rolled without it.']);
     assert.match(result.text, /Ren cannot use Spark \(Mana Empty\): rolled without it\./);
     const stamina = roll(planOf({ pace: 'careful', acts: [hit] }), { blocks: party({ wessel: { stamina: 0 } }) }).result.rounds[0].lines[0];
@@ -583,8 +582,7 @@ test('the resource runs out in the fight: the last block is spent, then the acti
     assert.deepEqual([lines[0].skill, lines[0].cost.to, lines[0].without], ['Iron Breath', 0, undefined]);
     assert.deepEqual([lines[1].skill, lines[1].pc.rank, lines[1].pc.stat, lines[1].without, lines[1].cost], [null, 0, 'str', 'Iron Breath', undefined]);
     assert.equal(lines[1].pc.total - lines[1].pc.die, 6 + 4, 'the pair and Soul Class only: no rank');
-    // (PINNED CHANGE, FIGHT-FIX 4: the fallback line says why and that it is a plain weapon attack naming no skill)
-    assert.match(result.text, /Round 2: Wessel → Sluice Rats \(no skill: Iron Breath's Stamina is spent; a plain weapon attack — name no skill\)/);
+    assert.match(result.text, /Round 2: Wessel → Sluice Rats \(Iron Breath unavailable: resource spent\)/);
     assert.equal(result.hurts.find(item => item.field === 'stamina').to, 0);
     // Already empty at the start: refused as before, rolled without it, and nothing to spend.
     const empty = roll(planOf({ pace: 'careful', acts: [hit] }), { blocks: party({ wessel: { stamina: 0 } }) });

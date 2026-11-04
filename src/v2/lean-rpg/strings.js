@@ -29,7 +29,7 @@ export const RPG_STRINGS = Object.freeze({
         ambushWon: 'Ambush: {who}\'s {what} — Success ({total} vs {dc}): the party strikes first, +2 this round',
         ambushLost: 'Ambush: {who}\'s {what} — Failed: no surprise',
         ambushHalf: 'Ambush: {who}\'s {what} — Success at a cost ({total} vs {dc}): ambush only half works: no surprise',
-        ambushDrop: 'Ambush: {who}\'s {what} — Success ({total} vs {dc}): you have the drop; +2 on the next fight',
+        ambushDrop: 'Ambush: {who}\'s {what} — Success ({total} vs {dc}): you have the drop; +2 on the next reply\'s fight',
         // Why a group or character does not act (the record's `idle`).
         idle: Object.freeze({
             beaten: '{who} does not act: beaten before its turn.',

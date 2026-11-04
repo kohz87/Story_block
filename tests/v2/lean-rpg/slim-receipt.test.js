@@ -58,7 +58,7 @@ function run({ blocks, plan, rules, dice, flow, seed }) {
     const flowAsked = flow && (dice || standard) ? FLOW_VERSION : 1;
     const source = dice || standard ? positionalDice(Math.floor(again() * 4294967296) >>> 0) : () => roll(again, 'd20').total;
     const sheet = readSheet({ domains: { dataModules: domain } });
-    const made = rollPrepared(plan, prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow: flowAsked }), source, rules, { earlier: !dice && !standard, flow: flowAsked });
+    const made = rollPrepared(plan, prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow: flowAsked, fix: true }), source, rules, { earlier: !dice && !standard, flow: flowAsked, fix: true });
     return { out, text: made.text, result: out.data.v2.result, shape: out.data.v2.shape };
 }
 
