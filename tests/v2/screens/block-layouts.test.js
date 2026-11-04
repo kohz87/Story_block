@@ -211,3 +211,23 @@ test('a block with plain fields keeps its plain rows', async t => {
     assert.equal(el.querySelectorAll('.ss-block-value').length, 2);
     assert.equal(el.querySelectorAll('.ss-b-quest').length, 0);
 });
+
+test('a block of plain fields draws them as one record card, a pencil on each line; numbers with bars and entries break the run; an own cards/bars layout keeps loose rows', async t => {
+    const { doc, host, api } = await world(t);
+    const base = { schema: 1, stateVersion: 1, scope: 'chat', kinds: {}, show: { tab: true, card: false, tabName: 'X', icon: 'ph-bookmark-simple' } };
+    const module = await define(host, { ...base, slug: 'mixed', name: 'Mixed', state: { quest: { type: 'text', max: 40, default: 'Ledger' }, status: { type: 'enum', values: ['active', 'done'], default: 'active' },
+        fame: { type: 'map', keys: ['a', 'b'], values: { type: 'int', min: 0, max: 9, default: 0 } }, note: { type: 'text', max: 40, default: 'n' } } });
+    const { el, view } = render(doc, api, module);
+    t.after(() => view.destroy());
+    const cards = el.querySelectorAll('.ss-b-plain');
+    assert.equal(cards.length, 2, 'the map of numbers splits the run');
+    assert.deepEqual(cards.map(card => card.querySelectorAll('.ss-block-value').length), [2, 1]);
+    assert.equal(cards[0].querySelectorAll('.ss-w-editable-pencil').length, 2, 'pencils kept');
+    assert.equal(el.querySelectorAll('.ss-b-map').length, 1);
+    // (an own layout key belongs to BLOCKEDIT's checker: the raw definition is handed to the card as the contract shapes it)
+    const loose = { ...base, id: 'pack.chat/loose', pack: 'chat', slug: 'loose', name: 'Loose', layout: 'bars', state: { quest: { type: 'text', max: 40, default: 'Ledger' } } };
+    const second = render(doc, stub(loose, { quest: 'Ledger' }), loose.id);
+    t.after(() => second.view.destroy());
+    assert.equal(second.el.querySelectorAll('.ss-b-plain').length, 0);
+    assert.equal(second.el.querySelectorAll('.ss-block-value').length, 1);
+});

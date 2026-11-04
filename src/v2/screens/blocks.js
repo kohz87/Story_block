@@ -111,7 +111,12 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
             const env = { doc, api, handles, memory, after: mark => {
                 [...screenOf().querySelectorAll('.ss-w-editable-pencil')].find(node => Object.entries(mark ?? {}).every(([part, value]) => node.getAttribute(`data-block-${part}`) === String(value ?? '')))?.focus?.();
             } };
+            // Plain fields are the record card (a small card, label and value in two columns, a pencil at the end of each line); a block whose own
+            // layout is cards or bars keeps loose rows.
+            let rec = null;
+            const recordHost = () => (['cards', 'bars'].includes(definition.layout) ? root : (rec ??= root.appendChild(h(doc, 'div', 'ss-glass ss-b-plain'))));
             for (const [field, schema] of Object.entries(definition.state)) {
+                if (schema.type === 'entries' || (schema.type === 'map' && schema.values.type === 'int')) rec = null;
                 if (schema.type === 'entries') {
                     if (entriesRoles(definition, field)) drawEntries(env, root, { definition, module: row.module, field, list: values[field] });
                     else {
@@ -130,7 +135,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
                 }
                 const scalar = schema.type === 'map' ? schema.values : schema;
                 for (const key of schema.type === 'map' ? schema.keys : [null]) {
-                    const line = h(doc, 'div', 'ss-block-value'); root.appendChild(line);
+                    const line = h(doc, 'div', 'ss-block-value'); recordHost().appendChild(line);
                     const label = [schema.label ?? field, key].filter(Boolean).join(' · ');
                     line.appendChild(h(doc, 'span', 'ss-block-value-name', label));
                     const slot = h(doc, 'span', 'ss-block-value-slot'); line.appendChild(slot);

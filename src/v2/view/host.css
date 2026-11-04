@@ -483,6 +483,14 @@ body.story-suite-open { overflow: hidden; }
 .ss-b-rec { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--ss-border); border-radius: var(--ss-radius); }
 .ss-b-lines { display: grid; margin: 0; }
 .ss-b-lines .ss-b-line { display: grid; grid-template-columns: 9em minmax(0, 1fr); column-gap: 12px; }
+.ss-b-plain { display: flex; flex-direction: column; padding: 2px 12px; min-width: 0; }
+.ss-b-plain .ss-block-value, .ss-b-plain .ss-block-value:last-child { grid-template-columns: minmax(5.5em, 9em) minmax(0, 1fr); column-gap: 12px; min-height: 48px; padding: 0; }
+.ss-b-plain .ss-block-value:last-child { border-bottom: 0; }
+.ss-b-plain .ss-block-value-slot { justify-content: stretch; }
+.ss-b-plain .ss-block-value-slot > .ss-w-editable { flex-wrap: nowrap; align-items: center; }
+.ss-b-plain .ss-w-editable-value { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; padding-block: 6px; }
+.ss-b-plain .ss-w-editable-pencil { flex: none; }
+.ss-b-plain .ss-block-value-name { color: var(--ss-muted); font-size: 13px; }
 @media (max-width: 759.98px), (pointer: coarse) {
     .ss-b-quests-root, .ss-b-map, .ss-b-recsec, .ss-w-block-fields { --ss-b-pen: calc(44px / var(--ss-zoomed, 1)); }
 }
