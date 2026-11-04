@@ -116,11 +116,16 @@ test('a companion\'s slot card shows what they wear; switching gear off while it
     assert.deepEqual(names(card(el, 'Ren')), ['Stats', 'Export']);
 });
 
-test('the four buttons share the row equally (each a quarter, on phone and desktop): the stylesheet gives each the same flex share', async () => {
+// USER-approved Fix A (4 Nov, Party Export overflow): the quarters rule (`flex: 1 1 0; min-width: 0`) cut "Export" off at 1440; the buttons now grow from their own text and wrap.
+test('the card buttons keep the width of their text and wrap to a second row instead of overflowing', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
     const rule = /\.rpg-card-actions-gear \.ss-button \{([^}]*)\}/.exec(css)?.[1] ?? '';
-    assert.match(rule, /flex: 1 1 0;/);
-    assert.match(css, /\.rpg-card-actions-gear \{[^}]*flex-wrap: nowrap;/);
+    assert.match(rule, /flex: 1 1 auto;/);
+    assert.match(rule, /min-width: fit-content;/);
+    assert.match(rule, /justify-content: center;/);
+    assert.match(rule, /padding-inline: 6px;/);
+    assert.match(rule, /white-space: nowrap;/);
+    assert.match(css, /\.rpg-card-actions-gear \{[^}]*flex-wrap: wrap;/);
     assert.doesNotMatch(rule, /flex: 0/);
 });

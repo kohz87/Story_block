@@ -332,6 +332,6 @@
 .rpg-slot.w-torn .rpg-slot-cond { background: color-mix(in srgb, var(--ss-warn) 55%, var(--ss-bad)); }
 .rpg-slot.w-broken .rpg-slot-cond { background: var(--ss-bad); }
 .rpg-gear .rpg-actions { align-items: flex-start; }
-/* Four buttons in one row (Stats, Skills, Inventory, Export): the card's buttons are a little tighter while Gear in fights is on. */
-.rpg-card-actions-gear { flex-wrap: nowrap; gap: 6px; }
-.rpg-card-actions-gear .ss-button { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 6px; white-space: nowrap; }
+/* The card's buttons are a little tighter while Gear in fights is on, and wrap to a second row when a label would not fit its button. */
+.rpg-card-actions-gear { flex-wrap: wrap; gap: 6px; }
+.rpg-card-actions-gear .ss-button { flex: 1 1 auto; min-width: fit-content; justify-content: center; padding-inline: 6px; white-space: nowrap; }
