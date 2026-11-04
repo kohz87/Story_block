@@ -53,10 +53,10 @@ export const newSkillsSession = character => ({ module: character.module, subjec
 
 /**
  * Draws `character`'s skills (a readParty record) into `parent`. Options: `session` (newSkillsSession's record, kept by the caller),
- * `api` ({ command }; without one there are no pencils), `onBack()`, `rules()` (the numbers a roll is made with now: the roll line follows them), `onSaved()` (a save ended: the page draws the view again from the session,
+ * `api` ({ command }; without one there are no pencils), `onBack()`, `rules()` (the numbers a roll is made with now: the roll line follows them), `rolled()` (the RPG is on and Rolls automatic: the footer says practice comes from rolled uses), `onSaved()` (a save ended: the page draws the view again from the session,
  * since it already drew itself once after the first write and this instance may be gone), `doc`. → { el, session, edit(slot), save(), destroy() }.
  */
-export function renderSkills(parent, { character, session = null, api = {}, onBack = () => {}, onSaved = () => {}, rules = () => FORMULA, doc = parent.ownerDocument ?? globalThis.document } = {}) {
+export function renderSkills(parent, { character, session = null, api = {}, onBack = () => {}, onSaved = () => {}, rules = () => FORMULA, rolled = () => false, doc = parent.ownerDocument ?? globalThis.document } = {}) {
     const run = session ?? newSkillsSession(character);
     const block = character.skillsBlock;
     const root = h(doc, 'section', 'rpg-sheet rpg-skills-view ss-glass');
@@ -214,7 +214,7 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
         back.setAttribute('type', 'button');
         back.addEventListener('click', () => { if (!run.busy) onBack(); });
         foot.appendChild(back);
-        foot.appendChild(h(doc, 'p', 'rpg-skill-note', K.note));
+        foot.appendChild(h(doc, 'p', 'rpg-skill-note', rolled() ? K.noteRolled : K.note));
         noteNode = h(doc, 'p', 'rpg-skill-status', words());
         noteNode.setAttribute('role', 'status');
         foot.appendChild(noteNode);

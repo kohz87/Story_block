@@ -29,7 +29,7 @@ function draw(extra = {}, skills) {
     doc.body.appendChild(el);
     const calls = [], back = [];
     const api = { command: async (type, payload) => { calls.push([type, payload]); return extra.result ?? { ok: true }; } };
-    const view = renderSkills(el, { character: wessel(skills), api: extra.noCommand ? {} : api, onBack: () => back.push(1), session: extra.session });
+    const view = renderSkills(el, { character: wessel(skills), api: extra.noCommand ? {} : api, onBack: () => back.push(1), session: extra.session, ...(extra.rolled ? { rolled: () => true } : {}) });
     return { doc, el, view, calls, back };
 }
 const rows = el => el.querySelectorAll('.rpg-skill');
@@ -109,6 +109,13 @@ test('an empty slot is a dashed line, one per slot, and a skill-less character h
     // (pinned selector changed from `.rpg-slots`: that class is the gear card's 2×4 slot grid and made this pill a tall oval)
     assert.equal(bare.el.querySelector('.rpg-skill-slots').textContent, '0 of 5 slots');
     assert.equal(bare.el.querySelector('.rpg-slots'), null, 'the skills pill does not carry the gear grid class');
+});
+
+test('the footer note follows the rule: with Rolls automatic practice comes from rolled uses, with Rolls off the story adds it', () => {
+    const rolled = draw({ rolled: true }).el.querySelector('.rpg-skill-note').textContent;
+    assert.match(rolled, /^Practice comes from rolled skill uses: fights and checks\./);
+    assert.doesNotMatch(rolled, /The story adds practice/);
+    assert.match(draw().el.querySelector('.rpg-skill-note').textContent, /^The story adds practice when a skill is used;/);
 });
 
 test('a skill from a block with no stat of its own says what it can: the stat is the story\'s pick', () => {

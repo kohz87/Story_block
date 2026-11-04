@@ -23,7 +23,7 @@ The card offer: a character card can bring its whole world, and Story Block offe
   cut, slice, cleave, hack, slaughter and butcher count as risky words, so "cut the gnashers down with my cane-sword" is planned.
 - **Practice comes only from rolls:** with the RPG on and Rolls automatic, skill practice comes only from a skill's rolled use. The narrator is
   offered `learn-N` only (no `practice-N`), the XP guide and the Skills text no longer ask it to practise skills, and a story `practice-N` line is
-  refused with a Problems line ("Practice comes from rolled skill uses"). A quiet RPG-on reply's instructions are about 90 to 120 characters
+  refused with a Problems line ("Practice comes from rolled skill uses"), and the Skills card's footer says so. A quiet RPG-on reply's instructions are about 90 to 120 characters
   shorter. With Rolls off everything is as before.
 - **Practice line on the reply card:** "Astra's Shadow Cut +6 practice (rolled)", beside the fight XP line.
 - **Ambush check:** a skill used before a fight to gain the drop on the foes (hiding, sneaking, luring, slipping behind them, judged from the skill's

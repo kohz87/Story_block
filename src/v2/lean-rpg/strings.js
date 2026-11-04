@@ -89,6 +89,8 @@ export const RPG_STRINGS = Object.freeze({
         rollsNoStat: 'Rolls with the stat the story picks: {rank} +{n} · Lv {level} ÷ {divisor} +{bonus}',
         empty: 'Empty slot · filled when the story has {name} learn a new skill',
         back: 'Back to the party',
+        // (Rolls automatic: practice comes only from rolled uses; with Rolls off the story adds it, as before.)
+        noteRolled: 'Practice comes from rolled skill uses: fights and checks. At 100 the rank rises by itself and shows in "Changed this reply". Rank and practice only move through play (a swipe takes them back); the pencil fixes a name or what it does.',
         note: 'The story adds practice when a skill is used; at 100 the rank rises by itself and shows in "Changed this reply". Rank and practice only move through play (a swipe takes them back); the pencil fixes a name or what it does.',
         edit: 'Edit {name}\'s name or description',
         editName: 'Name',
