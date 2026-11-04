@@ -60,6 +60,10 @@ export const NO_LONGER_DONE = 'NO_LONGER_DONE';
 const HOST_BRANCH = ['domains', HOST_DOMAIN];
 const touchesHostDomain = op => !op || typeof op !== 'object' || reachesBranch(op.path, HOST_BRANCH) || reachesBranch(op.from, HOST_BRANCH);
 const hostBlock = (module, type) => module === 'story-block' && typeof type === 'string' && type.startsWith('savepoint.');
+// The reader's own chat-block click (Story Block's data-module setup: define, redefine, remove, pin, attach, migrate, Add to party; cause `ui`)
+// is an action on the reply, not the reply's story: a Re-read of that reply keeps it, as it keeps the reader's other actions (a swipe or a delete still takes it).
+const readerSetup = (span, receipts) => span?.guard?.owner === 'story-block' && String(span.guard.predicate?.kind ?? '').startsWith('dm.')
+    && receipts.length > 0 && receipts.every(receipt => receipt?.cause === 'ui');
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -2223,8 +2227,8 @@ export function createStore({
             for (const [n, { ops: block, span: was }] of blocks.entries()) {
                 const receipt = paired ? keptReceipts[n] : null;
                 // A reply-bound block goes when its reply is read again, its receipt with it (as a delete or a swipe takes it);
-                // what was built on it is replayed below without it.
-                if (was.guard?.replyBound === true) {
+                // what was built on it is replayed below without it. The reader's own chat-block setup stays (readerSetup).
+                if (was.guard?.replyBound === true && !readerSetup(was, paired ? (receipt ? [receipt] : []) : receiptsFor({ receipts: keptReceipts }, block))) {
                     if (!paired) for (const gone of receiptsFor({ receipts: keptReceipts }, block)) keptReceipts.splice(keptReceipts.indexOf(gone), 1);
                     continue;
                 }

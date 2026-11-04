@@ -128,15 +128,20 @@ test('A: a later action whose rule answer would change is stale; one whose answe
     await reload(host);
 });
 
-test('A: swiping a reply away retracts its block; the pin\'s own reply carries the pin (Re-read retracts it, never silently pins again)', async t => {
+test('A: the pin\'s own reply carries the pin: a Re-read of it keeps the reader\'s pin and what was built on it, and never pins again', async t => {
     const { host, at } = await story(t);
     const pinReply = host.ctx.chat.findIndex(message => message.extra?.storySuite?.spans?.some(span => span.guard?.predicate?.kind === 'dm.pin'));
     assert.ok(pinReply >= 0);
+    const active = structuredClone(host.head().domains.dataModules?.active?.[ID]);
+    const before = structuredClone(standing(host));
+    assert.ok(active, 'pinned');
     const result = await host.turn.reread(pinReply);
     success(result);
-    assert.equal(host.head().domains.dataModules?.active?.[ID], undefined, 'Re-read of the pin\'s reply retracts the pin');
-    assert.equal(host.sdk.query('dataModules.view', { module: ID }), null);
-    assert.ok(dmProblems(host).length >= 1, 'its dependent gains are inactive, not recalculated');
+    assert.deepEqual(host.head().domains.dataModules?.active?.[ID], active, 'Re-read of the pin\'s reply keeps the pin, same hash and generation');
+    assert.deepEqual(standing(host), before, 'its dependent gains stay as they were, not recalculated');
+    assert.deepEqual(dmProblems(host), [], 'nothing left inactive');
+    const pins = host.ctx.chat[pinReply].extra.storySuite.spans.filter(span => span.guard?.predicate?.kind === 'dm.pin');
+    assert.equal(pins.length, 1, 'one pin on the reply: it was kept, not made again');
     await reload(host);
     assert.ok(at.length === 3);
 });

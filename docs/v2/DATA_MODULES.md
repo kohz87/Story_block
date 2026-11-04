@@ -388,8 +388,8 @@ Reject cycles between these imports; each query is read-only and cannot initiali
 Delete/swipe removes the reply's ops, claims, checks, timer advances and rewards. Reply-bound pins
 cannot be carried forward when the earliest reply disappears; dependent blocks go inactive.
 Re-read replaces story actions and asks `afterCapture` again; unchanged lines keep seeds/occurrences
-under REPLAY's rules. A Re-read of the pin's own reply retracts its pin; it does not silently pin
-again. A text edit alone changes no state. Rebuild applies stored ops only; ordinary replay does
+under REPLAY's rules. A Re-read of the pin's own reply keeps the reader's pin as stored (its guard
+asked again); it does not pin again. A text edit alone changes no state. Rebuild applies stored ops only; ordinary replay does
 not re-offer, resettle or call capture/timer hooks. Quarantine, checkpoint prefix trust and savepoint
 epochs stay the host's. Keep frozen interpreter semantics for old pins; never reinterpret v1 as v2.
 
@@ -463,8 +463,8 @@ compares the old pinned definition with the target; a claimed additive change th
 mechanics refuses and needs a new timeline. Studio can explain this incompatibility before export.
 `dm.migrate` previews every subject diff, then records the new pin/generation and defaults in one
 guarded, reply-bound transaction. Preserve old pins, offer values, timers and settlement keys;
-old blocks validate against their historical prefix, later blocks use the new generation. Deleting/
-Re-reading the migration retracts it and invalidates dependent suffix blocks. Downgrade refuses;
+old blocks validate against their historical prefix, later blocks use the new generation. Deleting or
+swiping away the migration's reply retracts it and invalidates dependent suffix blocks (a Re-read keeps it). Downgrade refuses;
 undo through history retraction. No automatic migration on pack update, load, replay or restore.
 
 ## 6. Worked example A: Ersveil faction reputation

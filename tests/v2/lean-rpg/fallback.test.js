@@ -63,7 +63,7 @@ test('3: `else:` parses and validates; a backup the character lacks is dropped; 
     assert.equal(validatePlan({ ...plan, acts: [{ ...plan.acts[0], else: '' }] }).ok, false);
     assert.equal('else' in parsePlanAnswer(['pace: all', `${CUT} | else: Nothing Known`].join('\n'), s, { formula: 'standard' }).plan.acts[0], false);
     assert.equal('else' in parsePlanAnswer('pace: all\nact Astra | type: physical | target: Rats | else: Iaijutsu', s, { formula: 'standard' }).plan.acts[0], false, 'no skill, no backup');
-    assert.ok(PRECALL_HEAD_STANDARD.includes('- A skill that spends Mana or Stamina may run out: add `else:` with the skill to use then.'));
+    assert.ok(PRECALL_HEAD_STANDARD.includes('- else: the skill to use when the first runs out of Mana or Stamina.'));
 });
 
 test('3: with `else: Iaijutsu` rounds 3+ are named Iaijutsu (its own type and stat, spending Stamina), practice goes only to the skill rolled; the cue names the backup', () => {
