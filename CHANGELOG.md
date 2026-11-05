@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- **A module's hook can keep a tail line whole.** `beforeGenerate` may give a line as `{ text, keep: true }`; it is kept whatever the tail budget says, like the RPG's no-rolls line (a module keeps at most 4 such lines and 4,000 characters; more are ordinary lines the budget may drop). Story Director uses it so a cast meeting or rumor is never cut from a busy prompt.
 - **A fight that got no rolls now says so.** When the roll planner times out, its call fails or its answer cannot be read while a fight is live, the reply shows a note where the battle log would stand ("No rolls this reply:" and the reason, with the limit used for a timeout) and the narrator is still told to keep the fight undecided. The note is kept with the reply (`rpg.noroll`, a receipt like the roll's), so it survives a reload, a rebuild and a Re-read, and a swipe that rolls replaces it; it is never part of the prompt (the fixed prompt and the narrator's tail are unchanged). Outside a live fight nothing changes.
 - **Settings → RPG → Rolls → Planner time limit** (10 to 120 seconds in steps of 5, default 45; it was a fixed 20, which a slow Assist model missed every time). Only the planner's call and its hook use it; Assist's other helpers keep 20 s. Saved settings without the key get 45.
 - The Story panel on desktop floats over the chat instead of pushing it aside: opening or closing it no longer moves or resizes SillyTavern's chat column (on narrow windows it already did). On a small laptop it covers the right edge of the chat while open.
