@@ -1,5 +1,5 @@
 // The timeline's witness of each archived boundary (store.prefixWitness) is asked on every sdk.query (settle → selectionPlan), and
-// each answer replays a prefix and hashes it. It is kept while nothing it reads has changed (store.js witnessMemo): these tests
+// each answer replays a prefix and hashes it. It is kept while nothing it reads has changed (store/memo.js witnessMemo): these tests
 // count replays (store.work()) over a burst of queries, and check that every kind of change forgets the memo.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -142,7 +142,7 @@ test('the memo does not change a witness: what it answers is what a fresh replay
     assert.deepEqual(again.sdk.query('savepoint.contract'), host.sdk.query('savepoint.contract'));
 });
 
-// ---- one generation for the whole chat (store.js witnessGeneration) ----------------------------------------------------------
+// ---- one generation for the whole chat (store/memo.js witnessGeneration) ----------------------------------------------------------
 
 // The cursors of op 0 of every carrier: what a timeline with a boundary at each reply asks, without the native changes.
 const cursorsOf = host => host.ctx.chat.flatMap((message, index) => {

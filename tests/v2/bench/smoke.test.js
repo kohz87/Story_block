@@ -42,7 +42,7 @@ test('the bench run keeps the load it describes, one capture save per reply, the
 
     // The greeting holds the initial state; a later carrier gets one when CHECKPOINT_EVERY carriers have
     // passed since the last, or the ops since then (the last checkpoint's carrier's own included) exceed
-    // CHECKPOINT_BYTES (store.js needsCheckpoint). Worked out here from the stored ops.
+    // CHECKPOINT_BYTES (store/memo.js needsCheckpoint). Worked out here from the stored ops.
     const placed = run.chat.map((message, index) => (!message.is_user && readRecord(message)?.checkpoint ? index : -1)).filter(index => index >= 0);
     assert.equal(placed[0], 0);
     const expected = [0];
