@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { RESOLVE, claimKey } from '../../../src/v2/lean-rpg/index.js';
+import { NOROLL, RESOLVE, claimKey } from '../../../src/v2/lean-rpg/index.js';
 import { cueOf, PLAN_ANSWER, rollReceipt, setup } from './helpers.js';
 
 const available = await hostAvailable();
@@ -38,6 +38,7 @@ function prng(seed) {
 const replies = host => host.ctx.chat.map((message, index) => ({ message, index })).filter(({ message, index }) => index > 0 && !message.is_user);
 const resolves = host => host.ctx.chat.flatMap((message, index) => (message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === RESOLVE).map(receipt => ({ index, receipt })));
 
+let notesSeen = 0;
 async function check(host, label) {
     const live = JSON.stringify(host.head());
     host.store.rebuild();
@@ -52,6 +53,15 @@ async function check(host, label) {
         assert.equal(receipt.guarded, true);
     }
     assert.ok([...perReply.values()].every(count => count === 1), `${label}: one roll to a reply`);
+    // The no-rolls note (a live fight whose planner failed) is a receipt of the reply it belongs to: at most one a reply, never beside a roll, no claim of its own.
+    const notes = host.ctx.chat.flatMap((message, index) => (message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === NOROLL).map(receipt => ({ index, receipt })));
+    assert.equal(new Set(notes.map(note => note.index)).size, notes.length, `${label}: one note to a reply`);
+    notesSeen += notes.length;
+    for (const { index, receipt } of notes) {
+        assert.equal(perReply.has(index), false, `${label}: the note on ${index} stands where no roll does`);
+        assert.equal(receipt.beforeGenerate, true);
+        assert.equal(host.head().meta.claims[claimKey(receipt.data.v2.skip.key)], undefined, `${label}: a note claims nothing, a retry plans again`);
+    }
     assert.deepEqual(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), [], `${label}: nothing left inactive`);
 }
 
@@ -106,3 +116,7 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
         host.close();
     });
 }
+
+test('the replay fuzz met no-rolls notes (so the checks above ran on some)', { skip }, () => {
+    assert.ok(notesSeen > 0, `${notesSeen} notes seen over the seeds`);
+});

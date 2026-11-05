@@ -70,6 +70,8 @@ export function createPromptBuild(s, deps) {
                 // The RPG's rolls move bars (hits, heals, skill costs): the tail's block lines are read from the state they leave, so they say what the cue says.
                 if (preludeType === RPG_RESOLVE && result.state) previewState = result.state;
                 prechecks.push({ type: preludeType, payload, seed: result.receipt.seed });
+                // A prelude that says it is not for the narrator (`narrate: false`, the RPG's no-rolls note) is stored with the reply and told to no one.
+                if (result.receipt.narrate === false) continue;
                 const told = `[Happened]\n${receiptCue(result.receipt)}`;
                 cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true } : told];
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
