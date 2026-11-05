@@ -984,7 +984,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         if (stamp === null || stamp !== dataStamp) {
             dataStamp = stamp;
             let next = '', pinned = null;
-            try { pinned = blockPresentation() ?? []; if (pinned.length) next = JSON.stringify(pinned); } catch { /* older host */ }
+            // (A query that throws leaves no stamp behind, so the next event asks again, as before the stamp.)
+            try { pinned = blockPresentation() ?? []; if (pinned.length) next = JSON.stringify(pinned); } catch { dataStamp = null; /* older host */ }
             if (next !== dataPresentation) { dataPresentation = next; syncScreens(pinned); }
         }
         mounts.tab.register(); if (!panel.hidden) tabHost?.refresh();

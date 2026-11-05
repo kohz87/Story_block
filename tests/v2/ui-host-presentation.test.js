@@ -14,12 +14,18 @@ const starter = id => BLOCK_STARTERS.find(item => item.id === id);
 
 const MODULE = 'pack.ersveil-factions/reputation';
 
-async function page(t) {
+async function page(t, { failOnce = null } = {}) {
     const doc = setupDom();
     const host = await createHost({}); t.after(() => host.close());
     success(await host.packs.packs.install(fixture('reputation')));
     const asked = [];
-    const sdk = { ...host.sdk, query: (name, args) => { if (name === 'dataModules.presentation') asked.push(host.store.headIndex()); return host.sdk.query(name, args); } };
+    const sdk = { ...host.sdk, query: (name, args) => {
+        if (name === 'dataModules.presentation') {
+            asked.push(host.store.headIndex());
+            if (failOnce?.armed) { failOnce.armed = false; throw new Error('the query failed once'); }
+        }
+        return host.sdk.query(name, args);
+    } };
     const runtime = { registry: host.registry, store: host.store, sdk, settings: host.settings, events: host.events, turn: host.turn };
     const ui = mountUi({ runtime, ctx: host.ctx, doc, version: '2.0.0-test' });
     t.after(() => ui.destroy());
@@ -130,6 +136,17 @@ test('every change of the story that moves a block refreshes its tab: define, ed
     assert.deepEqual(titles(), ['Quests'], 'the chat back');
     same('the chat back');
     assert.ok(truth().length === 1);
+});
+
+test('a presentation query that throws once is asked again on the next event (the stamp is not kept)', async t => {
+    const failOnce = { armed: false };
+    const { host, shown, pin } = await page(t, { failOnce });
+    failOnce.armed = true;
+    success(await pin());
+    await tick();
+    await host.send('Next.', 'Next reply.');
+    await tick();
+    assert.ok(shown().length > 0, 'the block tab shows after the next event, though the first ask threw');
 });
 
 test('a rewind to before a block was edited shows the block as it was', async t => {
