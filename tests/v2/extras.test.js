@@ -14,7 +14,7 @@ import { fillInput } from '../../src/v2/extras-ui.js';
 import { sceneScreen } from '../../src/v2/screens/scene.js';
 import { renderSkip, show } from './screens/helpers.js';
 import {
-    CHATTER_CHARS, CHATTER_FEATURE, CHOICE_CHARS, CHOICES_FEATURE, cutPoints, displayLines, readChatter, readChoice,
+    CHATTER_CHARS, CHATTER_FEATURE, CHOICE_CHARS, CHOICE_KEEP, CHOICES_FEATURE, cutPoints, displayLines, readChatter, readChoice,
 } from '../../src/v2/extras.js';
 
 const BOTH = { features: { [CHOICES_FEATURE]: true, [CHATTER_FEATURE]: true } };
@@ -48,10 +48,18 @@ test('a choice is text: markup stays text, invisible characters go, it is cut by
     // A letter outside the BMP (a surrogate pair in UTF-16).
     const long = `? choice ${'𐐷'.repeat(200)}`;
     const text = readChoice({ raw: long }).value.text;
-    assert.equal(Array.from(text).length, CHOICE_CHARS, 'at most the cap, in code points');
+    assert.equal(Array.from(text).length, CHOICE_KEEP, 'at most the kept length, in code points');
     assert.ok(text.endsWith('…'));
     assert.ok(Array.from(text).slice(0, -1).every(point => point === '𐐷'), 'no character split in half');
     assert.match(readChoice({ raw: '? choice ...' }).error, /no text/);
+});
+
+test('a choice longer than the narrator is asked for (80) is kept whole up to 160, so a click sends all of it', () => {
+    assert.equal(CHOICE_CHARS, 80);
+    assert.equal(CHOICE_KEEP, 160);
+    const long = 'Pay Sister Temiwa two silver, strip off the bloodied shirt and ask her to stitch it before the lye-wash';
+    assert.ok(Array.from(long).length > CHOICE_CHARS && Array.from(long).length <= CHOICE_KEEP);
+    assert.equal(readChoice({ raw: `? choice ${long}` }).value.text, long);
 });
 
 test('a chatter line is a name and a thought; no name or no thought is refused', () => {
@@ -117,6 +125,18 @@ test('display lines change no state: no receipt, no op, no meta.rev for them', a
     assert.deepEqual(extrasOf(host), { choice: [{ text: 'Wait' }, { text: 'Leave' }], chatter: [{ name: 'Minke', text: '…dull' }] });
 });
 
+test('a long choice (over 80, up to 160) shows whole after the reply, a reload and a Re-read', async t => {
+    const host = await fresh(t);
+    const long = 'Pay Sister Temiwa two silver, strip off the bloodied shirt and ask her to stitch it before the lye-wash';
+    await host.send('Hello.', block('The wash-house.', [`? choice ${long}`, '? choice Leave']));
+    const index = lastIndex(host);
+    assert.deepEqual(extrasOf(host).choice.map(item => item.text), [long, 'Leave']);
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(extrasOf(host, index).choice.map(item => item.text), [long, 'Leave'], 'a Re-read reads it whole');
+    // Nothing is stored for a choice: the reply keeps the line, so a reload reads the same text.
+    assert.deepEqual(displayLines(JSON.parse(JSON.stringify(host.ctx.chat[index])).mes, { entryOf: word => host.registry.capture(word) }).choice[0].text, long);
+});
+
 test('hostile input: too many lines are Problems (first ones kept), markup and junk are refused or kept as text', async t => {
     const host = await fresh(t);
     const lines = [
@@ -136,9 +156,9 @@ test('hostile input: too many lines are Problems (first ones kept), markup and j
     const shown = extrasOf(host);
     assert.deepEqual(shown.choice.map(item => item.text), ['One', '<script>alert(1)</script>', 'Three', 'Four']);
     assert.deepEqual(shown.chatter.map(item => item.name), ['A', 'B', 'C']);
-    // A line as long as the host reads (2,000 characters) is still cut to the cap for display.
+    // A line as long as the host reads (2,000 characters) is still cut, to the kept length.
     await host.send('More.', block('Long.', [`? choice ${'a'.repeat(1900)}`]));
-    assert.equal(Array.from(extrasOf(host).choice[0].text).length, CHOICE_CHARS);
+    assert.equal(Array.from(extrasOf(host).choice[0].text).length, CHOICE_KEEP);
 });
 
 test('choices a Continue adds past the cap get the same "not applied" Problem as the original reply\'s', async t => {
