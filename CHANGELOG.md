@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- v1 code removed from `main` (`index.v1.js`, the v1 `src/*.js` files, the root `style.css`, `src/suite.css` and the v1 tests); it is kept on the `v1` branch. `src/id.js`, `src/text.js` and `src/ui/dom.js` stay (the testkit imports them). No change to what Story Block does.
+
 ## 2.22.5
 
 Opening Settings no longer freezes the page.
