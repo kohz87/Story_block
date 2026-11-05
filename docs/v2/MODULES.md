@@ -31,7 +31,7 @@ The coordinator writes `src/v2/module.js`, which merges the parts into the one `
 (capture `apply` dispatches by `line.kind` to the part's `kinds[kind].apply`; statics are joined in part
 order; tails concatenated; budgets summed). Parts never import each other's internals; they use
 `ctx.read`/`ctx.call`/`ctx.query`-style access through queries and commands, even inside one module.
-Shared pure helpers that more than one part needs live in v1's existing `src/*.js` files (imported, not
+Shared pure helpers that more than one part needs live in the existing `src/*.js` helpers (`id.js`, `text.js`, `ui/dom.js`; imported, not
 copied); a part may *add* a new pure helper file under its own folder only.
 
 Tests for a part use a fake ctx implementing SPEC §3.2 (`read`, `draft`, `call`, `claim`, `rng`, `roll`,

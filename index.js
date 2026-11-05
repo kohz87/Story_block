@@ -1,7 +1,7 @@
 // Story Block v2 for SillyTavern (docs/v2/SPEC.md): the host Story Suite's modules register with.
 //
 // This file only wires SillyTavern to the v2 runtime (src/v2/runtime.js) and puts the host's UI on the
-// page (src/v2/ui-host.js). v1's code stays in the repository (index.v1.js, src/*.js) and is not loaded.
+// page (src/v2/ui-host.js). v1's code is not in this repository; it lives on the `v1` branch.
 //
 // Order of things:
 // 1. `globalThis.StoryBlock = { apiVersion: 2, ready, sdk, api }` is set at once (`api`: the public API, docs/v2/PUBLIC-API.md), so a module loaded before
