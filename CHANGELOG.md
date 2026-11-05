@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The Story panel on desktop floats over the chat instead of pushing it aside: opening or closing it no longer moves or resizes SillyTavern's chat column (on narrow windows it already did). On a small laptop it covers the right edge of the chat while open.
 
 - v1 code removed from `main` (`index.v1.js`, the v1 `src/*.js` files, the root `style.css`, `src/suite.css` and the v1 tests); it is kept on the `v1` branch. `src/id.js`, `src/text.js` and `src/ui/dom.js` stay (the testkit imports them). No change to what Story Block does.
 
