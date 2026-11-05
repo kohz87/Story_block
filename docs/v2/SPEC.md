@@ -354,7 +354,15 @@ after it (`sdk.command`, `sdk.commit`) share **the turn's save**: it goes out 1.
 (`IDLE_MS`), and never later than 8 s after the first change not yet saved (`IDLE_MAX_MS`); an action's
 result comes back without waiting for it. A generation starting leaves the waiting save for the reply's
 save (it does not write in the request's way; the 8 s limit still holds). Story Block's own steps (events,
-a module set up) save 400 ms after the last one, or with the turn's save inside its window. Where there is
+a module set up) save 400 ms after the last one, or with the turn's save inside its window. **The late phase (opt-in):** after the turn's save, a module's own steps come seconds apart (model calls
+between), and each used to write the whole chat. For 30 s after a window's save (`FOLLOW_MS`) an `sdk.command(type,
+payload, { background: true })` (a module's step no reader waits for) joins one **late window** (`store.saveLate()`): saved
+6 s after the last of them (`LATE_MS`) and never later than 15 s after the first one not yet saved (`LATE_MAX_MS`);
+inside the turn's window it is one of its changes. Nothing else uses it: Story Block's own 400 ms saves (swipe and delete,
+a chat change, a generation's end, a rename, a command without `background`) and a reader's action keep their times. `flush`,
+`saveSoon`, `saveUrgent`, a page hidden or closed, a chat switch and a generation starting end the phase (and drop a late
+window's bound); a failed save's retry is never replaced by the longer wait. Where there is no chat file this page can write,
+`background` saves at once like any action. Where there is
 no such file (the testkit, a temporary chat), a reader's action is saved at once, before its result comes
 back, a generation starting flushes the pending save first and the capture saves once at its end. Cues
 committed before a reply (§4.1 step 3) are saved with that reply's save, not on their own; a generation
@@ -1137,7 +1145,7 @@ createRegistry() → {
 
 // commands.js (SB-commands)
 createCommandBus({ store, registry, settings: id => object }) → {
-  command(type, payload, { cause = 'ui' } = {}) → { ok, receipt } | { ok: false, code, message },
+  command(type, payload, { cause = 'ui', background = false } = {}) → { ok, receipt } | { ok: false, code, message },   // background: a module's own step; saved with the late window (§3.3)
   preview(type, payload) → { ok, receipt, token }, commit(token) → same as command,
   run(type, payload, { cause, seed }) → { ok, ops, receipt }   // no append; used by capture
 }
