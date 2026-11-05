@@ -115,43 +115,49 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     const reader = name => (typeof timeline?.active === 'function' ? timeline.active(name) : null);
     const lateReader = reader('assist.late');
     const viewReader = reader('view.lastUser');
-    let session = null;
-    let deferred = false;   // cues committed before a reply, left for the reply's save (runCues)
-    let listeners = [];
-    const problemLog = [];
-    const blocks = [];
-    let lastSize = null;          // the context size the last interceptor call was handed
-    // Quiet generations told by GENERATION_STARTED: { mark, claimed (its interceptor ran, at this time) }, oldest first.
-    let quiets = [];
-    // What the two slots hold now (setPrompts).
-    let slots = { staticText: '', tailText: '' };
-    const toldSmall = new Set();  // chats whose reader was told the context is too small
+    const s = {
+        session: null,
+        deferred: false,   // cues committed before a reply, left for the reply's save (runCues)
+        listeners: [],
+        problemLog: [],
+        blocks: [],
+        lastSize: null,   // the context size the last interceptor call was handed
+        // Quiet generations told by GENERATION_STARTED: { mark, claimed (its interceptor ran, at this time) }, oldest first.
+        quiets: [],
+        // What the two slots hold now (setPrompts).
+        slots: { staticText: '', tailText: '' },
+        toldSmall: new Set(),   // chats whose reader was told the context is too small
+        // A reply in progress: from its interceptor until it is received, ended, stopped or held back (or the
+        // chat changes). Story Suite's own model calls on the chat's connection wait for it (whenIdle).
+        replyBusy: false,
+        // The Assist safety net's runs on the last reply (afterReply), until they settle.
+        assistPending: null,
+        busyTimer: null,
+        idleWaiters: [],
+        // Every earlier reply is in every prompt: what its text is without blocks is remembered, and a
+        // text with no "<changes" in it at all is passed by without reading it further.
+        stripped: new Map(),
+        offModules: null,
+    };
     const liveContext = () => {
         try { return live() ?? ctx; } catch { return ctx; }
     };
-    const contextNow = () => contextRoom(liveContext(), lastSize);
-    // A reply in progress: from its interceptor until it is received, ended, stopped or held back (or the
-    // chat changes). Story Suite's own model calls on the chat's connection wait for it (whenIdle).
-    let replyBusy = false;
-    // The Assist safety net's runs on the last reply (afterReply), until they settle.
-    let assistPending = null;
-    let busyTimer = null;
-    let idleWaiters = [];
+    const contextNow = () => contextRoom(liveContext(), s.lastSize);
     function markBusy() {
-        replyBusy = true;
-        if (busyTimer !== null) clearTimeout(busyTimer);
-        busyTimer = setTimeout(markIdle, REPLY_BUSY_MAX_MS);
-        busyTimer?.unref?.();
+        s.replyBusy = true;
+        if (s.busyTimer !== null) clearTimeout(s.busyTimer);
+        s.busyTimer = setTimeout(markIdle, REPLY_BUSY_MAX_MS);
+        s.busyTimer?.unref?.();
     }
     function markIdle() {
-        replyBusy = false;
-        if (busyTimer !== null) clearTimeout(busyTimer);
-        busyTimer = null;
-        const waiters = idleWaiters;
-        idleWaiters = [];
+        s.replyBusy = false;
+        if (s.busyTimer !== null) clearTimeout(s.busyTimer);
+        s.busyTimer = null;
+        const waiters = s.idleWaiters;
+        s.idleWaiters = [];
         for (const resolve of waiters) resolve();
     }
-    const whenIdle = () => (replyBusy ? new Promise(resolve => idleWaiters.push(resolve)) : Promise.resolve());
+    const whenIdle = () => (s.replyBusy ? new Promise(resolve => s.idleWaiters.push(resolve)) : Promise.resolve());
     // Our own model call's prompt (model-call.js) is never the reply's.
     const isOwn = eventData => {
         try { return ownPrompt(eventData) === true; } catch { return false; }
@@ -162,7 +168,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         ctx.setExtensionPrompt(key, text, position(place), 0, false, roles().SYSTEM ?? ROLE_SYSTEM);
     }
     function setPrompts(staticText, tailText) {
-        slots = { staticText, tailText };
+        s.slots = { staticText, tailText };
         setPrompt(STATIC_KEY, staticText, 'static');
         setPrompt(TAIL_KEY, tailText, 'tail');
     }
@@ -170,8 +176,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
 
     function problem(entry) {
         const item = { module: null, code: 'PROBLEM', ...entry };
-        problemLog.push(item);
-        if (problemLog.length > MAX_PROBLEMS) problemLog.splice(0, problemLog.length - MAX_PROBLEMS);
+        s.problemLog.push(item);
+        if (s.problemLog.length > MAX_PROBLEMS) s.problemLog.splice(0, s.problemLog.length - MAX_PROBLEMS);
         // A quiet one (a line of a feature the reader turned off) is listed, not warned about.
         if (item.quiet !== true) console.warn(`[Story Suite] ${item.module ? `${item.module}: ` : ''}${item.message}`);
         return item;
@@ -283,7 +289,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const requested = [];
         const commit = !dryRun && type !== 'continue';
         // `again`: an earlier attempt at this reply was never captured (a retried interceptor), so a hook may reuse its work.
-        const again = session !== null;
+        const again = s.session !== null;
         for (const { moduleId, fn } of registry.hookEntries('beforeGenerate')) {
             let out;
             const limit = hookTimeout(fn);
@@ -317,7 +323,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // Other cues may settle a fight or change a modifier. Preview on the state they leave,
         // which is also the state the generated reply's prelude will start from.
         for (const { moduleId, type: preludeType, payload } of requested) {
-            const prior = session?.prechecks?.find(step => step.type === preludeType && JSON.stringify(step.payload) === JSON.stringify(payload));
+            const prior = s.session?.prechecks?.find(step => step.type === preludeType && JSON.stringify(step.payload) === JSON.stringify(payload));
             const result = bus.run(preludeType, payload, { cause: 'system', ...(prior ? { seed: prior.seed } : {}) });
             if (result?.ok) {
                 // The RPG's rolls move bars (hits, heals, skill costs): the tail's block lines are read from the state they leave, so they say what the cue says.
@@ -332,7 +338,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // saved: GENERATION_ENDED / GENERATION_STOPPED and CHAT_CHANGED save what is unsaved.
         if (committed) {
             store.deferSave?.();
-            deferred = true;
+            s.deferred = true;
         }
         return { cues, prechecks, previewState };
     }
@@ -440,7 +446,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     }
 
     function block({ moduleId, reason }, abort) {
-        session = null;
+        s.session = null;
         markIdle();
         clearPrompts();
         try { abort?.(true); } catch (error) { console.warn('[Story Suite] the generation could not be stopped', error); }
@@ -451,7 +457,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 problem({ module: moduleId, code: 'FAILED', message: `onBlocked failed: ${error?.message ?? error}` });
             }
         }
-        blocks.push({ moduleId, reason });
+        s.blocks.push({ moduleId, reason });
     }
 
     // The static part alone is over Story Suite's share of the context: told once per chat (a toast and the
@@ -461,8 +467,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         let chatId = null;
         try { chatId = typeof ctx?.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx?.chatId; } catch { chatId = null; }
         const key = String(chatId ?? '');
-        if (toldSmall.has(key)) return;
-        toldSmall.add(key);
+        if (s.toldSmall.has(key)) return;
+        s.toldSmall.add(key);
         const reason = contextNotice(fit);
         problem({ code: 'CONTEXT_SMALL', message: reason });
         try { notify?.(reason, null); } catch { /* a missing toastr is not an error */ }
@@ -474,11 +480,11 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             // A quiet generation whose instruction is known is told apart at its own prompt-ready, which loses Story Block's text
             // there (quietPrompt, below): the slots keep the reply's text for the reply's own prompt, whichever of the two is built first.
             const known = kind === 'quiet' && claimQuiet();
-            if (known && session && !session.prompted) return;
+            if (known && s.session && !s.session.prompted) return;
             // Any other (an impersonation, a quiet generation with no instruction told): a prompt built while the reply's own is
             // pending must not carry its text; the reply's prompt gets it back at that prompt's prompt-ready (below).
             // A reply already on its way keeps its session, so it is still captured.
-            if (session && !session.prompted) session.background += 1;
+            if (s.session && !s.session.prompted) s.session.background += 1;
             clearPrompts();
             return;
         }
@@ -486,9 +492,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // The feature switched on a moment ago: its code is waited for (no pass over the chat; onChatChanged did that).
         if (typeof prepare === 'function') { try { const waiting = prepare({ scan: false }); if (waiting) await within(waiting, RPG_LOAD_WAIT_MS); } catch { /* the loader reports its own failure */ } }
         // The safety net still reading the last reply: waited for briefly, so its lines are in this prompt.
-        if (assistPending) await within(assistPending, ASSIST_WAIT_MS);
+        if (s.assistPending) await within(s.assistPending, ASSIST_WAIT_MS);
         markBusy();
-        if (Number.isFinite(Number(contextSize)) && Number(contextSize) > 0) lastSize = Number(contextSize);
+        if (Number.isFinite(Number(contextSize)) && Number(contextSize) > 0) s.lastSize = Number(contextSize);
         // B-b2-timeline-r2-1: never a dry run (SillyTavern runs interceptors only for real generations).
         // It is not read from GENERATION_STARTED: another caller's dry run (token counting) can start
         // between this generation's GENERATION_STARTED and this call, and would cost the reply its capture.
@@ -513,7 +519,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             const chat = ctx.chat;
             const last = chat.length - 1;
             const index = kind === 'swipe' || kind === 'continue' ? last : chat.length;
-            session = {
+            s.session = {
                 type: kind,
                 prechecks,
                 index,
@@ -528,26 +534,23 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 background: 0,
                 restored: '',
             };
-            setPrompts(session.staticText, session.tailText);
+            setPrompts(s.session.staticText, s.session.tailText);
         } catch (error) {
-            session = null;
+            s.session = null;
             markIdle();
             clearPrompts();
             problem({ code: 'FAILED', message: `The reply's notes could not be built: ${error?.message ?? error}` });
         }
     }
 
-    // Every earlier reply is in every prompt: what its text is without blocks is remembered, and a
-    // text with no "<changes" in it at all is passed by without reading it further.
-    const stripped = new Map();
     function strippedText(text) {
         if (!HAS_BLOCK.test(text) && !HAS_LEGACY.test(text)) return text;
-        let out = stripped.get(text);
+        let out = s.stripped.get(text);
         if (out === undefined) {
             // (A hidden comment may hold only lines left in the story, B-a1-3: it goes too. So does a v1 envelope.)
             out = extractBlock(text) === null && !hasHidden(text) && !hasLegacy(text) ? text : stripBlock(text);
-            if (stripped.size >= STRIP_CACHE) stripped.delete(stripped.keys().next().value);
-            stripped.set(text, out);
+            if (s.stripped.size >= STRIP_CACHE) s.stripped.delete(s.stripped.keys().next().value);
+            s.stripped.set(text, out);
         }
         return out;
     }
@@ -565,9 +568,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // A background prompt seen while the reply's own is pending: its slots were emptied for it;
     // fill them again for the reply. True when this prompt was the background one.
     function backgroundPrompt() {
-        if (!session || session.prompted || session.background <= 0) return false;
-        session.background -= 1;
-        if (!session.background) setPrompts(session.staticText, session.tailText);
+        if (!s.session || s.session.prompted || s.session.background <= 0) return false;
+        s.session.background -= 1;
+        if (!s.session.background) setPrompts(s.session.staticText, s.session.tailText);
         return true;
     }
 
@@ -575,8 +578,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // no extension prompt in it, yet tells its prompt-ready like the reply's): it holds neither of the slots' texts, which the
     // reply's own prompt always does while they are set. It is left alone and the reply's own prompt is still waited for.
     function foreignPrompt(holds) {
-        if (!session || session.prompted || session.background > 0) return false;
-        const marks = [session.staticText, session.tailText].map(firstLine).filter(Boolean);
+        if (!s.session || s.session.prompted || s.session.background > 0) return false;
+        const marks = [s.session.staticText, s.session.tailText].map(firstLine).filter(Boolean);
         return marks.length > 0 && !marks.some(holds);
     }
 
@@ -585,15 +588,15 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         if (dryRun === true || normalizeType(type) !== 'quiet') return;
         const mark = quietMark(params?.quiet_prompt);
         // (A group's generation starts again for its member: the same instruction is remembered once.)
-        if (!mark || quiets.some(entry => !entry.claimed && entry.mark === mark)) return;
-        quiets.push({ mark, claimed: 0 });
-        if (quiets.length > QUIET_KEEP) quiets = quiets.slice(-QUIET_KEEP);
+        if (!mark || s.quiets.some(entry => !entry.claimed && entry.mark === mark)) return;
+        s.quiets.push({ mark, claimed: 0 });
+        if (s.quiets.length > QUIET_KEEP) s.quiets = s.quiets.slice(-QUIET_KEEP);
     }
     // A quiet generation's interceptor: the oldest started one whose interceptor has not run is this one. True when there was one.
     function claimQuiet() {
         const now = Date.now();
-        quiets = quiets.filter(entry => !entry.claimed || now - entry.claimed < QUIET_WAIT_MS);
-        const entry = quiets.find(item => !item.claimed);
+        s.quiets = s.quiets.filter(entry => !entry.claimed || now - entry.claimed < QUIET_WAIT_MS);
+        const entry = s.quiets.find(item => !item.claimed);
         if (!entry) return false;
         entry.claimed = now;
         return true;
@@ -601,13 +604,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // A quiet generation's own prompt (it holds the instruction of one whose interceptor ran): forgotten once found, and true.
     function quietPrompt(holds) {
         const now = Date.now();
-        const at = quiets.findIndex(entry => entry.claimed && now - entry.claimed < QUIET_WAIT_MS && holds(entry.mark));
+        const at = s.quiets.findIndex(entry => entry.claimed && now - entry.claimed < QUIET_WAIT_MS && holds(entry.mark));
         if (at < 0) return false;
-        quiets.splice(at, 1);
+        s.quiets.splice(at, 1);
         return true;
     }
     // Story Block's text as it is in the slots (and the pending reply's), each as a pattern: what a quiet prompt loses.
-    const ownPatterns = () => [...new Set([slots.staticText, slots.tailText, session?.staticText, session?.tailText].filter(Boolean))].map(textPattern).filter(Boolean);
+    const ownPatterns = () => [...new Set([s.slots.staticText, s.slots.tailText, s.session?.staticText, s.session?.tailText].filter(Boolean))].map(textPattern).filter(Boolean);
 
     /** CHAT_COMPLETION_PROMPT_READY: { chat, dryRun }. */
     function onPromptReady(eventData) {
@@ -625,9 +628,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             return;
         }
         if (foreignPrompt(holdsIn(eventData.chat))) return;
-        if (backgroundPrompt() || !session || session.prompted) return;
-        session.prompted = true;
-        session.restored = restoreMissing(eventData.chat, session.staticText, session.tailText);
+        if (backgroundPrompt() || !s.session || s.session.prompted) return;
+        s.session.prompted = true;
+        s.session.restored = restoreMissing(eventData.chat, s.session.staticText, s.session.tailText);
     }
 
     /** GENERATE_AFTER_COMBINE_PROMPTS (text completion): { prompt, dryRun }. */
@@ -643,13 +646,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             return;
         }
         if (foreignPrompt(mark => eventData.prompt.includes(mark))) return;
-        if (backgroundPrompt() || !session || session.prompted) return;
-        session.prompted = true;
-        const missing = [session.staticText, session.tailText].filter(text => text && !eventData.prompt.includes(firstLine(text)));
+        if (backgroundPrompt() || !s.session || s.session.prompted) return;
+        s.session.prompted = true;
+        const missing = [s.session.staticText, s.session.tailText].filter(text => text && !eventData.prompt.includes(firstLine(text)));
         if (missing.length) {
-            session.restored = missing.length === 2 ? 'both' : missing[0] === session.staticText ? 'static' : 'tail';
-            if (missing.includes(session.staticText)) eventData.prompt = `${session.staticText}\n${eventData.prompt}`;
-            if (missing.includes(session.tailText)) eventData.prompt = `${eventData.prompt}\n${session.tailText}`;
+            s.session.restored = missing.length === 2 ? 'both' : missing[0] === s.session.staticText ? 'static' : 'tail';
+            if (missing.includes(s.session.staticText)) eventData.prompt = `${s.session.staticText}\n${eventData.prompt}`;
+            if (missing.includes(s.session.tailText)) eventData.prompt = `${eventData.prompt}\n${s.session.tailText}`;
         }
     }
 
@@ -1061,7 +1064,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         if (message.is_user) return refusal('REFUSED', 'This is the reader\'s own message; only replies hold story changes.');
         // (a reply a restore hid keeps its record, and can be read again; a system message of SillyTavern's has none)
         if (message.is_system && !readRecord(message)) return refusal('REFUSED', 'This is a system message; it holds no story changes.');
-        if (session) return refusal('REFUSED', 'A reply is being written; Re-read once it is done.');
+        if (s.session) return refusal('REFUSED', 'A reply is being written; Re-read once it is done.');
         if (!readRecord(message)) return refusal('REFUSED', 'This reply keeps no story record, so there is nothing to read again.');
         const base = store.before?.(index);
         if (!base) return refusal('FAILED', 'This chat has no story state yet.');
@@ -1144,7 +1147,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             // time: what was read is no longer this reply's, so nothing is stored (not even on the
             // message that now stands at `index`).
             const live = ctx?.chat ?? [];
-            if (live[index] !== message || message.swipe_id !== swipe || String(message.mes ?? '') !== stored || session) {
+            if (live[index] !== message || message.swipe_id !== swipe || String(message.mes ?? '') !== stored || s.session) {
                 return refusal('CONFLICT', 'The chat changed while the reply was read again (a message was deleted, swiped, edited or added); nothing was changed. Press Re-read again.');
             }
             // A kept system step marked `replan` (B-a1-13) runs again on the new story changes, as it ran
@@ -1186,9 +1189,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     /** MESSAGE_RECEIVED: (messageId, type). */
     async function onMessageReceived(messageId) {
         const id = Number(messageId);
-        const current = session;
+        const current = s.session;
         if (!current || !Number.isInteger(id) || id !== current.index) return null;
-        session = null;
+        s.session = null;
         markIdle();
         clearPrompts();
         const message = ctx?.chat?.[id];
@@ -1253,7 +1256,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 const anchored = await timeline.recover();
                 if (!anchored.ok) problem({ index: id, code: anchored.code, message: anchored.message });
             }
-            deferred = false;
+            s.deferred = false;
             // One write for the reply, its capture and the reader's actions after it (store.saveIdle).
             if (idle && store.dirty()) store.saveIdle();
             else if (store.dirty()) await trySave('after the reply');
@@ -1288,8 +1291,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 .finally(() => { if (store.headIndex() === index) events?.emit('head', { index }); }));
         }
         if (!runs.length) return;
-        const all = Promise.allSettled(runs).then(() => { if (assistPending === all) assistPending = null; });
-        assistPending = all;
+        const all = Promise.allSettled(runs).then(() => { if (s.assistPending === all) s.assistPending = null; });
+        s.assistPending = all;
     }
 
     // afterReceive: every reply that arrives, with or without change lines, once its lines have been read and before it is
@@ -1306,7 +1309,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     async function captureLate({ index, swipe } = {}, text = '', { assist = false, refused = [] } = {}) {
         const message = ctx?.chat?.[index];
         if (assist) return captureAssist({ index, swipe }, text, message, refused);
-        if (!isCarrier(message) || store.headIndex() !== index || (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) !== swipe || session) {
+        if (!isCarrier(message) || store.headIndex() !== index || (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) !== swipe || s.session) {
             return { receipts: [], problems: ['The reply changed before its late change lines arrived; they were not used.'] };
         }
         const parsed = readBlock(index, String(text ?? ''));
@@ -1352,12 +1355,12 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const own = [...blockLines, ...lateLines(index, []).map(line => line.raw)];
         const parsed = parseChanges(String(text ?? '')).lines;
         const fresh = new Set(notWritten(parsed.map(line => line.raw), own, { scene: blockLines }));
-        const kept = parsed.filter(line => fresh.has(line.raw) && !refusedWhy(line, null, { late: Boolean(session || replyBusy) }));
+        const kept = parsed.filter(line => fresh.has(line.raw) && !refusedWhy(line, null, { late: Boolean(s.session || s.replyBusy) }));
         const store1 = mes2 => {
             message.mes = mes2;
             if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = mes2;
         };
-        if (session || replyBusy) {
+        if (s.session || s.replyBusy) {
             if (!kept.length) return { receipts: [], problems: refusals, deferred: true };
             // Saved with the next reply (its own save writes the chat).
             store1(withAssist(mes, kept.map(line => line.raw), { next: true }));
@@ -1380,8 +1383,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     /** CHAT_CHANGED: a new chat (or the same one reloaded). */
     async function onChatChanged() {
         // The old chat's session and prompts go at once, before anything is awaited: a generation started while the RPG's code loads is the new chat's.
-        session = null;
-        quiets = [];
+        s.session = null;
+        s.quiets = [];
         markIdle();
         clearPrompts();
         // The RPG's code, when this chat needs it (the feature is on, or it holds the RPG's records), before anything is replayed (rpg-lazy.js); a stalled
@@ -1393,8 +1396,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         try { store.resume?.(); } catch { /* only a guard */ }
         // A cue left for the reply's save (runCues) whose reply will not come here: saved now (into its
         // own chat's file when this is another chat, the store's rescue).
-        if (deferred) {
-            deferred = false;
+        if (s.deferred) {
+            s.deferred = false;
             if (store.dirty?.()) store.scheduleSave?.();
         }
         await ensureModules({ store, bus, registry, events });
@@ -1465,27 +1468,26 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
 
     /** GENERATION_STOPPED: the reader stopped the reply being written (its last line may be unfinished). */
     function onGenerationStopped() {
-        if (session) session.stopped = true;
+        if (s.session) s.session.stopped = true;
         onGenerationEnded();
     }
 
     /** GENERATION_ENDED / GENERATION_STOPPED: a spent note never reaches a later prompt. */
     function onGenerationEnded() {
-        if (session?.prompted) clearPrompts();
-        deferred = false;
+        if (s.session?.prompted) clearPrompts();
+        s.deferred = false;
         markIdle();
         // A save that failed and was not made good after the reply (or the reply never came): again soon.
         if (store.dirty()) store.scheduleSave();
     }
 
-    let offModules = null;
     function install({ globalName = INTERCEPTOR_NAME } = {}) {
         for (const [key, place] of V1_KEYS) setPrompt(key, '', place);
         clearPrompts();
         if (globalName) globalThis[globalName] = interceptor;
         // A module turned ready or dormant: guarded blocks of its are asked again (store.lifecycleChanged).
-        offModules?.();
-        offModules = events?.on?.('modules', () => {
+        s.offModules?.();
+        s.offModules = events?.on?.('modules', () => {
             if (store.lifecycleChanged?.()) events?.emit('head', { index: store.headIndex(), reason: 'module' });
         }) ?? null;
         const source = ctx?.eventSource;
@@ -1493,7 +1495,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const on = (event, fn) => {
             if (!event || typeof source?.on !== 'function') return;
             source.on(event, fn);
-            listeners.push([event, fn]);
+            s.listeners.push([event, fn]);
         };
         on(names.GENERATION_STARTED, onGenerationStarted);
         on(names.CHAT_COMPLETION_PROMPT_READY, onPromptReady);
@@ -1511,11 +1513,11 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     }
 
     function uninstall({ globalName = INTERCEPTOR_NAME } = {}) {
-        offModules?.();
-        offModules = null;
+        s.offModules?.();
+        s.offModules = null;
         const source = ctx?.eventSource;
-        for (const [event, fn] of listeners) (source?.removeListener ?? source?.off)?.call(source, event, fn);
-        listeners = [];
+        for (const [event, fn] of s.listeners) (source?.removeListener ?? source?.off)?.call(source, event, fn);
+        s.listeners = [];
         if (globalName && globalThis[globalName] === interceptor) delete globalThis[globalName];
         clearPrompts();
         markIdle();
@@ -1556,10 +1558,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             return item;
         },
         /** The Problems list, oldest first; `moduleId` narrows it (null: the host's own). */
-        problems: moduleId => problemLog.filter(item => moduleId === undefined || item.module === moduleId).map(item => ({ ...item })),
-        clearProblems: () => { problemLog.length = 0; },
+        problems: moduleId => s.problemLog.filter(item => moduleId === undefined || item.module === moduleId).map(item => ({ ...item })),
+        clearProblems: () => { s.problemLog.length = 0; },
         /** Generations a canGenerate hook stopped: [{ moduleId, reason }], oldest first. */
-        blocked: () => blocks.map(item => ({ ...item })),
+        blocked: () => s.blocks.map(item => ({ ...item })),
         /**
          * Every module holding the story back now (each canGenerate asked, none logged):
          * Promise<[{ moduleId, name, reason, action, canOpen }]> (`action`: the module's button words, '' for
@@ -1569,9 +1571,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         /** Runs module `moduleId`'s onBlocked(reason, moduleId) hook (Home's button). → true when it ran. */
         unblock: (moduleId, reason = '') => runOnBlocked(moduleId, reason),
         /** The pending reply's session (for status and tests), or null. */
-        session: () => (session ? { ...session } : null),
+        session: () => (s.session ? { ...s.session } : null),
         /** Whether a reply is being built or awaited (its interceptor ran; not yet received, ended or stopped). */
-        replyBusy: () => replyBusy,
+        replyBusy: () => s.replyBusy,
         /** Resolves when no reply is in progress (at once when none is). */
         whenIdle,
     };
