@@ -25,7 +25,7 @@ Story Block's own readers of earlier messages, which read records and text from 
 filter in `src/v2/timeline/active.js` by name (`ACTIVE_READERS`): the Inner chatter tail line and the two chatter queries
 (`chatter.head`, `scene.chatter`, and so the Scene screen), the last reader message a module's view shows, and the late
 safety-net lines of the previous reply. `retainedChatRestore` is true while the hide mechanism works and every one of
-them is wired. Every read of chat messages in `src/` (v1's `src/*.js` and `index.v1.js` are not loaded):
+them is wired. Every read of chat messages in `src/` (v1's code is not on `main`; it lives on the `v1` branch):
 
 | Reader | Status |
 |---|---|
