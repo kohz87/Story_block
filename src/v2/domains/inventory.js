@@ -6,11 +6,11 @@
 // a change line proposes, these functions decide. Payloads, codes and money follow MODULES.md F:
 // a rule refusal is REFUSED, a malformed payload INVALID; a wallet is { coin: n } in the smallest unit.
 
-import { OWNER_RE, isPlainObject, clone, labelOf, parseCount, ownerNameIn, capitalize } from './common.js';
+import { OWNER_RE, isPlainObject, clone, labelOf, ownerNameIn, capitalize } from './common.js';
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
 import { WALLET_KEY, coinValue, countedMoney, formatAmount, isCurrencyName, parseAmount, resolveCurrency } from './money.js';
 import { isId } from '../check.js';
-import { GEAR, createGearQueries, gearSlotOf, handDef, placeOf, slotWordOf, statsFor, statsOf } from './gear.js';
+import { GEAR, createGearQueries, handDef, placeOf, slotWordOf } from './gear.js';
 import { fill } from '../strings.js';
 import {
     defErrors, isCount, nonBlank, COND_MAX, condLogErrors, keptErrors, gearOn, condOf, MAX_UNSTACKED, RARITIES,
@@ -20,15 +20,23 @@ import {
 import { itemText, baseSlot, slotLimits, canWear, legendEarned } from './inventory/validate.js';
 import { pack, WALLET_NOTE } from './inventory/prompt.js';
 import {
-    carryAnswer, definitionsOf, listItems, carryBonuses, gearIsOn, boundNames, equipmentView, encumbrance,
-    defCarry, ENCUMBERED_PENALTY, gearWearers,
+    definitionsOf, listItems, carryBonuses, gearIsOn, boundNames, equipmentView, encumbrance, defCarry,
+    ENCUMBERED_PENALTY, gearWearers,
 } from './inventory/queries.js';
 import {
     currencyIn, defineByName, grantInto, receive, told, E, refuseBound, addStack, looseMatch, stacksOf, freeId,
     count, receiverArg, textArg, defineGiven, ownerArg, peekPackDef, stackIn, boundId, ambiguous, storeDef,
     unbound, shortOf, takeAcross, take, pay, knownDef, economyOf,
 } from './inventory/stacks.js';
-import { joinNames, wear, repair, gearWear, itemEquip, stow, restore, release, storyWear, storyRepair } from './inventory/wear.js';
+import { wear, repair, gearWear, itemEquip, stow, restore, release, storyWear, storyRepair } from './inventory/wear.js';
+import { lootErrors, lootTake, lootItems } from './inventory/loot.js';
+import {
+    byReader, handStats, handSlot, kitOpen, holdBudget, remakeAsEquipment, guardReaderEdit, addDecision,
+    handPlace, handEdit, renameDecision, editStack, editPieces,
+} from './inventory/edit.js';
+import { readerCarry, carryFits, lineQty, storyItems, storyCoin, storedTally, clicksOf, tallied } from './inventory/lines.js';
+export { LOOT_ITEMS, LOOT_KEEP, LOOT_GUARD, LOOT_OFFER, LOOT_KINDS, captureLoot, lootTakeGuard } from './inventory/loot.js';
+export { kitOpen, INVENTORY_EDIT_GUARD, inventoryEditGuard } from './inventory/edit.js';
 export { ECONOMY_SCALE, economyOf, scaledDefault } from './inventory/stacks.js';
 export { STORY_WEAR, wearWord } from './inventory/wear.js';
 export { DEFINITIONS_MAX_IDS, carryBonuses, listItems, equipmentView, ENCUMBERED_PENALTY, defCarry, ENCUMBERED_STATS, encumbrance, encumbranceTail, definitionsOf } from './inventory/queries.js';
@@ -110,207 +118,6 @@ export function validateInventory(slice) {
 
 // ---------- loot to pick from (`story-block.loot`) ----------
 
-// `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar shelf | qty: 1`: what lies there, offered
-// on the reply's card as chips; the reader takes the ones they want (inventory.lootTake). The offer is
-// read as a `+ item` line would be, so the chips show what can be taken; things the party already carries (tolerant
-// names) are left out. One offer per reply, keyed by the reply's record ID (`loot[<sid>]`, scratch like
-// perReply); a second loot line in the reply adds to it. A reply keeps the LOOT_KEEP newest offers.
-export const LOOT_ITEMS = 8;
-export const LOOT_KEEP = 5;
-// The guards of the loot blocks (Story Block's own, asked through the core module's replayGuard): a take's (lootTakeGuard),
-// and the offer's, reply-bound, so it holds while its reply is in the chat (asked, it only checks its own shape).
-export const LOOT_GUARD = 'loot.take';
-export const LOOT_OFFER = 'loot.offer';
-export const LOOT_KINDS = Object.freeze([LOOT_OFFER, LOOT_GUARD]);
-const LOOT_OWNER = 'story-block';
-const MAX_WHERE = 120;
-
-function lootErrors(loot) {
-    if (!isPlainObject(loot)) return ['The loot on offer is not a record.'];
-    const errors = [];
-    for (const [key, offer] of Object.entries(loot)) {
-        if (!isPlainObject(offer)) {
-            errors.push(`The loot of reply ${key} is not a record.`);
-            continue;
-        }
-        if (offer.sid !== key) errors.push(`The loot of reply ${key} is filed under the wrong reply.`);
-        if (typeof offer.where !== 'string' || typeof offer.claim !== 'string' || !Number.isSafeInteger(offer.n)) errors.push(`The loot of reply ${key} is missing where it lies, its claim or its order.`);
-        const list = lootItems(offer);
-        if (!list || !list.length || list.length > LOOT_ITEMS
-            || list.some(item => !isPlainObject(item) || !nonBlank(item.name) || item.name.length > MAX_NAME || !isCount(item.qty, 1)
-                || (item.coin !== undefined && !isCount(item.coin, 1)))) {
-            errors.push(`The loot of reply ${key} needs 1 to ${LOOT_ITEMS} things, each with a name and a positive quantity.`);
-        }
-    }
-    return errors;
-}
-
-// An offer's things in order, or null when they are not kept as they should be. They are a record keyed
-// "0", "1", … (not a list): a later line of the same reply adds keys, which replay fits like any other
-// per-reply bookkeeping (a list append inside a scratch field would not be).
-function lootItems(offer) {
-    const items = offer?.items;
-    if (!isPlainObject(items)) return null;
-    const keys = Object.keys(items);
-    if (keys.some((key, at) => key !== String(at))) return null;
-    return keys.map(key => items[key]);
-}
-
-// "Lantern Oil x2", "Lantern Oil ×2" → { name, qty }: a count of any length is a count, never part of
-// the name); without one, `fallback`. Money ("1000 gold", "Gold x500",
-// "gold") → { money: amount }.
-function lootPart(text, fallback, currency) {
-    const counted = /^(.*?)\s*[x×]\s*(\d+)$/i.exec(text);
-    const number = digits => Math.min(Number(digits), Number.MAX_SAFE_INTEGER);
-    const { name, qty } = counted && counted[1].trim() ? { name: counted[1].trim(), qty: number(counted[2]) } : { name: text, qty: fallback };
-    // A coin's name counts in the smallest unit: "3 silver" is 30 when silver is worth 10 (money.js coinValue).
-    if (isCurrencyName(cleanName(name), currency)) return { name, money: number(qty * coinValue(cleanName(name), currency)) };
-    const leading = /^(\d[\d,]*)\s+(.+)$/.exec(name);
-    if (leading && isCurrencyName(cleanName(leading[2]), currency)) return { name: leading[2], money: number(Number(leading[1].replace(/,/g, '')) * coinValue(cleanName(leading[2]), currency)) };
-    return { name, qty };
-}
-
-/** Whether the party (anyone in it) already carries the item a name means, by the tolerant lookup. */
-function owned(inv, name) {
-    const found = resolveDef(inv, name);
-    return found.status === 'found' && Object.values(inv.stacks).some(stack => stack.def === found.id);
-}
-
-/** `? loot A, B x2, C — where | qty: n` (see above). */
-export function captureLoot(ctx, line, env) {
-    if (!featureOn(ctx, FEATURE.loot)) ctx.fail('FEATURE_OFF', 'Loot to pick from is turned off in the Features.');
-    if (line?.op !== '?') ctx.fail('INVALID', `"${line?.op} loot" is not a change the inventory understands; write ? loot Thing, Other Thing — where it lies.`);
-    const sid = ctx.carrier?.sid;
-    if (ctx.cause !== 'story' || typeof sid !== 'string' || !sid) ctx.fail('REFUSED', 'Loot is laid out by a reply\'s change lines only.');
-    const inv = ctx.draft('inventory');
-    const fallback = lineQty(ctx, line, 1);
-    if (fallback < 1) ctx.fail('INVALID', 'A quantity of loot must be at least 1.');
-    const parts = String(line.name ?? '').split(/[,;]/).map(part => part.trim()).filter(Boolean);
-    if (!parts.length) ctx.fail('INVALID', 'A loot line needs the things that lie there: ? loot Rusty Key, Lantern Oil — where.');
-    const before = isPlainObject(inv.loot) && isPlainObject(inv.loot[sid]) ? inv.loot[sid] : null;
-    const items = before ? clone(lootItems(before) ?? []) : [];
-    const notes = [];
-    const currency = currencyIn(ctx);
-    // New definitions are worked out on a copy; the real ones are made only for what the reader takes.
-    const scratch = { ...inv, defs: { ...inv.defs }, aliases: { ...inv.aliases } };
-    for (const part of parts) {
-        const { name: written, qty, money } = lootPart(part, fallback, currency);
-        const name = cleanName(written);
-        if (!name) continue;
-        // Money in a loot line is a coin offer in that loot, counted for the reply now (as a
-        // `+ coin` line would be) and paid into the wallet on Take: never an item, never left out unsaid.
-        if (money !== undefined) {
-            const purse = items.find(item => item.coin !== undefined);
-            if (!purse && items.length >= LOOT_ITEMS) {
-                notes.push(`One reply may lay out at most ${LOOT_ITEMS} things to pick from; ${formatAmount(money, currency)} was left out.`);
-                continue;
-            }
-            if (money < 1) { notes.push(`${name}: an amount of money is more than nothing.`); continue; }
-            const held = storyCoin(ctx, inv, money);
-            if (purse) {
-                purse.coin += held.amount;
-                purse.name = formatAmount(purse.coin, currency);
-            } else items.push({ name: formatAmount(held.amount, currency), qty: 1, coin: held.amount });
-            continue;
-        }
-        if (items.length >= LOOT_ITEMS) {
-            notes.push(`One reply may lay out at most ${LOOT_ITEMS} things to pick from; ${name} and the rest were left out.`);
-            break;
-        }
-        if (name.length > MAX_NAME) { notes.push(`An item needs a name of 1 to ${MAX_NAME} characters; one was left out.`); continue; }
-        if (owned(inv, name)) { notes.push(`${name} is already carried, so it is not offered.`); continue; }
-        if (qty < 1) { notes.push(`${name}: a quantity of loot is at least 1.`); continue; }
-        let held;
-        let def;
-        try {
-            ({ def } = defineByName(ctx, scratch, name, env, { owner: 'party' }, false));
-            if (items.some(item => aliasKey(item.name) === aliasKey(def.name) || resolveDef(scratch, item.name).id === def.id)) { notes.push(`${def.name} is offered once.`); continue; }
-            held = storyItems(def, qty, false, 'offered');
-        } catch (error) {
-            if (typeof error?.code !== 'string') throw error;
-            notes.push(error.message);
-            continue;
-        }
-        items.push({ name: def.name, qty: held.qty });
-        if (held.problem) notes.push(held.problem);
-    }
-    if (JSON.stringify(items) === JSON.stringify(lootItems(before) ?? [])) ctx.fail('REFUSED', notes.join(' ') || 'There is nothing in that loot to pick up.');
-    if (!isPlainObject(inv.loot)) inv.loot = {};
-    const others = Object.keys(inv.loot).filter(key => key !== sid)
-        .sort((a, b) => (inv.loot[b]?.n ?? 0) - (inv.loot[a]?.n ?? 0) || (a < b ? -1 : 1));
-    for (const key of others.slice(LOOT_KEEP - 1)) delete inv.loot[key];
-    const here = trimText(line.text ?? '', MAX_WHERE);
-    const where = before && before.where !== here ? trimText([before.where, here].filter(Boolean).join('; '), MAX_WHERE) : here;
-    inv.loot[sid] = { sid, n: Number.isSafeInteger(ctx.rev) ? ctx.rev : 0, where, claim: `loot:${sid}`, items: { ...items } };
-    // The offer is the reply's own (REPLAY.md "Reply-bound guards"): it goes with its reply, also when deleting the earliest
-    // replies carries the rest of what they did forward, and a take of it (lootTakeGuard) goes with it.
-    const offered = { kind: LOOT_OFFER, sid };
-    ctx.replayGuard({ owner: LOOT_OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash(offered), predicate: offered, replyBound: true });
-    const list = items.map(item => itemText(item.name, item.qty));
-    return {
-        summary: `Loot to pick from${where ? ` (${where})` : ''}: ${list.join(', ')}. The reader picks what to take (this reply's card, or To pick up in the Inventory).`,
-        data: { sid, where, items: clone(items) },
-        narrate: false,
-        ...(notes.length ? { problem: notes.join(' ') } : {}),
-    };
-}
-
-// `inventory.lootTake { sid, pick: [index…] }` (the reader's "Take selected" on the reply's card):
-// once per reply's offer (claim `loot:<sid>`), the picked things the party does not carry yet go to the
-// party's bag, as the offer held them. The reader's own take: past the carry limit it is refused.
-// The take is a guarded block (REPLAY.md, predicate `loot.take`): what a reply laid out goes away with it, so
-// the take applies, with its claim, only while that reply's offer still lays out what was taken (lootTakeGuard).
-function lootTake(ctx, payload, env) {
-    if (!featureOn(ctx, FEATURE.loot)) ctx.fail('FEATURE_OFF', 'Loot to pick from is turned off in the Features.');
-    const inv = ctx.draft('inventory');
-    const sid = payload.sid;
-    const offer = typeof sid === 'string' && isPlainObject(inv.loot) && Object.hasOwn(inv.loot, sid) && isPlainObject(inv.loot[sid]) ? inv.loot[sid] : null;
-    if (!offer) ctx.fail('NOT_FOUND', 'That loot is no longer there to take.');
-    const things = lootItems(offer) ?? [];
-    const picks = Array.isArray(payload.pick) ? payload.pick.map(at => (typeof at === 'string' && /^\d+$/.test(at) ? Number(at) : at)) : [];
-    if (!picks.length || picks.length > LOOT_ITEMS || picks.some(at => !Number.isSafeInteger(at) || at < 0 || at >= things.length)) {
-        ctx.fail('INVALID', 'Pick at least one of the things on offer to take.');
-    }
-    if (!ctx.claim(offer.claim || `loot:${sid}`)) ctx.fail('REFUSED', 'That loot has already been taken: each reply\'s loot is taken once.');
-    const skipped = [];
-    const wanted = [];
-    const over = [];
-    let coin = 0;
-    for (const at of [...new Set(picks)].sort((a, b) => a - b)) {
-        const item = things[at];
-        if (item.coin !== undefined) { coin += item.coin; continue; }
-        if (owned(inv, item.name)) { skipped.push(item.name); continue; }
-        const { def, created } = defineByName(ctx, inv, item.name, env, { owner: 'party' });
-        // The offer was held to what one grant can give as it read the item then; a pack enabled since (or an
-        // offer an older version saved) can make it a thing that does not stack: what fits is taken, the rest stays.
-        const qty = def.stack ? item.qty : Math.min(item.qty, MAX_UNSTACKED);
-        if (qty < item.qty) over.push({ name: def.name, qty: item.qty - qty });
-        wanted.push({ def, qty, created, offered: item.name });
-    }
-    if (!wanted.length && !coin) ctx.fail('REFUSED', `${joinNames(skipped)} ${skipped.length === 1 ? 'is' : 'are'} already carried.`);
-    if (wanted.length) readerCarry(ctx, wanted.map(entry => ({ defId: entry.def.id, qty: entry.qty })), 'party');
-    // What the take needs of the offer, decided now and kept on the block: the offer's names and how many of each were taken.
-    const predicate = { kind: LOOT_GUARD, sid, claim: offer.claim || `loot:${sid}`, items: wanted.map(entry => ({ name: entry.offered, qty: entry.qty })), coin };
-    ctx.replayGuard({ owner: LOOT_OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash(predicate), predicate });
-    // FB-2: what the story offered is the story's own (`story: true`, as a `+ item` line's), whatever its
-    // def (a pack's item named in the `? loot` line).
-    const stacks = wanted.flatMap(entry => grantInto(ctx, inv, entry.def, entry.qty, 'party', '', false, true));
-    // The money was counted for its reply when the loot was read: it is paid as offered.
-    const currency = currencyIn(ctx);
-    if (coin) receive(ctx, env, { owner: 'party', amount: coin, note: 'loot' });
-    const where = offer.where ? ` (${offer.where})` : '';
-    const left = skipped.length ? `; ${joinNames(skipped)} ${skipped.length === 1 ? 'is' : 'are'} already carried` : '';
-    const took = [...wanted.map(entry => itemText(entry.def.name, entry.qty)), ...(coin ? [formatAmount(coin, currency)] : [])];
-    const behind = over.length ? ` ${joinNames(over.map(entry => itemText(entry.name, entry.qty)))} ${over.length === 1 && over[0].qty === 1 ? 'is' : 'are'} left where ${over.length === 1 ? 'it' : 'they'} lay: a thing that does not stack is given at most ${MAX_UNSTACKED} at once.` : '';
-    return {
-        summary: `The party takes ${joinNames(took)}${where}${left}.${behind}`,
-        data: { sid, taken: wanted.map(entry => ({ def: entry.def.id, qty: entry.qty })), coin, skipped, stacks, ...(over.length ? { left: over } : {}),
-            v2: { result: { taken: predicate.items, coin } } },
-        narrate: told(ctx),
-        ...(behind ? { problem: behind.trim() } : {}),
-    };
-}
-
 // The guard of a take, as the core module's replayGuard asks it (domains/index.js) on the state before the take's block,
 // on a rebuild, a reload, a delete, a swipe and a Re-read alike. Pure: the state before the block and the guard's own
 // predicate, nothing else. The take holds while the reply's offer is there under the same claim and lays out, by the
@@ -323,51 +130,6 @@ function lootTake(ctx, payload, env) {
 // Problems say why). The changes it made were decided when the reader took, and are replayed as they were. The offer's
 // reply-bound guard (`loot.offer`) is answered here too.
 
-// The taken things (`wanted`, [{ name, qty }]) the offer's things no longer lay out: for each, the one thing of the offer its
-// name means by the inventory's own lookup (an offer as a slice of defs keyed by position, each named and aliased by its own
-// name), with at least as many; a name that means none, or more than one, or a thing an earlier taken name took, is gone.
-function offeredFor(things, wanted) {
-    const defs = {};
-    const aliases = {};
-    things.forEach((item, at) => {
-        if (!isPlainObject(item) || item.coin !== undefined || !nonBlank(item.name)) return;
-        defs[String(at)] = { name: item.name };
-        aliases[aliasKey(item.name)] ??= String(at);
-    });
-    const used = new Set();
-    return wanted.filter(want => {
-        const found = resolveDef({ defs, aliases }, want.name);
-        if (found.status !== 'found' || used.has(found.id)) return true;
-        used.add(found.id);
-        const qty = things[Number(found.id)].qty;
-        return !(Number.isSafeInteger(qty) && qty >= want.qty);
-    });
-}
-export function lootTakeGuard({ state, hash }, { guard }) {
-    const predicate = guard?.predicate;
-    const damaged = { ok: false, reason: 'its loot guard is damaged' };
-    if (predicate?.kind === LOOT_OFFER) {
-        return guard.owner === LOOT_OWNER && guard.version === 2 && guard.replyBound === true && typeof predicate.sid === 'string'
-            && Object.keys(predicate).length === 2 && hash(predicate) === guard.inputHash ? { ok: true } : damaged;
-    }
-    if (guard?.owner !== LOOT_OWNER || guard.version !== 2 || !isPlainObject(predicate) || predicate.kind !== LOOT_GUARD
-        || typeof predicate.sid !== 'string' || typeof predicate.claim !== 'string' || !isCount(predicate.coin, 0)
-        || !Array.isArray(predicate.items) || predicate.items.some(item => !isPlainObject(item) || !nonBlank(item.name) || !isCount(item.qty, 1))) return damaged;
-    if (hash(predicate) !== guard.inputHash) return damaged;
-    const loot = state?.domains?.inventory?.loot;
-    const offer = isPlainObject(loot) && Object.hasOwn(loot, predicate.sid) && isPlainObject(loot[predicate.sid]) ? loot[predicate.sid] : null;
-    if (!offer || (offer.claim || `loot:${predicate.sid}`) !== predicate.claim) return { ok: false, reason: 'the loot it took is no longer on offer' };
-    const things = lootItems(offer) ?? [];
-    const gone = offeredFor(things, predicate.items);
-    const purse = things.find(item => isPlainObject(item) && item.coin !== undefined)?.coin;
-    const short = predicate.coin > 0 && !(Number.isSafeInteger(purse) && purse >= predicate.coin);
-    if (gone.length || short) {
-        const names = [...gone.map(want => itemText(want.name, want.qty)), ...(short ? ['the money'] : [])];
-        return { ok: false, reason: `the loot on offer no longer holds ${joinNames(names)} it took` };
-    }
-    return { ok: true };
-}
-
 // ---------- commands ----------
 
 // Commands that make something out of nothing (items, money) run for the story, the host, or another
@@ -376,221 +138,6 @@ function byModule(ctx, why) {
     if (!(ctx.caller || ctx.cause === 'story' || ctx.cause === 'system')) ctx.fail('REFUSED', why);
 }
 
-// ---------- hand-set gear: the starting kit (docs/v2/GEAR.md "Your own gear") ----------
-//
-// With Gear in fights on, the reader's "+ Add item" and the Edit of a piece they added can set Kind, Slot, Rarity and a Bonus. The full
-// setup (Rarity, Bonus) is the starting kit's: allowed only while the chat has no message from the reader yet (a swipe of the greeting keeps it
-// open; `env.readers()` counts the reader's messages on the line of history and `env.greetingOnly()` is false once anything but the greeting is there, so only a rewind back to the greeting opens it again). After that Rarity
-// stays Common with no Bonus. A def the reader made is marked `hand: true`; the story's, a pack's and a bound piece's are not theirs to change.
-/** Whether the starting kit is open: the chat is at its first message (only the opening greeting: no message from the reader and no reply after it). Unknown counts as closed. */
-export function kitOpen(env) {
-    try { return env?.readers?.() === 0 && env?.greetingOnly?.() !== false; } catch { return false; }
-}
-
-const article = word => (/^[aeiou]/i.test(word) ? 'An' : 'A');
-
-// The stats a reader typed: { STAT: n } for the seven stats, whole numbers of at least 1, at most GEAR.maxStats different ones. `{}` for none.
-function handStats(ctx, raw) {
-    if (raw === undefined || raw === null) return {};
-    if (!isPlainObject(raw)) ctx.fail('INVALID', fill(E.kitStats, { max: GEAR.maxStats }));
-    const out = {};
-    for (const [key, value] of Object.entries(raw)) {
-        const stat = String(key).trim().toUpperCase();
-        if (!GEAR.stats.includes(stat) || !Number.isSafeInteger(value) || value < 1 || Object.hasOwn(out, stat)) ctx.fail('INVALID', fill(E.kitStats, { max: GEAR.maxStats }));
-        out[stat] = value;
-    }
-    if (Object.keys(out).length > GEAR.maxStats) ctx.fail('INVALID', fill(E.kitStats, { max: GEAR.maxStats }));
-    return out;
-}
-
-// The points a rarity allows: the refusal is the sentence the form shows ("A rare piece gives at most 2 points.").
-function holdBudget(ctx, rarity, stats) {
-    const total = Object.values(stats).reduce((sum, n) => sum + n, 0);
-    const max = GEAR.budget[rarity] ?? 0;
-    if (total <= max) return;
-    ctx.fail('REFUSED', max === 0 ? E.kitNoBonus : fill(E.kitBudget, { a: article(rarity), rarity, max, points: max === 1 ? 'point' : 'points' }));
-}
-
-// A slot the reader chose: one of the eight places (or its base word), → the place key; null for none.
-function handSlot(ctx, raw) {
-    if (raw === undefined || raw === null || raw === '') return null;
-    const word = typeof raw === 'string' ? slotWordOf(raw) : null;
-    if (!word || !GEAR.places.includes(placeOf(word))) ctx.fail('INVALID', fill(E.kitSlot, { slots: GEAR.places.join(', ') }));
-    return word;
-}
-
-/**
- * "+ Add item" with Kind = Equipment names a definition that already exists and is not equipment (or is the reader's own equipment with no slot): the
- * reader's choice wins and the definition is made equipment in this same add (its own recorded op, so a replay does the same), only when nobody but
- * the reader has a claim on it:
- *  - never a pack's definition (`pack.…`), a bound piece's, or anything with a stack the story gave (`story: true`);
- *  - a definition marked `hand` (made by a reader's add): also while the reader's own stacks of it are held (each of one, as equipment does not stack);
- *  - any other `story/` definition (older saves did not mark the reader's): only while no stack of it is left, as when the reader has deleted it.
- * Anything else is refused with a sentence that says what to do.
- */
-function remakeAsEquipment(ctx, inv, def, keep, slot) {
-    const fixable = def.kind !== 'equipment' || (!def.slot && Boolean(slot));
-    if (!fixable) return;
-    const stacks = Object.values(inv.stacks).filter(stack => stack.def === def.id);
-    const theirs = def.id.startsWith('story/') && !stacks.some(stack => stack.story === true || stack.bound !== undefined)
-        && (def.hand === true ? stacks.every(stack => stack.qty === 1) : stacks.length === 0);
-    if (!theirs) ctx.fail('REFUSED', fill(E.kitExisting, { name: def.name, kind: def.kind }));
-    const place = keep.slot ?? def.slot ?? gearSlotOf(null, def.name);
-    Object.assign(inv.defs[def.id], { kind: 'equipment', stack: false, slot: place ?? null, stats: keep.stats ?? {}, hand: true });
-    def.kind = 'equipment'; def.stack = false; def.slot = place ?? null; def.stats = keep.stats ?? {};
-}
-
-// Where a piece of `slot` goes on `owner`: an accessory takes the place named when it is free, else the other one when that is free
-// (a second accessory goes to Accessory 2), else the place named. Other slots are their own place.
-function handPlace(inv, owner, stackId, slot) {
-    if (baseSlot(slot) !== 'accessory') return slot;
-    const free = key => !Object.values(inv.stacks).some(other => other.owner === owner && other.id !== stackId && other.equipped === key);
-    const named = slot === 'accessory' ? 'accessory-1' : slot;
-    return [named, ...['accessory-1', 'accessory-2'].filter(key => key !== named)].find(free) ?? named;
-}
-
-
-// The reader's Edit of a piece they added by hand (gear on): `kind`, `slot` (a place, or '' for none), `rarity` and `stats`. Only a def with `hand: true` and no
-// story-given stack; a pack's or the story's keeps its words. Rarity and Bonus are the starting kit's: changing them is refused once the reader has sent a message.
-// A piece made Equipment later is Common with no Bonus; one made something else gives up its slot (and is taken off).
-function handEdit(ctx, env, inv, stack, payload) {
-    if (!gearOn(ctx)) ctx.fail('REFUSED', E.gearOff);
-    const def = inv.defs[stack.def];
-    refuseBound(ctx, inv, stack);
-    if (def.id.startsWith('pack.')) ctx.fail('REFUSED', E.kitPack);
-    if (!handDef(inv, def)) ctx.fail('REFUSED', E.kitStory);
-    const kind = payload.kind ?? def.kind;
-    if (!KINDS.includes(kind)) ctx.fail('INVALID', fill(E.itemKind, { kinds: KINDS.join(', ') }));
-    if (payload.rarity !== undefined && payload.rarity !== null && !RARITIES.includes(payload.rarity)) ctx.fail('INVALID', fill(E.itemRarity, { rarities: RARITIES.join(', ') }));
-    const becomes = kind === 'equipment' && def.kind !== 'equipment';
-    const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
-    const stats = payload.stats === undefined ? null : handStats(ctx, payload.stats);
-    const rarityAsked = payload.rarity !== undefined && payload.rarity !== null && (becomes ? payload.rarity !== 'common' : payload.rarity !== def.rarity);
-    const statsAsked = stats !== null && (becomes ? Object.keys(stats).length > 0 : !same(stats, statsFor(def)));
-    if ((rarityAsked || statsAsked) && !kitOpen(env)) ctx.fail('REFUSED', E.kitClosed);
-    if (kind !== 'equipment' && (payload.slot || (stats && Object.keys(stats).length))) ctx.fail('INVALID', E.gearNeedsEquipment);
-    const open = kitOpen(env);
-    const rarity = becomes ? (open ? payload.rarity ?? 'common' : 'common') : kind === 'equipment' ? payload.rarity ?? def.rarity : def.rarity;
-    const nextStats = kind !== 'equipment' ? {} : becomes ? (open && stats ? stats : {}) : stats ?? statsOf(def.stats);
-    if (kind === 'equipment') holdBudget(ctx, rarity, nextStats);
-    const slot = kind !== 'equipment' ? null : payload.slot === undefined ? slotWordOf(def.slot) : handSlot(ctx, payload.slot);
-    const pieces = Object.values(inv.stacks).filter(item => item.def === def.id);
-    if (becomes) {
-        const extra = pieces.reduce((sum, item) => sum + item.qty - 1, 0);
-        if (pieces.length + extra > MAX_UNSTACKED) ctx.fail('INVALID', fill(E.kitMany, { max: MAX_UNSTACKED }));
-        for (const item of pieces) {
-            for (let n = 1; n < item.qty; n += 1) addStack(ctx, inv, def.id, 1, item.owner, item.note, item.key === true, false);
-            item.qty = 1;
-        }
-    }
-    // A piece that no longer fits where it is worn is taken off.
-    for (const item of pieces) {
-        if (item.equipped !== null && (kind !== 'equipment' || !slot || baseSlot(item.equipped) !== baseSlot(slot))) item.equipped = null;
-    }
-    def.kind = kind;
-    def.rarity = rarity;
-    def.slot = slot ? baseSlot(slot) : null;
-    def.stats = nextStats;
-    def.stack = kind !== 'equipment';
-}
-
-// A reader edit is never a story line or a nested module call.
-function byReader(ctx) {
-    if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', E.onlyReader);
-}
-
-export const INVENTORY_EDIT_GUARD = 'inventory.reader-edit';
-const editStack = stack => ({ id: stack.id, def: stack.def, owner: stack.owner });
-const editPieces = (inventory, target) => Object.values(inventory?.stacks ?? {})
-    .filter(stack => stack.def === target.def && stack.owner === target.owner)
-    .map(stack => ({ id: stack.id, equipped: stack.equipped }));
-
-// Saved ops cannot choose a different stack on replay. Witness the same name lookup and
-// compatibility decision made when the reader added or renamed an item, without including
-// unrelated inventory or a destination count that counter replay can safely rebase.
-const editCompatibility = (inv, stack) => stack ? {
-    id: stack.id, def: stack.def, owner: stack.owner, note: stack.note,
-    equipped: stack.equipped, condition: condOf(stack, inv), key: stack.key === true,
-} : null;
-function addDecision(inv, payload, defId) {
-    const name = cleanName(payload.name), owner = payload.owner ?? 'party';
-    const note = payload.note == null ? '' : trimText(payload.note, MAX_NOTE);
-    const def = inv.defs[defId];
-    const destination = def?.stack ? looseMatch(inv, defId, owner, note) : null;
-    return { resolution: resolveDef(inv, name), def: def ? { id: def.id, stack: def.stack } : null,
-        destination: editCompatibility(inv, destination) };
-}
-function renameDecision(inv, stack, payload) {
-    const name = cleanName(payload.name), original = inv.defs[stack.def], found = resolveDef(inv, name);
-    const note = payload.note === undefined ? stack.note : payload.note == null ? '' : trimText(payload.note, MAX_NOTE);
-    const source = { ...editCompatibility(inv, stack), note };
-    if (found.status === 'found' && found.id !== original.id) {
-        const targetDef = inv.defs[found.id];
-        const target = stacksOf(inv, found.id).find(other => targetDef.stack && source.owner === other.owner
-            && source.equipped === other.equipped && source.note === other.note && source.condition === condOf(other, inv)
-            && source.key === (other.key === true));
-        return { resolution: found, original: { name: original.name, stack: original.stack }, source,
-            sourceQty: stack.qty, sourceStory: stack.story === true, targetStackable: targetDef.stack,
-            destination: editCompatibility(inv, target) };
-    }
-    if (name === original.name) return { resolution: found, original: { name: original.name, stack: original.stack } };
-    const shared = Object.values(inv.stacks).some(other => other.id !== stack.id && other.def === original.id);
-    if (shared || original.id.startsWith('pack.')) {
-        return { resolution: found, original, shared, newDef: freeId(inv, `story/${slugify(name)}`) };
-    }
-    const aliases = Object.keys(inv.aliases).filter(key => inv.aliases[key] === original.id).sort();
-    return { resolution: found, original: { name: original.name, stack: original.stack }, shared, aliases };
-}
-
-// A reader action is a guarded ordinary command. If a later Re-read makes its saved ops
-// invalid, the existing replay machinery can leave just this action off and report it.
-function guardReaderEdit(ctx, action, target = null, pieces = null, decision = null) {
-    if (ctx.cause !== 'ui' || ctx.caller !== null || typeof ctx.replayGuard !== 'function' || !ctx.source) return;
-    const predicate = { kind: INVENTORY_EDIT_GUARD, action, ...(target ? { target } : {}), ...(pieces ? { pieces: ctx.hash(pieces) } : {}),
-        ...(decision ? { decision: { ...decision, witness: ctx.hash(decision.witness) } } : {}) };
-    ctx.replayGuard({ owner: 'story-block', version: 2, epoch: ctx.epoch, rulesHash: null,
-        inputHash: ctx.hash({ predicate, source: ctx.source }), predicate });
-}
-
-export function inventoryEditGuard({ state, hash }, { guard, source, operation }) {
-    const p = guard?.predicate;
-    const bad = { ok: false, reason: E.itemEditDamaged };
-    if (guard?.owner !== 'story-block' || guard.version !== 2 || guard.rulesHash !== null
-        || !isPlainObject(p) || p.kind !== INVENTORY_EDIT_GUARD
-        || !['inventory.add', 'inventory.edit', 'inventory.drop'].includes(p.action)
-        || operation?.type !== p.action || Object.keys(p).some(key => !['kind', 'action', 'target', 'pieces', 'decision'].includes(key))
-        || hash({ predicate: p, source }) !== guard.inputHash) return bad;
-    const inventory = state?.domains?.inventory;
-    if (p.decision !== undefined) {
-        const d = p.decision, payload = operation?.payload;
-        if (!isPlainObject(d) || !inventory || !isPlainObject(payload) || typeof payload.name !== 'string'
-            || typeof d.witness !== 'string' || !/^[a-f0-9]{64}$/.test(d.witness)) return bad;
-        let witness;
-        if (p.action === 'inventory.add' && Object.keys(d).length === 2 && typeof d.def === 'string') {
-            witness = addDecision(inventory, payload, d.def);
-        } else if (p.action === 'inventory.edit' && Object.keys(d).length === 1 && inventory.stacks?.[payload.stack]
-            && inventory.defs?.[inventory.stacks[payload.stack].def]) {
-            witness = renameDecision(inventory, inventory.stacks[payload.stack], payload);
-        } else return bad;
-        if (hash(witness) !== d.witness) return { ok: false, reason: E.itemDecisionChanged };
-    }
-    // Earlier saved guards did not have a decision witness; keep their existing replay behavior.
-    if (p.action === 'inventory.add') return p.target === undefined && p.pieces === undefined ? { ok: true } : bad;
-    if (!isPlainObject(p.target) || Object.keys(p.target).length !== 3
-        || typeof p.target.id !== 'string' || p.target.id !== operation?.payload?.stack
-        || typeof p.target.def !== 'string' || typeof p.target.owner !== 'string') return bad;
-    const stack = inventory?.stacks?.[p.target.id];
-    if (!stack || stack.def !== p.target.def || stack.owner !== p.target.owner || !inventory?.defs?.[stack.def]) {
-        return { ok: false, reason: E.itemEditGone };
-    }
-    if (p.pieces !== undefined && (p.action !== 'inventory.edit' || operation?.payload?.group !== true
-        || !(Array.isArray(p.pieces) || (typeof p.pieces === 'string' && /^[a-f0-9]{64}$/.test(p.pieces))))) return bad;
-    const piecesHash = Array.isArray(p.pieces) ? hash(p.pieces) : p.pieces;
-    if (p.pieces !== undefined && hash(editPieces(inventory, p.target)) !== piecesHash) {
-        return { ok: false, reason: E.itemPiecesChanged };
-    }
-    return { ok: true };
-}
 
 // What the narrator is told after an edit's line under [Happened] (a receipt's `data.told`, added by prompt.js; the reader's
 // card does not show it). A starting purse or kit (a saved character's, from the wizard: `starting: true`) and the reader's own
@@ -1068,106 +615,6 @@ export function createInventoryCommands(env) {
 // (scratch too, add-only, on the same carrier), and never writes the reply's entry: a swipe or delete of
 // the reply takes it back with the reply. The reply's money given is its entry's `coin` plus its clicks.
 
-const tallied = value => (isCount(value, 0) ? value : 0);
-
-// The reply a tally is kept for: during a story capture its carrier's record ID; for a module's vouched
-// payout outside one (a click), the reply its changes are stored on (ctx.reply, the head carrier). null
-// when nothing is counted: a module's own call it does not vouch for, or a command with no reply.
-function tallyId(ctx, vouched = false) {
-    if (ctx.caller && !vouched) return null;
-    const id = ctx.cause === 'story' ? ctx.carrier?.sid ?? ctx.carrier?.key : null;
-    const out = id ?? (vouched && ctx.caller ? ctx.reply?.sid : null);
-    return typeof out === 'string' && out ? out : null;
-}
-
-// What reply `id` has given so far: its stored entry, or null.
-function storedTally(inv, id) {
-    return id && isPlainObject(inv?.perReply) && Object.hasOwn(inv.perReply, id) && isPlainObject(inv.perReply[id]) ? inv.perReply[id] : null;
-}
-
-// A copy of the tally for this reply (a fresh one when none is stored); null when nothing is counted
-// (tallyId). A module's own call is counted only when it says the story vouched for it (`vouched`).
-// Kept with keepTally.
-function tallyOf(ctx, inv, vouched = false) {
-    const id = tallyId(ctx, vouched);
-    if (!id) return null;
-    const stored = storedTally(inv, id);
-    const tally = { id, coin: tallied(stored?.coin) };
-    // Of `coin`, what modules' vouched payouts gave (quest rewards), kept only once there is some.
-    if (tallied(stored?.vouched)) tally.vouched = tallied(stored.vouched);
-    // Money the reply's lines took (`- coin`), kept only once there is some (a rules module's debit cap).
-    if (tallied(stored?.debit)) tally.debit = tallied(stored.debit);
-    return tally;
-}
-
-// This reply's entry, alone: other replies' entries (and an older shape's fields) go, their clicks too.
-function keepTally(inv, { id, ...tally }) {
-    if (!isPlainObject(inv.perReply)) inv.perReply = {};
-    for (const key of Object.keys(inv.perReply)) if (key !== id) delete inv.perReply[key];
-    inv.perReply[id] = tally;
-    if (isPlainObject(inv.storyClicks)) for (const key of Object.keys(inv.storyClicks)) if (key !== id) delete inv.storyClicks[key];
-}
-
-// What the clicks after reply `id` paid (storyClicks).
-function clicksOf(inv, id) {
-    const log = isPlainObject(inv?.storyClicks) && Object.hasOwn(inv.storyClicks, id) ? inv.storyClicks[id] : null;
-    return isPlainObject(log) ? Object.values(log).reduce((sum, paid) => sum + tallied(paid), 0) : 0;
-}
-
-// A click's vouched payout: its own key under the reply (add-only), the reply's entry left as it is.
-// Other replies' entries go here too (pruned by key), as keepTally drops them.
-function keepClick(ctx, inv, id, paid) {
-    if (isPlainObject(inv.perReply)) for (const key of Object.keys(inv.perReply)) if (key !== id) delete inv.perReply[key];
-    if (!isPlainObject(inv.storyClicks)) inv.storyClicks = {};
-    for (const key of Object.keys(inv.storyClicks)) if (key !== id) delete inv.storyClicks[key];
-    if (!isPlainObject(inv.storyClicks[id])) inv.storyClicks[id] = {};
-    const key = String(ctx.receiptId ?? 'click');
-    inv.storyClicks[id][key] = tallied(inv.storyClicks[id][key]) + paid;
-}
-
-// A story line's money, counted for the reply (nothing is held back): { amount }. Counted only for a story
-// line and a module's vouched payout (tallyOf).
-function storyCoin(ctx, inv, amount, vouched = false) {
-    const tally = tallyOf(ctx, inv, vouched);
-    if (!tally) return { amount };
-    // A click (a module's vouched payout outside a capture) is kept as its own key (keepClick).
-    if (vouched && ctx.cause !== 'story') {
-        keepClick(ctx, inv, tally.id, amount);
-    } else {
-        tally.coin = Math.min(Number.MAX_SAFE_INTEGER, tally.coin + amount);
-        if (vouched) tally.vouched = Math.min(Number.MAX_SAFE_INTEGER, (tally.vouched ?? 0) + amount);
-        keepTally(inv, tally);
-    }
-    return { amount };
-}
-
-// `qty` of a def a story line gives: all of it, except a thing that does not stack, which is held to what one
-// line can give (each piece is a stack of its own, grantInto), so a loot offer is always one its Take can
-// give: { qty, problem }. `more`: a raised count (`~ item … | qty:`); `verb`: how the Problems list says it.
-function storyItems(def, qty, more = false, verb = 'given') {
-    const given = def.stack ? qty : Math.min(qty, MAX_UNSTACKED);
-    return {
-        qty: given,
-        problem: given < qty ? `${itemText(def.name, qty)}${more ? ' more' : ''} was written, but ${def.name} does not stack and at most ${MAX_UNSTACKED} can be given at once; ${given} were ${verb}.` : null,
-    };
-}
-
-// The carry limit, when a module keeps one (`items.carry`, MODULES §F39): whether `owner` can take on
-// `add` ([{ defId, qty }]; `move` for a hand-over between the party's own) → { ok, message }, or null
-// when no module answers (no limit).
-function carryFits(ctx, add, owner, move = false) {
-    const fits = carryAnswer((name, args) => ctx.query(name, args), { owner, add, ...(move ? { move: true } : {}) }, gearOn(ctx));
-    if (!isPlainObject(fits)) return null;
-    const message = typeof fits.message === 'string' && fits.message ? fits.message : 'There is no room to carry that.';
-    return { ok: fits.ok !== false, message };
-}
-
-// The reader's own takes and hand-overs (MODULES §F39): over the limit they are refused, nothing moves.
-function readerCarry(ctx, add, owner, move = false) {
-    const fits = carryFits(ctx, add, owner, move);
-    if (fits && !fits.ok) ctx.fail('REFUSED', fits.message);
-}
-
 // What the story gives past the carry limit (`story-block.encumbrance`): kept, and the party is
 // encumbered (derived from the load: inventory.encumbrance), so `true` comes back; with the feature
 // off the line is refused with the module's reason, as F39 has it. No module answering: no limit.
@@ -1179,14 +626,6 @@ function storyCarry(ctx, def, qty, owner) {
 }
 
 const ENCUMBERED_NOTE = ' The party now carries more than it can and is encumbered until something is put down.';
-
-function lineQty(ctx, line, fallback) {
-    const written = labelOf(line, 'qty', 'quantity', 'count');
-    if (written === null) return fallback;
-    const n = parseCount(written);
-    if (n === null) ctx.fail('INVALID', `"${written}" is not a quantity.`);
-    return n;
-}
 
 // A consumable the story says was used (MODULES §F96): `- item Potion | used: yes`, or a used-word in
 // the line or the reply, and no word that says it went another way.
