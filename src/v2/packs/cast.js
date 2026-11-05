@@ -1,6 +1,6 @@
 // `content.cast` (pure): the pack's hand-written cast, checked and normalized (PACKS.md "The cast").
 //
-// A cast entry is a prepared person: who they are, how they look and sound, where they start, what they want and
+// A cast entry is a prepared person: who they are, how they look, what they wear and how they sound, where they start, what they want and
 // where they are when. Story Director keeps them off-screen until the party meets them; NPC State Delta makes
 // the dossier from the entry at the first meeting. Every text is plain (no markup characters), one line.
 //
@@ -74,6 +74,7 @@ export function checkCast(list, packId, add, items = []) {
         }
         const about = text('about', record.about, CAST_LIMITS.about, { required: true });
         const look = text('look', record.look, CAST_LIMITS.look, { required: true });
+        const wears = text('wears', record.wears, CAST_LIMITS.wears);
         const voice = text('voice', record.voice, CAST_LIMITS.voice);
         const personality = text('personality', record.personality, CAST_LIMITS.personality);
         const history = text('history', record.history, CAST_LIMITS.history);
@@ -279,6 +280,7 @@ export function checkCast(list, packId, add, items = []) {
         if (!good) { ok = false; return; }
         out.push({
             id, name, aliases, about, look,
+            ...(wears ? { wears } : {}),
             ...(voice ? { voice } : {}), ...(personality ? { personality } : {}), ...(history ? { history } : {}),
             ...(portrait ? { portrait } : {}),
             start,
