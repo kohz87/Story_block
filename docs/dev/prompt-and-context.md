@@ -59,3 +59,6 @@ static part); REVIEW.md risky part §5.
 
 - Compare the static text of two consecutive replies with different state byte for byte in a test.
 - Keep tail lines short; give new lines a place in `optional` unless the reply must tell them.
+
+## Kept hook lines
+A module's `beforeGenerate` may return a tail line as `{ text, keep: true }` (`turn/prompt-build.js`): it reaches `prompt.js` as a pinned cue and is never dropped by the module or host budget. A module keeps at most `KEPT_LINES_MAX` (4) lines and `KEPT_CHARS_MAX` (4,000) characters this way; any more are passed as ordinary lines. Strings work as before; the RPG's no-rolls line stays pinned.
