@@ -41,11 +41,11 @@ import {
     KEY, RECEIPT_KEEP, carrierIndexes, carryRecord, createSaver, dropCopy, isCarrier, keepsCopy, lastCarrier,
     newRecordId, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
-import { blockIdOf, claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
-import { clockWriteProblem, markerProblem, markerPrefixProblem } from './timeline/boundary.js';
+import { blockIdOf, claimKeys, deriveId, hashJson, isMetaSpan, replayInputsOf, spanProblem } from './replay.js';
+import { clockWriteProblem, markerProblem } from './timeline/boundary.js';
 import {
-    allocator, evidenceDigest, evidenceProblem, merged, occurrenceOf, opShapeProblem, operationKey, pinOps,
-    recordEntries, spanOperationKey, takenAfter, touchesProof,
+    allocator, evidenceDigest, evidenceProblem, merged, occurrenceOf, opShapeProblem, operationKey,
+    recordEntries, spanOperationKey, takenAfter,
 } from './evidence.js';
 import { gateProblem } from './timeline/gate.js';
 import {
@@ -53,6 +53,9 @@ import {
     NO_LONGER_DONE, jsonBytes, CHECKPOINT_MIN_GAP, readerSetup,
 } from './store/constants.js';
 import { hasMeta, payloadHashOf } from './store/digest.js';
+import { createTombs } from './store/tombs.js';
+import { createSources } from './store/sources.js';
+import { createGuards } from './store/guards.js';
 export { CHECKPOINT_EVERY, CHECKPOINT_BYTES, CHECKPOINT_MIN_GAP, NO_LONGER_DONE, deepFreeze } from './store/constants.js';
 
 /**
@@ -247,168 +250,10 @@ export function createStore({
         return Array.isArray(arr) ? arr : [];
     };
 
-    // ---- records that are kept as they are -------------------------------------------------------------
-
-    // What a stored `storySuite` value is: 'absent', 'ours' (a whole v2 record), or one Story Block must never write over:
-    // 'future' (a newer version's), 'legacy' (v1 or no version) and 'damaged' (a v2 record that is not whole, or not a record).
-    function rawKind(raw) {
-        if (raw === undefined || raw === null) return 'absent';
-        if (!isObject(raw)) return 'damaged';
-        if (Number.isFinite(raw.v) && raw.v > 2) return 'future';
-        if (raw.v === 2) return recordFault({ extra: { [KEY]: raw } }) ? 'damaged' : 'ours';
-        return 'legacy';
-    }
-    const KEPT_ASIDE = new Set(['future', 'legacy', 'damaged']);
-    const WHY = {
-        future: raw => `is from a newer version (v${raw.v})`,
-        legacy: () => 'is from an older version of Story Suite',
-        damaged: raw => `is damaged (${isObject(raw) ? recordFault({ extra: { [KEY]: raw } }) || 'it is not a record' : 'it is not a record'})`,
-    };
-
-    // The chat's first record when it is one Story Block does not own (a future version's, an older one's, a damaged
-    // one): it is neither read nor repaired nor written over. With `stateless` (the chat has no state at all) also an
-    // unresolved start: the replies before the earliest checkpoint that is left are gone and this session never saw
-    // them, so that checkpoint cannot be checked; it is kept as it is and nothing is adopted or reset by itself.
-    // → { index, kind, why, raw? } or null.
-    function preservedAt(arr, stateless = false) {
-        const first = carrierIndexes(arr)[0];
-        if (first === undefined) return null;
-        const raw = arr[first].extra?.[KEY];
-        const kind = rawKind(raw);
-        if (KEPT_ASIDE.has(kind)) return { index: first, kind, why: WHY[kind](raw), raw };
-        if (stateless) {
-            const at = carrierIndexes(arr).find(i => readRecord(arr[i])?.checkpoint);
-            if (at !== undefined) return { index: at, kind: 'unresolved', why: `has the earliest saved point of a story whose first replies are gone (this session had not seen them)`, raw: null };
-        }
-        return null;
-    }
-
-    const readOnlyMessage = kept => (kept.kind === 'unresolved'
-        ? `The story on message ${kept.index} ${kept.why}; Story Block keeps the saved history as it is and works read-only on an empty story until you choose what to do.`
-        : `The story record on message ${kept.index} ${kept.why}; Story Block keeps it as it is and works read-only on an empty story until it can be read.${kept.kind === 'future' ? ' Update Story Block to read it.' : ''}`);
-
-    // Every writer starts here: while the head is the read-only fallback, nothing is written.
-    // Derived from the head each time (not only from the cache entry), so no cache path can lose it.
-    function keptNow() {
-        const head = current();
-        if (head.readOnly) return head.readOnly;
-        return s.fallback && head.state === s.fallback ? preservedAt(list(), true) : null;
-    }
-    function writable() {
-        const kept = keptNow();
-        if (kept) throw new Error(readOnlyMessage(kept));
-    }
-
-    // ---- the carrier source map (contract §4) ------------------------------------------------------
-
-    // The ids the chat's records already hold, found once per chat array (and again after rebuild()) and kept up
-    // to date by write(): an id that left with a deleted reply only stays "taken", which costs nothing but a salt.
-    // The archive (contract §4): ids of the canonical sids, swipe keys and evidence ids of replies and swipes that were
-    // deleted. They stay in the chat's metadata, are never handed out again, and confer no eligibility (archived(id)).
-    function archive() {
-        let meta = null;
-        try { meta = metadata(); } catch { meta = null; }
-        if (!isObject(meta)) meta = null;
-        if (meta !== s.tombMeta) {
-            s.tombMeta = meta;
-            const stored = meta?.storySuite?.sourceArchive?.deleted;
-            s.tombs = new Set(Array.isArray(stored) ? stored.filter(id => typeof id === 'string') : []);
-        }
-        return s.tombs;
-    }
-    function bury(ids) {
-        const set = archive();
-        const before = set.size;
-        for (const id of ids) if (typeof id === 'string' && id) set.add(id);
-        if (set.size === before) return;
-        if (s.tombMeta) {
-            if (!isObject(s.tombMeta.storySuite)) s.tombMeta.storySuite = {};
-            // (Not a change to save on its own: SillyTavern saves the chat after a delete, and every later save carries it.)
-            s.tombMeta.storySuite.sourceArchive = { v: 1, deleted: [...set].sort() };
-        }
-    }
-    // What a rebuild finds gone since the index was last built: the ids of replies and swipes that left the chat.
-    function bury2(previous, now) {
-        const gone = [];
-        for (const key of ['swipeKeys', 'evidences', 'logicals']) for (const id of previous[key].keys()) if (!now[key].has(id)) gone.push(id);
-        bury(gone);
-    }
-
-    function idsOf(arr) {
-        // (the chat array SillyTavern holds is the same object whichever chat is open: the index is for one chat's ids)
-        if (s.idIndex?.arr === arr && s.idIndex.chat === chatId()) return s.idIndex;
-        s.idIndex = { arr, chat: chatId(), swipeKeys: new Map(), evidences: new Map(), logicals: new Map(), blocks: new Set() };
-        for (const other of arr) {
-            for (const record of [other?.extra?.[KEY], ...(Array.isArray(other?.swipe_info) ? other.swipe_info.map(info => info?.extra?.[KEY]) : [])]) {
-                if (isObject(record?.source)) noteIds(s.idIndex, other, record.source, record.sid);
-                for (const span of Array.isArray(record?.spans) ? record.spans : []) if (isMetaSpan(span)) s.idIndex.blocks.add(span.id);
-            }
-        }
-        return s.idIndex;
-    }
-    function noteIds(index, message, entry, sid) {
-        if (entry.swipeKey) index.swipeKeys.set(entry.swipeKey, sid);
-        if (entry.evidence) index.evidences.set(entry.evidence, sid);
-        if (entry.logical) {
-            if (!index.logicals.has(entry.logical)) index.logicals.set(entry.logical, new Set());
-            index.logicals.get(entry.logical).add(message);
-        }
-    }
-
-    // The canonical pair of a record: { sid: sr_, swipeKey: sw_, evidence: ev_, next }. `sid` is the logical
-    // message's, shared by all its swipes (taken from a swipe that has one, else worked out from the stored
-    // ID of the swipe it was copied from); `swipeKey` and `evidence` are this swipe's own, worked out from
-    // its stored `sid` and moved on by a salt when another record already holds them. The stored `sid`
-    // (`sw_<12 hex>`) is never changed. Persisted with the record by write().
-    function sourceFor(arr, message, sid) {
-        const own = message.extra?.[KEY];
-        const siblings = [own, ...(Array.isArray(message.swipe_info) ? message.swipe_info.map(info => info?.extra?.[KEY]) : [])]
-            .filter(record => isObject(record));
-        const index = idsOf(arr);
-        let logical = siblings.map(record => record.source?.logical).find(value => isRecordId(value) && value.startsWith('sr_'));
-        if (!logical) {
-            const anchor = typeof own?.sid === 'string' ? own.sid : siblings.find(record => typeof record.sid === 'string')?.sid ?? sid;
-            // (taken: canonical sids that belong to another message)
-            const elsewhere = { has: id => archive().has(id) || [...(index.logicals.get(id) ?? [])].some(holder => holder !== message) };
-            logical = deriveId('sr', anchor, elsewhere);
-        }
-        // (a record's own earlier ids are not "taken" from it)
-        const heldBy = map => ({ has: id => archive().has(id) || (map.has(id) && map.get(id) !== sid) });
-        return { logical, swipeKey: deriveId('sw', sid, heldBy(index.swipeKeys)), evidence: deriveId('ev', sid, heldBy(index.evidences)), next: 0 };
-    }
-
-    // A record that has no source map entry yet (one stored before this existed) gets one when it is written.
-    function withSource(message, record) {
-        if (!isObject(record) || isObject(record.source) || typeof record.sid !== 'string') return record;
-        return { ...record, source: sourceFor(list(), message, record.sid) };
-    }
-
-    // The Source a command run on carrier `index` stamps its block with (REPLAY.md): the canonical pair, the
-    // evidence ID and the block's ordinal. `pending` = blocks of this carrier that a Re-read has planned but
-    // not stored yet; `ordinal` names one outright (a block planned again keeps its own). null for a message
-    // that is not a carrier. The pair is worked out from the stored ID, so it is the one the record is
-    // written with (before any block that carries it is).
-    function sourceOf(index, { pending = 0, ordinal = undefined } = {}) {
-        const arr = list();
-        const message = arr[index];
-        if (!isCarrier(message)) return null;
-        const record = readRecord(message);
-        const sid = record ? record.sid : reservedSid(message);
-        if (typeof sid !== 'string') return null;
-        const entry = isObject(record?.source) ? record.source : sourceFor(arr, message, sid);
-        return { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence,
-            ordinal: Number.isInteger(ordinal) && ordinal >= 0 ? ordinal : (Number.isInteger(entry.next) ? entry.next : 0) + Math.max(0, pending) };
-    }
-
-    // The stored ID a first record on this message's shown swipe will get (handed out once, like carrierSid).
-    function reservedSid(message) {
-        const swipe = swipeOf(message);
-        const kept = s.reserved.get(message);
-        if (kept && kept.swipe === swipe) return kept.sid;
-        const sid = recordId();
-        s.reserved.set(message, { swipe, sid });
-        return sid;
-    }
+    // The parts of the store that moved to src/v2/store/ (each is given the state holder `s` and the store functions it calls).
+    const { rawKind, KEPT_ASIDE, WHY, preservedAt, readOnlyMessage, keptNow, writable, archive, bury2, idsOf, noteIds } = createTombs(s, { chatId, metadata, current, list });
+    const { sourceFor, withSource, reservedSid, occurrenceFor, carrierSid, sourceAt, allocateOccurrence } = createSources(s, { recordId, list, archive, idsOf });
+    const { markNow, seeGuards, faultsNow, blocksBefore, replayLegacy, guardHolds, blockIntact, replayGuarded, attachGuard } = createGuards(s, { chatId, metadata, list, step, forgetMemos });
 
     // The one classifier every path uses (replay, Re-read, reconcile, rewind): a block is guarded when the host marked it
     // so: its span has an id, or its receipt carries the host's `guarded` mark (a receipt's data.v2 is the module's own
@@ -521,149 +366,11 @@ export function createStore({
         return guarded ? hashJson(entries) : undefined;
     }
 
-    // ---- guarded blocks: asking the guard, stamping a block -------------------------------------------
-
-    const prerequisite = message => Object.assign(new Error(message), { code: 'REPLAY_PREREQUISITE' });
-
-    // What the guards could answer differently on (a module registered or went): looked at on each read once a
-    // guarded block has been replayed or written here, never for a chat that has none.
-    function markNow() {
-        try { return typeof s.guardMark === 'function' ? String(s.guardMark()) : ''; } catch { return ''; }
-    }
-    function seeGuards() {
-        if (s.guardSeen) return;
-        s.guardSeen = true;
-        s.lastMark = markNow();
-    }
-
-    // Rejected plans have no stored block to replay a Problem from. Keep thrown-guard diagnostics in
-    // this chat only, at the one point where every guard is checked; successful checks clear that exact fault.
-    function faultsNow() {
-        const arr = list(), id = chatId(), holder = metadata();
-        if (!s.guardFaults || s.guardFaults.arr !== arr || s.guardFaults.id !== id || s.guardFaults.holder !== holder) {
-            s.guardFaults = { arr, id, holder, entries: new Map() };
-        }
-        return s.guardFaults.entries;
-    }
-    const guardFaultKey = span => `${span.id}:${hashJson(span.guard)}`;
-    function thrownGuard(span, message, error) {
-        const kind = isObject(span.guard?.predicate) && typeof span.guard.predicate.kind === 'string' ? span.guard.predicate.kind : '<missing>';
-        const why = `${span.guard.owner}'s replayGuard kind ${kind} failed (${error?.message ?? error})`;
-        faultsNow().set(guardFaultKey(span), { message, source: span.source, block: span.id, why });
-        return { ok: false, reason: why };
-    }
-
-    // The owner's answer for a guarded block on `state` (the state before it): { ok: true } or { ok: false,
-    // reason }. Nothing to ask, a throw, a promise or any other shape fails closed.
-    function askGuard(state, span, message) {
-        seeGuards();
-        if (typeof s.guardCheck !== 'function') return { ok: false, reason: 'nothing here can check its guard, so it stays off' };
-        let answer;
-        try {
-            // `payload`: the hash of the reply's text when the block was stored, and now (REPLAY.md): an edit shows as a difference.
-            const payload = { saved: span.boundaries?.[0]?.payloadHash ?? null, current: message ? payloadHashOf(message) : null };
-            answer = s.guardCheck(state, { guard: span.guard, source: span.source, block: span.id, operation: span.operation, recorded: span.recorded ?? null, payload });
-        } catch (error) {
-            return thrownGuard(span, message, error);
-        }
-        if (answer && typeof answer.then === 'function') {
-            answer.then(null, () => {});
-            return { ok: false, reason: 'its guard did not answer at once' };
-        }
-        if (isObject(answer) && answer.ok === true) { faultsNow().delete(guardFaultKey(span)); return { ok: true }; }
-        if (isObject(answer) && answer.ok === false && typeof answer.reason === 'string' && answer.reason) return { ok: false, reason: answer.reason };
-        return { ok: false, reason: 'its guard gave an answer that is neither { ok: true } nor { ok: false, reason }' };
-    }
-
-    // The blocks before a guarded block, as its boundary's prefix hash has them: each one's id and changes, and the proof it
-    // gave (ids, kinds, owners, payload hashes, parents). One function, so the hash stamped and the hash checked agree.
-    function blocksBefore(earlier) {
-        return earlier.map(part => [isMetaSpan(part.span) ? part.span.id : null, hashJson(part.ops), ...(isMetaSpan(part.span) && evidenceDigest(part.span.evidence) ? [evidenceDigest(part.span.evidence)] : [])]);
-    }
-
-    // A block with no metadata (a legacy block) never pins proof: only a guarded or proof block that holds the proof it
-    // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
-    function replayLegacy(state, ops) {
-        const clock = clockWriteProblem(null, ops);
-        if (clock) throw prerequisite(clock);
-        if (ops.some(op => op && typeof op === 'object' && touchesProof(op))) throw prerequisite('it changes the record of proof pins (or the state around it), and a block with no proof of its own cannot');
-        if (ops.some(touchesHostDomain)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
-        return step(state, ops, { replayed: true });
-    }
-
-    // A guarded block is stored only if its guard holds on the state before it when replayed (the context a replay asks in:
-    // the state and what it recorded). What a replay would refuse is refused here, so a state that was built live and one that
-    // is built again by replay cannot disagree about it. Nothing is asked of a store with no guard check attached.
     const arr0 = index => list()[index];
-    function guardHolds(state, span, message) {
-        const clockPrefix = markerPrefixProblem(span, state);
-        if (clockPrefix) throw prerequisite(clockPrefix);
-        if (typeof s.guardCheck !== 'function' || !isMetaSpan(span) || !span.guard) return;
-        // (the epoch and rules gate first, as a replay does: docs/v2/TIMELINE.md)
-        const gate = gateProblem(state, span.guard);
-        if (gate) throw new Error(`Its guard would not hold when this is replayed, so it is not stored: ${gate}`);
-        const answer = askGuard(state, span, message);
-        if (!answer.ok) throw new Error(`Its guard would not hold when this is replayed, so it is not stored: ${answer.reason}`);
-    }
 
-    // A guarded block on replay (and in a Re-read's kept blocks): its record must be whole, from this
-    // carrier, make the claims it lists, and pass its owner's guard on `state`; then its ops (claims among
-    // them) are applied together. Throws a REPLAY_PREREQUISITE error otherwise, with nothing applied.
-    // What a guarded block must be on its own, whatever the state: its record whole, the guard its receipt kept the one it holds, the
-    // reply and swipe it was recorded for, the claims its ops make. Throws a REPLAY_PREREQUISITE otherwise. A block that is not
-    // intact is not planned again either: planning would bring back what replay keeps off.
-    function blockIntact(record, ops, span, receipt) {
-        const bad = spanProblem(span);
-        if (bad) throw prerequisite(`its saved guard record is damaged: ${bad}`);
-        // A guard the receipt kept (data.v2, set by the host) must be the one the span holds.
-        if (receipt?.guarded === true && receipt.data?.v2?.guard && hashJson(receipt.data.v2.guard) !== hashJson(span.guard)) {
-            throw prerequisite('the guard its receipt kept is not the one saved with the block');
-        }
-        const entry = record.source;
-        if (!isObject(entry) || span.source.sid !== entry.logical || span.source.swipeKey !== entry.swipeKey || span.source.evidence !== entry.evidence) {
-            throw prerequisite('it was recorded for another reply or swipe');
-        }
-        const claims = claimKeys(ops);
-        if (claims.length !== span.claims.length || !claims.every(key => span.claims.includes(key))) {
-            throw prerequisite('the claims it saved are not the claims its changes make');
-        }
-        if (ops.some(touchesHostDomain) && !hostBlock(span.module, span.operation?.type)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
-        const clock = clockWriteProblem(span, ops);
-        if (clock) throw prerequisite(clock);
-        const proof = evidenceProblem(span, ops);
-        if (proof) throw prerequisite(`the proof it saved is not the proof its changes pin: ${proof}`);
-    }
     const intactReason = (record, ops, span, receipt) => {
         try { blockIntact(record, ops, span, receipt); return null; } catch (error) { return error.message; }
     };
-
-    function replayGuarded(state, record, ops, span, message = null, receipt = null) {
-        blockIntact(record, ops, span, receipt);
-        // Some setup choices must retract even when deletion of the earliest replies carries their
-        // other state forward (carriedTo replays the formerly known prefix). Never carry this choice.
-        if (span.guard?.replyBound === true && message && !list().includes(message)) throw prerequisite('its reply was deleted');
-        const clockPrefix = markerPrefixProblem(span, state);
-        if (clockPrefix) throw prerequisite(clockPrefix);
-        // A proof id belongs to the block that applied with it first: a later block that gives the same id collides and does not apply.
-        const owned = state?.meta?.proofs;
-        const collides = isObject(owned) ? span.evidence.find(each => Object.hasOwn(owned, each.id)) : undefined;
-        if (collides !== undefined) throw prerequisite(`proof ${collides.id} already belongs to a block that applied`);
-        // A claim someone else holds already (a retried settlement, a block that woke up after its twin was stored)
-        // is never paid twice: the block stays off.
-        const held = state?.meta?.claims;
-        const taken = isObject(held) ? span.claims.find(key => Object.hasOwn(held, key)) : undefined;
-        if (taken !== undefined) throw prerequisite(`claim already held (${taken})`);
-        if (span.guard) {
-            // The host's own check of the guard's epoch and rules hash against the timeline (docs/v2/TIMELINE.md), then the owner's.
-            const gate = gateProblem(state, span.guard);
-            if (gate) throw prerequisite(`its guard no longer holds: ${gate}`);
-            const answer = askGuard(state, span, message);
-            if (!answer.ok) throw prerequisite(`its guard no longer holds: ${answer.reason}`);
-        }
-        const next = step(state, span.evidence.length ? pinOps(state, ops) : ops, { replayed: true, strict: true });
-        if (s.applying && span.evidence.length) for (const each of span.evidence) s.applying.list.push(Object.freeze({ proof: each, block: span.id, index: s.applying.index }));
-        return next;
-    }
 
     // What a story line is, apart from where it stands in the reply: the command and the line as written.
 
@@ -1177,20 +884,6 @@ export function createStore({
         const spans = out.parts.map(part => part.span);
         const ops = out.parts.flatMap(part => part.ops);
         return { state, fields: { ops, receipts, spans, source: advanced(record.source, spans), planned: out.planned, removed: out.removed }, running: out.running };
-    }
-
-    // The occurrence a block planned again gives its proof: the one it was stamped with, else (a block that gave no proof until now, guarded
-    // or not) the next one nobody has used in its reply, from the plan's one allocator (evidence.js allocator). The operation is the one the
-    // block is run again as: its replan's, else its own.
-    function occurrenceFor(span, receipt, alloc) {
-        const stored = occurrenceOf(span);
-        if (stored !== null) return stored;
-        let key = null;
-        try {
-            const again = isObject(span?.replan) ? span.replan : isObject(receipt?.replan) ? { type: receipt.type, payload: receipt.replan.payload ?? {} } : null;
-            key = again ? operationKey(again.type, again.payload) : spanOperationKey(span);
-        } catch { key = null; }
-        return key ? alloc.take(key) : undefined;
     }
 
     // Every rerun sees the position the accepted blocks of this plan leave, rather than the old record's offset.
@@ -1869,41 +1562,8 @@ export function createStore({
             return [];
         },
 
-        /**
-         * The record ID of carrier `index`'s shown swipe (MODULES §F2's ctx.carrier.sid): its record's,
-         * or one handed out now that its first record will get. null for a message that is not a carrier.
-         */
-        carrierSid(index) {
-            const message = list()[index];
-            if (!isCarrier(message)) return null;
-            const own = readRecord(message);
-            if (own) return typeof own.sid === 'string' ? own.sid : null;
-            const swipe = swipeOf(message);
-            const kept = s.reserved.get(message);
-            if (kept && kept.swipe === swipe) return kept.sid;
-            const sid = recordId();
-            s.reserved.set(message, { swipe, sid });
-            return sid;
-        },
-
-        /**
-         * The Source of carrier `index` (contract §4): { sid: sr_…, swipeKey: sw_…, evidence: ev_…, ordinal }, the
-         * canonical pair of its logical message and swipe, from the record's source map entry (worked out
-         * from the stored ID when the record has none yet, and persisted with the record's next write).
-         * `ordinal` is the next block ordinal, or `{ ordinal }` names one; `{ pending }` counts blocks a
-         * Re-read has planned but not stored. null for a message that is not a carrier. Numeric message
-         * and swipe indexes are never part of it.
-         */
-        sourceAt(index, options) {
-            return sourceOf(index, options);
-        },
-
-        /** A new block's occurrence for the operation `key` (operationKey) on carrier `index`: the next one nobody has used in its reply (evidence.js allocator). */
-        allocateOccurrence(index, key) {
-            const arr = list();
-            const record = isCarrier(arr[index]) ? readRecord(arr[index]) : null;
-            return allocator(record ?? {}).take(key);
-        },
+        // carrierSid, sourceAt and allocateOccurrence: store/sources.js
+        carrierSid, sourceAt, allocateOccurrence,
 
         /**
          * The proof of the chat's blocks, in apply order: [{ proof, block, index }] (frozen). Only the blocks that applied
@@ -2077,19 +1737,8 @@ export function createStore({
             return s.guardSeen;
         },
 
-        /**
-         * Tells the store how a guarded block is asked on replay (the command bus does this when it is made):
-         * `check(state, { guard, source, block, operation, recorded })` → `{ ok: true } | { ok: false, reason }`
-         * (a throw, a promise or any other answer fails closed), and `mark()` → text that changes when the
-         * answer could (a module with a guard hook registered or went). The head is replayed again.
-         */
-        attachGuard(check, mark = null) {
-            s.guardCheck = typeof check === 'function' ? check : null;
-            s.guardMark = typeof mark === 'function' ? mark : null;
-            s.lastMark = markNow();
-            s.cache = null;
-            forgetMemos();
-        },
+        // attachGuard: store/guards.js
+        attachGuard,
 
         // `block` (what the command bus hands over for a guarded transaction, REPLAY.md): { module, source, guard,
         // operation, recorded, result }. The host stamps the block id, the claims its ops make and the boundary
