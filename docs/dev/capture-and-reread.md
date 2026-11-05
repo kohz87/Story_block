@@ -51,7 +51,7 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
   (`findBlocks`, `readBlocks`, `hasHidden`, `markOff`, `continuation`, `withoutReasoning`, `cutLine`, `defangMarker`),
   `echo.js` (`assistSections`, `withAssist`, echoed lines, `readParts`), `legacy.js` (the v1 envelope),
   `stray.js` (`strayLines`, `inOrder`, `dropLines`). Import order is one way: lines, blocks, echo, legacy / stray.
-- `src/v2/turn.js`: `onMessageReceived`, `captureLate` (and the other events); `src/v2/turn/capture-flow.js`: `captureLines`,
+- `src/v2/turn/events.js`: `onMessageReceived`, `captureLate`, `captureAssist` (and the other events, `install` / `uninstall`) (`createEvents`); `src/v2/turn/capture-flow.js`: `captureLines`,
   `captureEach`, `afterCapture`, `readBlock`, `strayProblems`, `capped`, `storySeeds`, `stepSeeds` (`createCaptureFlow`);
   `src/v2/turn/reread.js`: `reread`, `saveText`, `redraw` (`createReread`);
   `src/v2/turn/session.js`: `problem`, `trySave`, `rebuild`, `planAgain`, `reconcileNow`, `repair` (`createSession`).

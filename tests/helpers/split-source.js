@@ -14,7 +14,7 @@ export const SPLIT_PARTS = Object.freeze({
     ],
     'src/v2/turn.js': [
         'src/v2/turn/text.js', 'src/v2/turn/session.js', 'src/v2/turn/reread.js',
-        'src/v2/turn/prompt-build.js', 'src/v2/turn/prompt-hooks.js', 'src/v2/turn/capture-flow.js',
+        'src/v2/turn/prompt-build.js', 'src/v2/turn/prompt-hooks.js', 'src/v2/turn/capture-flow.js', 'src/v2/turn/events.js',
     ],
     'src/v2/timeline/coordinator.js': ['src/v2/timeline/coordinator-native.js', 'src/v2/timeline/coordinator-prepare.js', 'src/v2/timeline/coordinator-read.js', 'src/v2/timeline/coordinator-restore.js'],
     'src/v2/domains/inventory.js': [
