@@ -38,7 +38,7 @@ them is wired. Every read of chat messages in `src/` (v1's `src/*.js` and `index
 | `assist/extractor.js` | not history: the reply just written |
 | `inspect.js`, `ui-host.js`, `extras-ui.js`, `reply-notes.js`, `view/mounts/card.js`, `view/game-header.js` | not a request: the reader's own display of the raw chat, which stays readable |
 | `rewind.js`, `runtime.js` (save, keep-alive size, record lookup by sid), `sdk.js` preflight | not text: structure and records, not what a request says |
-| `coordinator.js` `history`, `activeLine`, `syncHidden` | the rule and the mechanism themselves |
+| `coordinator-read.js` `history`, `activeLine`, `syncHidden` | the rule and the mechanism themselves |
 
 Every head change runs one participant selection rule over exact surviving prefix witnesses and replayed state.
 Until native participants acknowledge that selection the host returns `RESTORE_PENDING`. It settles before heads,
