@@ -18,6 +18,8 @@ say('## A pack file', table(['What', 'Limit'], [
 say('## The cast and its portraits', table(['What', 'Limit'], [
     ['People in one pack', CAST_LIMITS.entries],
     ['About, look, wears, voice, personality, history', `${CAST_LIMITS.about}, ${CAST_LIMITS.look}, ${CAST_LIMITS.wears}, ${CAST_LIMITS.voice}, ${CAST_LIMITS.personality}, ${CAST_LIMITS.history} characters`],
+    ['Behaviour lines, mannerisms per person', `${CAST_LIMITS.behaviour} lines (effect ${CAST_LIMITS.behaviourEffect} characters), ${CAST_LIMITS.mannerisms} habits (${CAST_LIMITS.mannerism} characters)`],
+    ['With you (how they treat the player character)', `${CAST_LIMITS.withYou} characters`],
     ['Name, place, goal and routine, drawn-to phrase', `${CAST_LIMITS.name}, ${CAST_LIMITS.place}, ${CAST_LIMITS.goal}, ${CAST_LIMITS.phrase} characters`],
     ['Aliases, drawn-to phrases, fields, secrets per person', `${CAST_LIMITS.aliases}, ${CAST_LIMITS.drawnTo}, ${CAST_LIMITS.fields}, ${CAST_LIMITS.secrets}`],
     ['Secret title, text, event', `${CAST_LIMITS.secretTitle}, ${CAST_LIMITS.secretText}, ${CAST_LIMITS.secretWhen} characters`],

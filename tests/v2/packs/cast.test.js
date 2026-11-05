@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { contentOf } from '../../../src/v2/packs/content.js';
-import { CAST_LIMITS, CONTENT_KINDS, OPTIONAL_KINDS, PORTRAIT_LIMITS } from '../../../src/v2/packs/limits.js';
+import { CAST_BEHAVIOUR_LEVERS, CAST_FIELDS, CAST_LIMITS, CONTENT_KINDS, OPTIONAL_KINDS, PORTRAIT_LIMITS } from '../../../src/v2/packs/limits.js';
 import { createPacksPart } from '../../../src/v2/packs/index.js';
 import { fakeSettings } from './helpers/fake-settings.js';
 import { pack } from './helpers/fixtures.js';
@@ -197,4 +197,68 @@ test('wears is optional text, kept after look only when given, and has its own l
     refused(one({ outfit: 'x' }), 'UNKNOWN_FIELD', 'content.cast[0].outfit');
     const message = validatePack(JSON.stringify(one({ outfit: 'x' }))).errors.find(error => error.path === 'content.cast[0].outfit').message;
     assert.match(message, /look, wears, voice/);
+});
+
+test('behaviour: up to 6 "Lever: level - effect" lines, the lever and level words checked, a lever once, written back in one form', () => {
+    assert.deepEqual([CAST_LIMITS.behaviour, CAST_LIMITS.behaviourEffect], [6, 120]);
+    assert.equal('behaviour' in ok(withCast([person()])).content.cast[0], false, 'absent when not given');
+    assert.equal('behaviour' in ok(one({ behaviour: [] })).content.cast[0], false, 'absent when empty');
+    const [fenna] = ok(one({ behaviour: ['mercy: LOW -  stitches\n slowly', 'CARE : High – protective of the dead', 'Loyalty: medium - stays'] })).content.cast;
+    assert.deepEqual(fenna.behaviour, ['Mercy: low - stitches slowly', 'Care: high - protective of the dead', 'Loyalty: medium - stays']);
+    assert.deepEqual(Object.keys(fenna).slice(0, 6), ['id', 'name', 'aliases', 'about', 'look', 'behaviour'], 'after look, wears/voice/personality when given');
+    const all = CAST_BEHAVIOUR_LEVERS.map(lever => `${lever}: low - x`);
+    assert.equal(all.length, 12);
+    ok(one({ behaviour: all.slice(0, 6) }));
+    ok(one({ behaviour: [`Care: high - ${'a'.repeat(CAST_LIMITS.behaviourEffect)}`] }));
+    refused(one({ behaviour: all.slice(0, 7) }), 'BAD_RECORD', 'content.cast[0].behaviour');
+    refused(one({ behaviour: [`Care: high - ${'a'.repeat(CAST_LIMITS.behaviourEffect + 1)}`] }), 'BAD_RECORD', 'content.cast[0].behaviour[0]');
+    for (const bad of ['Care: high', 'Care: high -', 'Care high - x', 'Charm: high - x', 'Care: extreme - x', 'Care: high - <b>x</b>', 'Care: high - a | b', 'Care: high - {{user}}', '', 5, null, ['Care']]) {
+        refused(one({ behaviour: [bad] }), 'BAD_RECORD', 'content.cast[0].behaviour[0]');
+    }
+    for (const bad of ['Care: high - x', 5, { Care: 'high' }, true, null]) refused(one({ behaviour: bad }), 'BAD_RECORD', 'content.cast[0].behaviour');
+    refused(one({ behaviour: ['Care: high - a', 'care: low - b'] }), 'DUPLICATE', 'content.cast[0].behaviour[1]');
+    // The message names the person, the line and the allowed words.
+    const message = (value, path) => validatePack(JSON.stringify(one({ behaviour: value }))).errors.find(error => error.path === path).message;
+    const lever = message(['Charm: high - x'], 'content.cast[0].behaviour[0]');
+    assert.match(lever, /Fenna/); assert.match(lever, /behaviour\[0\]/); assert.match(lever, /Charm/);
+    for (const word of CAST_BEHAVIOUR_LEVERS) assert.ok(lever.includes(word), word);
+    const level = message(['Care: extreme - x'], 'content.cast[0].behaviour[0]');
+    assert.match(level, /Fenna/); assert.match(level, /Care/); assert.match(level, /low, medium, high/);
+    assert.match(message(['Care: high - a', 'CARE: low - b'], 'content.cast[0].behaviour[1]'), /Fenna.*Care.*twice/);
+});
+
+test('mannerisms: up to 4 one-line habits of at most 120 characters; absent when not given or empty', () => {
+    assert.deepEqual([CAST_LIMITS.mannerisms, CAST_LIMITS.mannerism], [4, 120]);
+    assert.equal('mannerisms' in ok(withCast([person()])).content.cast[0], false);
+    assert.equal('mannerisms' in ok(one({ mannerisms: [] })).content.cast[0], false);
+    assert.deepEqual(ok(one({ mannerisms: ['Coils a\n rope', 'Hums'] })).content.cast[0].mannerisms, ['Coils a rope', 'Hums']);
+    ok(one({ mannerisms: ['a', 'b', 'c', 'd'] }));
+    ok(one({ mannerisms: ['a'.repeat(CAST_LIMITS.mannerism)] }));
+    refused(one({ mannerisms: ['a', 'b', 'c', 'd', 'e'] }), 'BAD_RECORD', 'content.cast[0].mannerisms');
+    refused(one({ mannerisms: 'Hums' }), 'BAD_RECORD', 'content.cast[0].mannerisms');
+    refused(one({ mannerisms: ['a'.repeat(CAST_LIMITS.mannerism + 1)] }), 'BAD_RECORD', 'content.cast[0].mannerisms[0]');
+    for (const bad of ['', '  ', 5, null, '<b>x</b>', 'a | b', '{{user}}']) refused(one({ mannerisms: ['ok', bad] }), 'BAD_RECORD', 'content.cast[0].mannerisms[1]');
+});
+
+test('withYou: text up to 400 characters, one plain line, after personality; absent when not given', () => {
+    assert.equal(CAST_LIMITS.withYou, 400);
+    assert.equal('withYou' in ok(withCast([person()])).content.cast[0], false);
+    const [fenna] = ok(one({ personality: 'Patient.', withYou: 'Wary of you\n  at first.' })).content.cast;
+    assert.equal(fenna.withYou, 'Wary of you at first.');
+    assert.deepEqual(Object.keys(fenna).slice(0, 7), ['id', 'name', 'aliases', 'about', 'look', 'personality', 'withYou']);
+    ok(one({ withYou: 'a'.repeat(CAST_LIMITS.withYou) }));
+    refused(one({ withYou: 'a'.repeat(CAST_LIMITS.withYou + 1) }), 'BAD_RECORD', 'content.cast[0].withYou');
+    for (const withYou of [5, true, ['x'], '', '   ', null, 'A <b>x</b>', '{{user}}']) refused(one({ withYou }), 'BAD_RECORD', 'content.cast[0].withYou');
+});
+
+test('the three new keys sit with the other cast fields; unknown fields are still refused and the message lists them', () => {
+    for (const key of ['behaviour', 'mannerisms', 'withYou']) assert.ok(CAST_FIELDS.includes(key), key);
+    refused(one({ habits: ['x'] }), 'UNKNOWN_FIELD', 'content.cast[0].habits');
+    const message = validatePack(JSON.stringify(one({ habits: ['x'] }))).errors.find(error => error.path === 'content.cast[0].habits').message;
+    assert.match(message, /personality, behaviour, mannerisms, withYou, history/);
+    // A person with all three comes back with everything else exactly as before.
+    const base = ok(one({ personality: 'Patient.' })).content.cast[0];
+    const more = ok(one({ personality: 'Patient.', behaviour: ['Care: high - x'], mannerisms: ['Hums'], withYou: 'Wary.' })).content.cast[0];
+    const { behaviour, mannerisms, withYou, ...rest } = more;
+    assert.deepEqual(rest, base);
 });

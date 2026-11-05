@@ -329,7 +329,7 @@ A pack is one JSON object. Fields Story Block reads (`packs/limits.js` is the so
   `terms`, `ranks`, `crafts`, `meterPresets`, `markets`, `dataModules`, `rpg`, `cast`, and the object `you` (`you.rank.label`, 1 to 30 characters:
   gives your character a rank under that word).
 - Events carry `id`, `when` (a condition, checked by the same parser the story uses), `cue`, `once`, `after`, `then`.
-- `content.cast`: required `id`, `name`, `about`, `look`, `start.place`, `start.goal`; optional `wears` (what they wear and carry; `look` is the body only), `aliases` (8), `voice`, `personality`, `history`,
+- `content.cast`: required `id`, `name`, `about`, `look`, `start.place`, `start.goal`; optional `wears` (what they wear and carry; `look` is the body only), `aliases` (8), `voice`, `personality`, `behaviour` (6 lines "Lever: level - effect"), `mannerisms` (4 habits), `withYou` (how they treat the player character), `history`,
   `portrait`, `start.routine`, `drawnTo` (6), `meters` (a preset id and starting values), `stages` (8), `fields` (6), `secrets` (8; each opens at a
   meter value, on a story event, or whichever comes first), `canDieUnmet`, `gear` (up to 6 of the pack's equipment items). Up to 64 people. Field detail: `docs/v2/PACKS.md` "The cast".
 - Portraits: WebP, PNG or JPEG, 10 MB at most each, named by the cast, 32 files a pack. Stored at 150 KB or less (a bigger picture is shrunk
