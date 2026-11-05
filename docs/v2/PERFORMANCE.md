@@ -179,6 +179,13 @@ What changed:
    save (#115, #122), and the save on hidden, `pagehide` and `beforeunload` (#128) are untouched (a page
    hidden inside the window sends the change at once). Where there is no such file (the testkit, a temporary
    chat) a reader's action is still saved at once, since a change left behind there could not be rescued.
+   **The late phase** (persist.js `late()`, store `saveLate()`, SPEC §3.3). After the turn's save, NPC State Delta's
+   forwards (relationship and secret events), the timeline participant's activate and checkpoint and other steps
+   come seconds apart (model calls between), and each wrote the whole chat (6–8 extra saves per reply, 0.5 MB each at 15
+   messages, ~1 MB at 29). For 30 s after a window's save (`FOLLOW_MS`; a generation starting ends it), Story Block's
+   own 400 ms saves and `sdk.command(..., { background: true })` join one late window: written `LATE_MS` (6 s) after
+   the last change, never later than `LATE_MAX_MS` (15 s) after the first unsaved one. A reader's action, `flush`,
+   `saveUrgent`, page hide/unload, a chat switch and a retry are as before.
 2. **Cards, notes and extras look only where a change can land.** A `committed` event redraws the head
    carrier's cards alone (no earlier reply's state changes then); `head` goes over the last 30 carriers and
    those on screen; a chat opened, more messages loaded or a delete go over every drawn message once, found
@@ -195,7 +202,7 @@ What changed:
    rebuild forgets them all). `store.work()` counts replays, records replayed and whole-chat passes, so tests
    count work instead of time.
 
-Tests: `tests/v2/long-chat.test.js` (the turn's save: one write for a reply and three actions, the 8 s
+Tests: `tests/v2/long-chat.test.js` (the late phase: a burst is one write, the 15 s bound, the next reply takes over, urgent paths, a failed save; the turn's save: one write for a reply and three actions, the 8 s
 limit, a failed save kept and retried, nothing written in the build, the at-once fallback; a chat opened
 inside the window in `tests/v2/break/b2-timeline-save.test.js`; the memos equal a fresh replay before and
 after a new reply, an edit and a middle delete; a reply's work is the same at 60 replies as at 10; the
