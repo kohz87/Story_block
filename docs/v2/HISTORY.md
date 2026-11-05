@@ -32,8 +32,8 @@ them is wired. Every read of chat messages in `src/` (v1's code is not on `main`
 | The prompts SillyTavern builds (chat completion, text completion, quiet, nested, regexed) | not read: hidden messages are not in them |
 | `domains/index.js` `chatterBack`, queries `chatter.head` and `scene.chatter` | filtered (`prompt.chatter`, `query.chatter.head`, `query.scene.chatter`) |
 | `sdk.js` / `turn.js` `makeView` `chat.lastUser` (module views, hooks) | filtered (`view.lastUser`) |
-| `turn.js` `lateLines` (previous reply's late safety-net lines) | filtered (`assist.late`) |
-| `turn.js` capture (`ctx.chat.lastUser` / `reply`, Continue base, Re-read, edit handling), `commands.js`, `inventory.js` `ctx.chat.reply` | not history: the reply being captured and the message right before it |
+| `turn/capture-flow.js` `lateLines` (previous reply's late safety-net lines) | filtered (`assist.late`) |
+| `turn.js` / `turn/capture-flow.js` capture (`ctx.chat.lastUser` / `reply`, Continue base, Re-read, edit handling), `commands.js`, `inventory.js` `ctx.chat.reply` | not history: the reply being captured and the message right before it |
 | `assist/classifier.js` (last message, only when it is the reader's) | not history: the reader's new message, never inside a faded interval (the interval ends at the restoring reply) |
 | `assist/extractor.js` | not history: the reply just written |
 | `inspect.js`, `ui-host.js`, `extras-ui.js`, `reply-notes.js`, `view/mounts/card.js`, `view/game-header.js` | not a request: the reader's own display of the raw chat, which stays readable |
