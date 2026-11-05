@@ -453,6 +453,7 @@ export function createSaver({
         follow?.unref?.();
     }
     function cancel() {
+        endFollow();   // an explicit save (flush, saveSoon, urgent) or a chat switch ends the late phase
         clearTimer();
         clearDeadline();
     }
@@ -469,22 +470,26 @@ export function createSaver({
         timer?.unref?.();
     }
 
+    // The window's latest save: `ms` after the call that opens it (a window already open keeps its own).
+    function openWindow(ms) {
+        if (deadline !== null) return;
+        deadline = timers.setTimeout(() => {
+            deadline = null;
+            lateWindow = false;
+            clearTimer();
+            startFollow();
+            saveNow().then(followUp, failed);
+        }, ms);
+        deadline?.unref?.();
+    }
+
     // The idle window (see IDLE_MS): each call puts the save `wait` ms after it, never past `max` ms after
     // the call that opened the window.
     function idle(wait = IDLE_MS, max = IDLE_MAX_MS) {
         // The turn's save or a reader's action joins a late window: the window becomes the turn's own, with
         // its shorter limit counted from now.
         if (deadline !== null && lateWindow) clearDeadline();
-        if (deadline === null) {
-            deadline = timers.setTimeout(() => {
-                deadline = null;
-                lateWindow = false;
-                clearTimer();
-                startFollow();
-                saveNow().then(followUp, failed);
-            }, Math.max(wait, max));
-            deadline?.unref?.();
-        }
+        openWindow(Math.max(wait, max));
         later(wait);
     }
 
@@ -810,6 +815,7 @@ export function createSaver({
          * (the page is going away and may cut that request off).
          */
         urgent({ force = false, ...options } = {}) {
+            endFollow();
             if (!sending || version === saved || !latest) return this.saveSoon(options);
             if (!force && sending.goal === version) return Promise.resolve(false);
             const now = latest;
@@ -830,7 +836,6 @@ export function createSaver({
         /** Saves `ms` after the last call; inside an idle window (idle()) the window's save stands instead. */
         schedule(ms = 400) {
             if (deadline !== null) return;
-            if (follow !== null) { this.late(); return; }
             later(ms);
         },
         /**
@@ -839,19 +844,22 @@ export function createSaver({
          */
         idle,
         /**
-         * A change made by someone else than the turn (a module's command, a reader's action): inside the
-         * turn's window it is saveIdle (the window's latest save stands); inside a late window the wait is extended; within FOLLOW_MS of the turn's
-         * save it opens a late window (LATE_MS, LATE_MAX_MS); otherwise it is the turn's save (IDLE_MS).
+         * A module's own step after the reply (`sdk.command` with `background`; the only user of the late phase):
+         * inside the turn's window it is saveIdle; inside a late window the wait is extended (a pending failure retry
+         * is kept); within FOLLOW_MS of a window's save it opens a late window (LATE_MS, LATE_MAX_MS); otherwise it is
+         * the turn's save (IDLE_MS).
          */
         late() {
+            // A failed save's retry (backoff) is earlier than any late wait: it stays.
             if (deadline !== null) {
-                if (lateWindow) later(LATE_MS);
-                else idle();
+                if (!lateWindow) idle();
+                else if (failures === 0) later(LATE_MS);
                 return;
             }
             if (follow === null) { idle(); return; }
-            idle(LATE_MS, LATE_MAX_MS);
+            openWindow(LATE_MAX_MS);
             lateWindow = true;
+            if (!(failures > 0 && timer !== null)) later(LATE_MS);
         },
         /**
          * Puts off the save that is only waiting (the reply's own save takes it along). Inside an idle window
@@ -860,6 +868,7 @@ export function createSaver({
         defer() {
             endFollow();
             clearTimer();
+            if (lateWindow) clearDeadline();   // a late window's bound (15 s) must not outlive the generation that ends the phase
         },
         /** Saves now; resolves to true when saved, false when not (told and tried again). */
         saveSoon(options = {}) {

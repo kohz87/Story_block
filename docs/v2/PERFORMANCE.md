@@ -179,13 +179,12 @@ What changed:
    save (#115, #122), and the save on hidden, `pagehide` and `beforeunload` (#128) are untouched (a page
    hidden inside the window sends the change at once). Where there is no such file (the testkit, a temporary
    chat) a reader's action is still saved at once, since a change left behind there could not be rescued.
-   **The late phase** (persist.js `late()`, store `saveLate()`, SPEC §3.3). After the turn's save, NPC State Delta's
-   forwards (relationship and secret events), the timeline participant's activate and checkpoint and other steps
-   come seconds apart (model calls between), and each wrote the whole chat (6–8 extra saves per reply, 0.5 MB each at 15
-   messages, ~1 MB at 29). For 30 s after a window's save (`FOLLOW_MS`; a generation starting ends it), Story Block's
-   own 400 ms saves and `sdk.command(..., { background: true })` join one late window: written `LATE_MS` (6 s) after
-   the last change, never later than `LATE_MAX_MS` (15 s) after the first unsaved one. A reader's action, `flush`,
-   `saveUrgent`, page hide/unload, a chat switch and a retry are as before.
+   **The late phase** (persist.js `late()`, store `saveLate()`, SPEC §3.3), opt-in. After the turn's save, NPC State Delta's
+   forwards (relationship and secret events) come seconds apart (model calls between), and each wrote the whole chat (6–8 extra
+   saves per reply, 0.5 MB each at 15 messages, ~1 MB at 29). For 30 s after a window's save (`FOLLOW_MS`),
+   `sdk.command(..., { background: true })` joins one late window: written `LATE_MS` (6 s) after the last change, never later
+   than `LATE_MAX_MS` (15 s) after the first unsaved one. Story Block's own 400 ms saves, a reader's action, `flush`, `saveUrgent`,
+   page hide/unload, a chat switch, a generation starting and a retry are as before.
 2. **Cards, notes and extras look only where a change can land.** A `committed` event redraws the head
    carrier's cards alone (no earlier reply's state changes then); `head` goes over the last 30 carriers and
    those on screen; a chat opened, more messages loaded or a delete go over every drawn message once, found

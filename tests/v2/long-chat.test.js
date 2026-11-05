@@ -249,22 +249,55 @@ test('late save: a reader\'s action outside the phase is the turn\'s save (IDLE_
     assert.equal(saves(), base + 1, 'the phase is over: IDLE_MS as before');
 });
 
-test('late save: the 400 ms saves of the timeline\'s steps join the late window too; a generation starting ends the phase', async t => {
+test('round 2 (blocker 1): a 400 ms save (swipe/delete, chat change, generation end, rename, a command without background) stays 400 ms inside the phase', async t => {
     const { h, saves, tick } = await filed(t);
     await turn({ h, tick });
-    let base = saves();
-    h.store.touch();
-    h.store.scheduleSave();
-    await tick(IDLE_MS);
-    assert.equal(saves(), base, 'not 400 ms later');
-    await tick(LATE_MS);
-    assert.equal(saves(), base + 1, 'with the late window');
-    h.store.deferSave();
-    base = saves();
+    const base = saves();
     h.store.touch();
     h.store.scheduleSave();
     await tick(400);
-    assert.equal(saves(), base + 1, 'after deferSave (a generation started) the 400 ms save is as before');
+    assert.equal(saves(), base + 1, 'not LATE_MS later');
+    assert.equal((await h.bus.command('scene.present', { add: 'Ann' }, { cause: 'system' })).ok, true);
+    await tick(400);
+    assert.equal(saves(), base + 2, 'a command stored without background: 400 ms');
+});
+
+test('round 2 (blocker 3): flush, saveSoon and urgent end the phase; defer drops a late window\'s bound', async t => {
+    const { h, saves, tick } = await filed(t);
+    for (const end of [() => h.store.flush(), () => h.store.saveSoon(), () => h.store.saveUrgent({ keepalive: true })]) {
+        await turn({ h, tick });
+        await tick(100);
+        await end();
+        await settled();
+        const base = saves();
+        h.store.touch();
+        h.store.scheduleSave();
+        await tick(400);
+        assert.equal(saves(), base + 1, 'after the explicit save the 400 ms save is as before');
+        await tick(FOLLOW_MS);
+    }
+    await turn({ h, tick });
+    await host(h, 'Ann');                                      // a late window
+    h.store.deferSave();                                       // a generation starts
+    const base = saves();
+    h.store.scheduleSave();
+    await tick(400);
+    assert.equal(saves(), base + 1, 'the late window\'s 15 s bound is gone with the generation');
+});
+
+test('round 2 (blocker 2): a failed save\'s retry is not replaced by the late wait', async t => {
+    const { h, srv, saves, tick } = await filed(t);
+    await turn({ h, tick });
+    srv.failing = true;
+    await host(h, 'Ann');
+    await tick(LATE_MS);                                       // the late save fails
+    const failedAt = saves();
+    assert.equal(h.store.failing(), true);
+    srv.failing = false;
+    await host(h, 'Bo');                                       // another late change while the retry waits
+    await tick(1000);
+    assert.equal(saves(), failedAt + 1, 'the retry (1 s) wrote both');
+    assert.equal(h.store.dirty(), false);
 });
 
 test('late save: a reader\'s action (no `background`) inside the phase is still saved IDLE_MS after it', async t => {
