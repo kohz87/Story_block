@@ -11,7 +11,10 @@ export const SPLIT_PARTS = Object.freeze({
         'src/v2/store/constants.js', 'src/v2/store/digest.js', 'src/v2/store/tombs.js', 'src/v2/store/sources.js', 'src/v2/store/guards.js',
         'src/v2/store/walk.js', 'src/v2/store/replay-blocks.js',
     ],
-    'src/v2/turn.js': ['src/v2/turn/text.js', 'src/v2/turn/session.js', 'src/v2/turn/reread.js'],
+    'src/v2/turn.js': [
+        'src/v2/turn/text.js', 'src/v2/turn/session.js', 'src/v2/turn/reread.js',
+        'src/v2/turn/prompt-build.js', 'src/v2/turn/prompt-hooks.js',
+    ],
     'src/v2/timeline/coordinator.js': ['src/v2/timeline/coordinator-prepare.js', 'src/v2/timeline/coordinator-read.js', 'src/v2/timeline/coordinator-restore.js'],
     'src/v2/domains/inventory.js': [
         'src/v2/domains/inventory/state.js', 'src/v2/domains/inventory/validate.js', 'src/v2/domains/inventory/queries.js', 'src/v2/domains/inventory/prompt.js',

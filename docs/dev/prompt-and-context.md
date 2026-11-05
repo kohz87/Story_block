@@ -40,7 +40,8 @@ static part); REVIEW.md risky part §5.
 
 - `src/v2/prompt.js`: `assemble`, `staticParts`, `tailOrder`, `contextFit`, `contextNotice`, `estimateTokens`,
   `TAIL_ORDER`, `DEFAULT_TAIL_BUDGET`, `DEFAULT_CONTEXT_SHARE`, `MIN_TAIL_BUDGET`, `STATIC_MARKER`.
-- `src/v2/turn.js`: `interceptor`, `build`, `runCues`, `onPromptReady`, `onTextPromptReady`, `previewFit`, `OWN_PROMPT_PARTS`, `OWN_PROMPT_CHARS`.
+- `src/v2/turn.js`: wires the parts below and the rest of the turn; `previewFit`, `OWN_PROMPT_PARTS`, `OWN_PROMPT_CHARS`.
+- `src/v2/turn/prompt-build.js`: `interceptor`, `build`, `runCues` (`createPromptBuild`); `src/v2/turn/prompt-hooks.js`: `onPromptReady`, `onTextPromptReady` (`createPromptHooks`).
 - `src/v2/turn/text.js`: the turn's pure text helpers (turn.js re-exports the public ones): `restoreMissing`, `contextRoom`, `substituteNames`,
   `defuseMacros`, `flatName`, `stripBattleMarker`, `quietMark`, `mapContent`, `contentText`, `within`.
 - `src/v2/features.js`: `affectsStatic`, `PROMPT_HINT` (a feature that changes the static part says so).
