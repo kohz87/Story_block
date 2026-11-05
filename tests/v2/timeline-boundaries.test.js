@@ -4,6 +4,7 @@ import { createHost } from '../../testkit/index.js';
 import { clockModule, paidTraining } from './helpers/clock.js';
 import { hashJson } from '../../src/v2/replay.js';
 import { nativeModule, sealerModule, restore, clone, reload } from './helpers/timeline.js';
+import { sourceOf } from '../helpers/split-source.js';
 
 const advance = (host, minutes, rest = {}) => host.bus.command('director.advance', { minutes, ...rest }, { cause: 'system' });
 async function start(t, options = {}) {
@@ -136,7 +137,7 @@ test('clock marker identity, snapshot capture, validation and durability each ha
     const { readFile } = await import('node:fs/promises');
     const commands = await readFile(new URL('../../src/v2/commands.js', import.meta.url), 'utf8');
     const boundary = await readFile(new URL('../../src/v2/timeline/boundary.js', import.meta.url), 'utf8');
-    const coordinator = await readFile(new URL('../../src/v2/timeline/coordinator.js', import.meta.url), 'utf8');
+    const coordinator = sourceOf('src/v2/timeline/coordinator.js');
     assert.equal((commands.match(/clockBoundary\(input\)/g) ?? []).length, 1);
     assert.equal((commands.match(/`clock:\$\{root.block\}/g) ?? []).length, 1);
     assert.match(commands, /const root = cursorOf\(tx\)/);

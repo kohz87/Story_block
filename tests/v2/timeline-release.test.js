@@ -3,10 +3,10 @@
 // stood on is gone does not announce readiness on the wrong native state.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createHost } from '../../testkit/index.js';
 import { nativeModule, rulesModule, pause, clone, reload, NATIVE, NPC } from './helpers/timeline.js';
 import { hashJson } from '../../src/v2/replay.js';
+import { sourceOf } from '../helpers/split-source.js';
 
 // A world with one native change possible: trust 3 -> 9 (or a confirmed death) on the head reply. `observed` records what a
 // listener and a public query see every time the modules are announced ready.
@@ -118,7 +118,7 @@ test('a head change while another operation is in flight does not wait for the n
 });
 
 test('the barrier comes down in one place, and no code path reads the story with the barrier lowered except the one whole-story read', async () => {
-    const coordinator = await readFile(new URL('../../src/v2/timeline/coordinator.js', import.meta.url), 'utf8');
+    const coordinator = sourceOf('src/v2/timeline/coordinator.js');
     const lowers = coordinator.match(/barrier\(\s*'idle'/g) ?? [];
     assert.equal(lowers.length, 1, 'one site lowers the barrier and announces readiness');
     const lowering = coordinator.indexOf("barrier('idle'");
@@ -133,7 +133,7 @@ test('the barrier comes down in one place, and no code path reads the story with
     // the old direct lowering is gone
     assert.equal((coordinator.match(/\blower\(/g) ?? []).length, 0);
     // settle asks whether selection is needed whether or not an operation runs
-    const settle = coordinator.slice(coordinator.indexOf('function settle()'), coordinator.indexOf('// A clean-up after a failure'));
+    const settle = coordinator.slice(coordinator.indexOf('function settle()'), coordinator.indexOf('// The one place the barrier comes down'));
     assert.equal(/runningIn\(/.test(settle), false);
     assert.match(settle, /selectionNeeded\(\)/);
 });
