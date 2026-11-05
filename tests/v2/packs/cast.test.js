@@ -240,8 +240,8 @@ test('mannerisms: up to 4 one-line habits of at most 120 characters; absent when
     for (const bad of ['', '  ', 5, null, '<b>x</b>', 'a | b', '{{user}}']) refused(one({ mannerisms: ['ok', bad] }), 'BAD_RECORD', 'content.cast[0].mannerisms[1]');
 });
 
-test('withYou: text up to 400 characters, one plain line, after personality; absent when not given', () => {
-    assert.equal(CAST_LIMITS.withYou, 400);
+test('withYou: text up to 320 characters (NPC State Delta's relationship-summary size), one plain line, after personality; absent when not given', () => {
+    assert.equal(CAST_LIMITS.withYou, 320);
     assert.equal('withYou' in ok(withCast([person()])).content.cast[0], false);
     const [fenna] = ok(one({ personality: 'Patient.', withYou: 'Wary of you\n  at first.' })).content.cast;
     assert.equal(fenna.withYou, 'Wary of you at first.');

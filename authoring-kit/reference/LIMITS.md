@@ -22,7 +22,7 @@
 | People in one pack | 64 |
 | About, look, wears, voice, personality, history | 300, 600, 300, 300, 600, 1200 characters |
 | Behaviour lines, mannerisms per person | 6 lines (effect 120 characters), 4 habits (120 characters) |
-| With you (how they treat the player character) | 400 characters |
+| With you (how they treat the player character) | 320 characters |
 | Name, place, goal and routine, drawn-to phrase | 80, 80, 200, 80 characters |
 | Aliases, drawn-to phrases, fields, secrets per person | 8, 6, 6, 8 |
 | Secret title, text, event | 60, 300, 120 characters |

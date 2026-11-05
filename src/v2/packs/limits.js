@@ -155,7 +155,7 @@ export const CAST_BEHAVIOUR_LEVERS = Object.freeze(['Disposition', 'Care', 'Expr
 export const CAST_BEHAVIOUR_LEVELS = Object.freeze(['low', 'medium', 'high']);
 export const CAST_START_FIELDS = Object.freeze(['place', 'goal', 'routine']);
 export const CAST_SECRET_FIELDS = Object.freeze(['title', 'text', 'meter', 'at', 'when']);
-export const CAST_LIMITS = Object.freeze({ entries: 64, name: 80, aliases: 8, about: 300, look: 600, wears: 300, voice: 300, personality: 600, behaviour: 6, behaviourEffect: 120, mannerisms: 4, mannerism: 120, withYou: 400, history: 1200,
+export const CAST_LIMITS = Object.freeze({ entries: 64, name: 80, aliases: 8, about: 300, look: 600, wears: 300, voice: 300, personality: 600, behaviour: 6, behaviourEffect: 120, mannerisms: 4, mannerism: 120, withYou: 320, history: 1200,
     place: 80, goal: 200, routine: 200, drawnTo: 6, phrase: 80, fields: 6, fieldName: 40, fieldValue: 60, secrets: 8, secretTitle: 60, secretText: 300, secretWhen: 120, meters: 10, gear: 6, skills: 8, skillName: 40, skillAbout: 120 });
 // The meters NPC State Delta has before any preset (a secret or a stage may name them without the entry listing them): its four
 // own and the ones its built-in presets (companion, rival, mentor) add.
