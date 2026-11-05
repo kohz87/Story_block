@@ -26,7 +26,7 @@ test('only evidence.js defines the allocator, and nothing else counts or default
 
 test('a new occurrence is taken from the allocator where it is given', () => {
     const users = files.filter(name => /\ballocator\(|\.take\(|allocateOccurrence\??\.?\(/.test(source(name))).sort();
-    assert.deepEqual(users, ['commands.js', 'evidence.js', 'store.js', 'store/sources.js'], 'the files that take one');
+    assert.deepEqual(users, ['commands.js', 'evidence.js', 'store.js', 'store/replay-blocks.js', 'store/sources.js', 'store/walk.js'], 'the files that take one');
     assert.match(source('store/sources.js'), /allocateOccurrence\(index, key\)[\s\S]{0,300}allocator\(/, 'the store\'s live allocation is the allocator');
     assert.match(source('commands.js'), /No occurrence could be given/, 'a proof with none is refused');
 });
