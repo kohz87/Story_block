@@ -330,7 +330,7 @@ guide says the same (docs/v2/GUIDE.md, "Slow disk?").
 boundary: a replay of that prefix plus its hashes, to check that each participant stands on the checkpoint the selected head
 names. A dossier open makes dozens of queries, so the same replays ran dozens of times on a chat that had not moved.
 
-The store now keeps the witnesses in one generation per chat state (`witnessGen`): the chat's fingerprint (every message's record,
+The store (store/memo.js, store/read.js) now keeps the witnesses in one generation per chat state (`witnessGen`): the chat's fingerprint (every message's record,
 swipe, text and swipe copies), the `epoch` (any write, rebuild, guard or lifecycle change bumps it), the guards' mark, chat id,
 metadata, source archive and the Features the reader has on are held once, and each boundary keeps only its answer. When anything
 changes, the whole generation is dropped, so the memo holds exactly the boundaries of the current chat, with no cap and no thrash.
