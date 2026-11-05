@@ -69,9 +69,12 @@ test('meters and stages: the eleven romanceable use the companion preset, Barney
     }
     const mine = cast()[0].stages.at(-1);
     assert.deepEqual([mine.name, mine.needs], ['Mine', [{ meter: 'affection', at: 75 }, { meter: 'desire', at: 50 }]]);
-    assert.equal(cast()[0].meters.tension, 10, 'Temiwa starts with some tension');
-    const torka = cast().find(person => person.id === 'torka');
-    assert.ok(torka.meters.trust <= 10 && torka.meters.tension >= 20, 'a rival: low trust, some tension');
+    // Everyone starts at 0 (USER 5 Nov): a relationship is built in play, never handed out at the first meeting.
+    for (const person of cast()) {
+        for (const meter of ['trust', 'affection', 'desire', 'tension']) {
+            if (person.meters[meter] !== undefined) assert.equal(person.meters[meter], 0, `${person.id}: ${meter} starts at 0`);
+        }
+    }
 });
 
 test('the thirteen secrets that open by a meter or by an event, whichever comes first, carry both rules', () => {
