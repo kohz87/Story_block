@@ -10,7 +10,7 @@ Modules that do not use the timeline keep their existing blocks, replay and save
 Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `coordinator-prepare.js` its make, forget, prepare and finish, `coordinator-read.js` its settle, release, head, list, status, history and the hiding of faded messages, `coordinator-restore.js` its activate, abort, recover and the completion of a restore, `manifest.js` the all-domain payload and the restore plan,
 `archive.js` the host archive, `participants.js`, `host-block.js` the blocks the host stores itself, `gate.js` the epoch and rules
 check, `part.js` the core module's commands, query and replay guard). Wiring: `runtime.js` makes it, `sdk.js` exposes it
-(`sdk.timeline`, `sdk.command('savepoint.make')`, recovery in `ensureModules`), `store.js` has `boundary()`, `touch()`, the
+(`sdk.timeline`, `sdk.command('savepoint.make')`, recovery in `ensureModules`), `store.js` (`store/read.js`) has `boundary()`, `touch()`, the
 gate and the guard on the host's domain, `overlay.js` the rule-settings overlay. Tests: `tests/v2/timeline-make`, `-manifest`, `-restore`, `-crash`, `-replay`, `-native`, `-compat`, `-hardening`, `-principles` and `-fuzz`, with the
 test-only modules in `tests/v2/helpers/timeline.js`.
 

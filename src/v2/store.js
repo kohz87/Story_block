@@ -41,13 +41,13 @@ import {
     KEY, RECEIPT_KEEP, carrierIndexes, carryRecord, createSaver, dropCopy, isCarrier, lastCarrier, newRecordId,
     readRecord, swipeOf, writeRecord,
 } from './persist.js';
-import { deriveId, hashJson, isMetaSpan, replayInputsOf } from './replay.js';
-import { clockWriteProblem, markerProblem } from './timeline/boundary.js';
+import { hashJson, isMetaSpan, replayInputsOf } from './replay.js';
+import { clockWriteProblem } from './timeline/boundary.js';
 import { allocator, occurrenceOf, spanOperationKey } from './evidence.js';
 import { gateProblem } from './timeline/gate.js';
 import {
     CHECKPOINT_EVERY, CHECKPOINT_BYTES, isObject, touchesHostDomain, hostBlock, revOf, deepFreeze,
-    NO_LONGER_DONE, jsonBytes, CHECKPOINT_MIN_GAP, readerSetup,
+    NO_LONGER_DONE, readerSetup,
 } from './store/constants.js';
 import { hasMeta, payloadHashOf } from './store/digest.js';
 import { createTombs } from './store/tombs.js';
@@ -55,6 +55,8 @@ import { createSources } from './store/sources.js';
 import { createGuards } from './store/guards.js';
 import { createWalk } from './store/walk.js';
 import { createReplayBlocks } from './store/replay-blocks.js';
+import { createMemo } from './store/memo.js';
+import { createRead } from './store/read.js';
 export { CHECKPOINT_EVERY, CHECKPOINT_BYTES, CHECKPOINT_MIN_GAP, NO_LONGER_DONE, deepFreeze } from './store/constants.js';
 
 /**
@@ -135,11 +137,6 @@ export function createStore({
         receiptCopies: new WeakMap(),
         witnessScoped: null,  // { gen, epoch }
     };
-    // Memos of what a reply reads over the whole chat (docs/v2/PERFORMANCE.md, "Long chats"): the stored
-    // receipts and the untold ones, each kept until a record is written or the store rebuilds (`epoch`) or
-    // the chat's last carrier, length or array changes (headKey); the state at an earlier carrier, kept
-    // while the messages it was replayed from are the same objects with the same records and text.
-    const AT_MEMO_MAX = 64;
     // Guarded replay (REPLAY.md): how a block's guard is asked, and the mark that says the answer may differ.
     // A first record that is a future version's or damaged is never written over (REPLAY.md "Preserved
     // records"): while the chat has no other state, the head is this empty state, read-only.
@@ -250,9 +247,9 @@ export function createStore({
     };
 
     // The parts of the store that moved to src/v2/store/ (each is given the state holder `s` and the store functions it calls).
-    const { rawKind, KEPT_ASIDE, WHY, preservedAt, readOnlyMessage, keptNow, writable, archive, bury2, idsOf, noteIds } = createTombs(s, { chatId, metadata, current, list });
+    const { rawKind, KEPT_ASIDE, WHY, preservedAt, readOnlyMessage, keptNow, writable, archive, bury2, idsOf, noteIds } = createTombs(s, { chatId, metadata, current: (...args) => current(...args), list });
     const { sourceFor, withSource, reservedSid, occurrenceFor, carrierSid, sourceAt, allocateOccurrence } = createSources(s, { recordId, list, archive, idsOf });
-    const { markNow, seeGuards, faultsNow, blocksBefore, replayLegacy, guardHolds, blockIntact, replayGuarded, attachGuard } = createGuards(s, { chatId, metadata, list, step: (...args) => step(...args), forgetMemos });
+    const { markNow, seeGuards, faultsNow, blocksBefore, replayLegacy, guardHolds, blockIntact, replayGuarded, attachGuard } = createGuards(s, { chatId, metadata, list, step: (...args) => step(...args), forgetMemos: (...args) => forgetMemos(...args) });
 
     // (`step` is given to the guards as a wrapper that looks it up when it runs: it comes from createWalk, wired below, which needs the guards' functions.)
 
@@ -376,12 +373,13 @@ export function createStore({
     // The walk and replay parts (store/walk.js, store/replay-blocks.js) call each other: createWalk is given the replay functions it
     // calls as wrappers that look them up when they run, because createReplayBlocks is wired right after it and is given the real ones.
     const { stamp, advanced, walkSuffix, keeps, settleAll, settleBehind, checkpointState, step, chain, problemText, rawSidAt, packProblems, unpackProblems } = createWalk(s, {
-        apply, receiptKeep, scratch, validate, list, current, blocksBefore, markNow, seeGuards, chainHash, spineBefore, spineStep, windowHash,
+        apply, receiptKeep, scratch, validate, list, current: (...args) => current(...args), blocksBefore, markNow, seeGuards, chainHash, spineBefore, spineStep, windowHash,
         replay: (...args) => replay(...args), replayBlocks: (...args) => replayBlocks(...args), appliedOf: (...args) => appliedOf(...args),
         proofBefore: (...args) => proofBefore(...args), packOwners: (...args) => packOwners(...args), listProofs: (...args) => listProofs(...args),
     });
     const { replay, replayRecord, replayBlocks, rerunBlock, skipped, headKey, stillHolds, proofsBefore, proofBefore, packOwners, listProofs, appliedOf } = createReplayBlocks(s, {
-        ORPHAN, quarantined, receiptsFor, isGuardedBlock, arr0, intactReason, ownedAlready, publish, asOps, blockParts, receiptsOf, lineOf, current, list,
+        ORPHAN, quarantined, receiptsFor, isGuardedBlock, arr0, intactReason, ownedAlready, publish, asOps: (...args) => asOps(...args), blockParts: (...args) => blockParts(...args),
+        receiptsOf: (...args) => receiptsOf(...args), lineOf: (...args) => lineOf(...args), current: (...args) => current(...args), list,
         guardHolds, occurrenceFor, withSource, replayGuarded, replayLegacy, advanced, chain, checkpointState, problemText, stamp, step, unpackProblems,
     });
 
@@ -409,651 +407,29 @@ export function createStore({
     const sameKey = (a, b) => Object.keys(a).every(name => a[name] === b[name]);
 
 
-    function current() {
-        const arr = list();
-        const key = headKey(arr);
-        if (s.guardSeen) {
-            const mark = markNow();
-            if (mark !== s.lastMark) {
-                s.lastMark = mark;
-                s.cache = null;
-                forgetMemos();
-            }
-        }
-        if (s.cache && !sameKey(s.cache.key, key) && stillHolds(arr, key)) {
-            s.cache = { ...s.cache, key };
-            s.known = carrierIndexes(arr).map(i => arr[i]);
-        }
-        if (!s.cache || !sameKey(s.cache.key, key)) {
-            s.replanFrom = Infinity;
-            const { state, problems, applied = [], from = -1 } = key.index < 0 ? { state: null, problems: [] } : replay(arr, key.index);
-            const kept = !state && s.fallback ? preservedAt(arr, true) : null;
-            s.cache = { key, state: kept ? s.fallback : state, problems, applied, from, ...(kept ? { readOnly: kept } : {}) };
-            if (state) s.known = carrierIndexes(arr).map(i => arr[i]);
-        }
-        return s.cache;
-    }
-
-    // After a write that changed the head carrier's record: keep the cache, with the new key.
-    // `applied`: the proof of the blocks that applied since the replay began (cache.applied), as it is after this write: undefined
-    // keeps it, null says it is not known (the next read works it out again).
-    function retain(arr, state, problems = s.cache?.problems ?? [], applied = s.cache?.applied ?? null) {
-        s.cache = { key: headKey(arr), state, problems, applied, from: s.cache?.from ?? -1, ...(s.cache?.readOnly && s.cache.state === state ? { readOnly: s.cache.readOnly } : {}) };
-    }
-
-    function carrierAt(arr, index) {
-        if (!Number.isInteger(index) || index < 0 || index >= arr.length) {
-            throw new RangeError(`There is no message ${index} in this chat.`);
-        }
-        if (!isCarrier(arr[index])) throw new RangeError(`Message ${index} is the user's; it holds no story state.`);
-        return arr[index];
-    }
-
-    // The state after carrier `index` (not the head), replayed once and then kept (atMemo) while every
-    // message it was replayed from (its checkpoint's carrier through `index`) is the same object at the same
-    // place with the same record, swipe and text. A card drawn again, or a card under each of several replies
-    // on screen, then costs a look at those messages, not a replay with every domain's validator.
-    function memoAt(arr, index) {
-        const hit = s.atMemo.get(index);
-        if (hit && hit.arr === arr && hit.refs.every(([message, record, swipe, mes], at) => {
-            const now = arr[hit.from + at];
-            return now === message && now?.extra?.[KEY] === record && now?.swipe_id === swipe && now?.mes === mes;
-        })) {
-            s.atMemo.delete(index);
-            s.atMemo.set(index, hit);
-            return hit.state;
-        }
-        const { state, from = -1 } = replay(arr, index);
-        if (from >= 0) {
-            const refs = [];
-            for (let i = from; i <= index; i++) refs.push([arr[i], arr[i]?.extra?.[KEY], arr[i]?.swipe_id, arr[i]?.mes]);
-            s.atMemo.delete(index);
-            s.atMemo.set(index, { arr, from, refs, state });
-            while (s.atMemo.size > AT_MEMO_MAX) s.atMemo.delete(s.atMemo.keys().next().value);
-        }
-        return state;
-    }
-
-    // A record's receipts as frozen copies, made once per record (a record is never changed in place: each
-    // write puts a new one), so a pass over the chat copies only the receipts it has not seen yet.
-    function frozenReceipts(record) {
-        let list = s.receiptCopies.get(record);
-        if (!list) s.receiptCopies.set(record, list = deepFreeze(structuredClone(record.receipts.filter(isObject))));
-        return list;
-    }
-
-    // Forgets the memos (a rebuild, or a write that is not on the head carrier alone).
-    function forgetMemos() {
-        s.epoch++;
-        s.tail = null;
-        s.lineMemo = null;
-        s.atMemo = new Map();
-        s.witnessGen = null;
-    }
-
-    // The timeline asks for the witness of every archived boundary on every read (sdk.query → settle → selectionPlan), and each
-    // answer is a replay of that prefix plus hashes. Everything an answer reads is the same for all boundaries of one chat: the
-    // chat's messages (their records, swipes, text and swipe copies), the guards' mark, the chat/metadata it is read in, the source
-    // archive, the Features. So ONE generation holds that fingerprint once, checked once per call, and each boundary keeps only its
-    // answer in it. The generation changes (and every answer of the old one is dropped) when anything it read is not the same:
-    // another array or a message's record, swipe, text or swipe copies differing, another `epoch` (any write, rebuild, guard or
-    // lifecycle change bumps it), mark, chat id, metadata, archive or Features. The memo holds every boundary of the generation (no
-    // cap: the boundaries are the archive's, which the timeline walks in full each query); it is not read or written while a replay
-    // is running (`applying`) or a Re-read's overlay is staged (`staged`). A caller gets a new object each time; the state in it is
-    // deep-frozen.
-    function witnessKeyOf(cursor) {
-        if (!isObject(cursor) || typeof cursor.sid !== 'string' || typeof cursor.swipeKey !== 'string' || !Number.isSafeInteger(cursor.op)) return null;
-        return `${cursor.sid}\u0000${cursor.swipeKey}\u0000${cursor.op}`;
-    }
-
-    // Every input of the chat the witness reads, as a flat list of values compared with ===. `visit` returns false to stop.
-    function walkChat(arr, visit) {
-        if (!visit(arr.length)) return false;
-        for (const message of arr) {
-            const info = message?.swipe_info;
-            const infos = Array.isArray(info) ? info : null;
-            if (!visit(message) || !visit(message?.extra) || !visit(message?.extra?.[KEY]) || !visit(message?.swipe_id) || !visit(message?.mes)
-                || !visit(message?.is_user) || !visit(info) || !visit(infos?.length)) return false;
-            if (infos) for (const each of infos) if (!visit(each?.extra?.[KEY])) return false;
-        }
-        return true;
-    }
-
-    // What else a replay's answer may hang on (the Features the reader has on: they change what the registry validates and scratches).
-    const envNow = () => { try { return String(replayEnv()); } catch { return '?'; } };
-    const metaNow = () => { try { return metadata(); } catch { return null; } };
-    const markSeen = () => (s.guardSeen ? markNow() : '');
-
-    function witnessEnv(arr) {
-        const fingerprint = [];
-        walkChat(arr, value => { fingerprint.push(value); return true; });
-        return { epoch: s.epoch, arr, mark: markSeen(), chatId: chatId(), meta: metaNow(), archived: archive().size, marked: marked(), env: envNow(), fingerprint, answers: new Map() };
-    }
-
-    function witnessHolds(gen, arr) {
-        if (gen.epoch !== s.epoch || gen.arr !== arr || gen.chatId !== chatId() || gen.marked !== marked() || gen.env !== envNow() || gen.archived !== archive().size) return false;
-        if (gen.meta !== metaNow() || gen.mark !== markSeen()) return false;
-        let at = 0;
-        return walkChat(arr, value => gen.fingerprint[at++] === value) && at === gen.fingerprint.length;
-    }
-
-    // Inside `witnessScope` (one synchronous, read-only pass over many boundaries) the chat cannot change under the reader but through
-    // a write or a lifecycle change, which move `epoch`: the generation is checked in full once at the start, then by `epoch` and
-    // array alone.
-    function witnessGeneration(arr) {
-        if (s.witnessScoped && s.witnessGen && s.witnessScoped.gen === s.witnessGen && s.witnessScoped.epoch === s.epoch && s.witnessGen.arr === arr) return s.witnessGen;
-        if (!s.witnessGen || !witnessHolds(s.witnessGen, arr)) s.witnessGen = witnessEnv(arr);
-        if (s.witnessScoped) s.witnessScoped = { gen: s.witnessGen, epoch: s.epoch };
-        return s.witnessGen;
-    }
-
-    // The memo of the whole line of history (receipts, untold) for the chat as it is now.
-    function lineOf(arr) {
-        const key = headKey(arr);
-        if (!s.lineMemo || s.lineMemo.epoch !== s.epoch || !sameKey(s.lineMemo.key, key)) s.lineMemo = { epoch: s.epoch, key };
-        return s.lineMemo;
-    }
-
-    // The state carrier `index`'s own ops start from: the state after the carrier before it, replayed through the
-    // chain (a checkpoint that does not hold is never used), or, when nothing is before it, its own checkpoint if
-    // the chain trusts it. Re-read, reconcile and rewind start here (not from whatever the record says it starts from).
-    function baseFor(arr, index) {
-        const before = stateBefore(arr, index);
-        if (before) return before;
-        const record = readRecord(arr[index]);
-        return record?.checkpoint && chain(arr, index).from === index ? checkpointState(record.checkpoint) : null;
-    }
-
-    function stateBefore(arr, index) {
-        const prev = lastCarrier(arr, index);
-        return prev < 0 ? null : replay(arr, prev).state;
-    }
-
-    // Does a new record on carrier `index` need a checkpoint? Counts the carriers and the op JSON since
-    // the last checkpoint before it: due after `checkpointEvery` carriers, or once the ops exceed
-    // `checkpointBytes` and twice the last checkpoint's size, `CHECKPOINT_MIN_GAP` carriers on at least.
-    function needsCheckpoint(arr, index) {
-        let carriers = 0;
-        let bytes = 0;
-        for (let i = index - 1; i >= 0; i--) {
-            if (!isCarrier(arr[i])) continue;
-            carriers++;
-            const record = readRecord(arr[i]);
-            if (record?.ops.length) bytes += jsonBytes(record.ops);
-            if (record?.checkpoint) {
-                if (carriers >= checkpointEvery) return true;
-                const gap = Math.min(CHECKPOINT_MIN_GAP, checkpointEvery);
-                return carriers >= gap && bytes > Math.max(checkpointBytes, 2 * checkpointSize(record.checkpoint));
-            }
-            if (carriers >= checkpointEvery) return true;
-        }
-        return false;
-    }
-
-    // A checkpoint's JSON size, worked out once per stored checkpoint.
-    function checkpointSize(raw) {
-        let size = s.checkpointBytesOf.get(raw);
-        if (size === undefined) s.checkpointBytesOf.set(raw, size = jsonBytes(raw));
-        return size;
-    }
-
-    // The carrier's record to build on: its own, or a fresh one (with a checkpoint when one is due).
-    // `before` is the state before the carrier when the caller already has it.
-    function take(arr, index, before) {
-        const message = carrierAt(arr, index);
-        const own = readRecord(message);
-        if (own) return { message, record: own, fresh: false };
-        // A record that is not ours is never taken for an absent one: it would be written over.
-        const there = message.extra?.[KEY];
-        if (KEPT_ASIDE.has(rawKind(there))) throw new Error(`The story record on this reply ${WHY[rawKind(there)](there)}; it is kept as it is and not written over.`);
-        const sid = sidFor(message);
-        const record = { v: 2, sid, ops: [], receipts: [], narrated: [], spans: [], source: sourceFor(arr, message, sid) };
-        if (marked()) record.mv = 1;   // (the reply mark's version, only while hand-set gear is on: a chat that never used it keeps its bytes; runtime.js greetingOnly)
-        if (index === lastCarrier(arr)) settleBehind(arr, index);
-        if (needsCheckpoint(arr, index)) {
-            const base = before === undefined ? stateBefore(arr, index) : before;
-            if (base) {
-                const { since, members, history } = chain(arr, index - 1);
-                record.checkpoint = structuredClone(base);
-                record.prefix = spineBefore(arr, index);
-                const prior = index === lastCarrier(arr) ? current().problems : replay(arr, index - 1).problems;
-                const carried = packProblems(prior.filter(problem => problem.index < index), i => rawSidAt(arr, i));
-                if (carried.length) record.carried = carried;
-                // The blocks before it that applied (the proof of an id belongs to the one that applied with it).
-                const head = index === lastCarrier(arr) ? current() : replay(arr, index - 1);
-                if (head.state && !head.readOnly && proofBefore(arr, index)) {
-                    record.owned = packOwners([...proofsBefore(arr, head.from), ...appliedOf(arr, head)].filter(entry => entry.index < index), i => rawSidAt(arr, i));
-                }
-                record.covers = since;
-                if (history) record.guardEnv = markNow();
-                const hash = windowHash(arr, members);
-                if (hash !== undefined) record.coverHash = hash;
-            }
-        }
-        return { message, record, fresh: true };
-    }
-
-    // The ID a new record on this message's shown swipe gets: the one handed out by carrierSid(), if any.
-    function sidFor(message) {
-        const kept = s.reserved.get(message);
-        s.reserved.delete(message);
-        return kept && kept.swipe === swipeOf(message) ? kept.sid : recordId();
-    }
-
-    // B-b2-timeline-3: the state the first carrier starts from when the carriers before it were deleted:
-    // what they ended with, as the store last saw them (their message objects still hold their records).
-    // The deleted replies are replayed whole, from the first one's checkpoint: a later checkpoint among them holds what their
-    // blocks did without asking them, and a block that must not outlive its reply (a reply-bound guard) is asked here again.
-    function carriedTo(message) {
-        const at = s.known ? s.known.indexOf(message) : -1;
-        if (at <= 0) return null;
-        const { state } = replay(s.known, at - 1, { whole: true });
-        return state ? structuredClone(state) : null;
-    }
-
-    function spansOf(record) {
-        const spans = Array.isArray(record.spans) ? record.spans : null;
-        const total = spans?.reduce((sum, span) => sum + (Number.isInteger(span?.n) ? span.n : NaN), 0);
-        if (spans && total === record.ops.length) return spans.some(span => span?.mixed) ? null : spans;
-        // A record without usable spans: fine as one kept block if it holds no story receipts.
-        if (!record.receipts.some(receipt => receipt?.cause === 'story')) return [{ n: record.ops.length, story: false }];
-        return null;
-    }
-
-    // C1-1: the spans a new block is added after. A record whose spans do not add up is replayed as one
-    // block (blockParts); it stays one block, `mixed` (its story changes cannot be told apart, so Re-read
-    // still refuses it), and the new block is one of its own, so a bad op in the old ones cannot take it
-    // with them on the next rebuild.
-    function spansFor(record) {
-        const spans = Array.isArray(record.spans) ? record.spans : null;
-        const total = spans?.reduce((sum, span) => sum + (Number.isInteger(span?.n) && span.n >= 0 ? span.n : NaN), 0);
-        if (spans && total === record.ops.length) return spans;
-        return spansOf(record) ?? (record.ops.length ? [{ n: record.ops.length, story: true, mixed: true }] : []);
-    }
-
-    // The record's ops in the blocks they were stored in: one per append (one receipt), one for a
-    // Re-read's story changes, each with its span. A record whose spans are missing or do not add up is one
-    // block (and has no span to read).
-    function blockParts(record) {
-        const spans = Array.isArray(record.spans) ? record.spans : null;
-        const fits = spans && spans.every(span => Number.isInteger(span?.n) && span.n >= 0)
-            && spans.reduce((sum, span) => sum + span.n, 0) === record.ops.length;
-        if (!fits) return record.ops.length ? [{ ops: record.ops, span: null }] : [];
-        const out = [];
-        let at = 0;
-        for (const span of spans) {
-            if (span.n) out.push({ ops: record.ops.slice(at, at + span.n), span });
-            at += span.n;
-        }
-        return out;
-    }
-
-    // The IDs of the receipts whose changes are `ops` (each receipt's ops end with its /meta/rev op).
-    function receiptsOf(record, ops) {
-        const revs = new Set(ops.filter(op => op?.path === '/meta/rev').map(op => op.value));
-        return record.receipts.filter(receipt => revs.has(receipt?.rev)).map(receipt => receipt.id);
-    }
-
-    function asOps(ops) {
-        if (ops === undefined || ops === null) return [];
-        if (!Array.isArray(ops)) throw new TypeError('Ops must be an array.');
-        return structuredClone(ops);
-    }
-
-    function prefixWitnessUncached(arr, cursor) {
-        const matches = carrierIndexes(arr).filter(index => {
-            const source = api.sourceAt(index);
-            return source?.sid === cursor.sid && source?.swipeKey === cursor.swipeKey;
-        });
-        if (matches.length !== 1) return null;
-        const index = matches[0];
-        const record = readRecord(arr[index]);
-        if (!record || !Number.isSafeInteger(cursor.op) || cursor.op < 0) return null;
-        const parts = blockParts(record);
-        const earlier = [];
-        let count = 0;
-        for (const part of parts) {
-            if (count === cursor.op) break;
-            count += part.ops.length;
-            earlier.push(part);
-        }
-        if (count !== cursor.op) return null;
-        const base = baseFor(arr, index);
-        if (!base) return null;
-        const ops = earlier.flatMap(part => part.ops);
-        const revs = new Set(ops.filter(op => op.path === '/meta/rev').map(op => op.value));
-        const state = replayRecord(base, { ...record, ops, spans: earlier.map(part => ({ ...part.span, n: part.ops.length })), receipts: record.receipts.filter(receipt => revs.has(receipt.rev)) }, index, [], null, arr[index]);
-        return {
-            index, op: count, state,
-            prefixHash: hashJson({ p: chainHash(arr, index), k: cursor.swipeKey, t: payloadHashOf(arr[index]), b: blocksBefore(earlier) }),
-        };
-    }
+    // The memo and read parts (store/memo.js, store/read.js). The parts wired before them call the memo functions through wrappers
+    // that look them up when they run (`current`, `forgetMemos`, `asOps`, `blockParts`, `receiptsOf`, `lineOf`), because createMemo needs their
+    // results and is wired after them, where `sameKey` exists. `api` is only used for `api.sourceAt(...)`, which is looked up when it runs.
+    const { current, retain, carrierAt, memoAt, frozenReceipts, forgetMemos, witnessKeyOf, markSeen, witnessGeneration, lineOf, baseFor, stateBefore, take, sidFor, carriedTo, spansOf, spansFor, blockParts, receiptsOf, asOps, prefixWitnessUncached } = createMemo(s, {
+        KEPT_ASIDE, WHY, api: { sourceAt: (...args) => api.sourceAt(...args) }, appliedOf, archive, blocksBefore, chain, chainHash, chatId, checkpointBytes,
+        checkpointEvery, checkpointState, headKey, list, markNow, marked, metadata, packOwners, packProblems, preservedAt, proofBefore, proofsBefore,
+        rawKind, rawSidAt, recordId, replay, replayEnv, replayRecord, sameKey, settleBehind, sourceFor, spineBefore, stillHolds, windowHash,
+    });
+    const { head, at, headIndex, opsAt, changesAt, problems, readOnly, startOver, keepEarliest, ensureInitial, proofs, blockAt, replansFrom, boundaryProblems, payloadHashAt, boundary, timelineMarkers, prefixWitness, witnessScope, witnessMemoSize, witnessFresh } = createRead(s, {
+        api: { sourceAt: (...args) => api.sourceAt(...args) }, blockParts, blocksBefore, carriedTo, chainHash, current, faultsNow, forgetMemos, idsOf, keptNow,
+        list, listProofs, markSeen, memoAt, prefixWitnessUncached, preservedAt, rawKind, readOnlyMessage, reservedSid, saver, sidFor, sourceFor, spansFor,
+        witnessGeneration, witnessKeyOf, write,
+    });
 
     const api = {
-        head() {
-            return current().state;
-        },
-
-        at(index) {
-            const arr = list();
-            if (!Number.isInteger(index) || index < 0 || index >= arr.length) {
-                throw new RangeError(`There is no message ${index} in this chat.`);
-            }
-            const head = current();
-            if (index >= head.key.index) return head.state;
-            return memoAt(arr, index);
-        },
-
-        headIndex() {
-            return lastCarrier(list());
-        },
-
-        // Carrier `index`'s own ops (frozen copies), [] for a message with no record.
-        opsAt(index) {
-            const arr = list();
-            if (!Number.isInteger(index) || index < 0 || index >= arr.length) return [];
-            return deepFreeze(structuredClone(readRecord(arr[index])?.ops ?? []));
-        },
-
-        // The JSON Pointers carrier `index`'s ops touched, in first-touched order (for a card's
-        // "only what changed" and changed(path)). [] for a message with no record.
-        changesAt(index) {
-            const arr = list();
-            if (!Number.isInteger(index) || index < 0 || index >= arr.length) return [];
-            const record = readRecord(arr[index]);
-            return [...new Set((record?.ops ?? []).map(op => op?.path).filter(path => typeof path === 'string'))];
-        },
-
-        // Problems met by the last head rebuild: [{ index, block, receipts, why, message }], one per block
-        // of stored ops that no longer applies (`receipts`: the IDs whose changes were skipped).
-        problems() {
-            const problems = current().problems.map(problem => ({ ...problem, receipts: [...(problem.receipts ?? [])] }));
-            for (const fault of faultsNow().values()) {
-                const index = list().indexOf(fault.message);
-                if (index < 0) continue;
-                const source = api.sourceAt(index);
-                if (source?.sid !== fault.source.sid || source?.swipeKey !== fault.source.swipeKey) continue;
-                if (problems.some(problem => problem.index === index && problem.why.includes(fault.why))) continue;
-                problems.push({ index, block: null, receipts: [], why: fault.why, code: 'REPLAY_PREREQUISITE',
-                    message: `A replay guard on message ${index} refused its planned changes: ${fault.why}` });
-            }
-            return problems;
-        },
-
-        // Why the head is only the empty read-only state: the first record is a future version's, an older one's or
-        // damaged ('future' | 'legacy' | 'damaged'), or the replies before the earliest saved point are gone and
-        // unseen ('unresolved'); it is kept as it is. → { index, kind, why }, else null. Nothing is written meanwhile.
-        readOnly() {
-            const kept = keptNow();
-            return kept ? { index: kept.index, kind: kept.kind, why: kept.why } : null;
-        },
-
-        // The reader's own repair (never automatic; each needs `{ confirmed: true }`, the caller has asked the reader):
-        // * startOver: the story's state starts over from its beginning, the replies after it replaying on top. A
-        //   damaged or older record on any reply is set aside beside where it was (`extra.storySuiteAside`, a list that only
-        //   grows: each repair adds its records), not lost.
-        //   Not for a record from a newer version: update Story Block.
-        // * keepEarliest (unresolved only): the earliest saved point is trusted as the start of the story.
-        startOver({ confirmed = false } = {}) {
-            const kept = keptNow();
-            if (!kept) throw new Error('The story record is not being kept aside; there is nothing to start over.');
-            if (kept.kind === 'future') throw new Error('The story record is from a newer version of Story Block, so it is not started over; update Story Block to read it.');
-            if (confirmed !== true) throw new Error('Starting the story state over needs the reader\'s confirmation.');
-            const arr = list();
-            for (const message of arr) {
-                if (!isCarrier(message)) continue;
-                const raw = message.extra?.[KEY];
-                const kind = rawKind(raw);
-                if (kind !== 'legacy' && kind !== 'damaged') continue;
-                // Every record set aside is kept, in the order it was: a later repair adds to the list, never replaces an entry.
-                const earlier = message.extra.storySuiteAside;
-                // (a list of { kind, record } entries is ours; anything else that is there, an array of records from before included, is one earlier record)
-                const ours = Array.isArray(earlier) && earlier.every(entry => isObject(entry) && typeof entry.kind === 'string' && Object.hasOwn(entry, 'record'));
-                const kept = ours ? earlier : earlier === undefined ? [] : [{ kind: 'earlier', record: earlier }];
-                message.extra.storySuiteAside = [...kept, { kind, record: structuredClone(raw) }];
-                delete message.extra[KEY];
-                const info = Array.isArray(message.swipe_info) ? message.swipe_info[swipeOf(message)] : null;
-                if (isObject(info?.extra) && info.extra !== message.extra && rawKind(info.extra[KEY]) === kind) delete info.extra[KEY];
-            }
-            const first = carrierIndexes(arr)[0];
-            const message = arr[first];
-            const checkpoint = structuredClone(s.fallback);
-            // The checkpoints after it hold the story the start used to be: they go (the story builds new ones as it grows).
-            for (const i of carrierIndexes(arr)) {
-                if (i === first) continue;
-                const record = readRecord(arr[i]);
-                if (!record?.checkpoint) continue;
-                const { checkpoint: gone, covers, coverHash, guardEnv, prefix, carried, owned, ...rest } = record;
-                void gone; void covers; void coverHash; void guardEnv; void prefix; void carried; void owned;
-                write(arr[i], rest);
-            }
-            const own = readRecord(message);
-            const { covers, coverHash, guardEnv, prefix, carried, owned, ...rest } = own ?? {};
-            void covers; void coverHash; void guardEnv; void prefix; void carried; void owned;
-            write(message, own
-                ? { ...rest, checkpoint, rev: revOf(checkpoint) }
-                : { v: 2, sid: sidFor(message), checkpoint, ops: [], receipts: [], narrated: [], spans: [], rev: revOf(checkpoint) });
-            saver.touch();
-            s.cache = null;
-            forgetMemos();
-            return { index: first };
-        },
-        keepEarliest({ confirmed = false } = {}) {
-            const kept = keptNow();
-            if (kept?.kind !== 'unresolved') throw new Error('There is no unresolved start to keep a saved point of.');
-            if (confirmed !== true) throw new Error('Keeping the earliest saved point needs the reader\'s confirmation.');
-            const arr = list();
-            const { covers, coverHash, prefix, carried, owned, ...rest } = readRecord(arr[kept.index]);
-            void covers; void coverHash; void prefix; void carried; void owned;     // (the first record there is: trusted as the start, whatever was in front of it)
-            write(arr[kept.index], rest);
-            saver.touch();
-            s.cache = null;
-            forgetMemos();
-            return { index: kept.index };
-        },
-
-        // A chat with no state yet gets one on its first carrier. A record already there is never
-        // replaced: it gets the starting point it lacks (the state the deleted carriers before it ended
-        // with, else `initialState`) and keeps its own changes. A first record that is a newer version's, an older
-        // one's or damaged is never written over or repaired, and a story whose first replies are gone and unseen
-        // (the earliest checkpoint left cannot be checked) is not adopted or reset by itself: both are kept as they
-        // are, read-only, and the reader decides (startOver / keepEarliest). Returns notes for the Problems list.
-        ensureInitial(initialState) {
-            if (!isObject(initialState)) throw new TypeError('The initial state must be an object.');
-            const head = current();
-            idsOf(list());    // the baseline of the ids this chat holds, for what is deleted before anything is written
-            if (head.state && !keptNow()) return [];
-            const arr = list();
-            const first = carrierIndexes(arr)[0];
-            if (first === undefined) return [];
-            const keepAside = () => {
-                if (!s.fallback) {
-                    s.fallback = deepFreeze(structuredClone(initialState));
-                    s.cache = null;
-                    forgetMemos();
-                }
-                const kept = preservedAt(arr, true);
-                const key = `${kept.kind}:${kept.index}:${kept.raw ? JSON.stringify(kept.raw).length : 0}`;
-                if (s.noted === key) return [];
-                s.noted = key;
-                return [readOnlyMessage(kept)];
-            };
-            if (preservedAt(arr)) return keepAside();
-            const message = arr[first];
-            const carried = carriedTo(message);
-            // The replies before the first one that is left are gone and this session never saw them: the earliest
-            // checkpoint that survives cannot be checked, so nothing is adopted and the story is not reset to its start.
-            if (!carried && carrierIndexes(arr).some(i => readRecord(arr[i])?.checkpoint)) return keepAside();
-            const checkpoint = carried ?? structuredClone(initialState);
-            const own = readRecord(message);
-            const { covers, coverHash, prefix, carried: droppedProblems, owned: droppedOwners, ...base } = own ?? {};
-            void covers; void coverHash; void prefix; void droppedProblems; void droppedOwners;
-            const record = own
-                ? { ...base, sid: typeof own.sid === 'string' ? own.sid : sidFor(message), checkpoint,
-                    rev: Number.isInteger(own.rev) ? own.rev : revOf(checkpoint) }
-                : { v: 2, sid: sidFor(message), checkpoint, ops: [], receipts: [], narrated: [], spans: [], rev: revOf(checkpoint) };
-            write(message, record);
-            saver.touch();
-            s.cache = null;
-            forgetMemos();
-            return [];
-        },
+        // head, at, headIndex, opsAt, changesAt, problems, readOnly, startOver, keepEarliest, ensureInitial: store/read.js
+        head, at, headIndex, opsAt, changesAt, problems, readOnly, startOver, keepEarliest, ensureInitial,
 
         // carrierSid, sourceAt and allocateOccurrence: store/sources.js
         carrierSid, sourceAt, allocateOccurrence,
 
-        /**
-         * The proof of the chat's blocks, in apply order: [{ proof, block, index }] (frozen). Only the blocks that applied
-         * (replay's own account of them: a block that was skipped, is off, collided on a proof id or is damaged gives none;
-         * before the first checkpoint replay starts from, the blocks that could apply), so the one that owns an id is the
-         * one that applied with it. Not yet active: the state pins the active ones (evidence.js visibleProofs, the
-         * `story.evidence` query). `{ all: true }`: the proof of every block that could apply, whether it did or not (what
-         * a new proof must not take an id from).
-         */
-        proofs(options = {}) {
-            return listProofs(options?.all === true);
-        },
-
-        /** The guarded block of carrier `index` whose Source ordinal is `ordinal` (a step planned again names its own): { block, op } (its id, the changes before it), or null. */
-        blockAt(index, ordinal) {
-            const arr = list();
-            const record = isCarrier(arr[index]) ? readRecord(arr[index]) : null;
-            if (!record) return null;
-            let op = 0;
-            for (const span of spansFor(record)) {
-                if (isMetaSpan(span) && span.source?.ordinal === ordinal) return { block: span.id, op };
-                op += Number.isInteger(span?.n) ? span.n : 0;
-            }
-            return null;
-        },
-
-        /** The first carrier seen holding a guarded step with a `replan`, or blocks numbered at or below the rev before them (the turn reconciles from it), else null. */
-        replansFrom() {
-            return Number.isFinite(s.replanFrom) ? s.replanFrom : null;
-        },
-
-        /**
-         * The guarded blocks whose recorded boundary (prefix hash) is not what the chat as it stands gives: [{ index, block }].
-         * Empty after a Re-read or a reconcile that was staged right, and for a chat nobody edited; a reply edited since
-         * its blocks were stored shows here too (its text is part of the prefix).
-         */
-        boundaryProblems() {
-            const arr = list();
-            const out = [];
-            for (let i = 0; i < arr.length; i++) {
-                const record = isCarrier(arr[i]) ? readRecord(arr[i]) : null;
-                if (!record || !hasMeta(record)) continue;
-                const before = chainHash(arr, i);
-                const earlier = [];
-                for (const part of blockParts(record)) {
-                    if (isMetaSpan(part.span) && part.span.boundaries?.[0]) {
-                        const expected = hashJson({ p: before, k: record.source?.swipeKey, t: payloadHashOf(arr[i]), b: blocksBefore(earlier) });
-                        if (expected !== part.span.boundaries[0].prefixHash) out.push({ index: i, block: part.span.id });
-                    }
-                    earlier.push(part);
-                }
-            }
-            return out;
-        },
-
-        /** The hash of the text of carrier `index`'s shown swipe as evidence (what a block's boundary recorded). */
-        payloadHashAt(index) {
-            const message = list()[index];
-            return isCarrier(message) ? payloadHashOf(message) : null;
-        },
-
-        /**
-         * Where the committed story ends (the timeline's head, contract §8): the cursor and the prefix hash a block
-         * stored now would start at, so `{ cursor, prefixHash }` is exactly the boundary that block's span will carry
-         * (apart from its own block id: `cursor.block` is the last block's on the head reply, or a stand-in worked out
-         * from the position when it has none). `payloadHash` is the head reply's text as evidence; `source` its Source.
-         * null without a carrier or a state. Nothing is written (a first record's id is only reserved, as sourceAt does).
-         */
-        boundary() {
-            const arr = list();
-            const index = lastCarrier(arr);
-            if (index < 0) return null;
-            const head = current();
-            if (!head.state) return null;
-            const message = arr[index];
-            const record = readRecord(message);
-            const sid = record ? record.sid : reservedSid(message);
-            if (typeof sid !== 'string') return null;
-            const entry = isObject(record?.source) ? record.source : sourceFor(arr, message, sid);
-            const spans = record ? spansFor(record) : [];
-            const parts = record ? blockParts({ ...record, spans, ops: record.ops }) : [];
-            const op = record ? record.ops.length : 0;
-            const last = [...spans].reverse().find(isMetaSpan);
-            return {
-                index,
-                cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: last ? last.id : deriveId('bl', `end:${entry.swipeKey}:${op}`), op, rev: revOf(head.state) },
-                prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: blocksBefore(parts) }),
-                payloadHash: payloadHashOf(message),
-                source: { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence, ordinal: Number.isInteger(entry.next) ? entry.next : 0 },
-            };
-        },
-
-        // Only committed marker pins are projected. A skipped/failed/replaced root publishes none.
-        timelineMarkers() {
-            const state = current().state;
-            const pins = state?.meta?.proofs ?? {};
-            const out = [];
-            const seen = new Set();
-            for (const index of carrierIndexes(list())) {
-                const record = readRecord(list()[index]);
-                if (!record) continue;
-                for (const span of record.spans ?? []) {
-                    const prior = [];
-                    for (const marker of span.clockBoundaries ?? []) {
-                        if (markerProblem(marker) || pins[marker.proof] !== marker.pin || seen.has(marker.cursor.block)) continue;
-                        seen.add(marker.cursor.block);
-                        out.push({ ...structuredClone(marker), root: structuredClone(span.boundaries[0]), prior: [...prior] });
-                        prior.push(marker.cursor.block);
-                    }
-                }
-            }
-            return out;
-        },
-
-        // Internal timeline witness. A native checkpoint belongs to this exact surviving prefix,
-        // including the state its guards accepted. Never match by revision or by message index.
-        prefixWitness(cursor) {
-            const arr = list();
-            // Queries ask this for every archived boundary on every read; on an unchanged chat the answer is the same (witnessGeneration).
-            const key = witnessKeyOf(cursor);
-            if (key === null || s.applying || s.staged) return prefixWitnessUncached(arr, cursor);
-            const gen = witnessGeneration(arr);
-            if (gen.answers.has(key)) {
-                const hit = gen.answers.get(key);
-                return hit === null ? null : { ...hit };
-            }
-            s.counts.witnessMisses++;
-            const answer = prefixWitnessUncached(arr, cursor);
-            // (the replay may have seen guarded blocks for the first time: the mark then reads differently, though nothing else did)
-            if (gen === s.witnessGen && gen.mark === '' && s.guardSeen && gen.epoch === s.epoch) gen.mark = markSeen();
-            gen.answers.set(key, answer);
-            return answer === null ? null : { ...answer };
-        },
-
-        /**
-         * Runs `read` (synchronous, read-only: it must not write to the chat) with the witness memo checked in full once instead
-         * of on each `prefixWitness` call inside it (the timeline's pass over every boundary). → what `read` returns.
-         */
-        witnessScope(read) {
-            if (s.witnessScoped || s.applying || s.staged) return read();
-            s.witnessScoped = { gen: null, epoch: s.epoch };
-            try { witnessGeneration(list()); return read(); } finally { s.witnessScoped = null; }
-        },
-
-        /** The timeline witnesses kept for the chat as it is now (tests). */
-        witnessMemoSize() {
-            return s.witnessGen ? s.witnessGen.answers.size : 0;
-        },
-
-        /** `prefixWitness` worked out afresh, never from the memo (tests compare the two). */
-        witnessFresh(cursor) {
-            return prefixWitnessUncached(list(), cursor);
-        },
+        // proofs, blockAt, replansFrom, boundaryProblems, payloadHashAt, boundary, timelineMarkers, prefixWitness, witnessScope, witnessMemoSize, witnessFresh: store/read.js
+        proofs, blockAt, replansFrom, boundaryProblems, payloadHashAt, boundary, timelineMarkers, prefixWitness, witnessScope, witnessMemoSize, witnessFresh,
 
         /** Marks the chat as changed outside its records (the timeline's archive in the chat's metadata): the next save writes it. */
         touch() {
