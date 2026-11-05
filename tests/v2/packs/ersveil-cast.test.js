@@ -42,7 +42,7 @@ test('the cast is the twelve, in order, and the whole list passes the cast check
 test('every text sits inside the cast limits, and a secret has a rule (a meter, an event or both)', () => {
     for (const person of cast()) {
         const at = field => `${person.id}.${field}`;
-        for (const field of ['about', 'look', 'voice', 'personality', 'history']) assert.ok(chars(person[field]) <= CAST_LIMITS[field], at(field));
+        for (const field of ['about', 'look', 'wears', 'voice', 'personality', 'history']) assert.ok(chars(person[field]) <= CAST_LIMITS[field], at(field));
         assert.ok(chars(person.start.place) <= CAST_LIMITS.place && chars(person.start.goal) <= CAST_LIMITS.goal && chars(person.start.routine) <= CAST_LIMITS.routine, at('start'));
         assert.ok(person.drawnTo.length >= 1 && person.drawnTo.length <= CAST_LIMITS.drawnTo, at('drawnTo'));
         assert.ok(Object.keys(person.fields).length <= CAST_LIMITS.fields && 'Level' in person.fields, at('fields'));
@@ -54,7 +54,7 @@ test('every text sits inside the cast limits, and a secret has a rule (a meter, 
             if (secret.when) assert.ok(chars(secret.when) <= CAST_LIMITS.secretWhen, `${secret.title}: when`);
         }
         for (const stage of person.stages) assert.ok(chars(stage.name) <= METER_LIMITS.name && (!stage.milestone || chars(stage.milestone) <= METER_LIMITS.milestone), `${person.id}: ${stage.id}`);
-        for (const text of [person.about, person.look, person.voice, person.personality, person.history, ...person.secrets.map(secret => secret.text)]) assert.doesNotMatch(text, /[<>{}|]/, person.id);
+        for (const text of [person.about, person.look, person.wears, person.voice, person.personality, person.history, ...person.secrets.map(secret => secret.text)]) assert.doesNotMatch(text, /[<>{}|]/, person.id);
     }
 });
 
@@ -111,12 +111,33 @@ const LOCKED = {
     barney: ['rigged', 'on purpose', 'debt-collector', 'penance', 'fever-house', 'ysmeth'],
 };
 
-test('what a secret says is not in the lines that are told from the start (about, look, voice, personality, history, goal, routine)', () => {
+test('what a secret says is not in the lines that are told from the start (about, look, wears, voice, personality, history, goal, routine)', () => {
     assert.deepEqual(Object.keys(LOCKED), IDS);
     for (const person of cast()) {
-        const told = [person.about, person.look, person.voice, person.personality, person.history, person.start.goal, person.start.routine].join(' ').toLowerCase();
+        const told = [person.about, person.look, person.wears, person.voice, person.personality, person.history, person.start.goal, person.start.routine].join(' ').toLowerCase();
         for (const word of LOCKED[person.id]) assert.equal(told.includes(word), false, `${person.id}: "${word}" is a secret`);
     }
+});
+
+// `look` is the body; `wears` is what they usually wear and carry (USER 5 Nov). The words below name clothing and gear, so none may
+// stay in a look. Checked by hand against the twelve: the only hit is Nysseth's "collar", in "a pale ring of scar around her throat
+// where her collar was", which is the scar (a body mark), so it is allowed for her alone. "Banners" are not on the list: the
+// banners, fort, ship and harbour at the end of some looks are the portrait's backdrop, not clothing.
+const CLOTHING = /\b(habit|robes?|coats?|cloaks?|armou?r|mail|boots?|sash|ribbons?|pendants?|censer|belts?|belted|veils?|hoods?|hooded|gloves|aprons?|tunics?|dress|scarf|jackets?|collars?|waistcoats?|skirts?|shirts?|blouse|corset|trousers|hats?|plate|earrings?|bracelets?|brooch|pouch|satchel|cutlass|hammer|axe|maul|knives|knife|spectacles)\b/i;
+const BODY_WORDS_ALLOWED = { nysseth: ['collar'] };
+
+test('every one of the twelve has a look (the body) and a wears (clothes and gear); no clothing word is left in a look', () => {
+    for (const person of cast()) {
+        assert.ok(typeof person.look === 'string' && person.look.length > 0, `${person.id}: look`);
+        assert.ok(typeof person.wears === 'string' && person.wears.length > 0, `${person.id}: wears`);
+        const hit = person.look.match(new RegExp(CLOTHING.source, 'gi'))?.filter(word => !(BODY_WORDS_ALLOWED[person.id] ?? []).includes(word.toLowerCase())) ?? [];
+        assert.deepEqual(hit, [], `${person.id}: clothing words left in look`);
+        assert.match(person.wears, CLOTHING, `${person.id}: wears names something worn or carried`);
+    }
+    assert.match(cast().find(person => person.id === 'nysseth').look, /scar around her throat where her collar was/);
+    // Every cast key passes through the normalizer with wears kept (the pack checker keeps it in the entry).
+    const checked = checkCast(cast(), 'ersveil', () => {}, validatePack(JSON.parse(packText)).pack.content.items);
+    for (const person of checked) assert.equal(person.wears, cast().find(raw => raw.id === person.id).wears, person.id);
 });
 
 test('the portraits: one WebP per person, a long side of 1200 pixels at most, at most 150 KB (the import takes 150)', () => {

@@ -181,3 +181,20 @@ test('the part answers packs.content for cast over installed packs, and the list
     await packs.setEnabled('mini', false);
     assert.deepEqual(part.queries['packs.content']({}, { kind: 'cast' }), []);
 });
+
+test('wears is optional text, kept after look only when given, and has its own limit', () => {
+    assert.equal(CAST_LIMITS.wears, 300);
+    assert.equal('wears' in ok(withCast([person()])).content.cast[0], false, 'left out when not given');
+    const [fenna] = ok(one({ wears: 'A tar-stained\n  coat, a   boat hook.' })).content.cast;
+    assert.equal(fenna.wears, 'A tar-stained coat, a boat hook.', 'one plain line, like look');
+    assert.deepEqual(Object.keys(fenna).slice(0, 6), ['id', 'name', 'aliases', 'about', 'look', 'wears']);
+    ok(one({ wears: 'a'.repeat(CAST_LIMITS.wears) }));
+    refused(one({ wears: 'a'.repeat(CAST_LIMITS.wears + 1) }), 'BAD_RECORD', 'content.cast[0].wears');
+    refused(one({ wears: 'A <b>coat</b>' }), 'BAD_RECORD', 'content.cast[0].wears');
+    refused(one({ wears: '{{user}}' }), 'BAD_RECORD', 'content.cast[0].wears');
+    for (const wears of [5, true, ['a coat'], { coat: 1 }, '', '   ', null]) refused(one({ wears }), 'BAD_RECORD', 'content.cast[0].wears');
+    // Unknown fields are still refused, and the message now lists wears among the cast fields.
+    refused(one({ outfit: 'x' }), 'UNKNOWN_FIELD', 'content.cast[0].outfit');
+    const message = validatePack(JSON.stringify(one({ outfit: 'x' }))).errors.find(error => error.path === 'content.cast[0].outfit').message;
+    assert.match(message, /look, wears, voice/);
+});

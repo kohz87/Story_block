@@ -17,7 +17,8 @@ Rules packs for RPG Battle cannot be imported. Keep existing RPG Battle chats on
 ```json
 { "id": "fenna", "name": "Fenna", "aliases": ["the ferrywoman"],
   "about": "Runs the night ferry between Bluewatch and Ashford.",
-  "look": "Late thirties, wiry, black hair tied back, a tar-stained coat.",
+  "look": "Late thirties, wiry, black hair tied back.",
+  "wears": "A tar-stained coat.",
   "voice": "Dry and unhurried.", "personality": "Patient, watchful.", "history": "Lost her husband to the weir in 598.",
   "portrait": "fenna.webp",
   "start": { "place": "Bluewatch docks", "goal": "Find out who opened the weir.", "routine": "Works the night ferry from dusk." },
@@ -31,13 +32,13 @@ Rules packs for RPG Battle cannot be imported. Keep existing RPG Battle chats on
   "canDieUnmet": false }
 ```
 
-- Required: `id` (lowercase letters, digits and dashes, unique in the pack; the person's key is `pack:id`), `name`, `about`, `look`, and `start` with `place` and `goal`. Everything else is optional.
+- Required: `id` (lowercase letters, digits and dashes, unique in the pack; the person's key is `pack:id`), `name`, `about`, `look`, and `start` with `place` and `goal`. Everything else is optional. `look` is the body only (species, age, build, face, hair, eyes, ears, tail, scars, permanent marks, bearing); `wears` (optional) is what they usually wear and carry: clothes, armour, jewellery, gear on them, and how they wear it. NPC State Delta's dossier puts `look` in the physical appearance and `wears` in the outfit. An older Story Block refuses `wears` as an unknown cast field.
 - Text is plain and one line (line breaks become spaces); `< > { }` are refused everywhere and `|` in names, places, goals, routines and phrases. `aliases` (at most 8) and a name may not repeat another person's in the pack.
 - `meters` is `{ "preset"?: id, "<meter>": whole number }`: starting values for NPC State Delta's meters (trust, affection, desire, tension; loyalty, respect, rivalry and approval, which NPC State Delta's built-in presets companion, rival and mentor add; a preset of the pack's own or the reader's; or ones listed here; `preset` is any preset id, checked by NPC State Delta, not here: this host checks only that it is a well-formed id). The built-in preset ids are exported as `CAST_BUILT_IN_PRESETS` (`packs/limits.js`: `companion`, `rival`, `mentor`), for an editor that offers them; a test pins the list against NPC State Delta's own, -1000 to 1000. `stages` have the shape of a meter preset's stages (`id`, `name`, `needs: [{ meter, at }]`, `milestone`; at most 8). `fields` are at most 6 short facts (name up to 40, value up to 60 characters).
 - A secret has a `title` and `text` and opens by a meter reaching a value (`meter` and `at`, like a stage), by a story event (`when`, up to 120 characters), or by both, in which case it opens at the meter value or on the story event, whichever comes first; it needs at least one of the two; at most 8. The story never rewrites them.
 - `drawnTo`: up to 6 short phrases for what pulls the person to the party. `canDieUnmet`: true lets the story kill them before the party has met them (otherwise only a reader's setting does).
 - `gear`: up to 6 of this pack's items (slug or name) the person is known for, kept as the items' ids. Each must be equipment with a gear slot (weapon, body, off-hand, head, cloak, feet, accessory), one item to a slot (an accessory may take two); an unknown item, a non-equipment item, a slot clash, a repeat or more than six is refused with the entry and item named. It does nothing while `story-block.gear` is off. With it on, the person's `+ party` line (or the Ask card's Add to party) also gives them these items, owned by them and put on, as part of the join's one receipt; see GEAR.md "Signature gear".
-- Limits (`packs/limits.js` `CAST_LIMITS`): 64 people per pack; about 300, look 600, voice 300, personality 600, history 1,200 characters; place 80, goal and routine 200.
+- Limits (`packs/limits.js` `CAST_LIMITS`): 64 people per pack; about 300, look 600, wears 300, voice 300, personality 600, history 1,200 characters; place 80, goal and routine 200.
 
 - `skills`: 1 to 8 signature skills, `[{ "name", "about", "stat", "uses", "rank" }]`; leave the key out for none (an empty list is refused). `name` 1 to 40 characters, `about` 1 to 120 (one line, no `< > { } |`), `stat` one of `str vit agi dex int luk cha` (required), `uses` `stamina` (default) or `mana`, `rank` `novice` (default), `adept`, `expert` or `master`. A name once for each person (case and spacing ignored); any other key is refused (`UNKNOWN_FIELD`); the entry and index are named. No rank cap by level: the author decides. With the RPG on, they are put in the person's skill slots **when they join**, as written and marked signature; see RPG.md "Signature skills".
 
