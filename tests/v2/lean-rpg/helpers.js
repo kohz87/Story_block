@@ -75,13 +75,13 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {} } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {}, bare = false } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
     const part = createLeanRpgPart({
         callModel, chat: () => host.ctx.chat, chatId: () => host.ctx.chatId, metadata: () => host.ctx.chatMetadata ?? null,
-        problem: entry => problems.push(entry), moduleId: OWNER, timer, timeoutMs,
+        problem: entry => problems.push(entry), moduleId: OWNER, timer, timeoutMs, plannerValues: () => host?.settings(OWNER) ?? {},
     });
     const module = {
         id: OWNER, name: 'Story Block (RPG test)', version: '0.0.1',
@@ -98,7 +98,11 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         // `earlier`: the rolls are asked for as they were before the dice version, a payload with no `dice` (a chat made on an older build).
         // `levelless`: the rolls are asked for as they were before the Levels rules (a payload with no `lv`: a chat made on an older build); `flowless` and `earlier` drop it too.
         // `flowless`: the rolls are asked for as they were before stage 49's flow (a payload with no `flow`: a chat made on an older build); `earlier` strips the dice version too.
-        hooks: { ...part.hooks, ...(earlier || flowless || levelless || lvless ? { beforeGenerate: Object.assign(async (view, info) => {
+        hooks: { ...part.hooks, ...(bare ? { beforeGenerate: Object.assign(async (view, info) => {
+            // (`bare`: what the hook answered before the no-rolls note existed: the lines, no commands, when the planner gave nothing)
+            const out = await part.hooks.beforeGenerate(view, info);
+            return out?.lines && !out.commands?.some(command => command.type === 'rpg.resolve') ? { lines: out.lines } : out;
+        }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), ...(earlier || flowless || levelless || lvless ? { beforeGenerate: Object.assign(async (view, info) => {
             const out = await part.hooks.beforeGenerate(view, info);
             // (every variant is a roll planned before the Levels rules: no `lv` in the payload and no `levelDivisor` in its numbers)
             return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow, lv: _lv, rules: { levelDivisor: _d, ...rules }, ...payload }, ...command }) => ({ ...command,
