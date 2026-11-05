@@ -211,8 +211,12 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
             input.value = String(next);
             put(setting, next);
         });
-        slot.add(input);
-        if (unit) { const word = h(doc, 'span', 'rpg-set-unit', unit); input.parentNode.insertBefore(word, input.nextSibling); }
+        // A unit stands beside the input on the same row (approved mockup rpg-no-rolls.html: `<div class="row"><input> <span>seconds</span></div>`).
+        if (unit) {
+            const row = h(doc, 'div', 'rpg-set-row');
+            row.append(input, h(doc, 'span', 'rpg-set-unit', unit));
+            slot.add(row);
+        } else slot.add(input);
     }
     function drawLevels() {
         const box = card('levels', S.levels);

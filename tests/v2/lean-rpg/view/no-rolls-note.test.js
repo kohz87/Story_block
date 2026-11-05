@@ -126,7 +126,10 @@ test('Planner time limit: the field under Rolls with the mockup\'s help, 10 to 1
     const box = ctx.doc.querySelector('[data-ss-section="rpg"] [data-card="rolls"]');
     const input = box.querySelector('[data-setting="rpgPlannerSeconds"]');
     assert.deepEqual([input.value, input.getAttribute('min'), input.getAttribute('max'), input.getAttribute('step')], ['45', '10', '120', '5']);
-    assert.deepEqual(box.querySelectorAll('.rpg-set-num > span').map(node => node.textContent), ['Planner time limit', 'seconds']);
+    assert.deepEqual(box.querySelectorAll('.rpg-set-num > span').map(node => node.textContent), ['Planner time limit']);
+    const row = input.parentNode;
+    assert.equal(row.className, 'rpg-set-row', 'the input is in a row');
+    assert.deepEqual(row.children.map(node => node.textContent || node.tagName.toLowerCase()), ['input', 'seconds'], 'the unit is beside the input, on the same row');
     assert.match(box.textContent, /How long the reply waits for the roll planner before it goes on without dice\. 10 to 120, default 45 \(it was a fixed 20\)\. A slow model in Settings → Assist needs more; a fast one answers in a few seconds\./);
     const stored = () => ctx.host.settings('story-block').rpgPlannerSeconds;
     for (const [typed, kept] of [['90', 90], ['5', 10], ['500', 120], ['62', 60], ['63', 65], ['12.4', 10]]) {
