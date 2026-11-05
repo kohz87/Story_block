@@ -125,6 +125,18 @@ test('display lines change no state: no receipt, no op, no meta.rev for them', a
     assert.deepEqual(extrasOf(host), { choice: [{ text: 'Wait' }, { text: 'Leave' }], chatter: [{ name: 'Minke', text: '…dull' }] });
 });
 
+test('a long choice (over 80, up to 160) shows whole after the reply, a reload and a Re-read', async t => {
+    const host = await fresh(t);
+    const long = 'Pay Sister Temiwa two silver, strip off the bloodied shirt and ask her to stitch it before the lye-wash';
+    await host.send('Hello.', block('The wash-house.', [`? choice ${long}`, '? choice Leave']));
+    const index = lastIndex(host);
+    assert.deepEqual(extrasOf(host).choice.map(item => item.text), [long, 'Leave']);
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(extrasOf(host, index).choice.map(item => item.text), [long, 'Leave'], 'a Re-read reads it whole');
+    // Nothing is stored for a choice: the reply keeps the line, so a reload reads the same text.
+    assert.deepEqual(displayLines(JSON.parse(JSON.stringify(host.ctx.chat[index])).mes, { entryOf: word => host.registry.capture(word) }).choice[0].text, long);
+});
+
 test('hostile input: too many lines are Problems (first ones kept), markup and junk are refused or kept as text', async t => {
     const host = await fresh(t);
     const lines = [
