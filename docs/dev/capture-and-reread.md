@@ -51,8 +51,9 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
   (`findBlocks`, `readBlocks`, `hasHidden`, `markOff`, `continuation`, `withoutReasoning`, `cutLine`, `defangMarker`),
   `echo.js` (`assistSections`, `withAssist`, echoed lines, `readParts`), `legacy.js` (the v1 envelope),
   `stray.js` (`strayLines`, `inOrder`, `dropLines`). Import order is one way: lines, blocks, echo, legacy / stray.
-- `src/v2/turn.js`: `onMessageReceived`, `captureLines`, `captureEach`, `afterCapture`, `captureLate`, `readBlock`,
-  `strayProblems`, `capped`, `storySeeds`, `stepSeeds`; `src/v2/turn/reread.js`: `reread`, `saveText`, `redraw` (`createReread`);
+- `src/v2/turn.js`: `onMessageReceived`, `captureLate` (and the other events); `src/v2/turn/capture-flow.js`: `captureLines`,
+  `captureEach`, `afterCapture`, `readBlock`, `strayProblems`, `capped`, `storySeeds`, `stepSeeds` (`createCaptureFlow`);
+  `src/v2/turn/reread.js`: `reread`, `saveText`, `redraw` (`createReread`);
   `src/v2/turn/session.js`: `problem`, `trySave`, `rebuild`, `planAgain`, `reconcileNow`, `repair` (`createSession`).
 - `src/v2/store.js`: `replaceStory(index, { ops, receipts })`, `append`, `setNarrated`.
 - `src/v2/extras.js`: `readDisplayLine`, `displayLines`, `readChoice`, `readChatter`.
