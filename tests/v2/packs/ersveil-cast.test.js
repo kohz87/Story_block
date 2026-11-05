@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { checkCast } from '../../../src/v2/packs/cast.js';
-import { CAST_LIMITS, METER_LIMITS, PORTRAIT_LIMITS, ZIP_LIMITS } from '../../../src/v2/packs/limits.js';
+import { CAST_BEHAVIOUR_LEVELS, CAST_BEHAVIOUR_LEVERS, CAST_LIMITS, METER_LIMITS, PORTRAIT_LIMITS, ZIP_LIMITS } from '../../../src/v2/packs/limits.js';
 import { readPackZip } from '../../../src/v2/packs/bundle.js';
 import { createPacksPart } from '../../../src/v2/packs/index.js';
 import { fakeSettings } from './helpers/fake-settings.js';
@@ -42,7 +42,7 @@ test('the cast is the twelve, in order, and the whole list passes the cast check
 test('every text sits inside the cast limits, and a secret has a rule (a meter, an event or both)', () => {
     for (const person of cast()) {
         const at = field => `${person.id}.${field}`;
-        for (const field of ['about', 'look', 'wears', 'voice', 'personality', 'history']) assert.ok(chars(person[field]) <= CAST_LIMITS[field], at(field));
+        for (const field of ['about', 'look', 'wears', 'voice', 'personality', 'withYou', 'history']) assert.ok(person[field] === undefined || chars(person[field]) <= CAST_LIMITS[field], at(field));
         assert.ok(chars(person.start.place) <= CAST_LIMITS.place && chars(person.start.goal) <= CAST_LIMITS.goal && chars(person.start.routine) <= CAST_LIMITS.routine, at('start'));
         assert.ok(person.drawnTo.length >= 1 && person.drawnTo.length <= CAST_LIMITS.drawnTo, at('drawnTo'));
         assert.ok(Object.keys(person.fields).length <= CAST_LIMITS.fields && 'Level' in person.fields, at('fields'));
@@ -54,7 +54,7 @@ test('every text sits inside the cast limits, and a secret has a rule (a meter, 
             if (secret.when) assert.ok(chars(secret.when) <= CAST_LIMITS.secretWhen, `${secret.title}: when`);
         }
         for (const stage of person.stages) assert.ok(chars(stage.name) <= METER_LIMITS.name && (!stage.milestone || chars(stage.milestone) <= METER_LIMITS.milestone), `${person.id}: ${stage.id}`);
-        for (const text of [person.about, person.look, person.wears, person.voice, person.personality, person.history, ...person.secrets.map(secret => secret.text)]) assert.doesNotMatch(text, /[<>{}|]/, person.id);
+        for (const text of [person.about, person.look, person.wears, person.voice, person.personality, ...(person.behaviour ?? []), ...(person.mannerisms ?? []), person.withYou ?? '', person.history, ...person.secrets.map(secret => secret.text)]) assert.doesNotMatch(text, /[<>{}|]/, person.id);
     }
 });
 
@@ -114,7 +114,7 @@ const LOCKED = {
 test('what a secret says is not in the lines that are told from the start (about, look, wears, voice, personality, history, goal, routine)', () => {
     assert.deepEqual(Object.keys(LOCKED), IDS);
     for (const person of cast()) {
-        const told = [person.about, person.look, person.wears, person.voice, person.personality, person.history, person.start.goal, person.start.routine].join(' ').toLowerCase();
+        const told = [person.about, person.look, person.wears, person.voice, person.personality, ...(person.behaviour ?? []), ...(person.mannerisms ?? []), person.withYou ?? '', person.history, person.start.goal, person.start.routine].join(' ').toLowerCase();
         for (const word of LOCKED[person.id]) assert.equal(told.includes(word), false, `${person.id}: "${word}" is a secret`);
     }
 });
@@ -190,4 +190,45 @@ test('pack.json stays under 512 KB, and the pack with its twelve portraits is on
     assert.equal(portraitFiles.files.size, 12);
     assert.equal(made.packs.list()[0].counts.cast, 12);
     assert.ok(made.part.queries['packs.portrait']({}, { pack: 'ersveil', file: 'hush.webp' }), 'a portrait is found by pack and file');
+});
+
+// The characters of each personality before it was split (the 12 of Story Block main, 5 Nov): each is now shorter, and what was in it went to
+// behaviour (how they respond), mannerisms (habits) and withYou (anything about the player character).
+const PERSONALITY_BEFORE = { temiwa: 600, ysmeth: 555, nysseth: 501, rika: 508, harrak: 480, torka: 579, lothar: 371, gorm: 450, nerissa: 518, hush: 340, asphodel: 445, barney: 430 };
+
+test('every one of the twelve has its personality split: shorter than before, within 600, the player character only in withYou, levers valid', () => {
+    assert.deepEqual(Object.keys(PERSONALITY_BEFORE), IDS);
+    const you = /\b(you|your|yours|yourself|player)\b/i;
+    for (const person of cast()) {
+        assert.ok(chars(person.personality) <= CAST_LIMITS.personality && chars(person.personality) < PERSONALITY_BEFORE[person.id], `${person.id}: personality shorter`);
+        assert.doesNotMatch(person.personality, you, `${person.id}: personality has no you/your`);
+        assert.ok(Array.isArray(person.behaviour) && person.behaviour.length >= 1 && person.behaviour.length <= CAST_LIMITS.behaviour, `${person.id}: behaviour`);
+        const seen = new Set();
+        for (const line of person.behaviour) {
+            const match = /^(\w+): (low|medium|high) - (.+)$/.exec(line);
+            assert.ok(match, `${person.id}: "${line}" reads Lever: level - effect`);
+            assert.ok(CAST_BEHAVIOUR_LEVERS.includes(match[1]) && CAST_BEHAVIOUR_LEVELS.includes(match[2]), `${person.id}: ${line}`);
+            assert.ok(chars(match[3]) <= CAST_LIMITS.behaviourEffect, `${person.id}: ${line}`);
+            assert.doesNotMatch(match[3], you, `${person.id}: behaviour is not toward the player (${line})`);
+            assert.equal(seen.has(match[1]), false, `${person.id}: ${match[1]} once`);
+            seen.add(match[1]);
+        }
+        assert.ok(person.mannerisms.length >= 1 && person.mannerisms.length <= CAST_LIMITS.mannerisms, `${person.id}: mannerisms`);
+        for (const habit of person.mannerisms) assert.ok(chars(habit) <= CAST_LIMITS.mannerism, `${person.id}: ${habit}`);
+        if (person.withYou !== undefined) assert.ok(chars(person.withYou) <= CAST_LIMITS.withYou, `${person.id}: withYou`);
+    }
+    // Who has something about the player character: the eight whose text named "you" or the player before.
+    assert.deepEqual(cast().filter(person => person.withYou).map(person => person.id), ['temiwa', 'ysmeth', 'nysseth', 'harrak', 'torka', 'lothar', 'nerissa', 'asphodel']);
+    // The checker keeps all three, in the form the pack wrote.
+    const checked = checkCast(cast(), 'ersveil', () => {}, validatePack(JSON.parse(packText)).pack.content.items);
+    for (const person of checked) {
+        const raw = cast().find(entry => entry.id === person.id);
+        assert.deepEqual([person.behaviour, person.mannerisms, person.withYou], [raw.behaviour, raw.mannerisms, raw.withYou], person.id);
+    }
+    // Temiwa as the approved mockup has it: the habit left her voice, the levers keep the original words.
+    const temiwa = cast().find(person => person.id === 'temiwa');
+    assert.doesNotMatch(temiwa.voice, /laughs/i);
+    assert.ok(temiwa.mannerisms.includes('Laughs a little too easily at pain'));
+    assert.ok(temiwa.behaviour.some(line => line.startsWith('Mercy: low - stitches those who annoy her slower than she must')));
+    assert.match(temiwa.withYou, /sudden sweetness to you/);
 });
