@@ -21,12 +21,12 @@
 // turn.js receives the SillyTavern context and the host parts; it never imports the store or
 // the command bus (their interfaces are docs/v2/SPEC.md §12).
 
-import { LEGACY_PROBLEM, adoptLegacy, assistSections, continuation, cutLine, defangMarker, extractBlock, grammarHeads, hasHidden, hasLegacy, hideBlock, legacyRead, markCaps, markOff, parseChanges, sameChangeLine, strayLines, stripBlock, withAssist } from './capture.js';
+import { LEGACY_PROBLEM, adoptLegacy, assistSections, continuation, cutLine, defangMarker, extractBlock, grammarHeads, hasHidden, hasLegacy, hideBlock, markCaps, markOff, parseChanges, sameChangeLine, strayLines, stripBlock, withAssist } from './capture.js';
 import { notWritten } from './assist/extractor.js';
 import { PRECHECK } from './assist/classifier.js';
 import { refusedWhy } from './assist/safety.js';
 import { CHATTER_MAX, displayLines, readDisplayLine } from './extras.js';
-import { occurrenceOf, operationKey, replacedProofs, reusePlan } from './evidence.js';
+import { occurrenceOf, operationKey } from './evidence.js';
 import { hash, readRecord, swipeLoading } from './persist.js';
 import { CAPTURE_PREFIX, HOST_MODULE } from './registry.js';
 import { assemble, contextNotice, estimateTokens } from './prompt.js';
@@ -43,6 +43,8 @@ import {
     contentText, contextRoom, within, TIMED_OUT, substituteNames, defuseMacros, stripBattleMarker, mapContent,
     firstLine, quietMark, QUIET_KEEP, QUIET_WAIT_MS, textPattern, restoreMissing,
 } from './turn/text.js';
+import { createSession } from './turn/session.js';
+import { createReread } from './turn/reread.js';
 export { QUIET_MARK_MIN, QUIET_WAIT_MS, MAX_NAME, stripBattleMarker, contextRoom, defuseMacros, flatName, substituteNames, quietMark, restoreMissing } from './turn/text.js';
 
 export const STATIC_KEY = 'story_suite_static';
@@ -143,134 +145,15 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         try { return live() ?? ctx; } catch { return ctx; }
     };
     const contextNow = () => contextRoom(liveContext(), s.lastSize);
-    function markBusy() {
-        s.replyBusy = true;
-        if (s.busyTimer !== null) clearTimeout(s.busyTimer);
-        s.busyTimer = setTimeout(markIdle, REPLY_BUSY_MAX_MS);
-        s.busyTimer?.unref?.();
-    }
-    function markIdle() {
-        s.replyBusy = false;
-        if (s.busyTimer !== null) clearTimeout(s.busyTimer);
-        s.busyTimer = null;
-        const waiters = s.idleWaiters;
-        s.idleWaiters = [];
-        for (const resolve of waiters) resolve();
-    }
     const whenIdle = () => (s.replyBusy ? new Promise(resolve => s.idleWaiters.push(resolve)) : Promise.resolve());
     // Our own model call's prompt (model-call.js) is never the reply's.
     const isOwn = eventData => {
         try { return ownPrompt(eventData) === true; } catch { return false; }
     };
 
-    function setPrompt(key, text, place) {
-        if (typeof ctx?.setExtensionPrompt !== 'function') return;
-        ctx.setExtensionPrompt(key, text, position(place), 0, false, roles().SYSTEM ?? ROLE_SYSTEM);
-    }
-    function setPrompts(staticText, tailText) {
-        s.slots = { staticText, tailText };
-        setPrompt(STATIC_KEY, staticText, 'static');
-        setPrompt(TAIL_KEY, tailText, 'tail');
-    }
-    const clearPrompts = () => setPrompts('', '');
-
-    function problem(entry) {
-        const item = { module: null, code: 'PROBLEM', ...entry };
-        s.problemLog.push(item);
-        if (s.problemLog.length > MAX_PROBLEMS) s.problemLog.splice(0, s.problemLog.length - MAX_PROBLEMS);
-        // A quiet one (a line of a feature the reader turned off) is listed, not warned about.
-        if (item.quiet !== true) console.warn(`[Story Suite] ${item.module ? `${item.module}: ` : ''}${item.message}`);
-        return item;
-    }
-
-    // A save that fails never costs the turn (SPEC §3.3): the reader is told, the state stays in
-    // memory marked unsaved, and the save is tried again after the reply (or with the next change).
-    async function trySave(when) {
-        try {
-            await store.flush();
-            return true;
-        } catch (error) {
-            const why = String(error?.message ?? error).trim().replace(/[.\s]*$/, '.');
-            const reason = `The story could not be saved ${when}: ${why} It is kept and will be saved again.`;
-            problem({ code: 'SAVE_FAILED', message: reason });
-            try { notify?.(reason, null); } catch { /* a missing toastr is not an error */ }
-            return false;
-        }
-    }
-
     const view = () => makeView({ store, registry, settings, chat: ctx?.chat, active: viewReader });
     const hasCarrier = () => (ctx?.chat ?? []).some(isCarrier);
     const lastCarrier = () => (ctx?.chat ?? []).findLastIndex(isCarrier);
-
-    // The chat's state starts on its first carrier; a damaged record set up again goes to the Problems.
-    function ensureInitial() {
-        const notes = store.ensureInitial(initial());
-        for (const note of Array.isArray(notes) ? notes : []) problem({ code: 'DAMAGED', message: note, ...(repairActions().length ? { actions: repairActions() } : {}) });
-    }
-
-    // What the reader may do about a story that Story Block keeps as it is (read-only), only on their say, each asked
-    // twice (never automatic): the actions the Problem carries and Settings → Diagnostics shows. A record from a newer
-    // version has none: update Story Block.
-    const START_OVER = Object.freeze({ id: 'start-over', label: 'Start this chat\'s story state over', confirm: 'The saved story state of this chat cannot be used as it is, and it is kept aside. Starting over begins the story\'s numbers (items, money, places) from their start, and the replies after it add their changes again. Start over?' });
-    const KEEP_EARLIEST = Object.freeze({ id: 'keep-earliest', label: 'Keep the story state from the earliest saved point', confirm: 'The replies before the earliest saved point of this story are gone, and this session could not check what they did. Keeping it trusts that saved point as the start of the story, with whatever the deleted replies left in it. Keep it?' });
-    function repairActions() {
-        const kept = store.readOnly?.();
-        if (!kept || kept.kind === 'future') return [];
-        return kept.kind === 'unresolved' ? [KEEP_EARLIEST, START_OVER] : [START_OVER];
-    }
-    /** The reader's confirmed repair (store.startOver / keepEarliest): → { ok: true } | { ok: false, code, message }. */
-    async function repair(id, { confirmed = false } = {}) {
-        try {
-            if (id === 'keep-earliest') store.keepEarliest?.({ confirmed });
-            else if (id === 'start-over') store.startOver?.({ confirmed });
-            else return refusal('NOT_FOUND', `There is no repair called "${id}".`);
-        } catch (error) {
-            return refusal('REFUSED', error?.message ?? String(error));
-        }
-        rebuild({ reason: 'repair' });
-        await trySave('after the repair');
-        return { ok: true };
-    }
-    const startOver = options => repair('start-over', options);
-
-    // `publish: false`: the caller finishes its own work first (reconciling after a delete) and tells the screens once.
-    // `reason` (repair, ...) rides on the head event for the public API's `story:rebuilt` (public-api.js).
-    function rebuild({ publish = true, reason = null } = {}) {
-        store.rebuild();
-        if (hasCarrier()) ensureInitial();
-        if (publish) events?.emit('head', { index: store.headIndex(), ...(reason ? { reason } : {}) });
-    }
-
-    // A guarded system step with a `replan` planned again (store.replaceStory / store.reconcile's `rerun`): as its
-    // span saved it (type, payload, seed: `info.replan`; the receipt is only what was shown), on `state`, on the
-    // reply it is kept on (`own` for the one a Re-read is on), keeping its ordinal.
-    function planAgain(state, receipt, info = null, own = null) {
-        const plan = info?.replan ?? { type: receipt.type, payload: receipt.replan?.payload ?? {}, seed: receipt.seed };
-        const at = Number.isInteger(info?.index) ? info.index : null;
-        const reply = own ?? (at !== null && store.carrierSid?.(at) ? { index: at, sid: store.carrierSid(at) } : null);
-        const ordinal = info?.span?.source?.ordinal;
-        // The proof of the block being planned again may be given again: the step keeps its ids.
-        const replacing = Array.isArray(info?.span?.evidence) ? info.span.evidence : [];
-        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, reusing: typeof info?.span?.id === 'string' ? info.span : null, ...(Number.isInteger(info?.occurrence) ? { occurrence: info.occurrence } : {}), ...(reply ? { reply: { ...reply, ...(Number.isInteger(ordinal) ? { ordinal } : {}), ...(Number.isInteger(info?.opsBefore) ? { opsBefore: info.opsBefore } : {}) } } : {}) });
-    }
-
-    // After a delete or swipe (REPLAY.md "Reconciling"): the guarded steps that carry a `replan` are planned again
-    // from the first one on, in the same save window; steps that come out as they were change nothing and write
-    // nothing. Not while the story record is read-only. What was planned again is a Problem, quietly.
-    function reconcileNow() {
-        const from = store.replansFrom?.();
-        if (!Number.isInteger(from) || store.readOnly?.()) return;
-        try {
-            const done = store.reconcile(from, { rerun: planAgain });
-            if (!done.changed) return;
-            store.scheduleSave?.();
-            const parts = [done.planned ? `${done.planned} planned again` : '', done.removed ? `${done.removed} taken back` : ''].filter(Boolean).join(', ');
-            if (!parts) return;     // (revs numbered on, nothing the reader needs told)
-            problem({ code: 'REPLANNED', quiet: true, message: `The story before some steps changed, so ${parts || 'steps'} (their changes follow what is there now).` });
-        } catch (error) {
-            problem({ code: 'FAILED', message: `Steps that follow the change could not be planned again: ${error?.message ?? error}` });
-        }
-    }
 
     // The commands run as preludes: Assist's pre-roll, and any command a module marks `prelude` (registry.isPrelude).
     const isPrelude = type => type === PRECHECK || registry.isPrelude?.(type) === true;
@@ -1057,134 +940,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         return { code: life?.status === 'restore-pending' ? 'RESTORE_PENDING' : 'DEPENDENCY_UNAVAILABLE', name: registry.module?.(id)?.name ?? id, reason: life?.reason ?? 'It is not running.' };
     }
 
-    async function reread(index) {
-        const chat = ctx?.chat ?? [];
-        const message = Number.isInteger(index) ? chat[index] : undefined;
-        if (!message) return refusal('NOT_FOUND', `There is no message ${index} in this chat.`);
-        if (message.is_user) return refusal('REFUSED', 'This is the reader\'s own message; only replies hold story changes.');
-        // (a reply a restore hid keeps its record, and can be read again; a system message of SillyTavern's has none)
-        if (message.is_system && !readRecord(message)) return refusal('REFUSED', 'This is a system message; it holds no story changes.');
-        if (s.session) return refusal('REFUSED', 'A reply is being written; Re-read once it is done.');
-        if (!readRecord(message)) return refusal('REFUSED', 'This reply keeps no story record, so there is nothing to read again.');
-        const base = store.before?.(index);
-        if (!base) return refusal('FAILED', 'This chat has no story state yet.');
-        const stored = String(message.mes ?? '');
-        // A v1 envelope is read as the live capture reads it (an older reply that wrote its changes only there gets them now).
-        const adopted = adoptLegacy(stored);
-        const mes = adopted.text;
-        const heads = changeHeads();
-        const block = extractBlock(mes, 'Changes', null, { heads });
-        const parsed = block === null ? { lines: [], problems: [] } : readBlock(index, block);
-        const problems = [...parsed.problems, ...strayProblems(index, mes, heads, {}, parsed.lines.map(line => line.raw))];
-        if (adopted.legacy === 'read' || legacyRead(mes)) problems.push(legacyProblem(index));
-        const receipts = [];
-        const lines = capped(index, parsed.lines, problems);
-        // The safety net's stored lines (MODULES §F123): the previous reply's late ones, then this reply's
-        // own, as the live capture ran them. Never a new model call.
-        const own = lines.map(line => line.raw);
-        const late = lateLines(index, own);
-        const extra = assistRoom(index, [...late.map(line => ({ line, mark: LATE })), ...nowLines(mes, [...own, ...late.map(line => line.raw)], own).map(line => ({ line, mark: NOW }))], lines.length, problems);
-        // A module held back (dormant, or a restore is pending) cannot read its lines again, and replacing the
-        // reply's story without them would lose what it stored: nothing is replaced while one is involved.
-        const waiting = heldInReply(message, [...lines, ...extra.map(item => item.line)]);
-        if (waiting) return refusal(waiting.code, `Re-read is waiting for ${waiting.name}: ${waiting.reason} Nothing was changed.`);
-        const swipe = message.swipe_id;
-        let ops;
-        let off = [];
-        let steps = [];
-        // `replacing`: the proof of the blocks this Re-read replaces (its story lines and its steps): ids of them may be held again by the blocks that replace
-        // them. `reuse`: the occurrences those blocks have, given again per operation while the number of blocks of the operation is unchanged.
-        let plan = null;
-        const problemsFrom = problems.length;
-        const reply = store.carrierSid?.(index) ? { index, sid: store.carrierSid(index) } : null;
-        try {
-            let after;
-            // The Re-read is planned; when an operation has more or fewer blocks than it replaces it is planned again with none of that
-            // operation's old occurrences given back (evidence.js reusePlan), and again while a plan finds another operation changed (the
-            // retired set only grows). Every pass starts from the same inputs but that set: seeds, steps' seeds, plan and outputs are made anew.
-            let retire = new Set();
-            const bound = 32;     // (each pass retires at least one more operation, so a reply ends well before; a plan that does not is not stored)
-            let settled = false;
-            for (let pass = 0; pass <= bound; pass += 1) {
-                receipts.length = 0;
-                problems.length = problemsFrom;
-                steps = [];
-                const seeds = storySeeds(readRecord(message));
-                const record = readRecord(message);
-                // Native checkpoints name exact prefixes. An unchanged reply reusing the same roots must keep their
-                // Sources too, or a fresh ordinal alone changes owner state and silently drops its native checkpoint.
-                // Changed text and chats without published native work retain the ordinary allocation behavior.
-                const preserveSources = timeline?.hasNativeChanges?.() === true
-                    && record?.spans?.some(span => span.boundaries?.[0]?.payloadHash === store.payloadHashAt(index));
-                plan = { blocks: [], pending: 0, replacing: replacedProofs(record), reuse: reusePlan(record, retire), preserveSources };
-                const prechecks = (record?.receipts ?? [])
-                    .filter(receipt => receipt.beforeGenerate === true && isPrelude(receipt.type))
-                    .map(receipt => ({ type: receipt.type, payload: receipt.replan?.payload ?? {}, seed: receipt.seed }));
-                const prepared = prechecks.length ? await afterCapture(index, { type: 'reread', problems, state: base, reply, plan, prechecks, onlyPrechecks: true }) : [];
-                plan.blocks.push(...prepared.map(step => ({ n: step.ops.length, receipt: step.receipt, ...(step.block ? { block: step.block } : {}) })));
-                receipts.push(...prepared.map(step => step.receipt));
-                ({ ops, off, state: after } = await captureEach(index, lines, receipts, problems, prepared.at(-1)?.state ?? base, seeds, new Map(), null, plan));
-                ops = [...prepared.flatMap(step => step.ops), ...ops];
-                for (const mark of [LATE, NOW]) {
-                    const group = extra.filter(item => item.mark === mark).map(item => item.line);
-                    if (!group.length) continue;
-                    const more = await captureEach(index, group, receipts, problems, after, seeds, new Map(), mark, plan);
-                    ops = [...ops, ...more.ops];
-                    off = [...new Set([...off, ...more.off])];
-                    after = more.state;
-                }
-                // The reply's afterCapture steps, run again after its new story lines (none when none was kept).
-                if (receipts.length) steps = await afterCapture(index, { type: 'reread', problems, state: after, reply, seeds: stepSeeds(readRecord(message)), plan });
-                else steps = await afterCapture(index, { type: 'reread', problems, state: after, reply, seeds: stepSeeds(readRecord(message)), plan, alwaysOnly: true });
-                const unsure = plan.reuse.ambiguous([...plan.blocks, ...steps]);
-                if (!unsure.length) { settled = true; break; }
-                retire = new Set([...retire, ...unsure]);
-            }
-            // A plan that still reports a changed operation is never stored.
-            if (!settled) return refusal('CONFLICT', 'The reply could not be read again without taking blocks for ones that went; nothing was changed.');
-            // B-b2-timeline-r2: the lines ran while the reader could act (a capture handler may wait). A
-            // message deleted, another chat opened, the reply swiped or edited, or a reply begun in that
-            // time: what was read is no longer this reply's, so nothing is stored (not even on the
-            // message that now stands at `index`).
-            const live = ctx?.chat ?? [];
-            if (live[index] !== message || message.swipe_id !== swipe || String(message.mes ?? '') !== stored || s.session) {
-                return refusal('CONFLICT', 'The chat changed while the reply was read again (a message was deleted, swiped, edited or added); nothing was changed. Press Re-read again.');
-            }
-            // A kept system step marked `replan` (B-a1-13) runs again on the new story changes, as it ran
-            // before: a system step, its own seed.
-            // A guarded block of a later reply is planned again on its own reply, keeping its ordinal (info.span).
-            const rerun = (state, receipt, info = null) => planAgain(state, receipt, info, !Number.isInteger(info?.index) || info.index === index ? reply : null);
-            store.replaceStory(index, { ops, receipts, rerun, settled: steps, blocks: plan.blocks });
-        } catch (error) {
-            return refusal('CONFLICT', `${error?.message ?? error}`);
-        }
-        // The lines it left in the story are listed in the hidden comment (capture.js), and every comment's
-        // display lines are marked as this read found their features (markOff).
-        const hidden = withCaps(markOff(hideBlock(mes, 'Changes', { heads, legacy: adopted.legacy === 'read' }), off, 0), 0, true);
-        if (hidden !== stored) {
-            message.mes = hidden;
-            if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = hidden;
-            redraw(index, message);
-        }
-        timeline?.settle();
-        if (timeline?.needsRecovery()) await timeline.recover();
-        await trySave('after the Re-read');
-        for (const receipt of [...receipts, ...steps.map(step => step.receipt)]) events?.emit('committed', { receipt });
-        events?.emit('head', { index: store.headIndex(), reason: 'reread' });
-        events?.emit('turn', { index, type: 'reread', receipts, steps: steps.map(step => step.receipt), problems, told: [] });
-        return { ok: true, receipts, steps: steps.map(step => step.receipt), problems };
-    }
-
-    // Only the reply's text changed (its block hidden): SillyTavern's own save, told like any other.
-    async function saveText() {
-        try { await ctx.saveChat?.(); } catch (error) {
-            problem({ code: 'SAVE_FAILED', message: `The reply could not be saved: ${error?.message ?? error}` });
-        }
-    }
-
-    function redraw(index, message) {
-        try { ctx.updateMessageBlock?.(index, message); } catch { /* not drawn yet: SillyTavern draws it from the saved text */ }
-    }
+    // Session housekeeping and Re-read (turn/session.js, turn/reread.js): wired here, after every const they are given.
+    const { markBusy, markIdle, setPrompt, setPrompts, clearPrompts, problem, trySave, ensureInitial, repairActions, repair, startOver, rebuild, planAgain, reconcileNow } = createSession(s, { ctx, store, bus, events, notify, initial, position, roles, hasCarrier, refusal, STATIC_KEY, TAIL_KEY, REPLY_BUSY_MAX_MS, MAX_PROBLEMS, ROLE_SYSTEM });
+    const { reread, saveText, redraw } = createReread(s, { ctx, store, events, timeline, refusal, changeHeads, readBlock, strayProblems, capped, lateLines, assistRoom, nowLines, heldInReply, legacyProblem, storySeeds, afterCapture, captureEach, stepSeeds, withCaps, isPrelude, LATE, NOW, planAgain, problem, trySave });
 
     /** MESSAGE_RECEIVED: (messageId, type). */
     async function onMessageReceived(messageId) {

@@ -52,7 +52,8 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
   `echo.js` (`assistSections`, `withAssist`, echoed lines, `readParts`), `legacy.js` (the v1 envelope),
   `stray.js` (`strayLines`, `inOrder`, `dropLines`). Import order is one way: lines, blocks, echo, legacy / stray.
 - `src/v2/turn.js`: `onMessageReceived`, `captureLines`, `captureEach`, `afterCapture`, `captureLate`, `readBlock`,
-  `strayProblems`, `capped`, `storySeeds`, `stepSeeds`, `reread`.
+  `strayProblems`, `capped`, `storySeeds`, `stepSeeds`; `src/v2/turn/reread.js`: `reread`, `saveText`, `redraw` (`createReread`);
+  `src/v2/turn/session.js`: `problem`, `trySave`, `rebuild`, `planAgain`, `reconcileNow`, `repair` (`createSession`).
 - `src/v2/store.js`: `replaceStory(index, { ops, receipts })`, `append`, `setNarrated`.
 - `src/v2/extras.js`: `readDisplayLine`, `displayLines`, `readChoice`, `readChatter`.
 - `src/v2/domains/inventory.js`, `domains/money.js`, `domains/names.js`: the core kinds (`item`, coin forms) and name matching.
