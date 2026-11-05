@@ -84,7 +84,7 @@ export function createEvents(s, deps) {
             }
             if (timeline?.needsRecovery()) {
                 const anchored = await timeline.recover();
-                if (!anchored.ok) problem({ index: id, code: anchored.code, message: anchored.message });
+                if (!anchored.ok && !anchored.blockedBy) problem({ index: id, code: anchored.code, message: anchored.message });
             }
             s.deferred = false;
             // One write for the reply, its capture and the reader's actions after it (store.saveIdle).
