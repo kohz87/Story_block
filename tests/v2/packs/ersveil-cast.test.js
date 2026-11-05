@@ -121,8 +121,7 @@ test('what a secret says is not in the lines that are told from the start (about
 
 // `look` is the body; `wears` is what they usually wear and carry (USER 5 Nov). The words below name clothing and gear, so none may
 // stay in a look. Checked by hand against the twelve: the only hit is Nysseth's "collar", in "a pale ring of scar around her throat
-// where her collar was", which is the scar (a body mark), so it is allowed for her alone. "Banners" are not on the list: the
-// banners, fort, ship and harbour at the end of some looks are the portrait's backdrop, not clothing.
+// where her collar was", which is the scar (a body mark), so it is allowed for her alone.
 const CLOTHING = /\b(habit|robes?|coats?|cloaks?|armou?r|mail|boots?|sash|ribbons?|pendants?|censer|belts?|belted|veils?|hoods?|hooded|gloves|aprons?|tunics?|dress|scarf|jackets?|collars?|waistcoats?|skirts?|shirts?|blouse|corset|trousers|hats?|plate|earrings?|bracelets?|brooch|pouch|satchel|cutlass|hammer|axe|maul|knives|knife|spectacles)\b/i;
 const BODY_WORDS_ALLOWED = { nysseth: ['collar'] };
 
@@ -134,6 +133,13 @@ test('every one of the twelve has a look (the body) and a wears (clothes and gea
         assert.deepEqual(hit, [], `${person.id}: clothing words left in look`);
         assert.match(person.wears, CLOTHING, `${person.id}: wears names something worn or carried`);
     }
+    // Round 2: scene backdrops (banners, a fort, a ship's deck, a harbour, maps "behind her") are portrait staging, in neither field; a manner
+    // ("a sly, seductive air") is personality, so Temiwa's look has no "air" and her personality ends with it, inside its limit.
+    for (const person of cast()) for (const text of [person.look, person.wears]) assert.doesNotMatch(text, /\bbehind (him|her|them)\b/i, person.id);
+    const temiwa = cast().find(person => person.id === 'temiwa');
+    assert.doesNotMatch(temiwa.look, /\bair\b/i);
+    assert.ok(temiwa.personality.endsWith('A sly, seductive air that sits oddly on a holy woman.'));
+    assert.ok(chars(temiwa.personality) <= CAST_LIMITS.personality);
     assert.match(cast().find(person => person.id === 'nysseth').look, /scar around her throat where her collar was/);
     // Every cast key passes through the normalizer with wears kept (the pack checker keeps it in the entry).
     const checked = checkCast(cast(), 'ersveil', () => {}, validatePack(JSON.parse(packText)).pack.content.items);
