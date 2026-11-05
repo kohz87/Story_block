@@ -4,6 +4,7 @@ import { createHost } from '../../testkit/index.js';
 import { nativeModule, rulesModule, restore, clone, reload, NATIVE } from './helpers/timeline.js';
 import { hashJson } from '../../src/v2/replay.js';
 import { createParticipants } from '../../src/v2/timeline/participants.js';
+import { sourceOf } from '../helpers/split-source.js';
 
 async function setup(t) {
     const native = nativeModule();
@@ -97,7 +98,7 @@ test('swipe back, Continue and checkpoint rebuild keep the selected native check
 
 test('selection rules and durability have one implementation site', async () => {
     const { readFile } = await import('node:fs/promises');
-    const coordinator = await readFile(new URL('../../src/v2/timeline/coordinator.js', import.meta.url), 'utf8');
+    const coordinator = sourceOf('src/v2/timeline/coordinator.js');
     const participants = await readFile(new URL('../../src/v2/timeline/participants.js', import.meta.url), 'utf8');
     assert.equal((coordinator.match(/function selectionPlan\(/g) ?? []).length, 1);
     assert.equal((coordinator.match(/await store\.flush\(/g) ?? []).length, 1);
