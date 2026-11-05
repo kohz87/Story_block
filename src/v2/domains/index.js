@@ -81,7 +81,9 @@ export const CORE_KINDS = Object.freeze({
     item: Object.freeze({ grammar: '+ item Name | qty: 1 | note: short detail (- item Name | qty: 1 when used up or lost; ~ item Name | note: … when it changes)' }),
     coin: Object.freeze({ grammar: '+ coin 30 | from: who (- coin 5 | to: who when paid; whenever {{user}} is paid or pays in the story, even a few coins, write the coin line; one number, in the wallet\'s currency)' }),
     place: Object.freeze({ grammar: '~ place Name | kind: settlement|wild|dungeon|… | region: wider area | with: who came along (the rest stay behind)' }),
-    present: Object.freeze({ grammar: '+ present Name when someone arrives, - present Name when they leave; when someone already here is first named, - present the old word and + present the name (- present clerk, + present Nelje)' }),
+    // `after: ['place']`: a move leaves behind everyone it does not bring (scene.js setPlace), so a reply's present lines run behind its place line,
+    // whatever order they were written in (registry captureEntry, capture-flow linesInOrder): the people the story adds at the new place stay.
+    present: Object.freeze({ grammar: '+ present Name when someone arrives, - present Name when they leave; when someone already here is first named, - present the old word and + present the name (- present clerk, + present Nelje)', after: Object.freeze(['place']) }),
     // MODULES §F120: the weather, descriptive only; its grammar line only while `story-block.weather` is on.
     weather: Object.freeze({ grammar: `~ weather cold drizzle, low fog (only when the weather changes, not every reply; a few words, at most ${WEATHER_CHARS} characters)`, feature: CORE_FEATURE.weather }),
     // MODULES §F126: {{user}}'s rank, what they wear and how they are, descriptive only; its grammar line only while `story-block.you` is on.
