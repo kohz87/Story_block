@@ -25,7 +25,7 @@ Story Block's own readers of earlier messages, which read records and text from 
 filter in `src/v2/timeline/active.js` by name (`ACTIVE_READERS`): the Inner chatter tail line and the two chatter queries
 (`chatter.head`, `scene.chatter`, and so the Scene screen), the last reader message a module's view shows, and the late
 safety-net lines of the previous reply. `retainedChatRestore` is true while the hide mechanism works and every one of
-them is wired. Every read of chat messages in `src/` (v1's `src/*.js` and `index.v1.js` are not loaded):
+them is wired. Every read of chat messages in `src/` (v1's code is not on `main`; it lives on the `v1` branch):
 
 | Reader | Status |
 |---|---|
@@ -38,7 +38,7 @@ them is wired. Every read of chat messages in `src/` (v1's `src/*.js` and `index
 | `assist/extractor.js` | not history: the reply just written |
 | `inspect.js`, `ui-host.js`, `extras-ui.js`, `reply-notes.js`, `view/mounts/card.js`, `view/game-header.js` | not a request: the reader's own display of the raw chat, which stays readable |
 | `rewind.js`, `runtime.js` (save, keep-alive size, record lookup by sid), `sdk.js` preflight | not text: structure and records, not what a request says |
-| `coordinator.js` `history`, `activeLine`, `syncHidden` | the rule and the mechanism themselves |
+| `coordinator-read.js` `history`, `activeLine`, `syncHidden` | the rule and the mechanism themselves |
 
 Every head change runs one participant selection rule over exact surviving prefix witnesses and replayed state.
 Until native participants acknowledge that selection the host returns `RESTORE_PENDING`. It settles before heads,

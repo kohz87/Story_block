@@ -17,9 +17,9 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 
 ## Directory map
 
-- `index.js`: wires SillyTavern to the v2 runtime and mounts the UI. `index.v1.js` and `src/*.js` are v1, not loaded.
+- `index.js`: wires SillyTavern to the v2 runtime and mounts the UI. v1's code is not on `main`; it lives on the `v1` branch (entry `index.js`). `src/` keeps three helpers: `id.js`, `text.js`, `ui/dom.js` (the testkit imports them).
 - `src/v2/runtime.js`: builds registry, settings, store, command bus and turn, once (SillyTavern and testkit).
-- `src/v2/store.js`, `src/v2/persist.js`: carriers, checkpoints, replay, head cache; record read/write, saver. `src/v2/store/`: parts of the store (`constants.js`, `digest.js`); store.js keeps its path and exports.
+- `src/v2/store.js`, `src/v2/persist.js`: carriers, checkpoints, replay, head cache; record read/write, saver. `src/v2/store/`: parts of the store (`constants.js`, `digest.js`, `tombs.js`, `sources.js`, `guards.js`; the last three are factories `createX(s, deps)` given the state holder and the store functions they call); store.js keeps its path and exports.
 - `src/v2/chat-file.js`: writes the chat file itself (mirrors SillyTavern's save body; recheck on ST releases).
 - `src/v2/ops.js`, `check.js`, `rng.js`, `commands.js`: draft to ops, validators, sfc32 rng, bus, claims, receipts.
 - `src/v2/capture.js`: the `<Changes>` grammar, block extract/hide, stray lines in the story, Continue text. Entry points (`extractBlock`, `stripBlock`, `hideBlock`) stay here and every old export keeps its path. `src/v2/capture/`: `lines.js` (one change line), `blocks.js` (finding the hidden block, Continue cuts), `echo.js` (assist sections, echoed lines), `legacy.js` (the v1 envelope), `stray.js` (stray lines in prose).
@@ -37,7 +37,7 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 - `testkit/`: fake SillyTavern (`createFakeContext`) and a whole host on it (`createHost`); vendored by modules.
 - `scripts/`: `check.mjs` (syntax), `sync-testkit.mjs`, `bench-v2.mjs` / `bench-long.mjs` (PERFORMANCE.md).
 - `examples/packs/`: `ersveil` (the open-world pack and lorebook) and `riverside-starter` (small). `examples/fishing/`: reference activity.
-- `tests/*.test.js`: v1 tests (still run). `tests/v2/`: v2 tests; `qa/` (fuzz, ownership, security, prompt layout),
+- `tests/*.test.js`: `id.test.js`, `text.test.js` (the helpers kept in `src/`). `tests/v2/`: v2 tests; `qa/` (fuzz, ownership, security, prompt layout),
   `break/` (one file per break finding, named after the finding id), `domains/`, `packs/`, `view/`, `screens/`, `ux/`.
 - `docs/v2/`: the specs (below). `docs/dev/`: short area notes for agents.
 

@@ -275,7 +275,7 @@ test('one rule says what is faded, one mechanism keeps it out of a request, and 
     assert.equal((coordinator.match(/\.faded\b/g) ?? []).length, 1, 'the faded intervals are read in one place');
     assert.equal((coordinator.match(/function syncHidden\(/g) ?? []).length, 1, 'one function hides and shows');
     assert.equal((coordinator.match(/\.is_system = /g) ?? []).length, 1, 'the flag is set in the one `flip`');
-    assert.match(coordinator.slice(coordinator.indexOf('async function history('), coordinator.indexOf('// ---- make')), /activeLine\(\{ ids: true \}\)/);
+    assert.match(coordinator.slice(coordinator.indexOf('async function history('), coordinator.indexOf('    return { settle,')), /activeLine\(\{ ids: true \}\)/);
     for (const path of ['turn.js', 'sdk.js', 'runtime.js', 'domains/index.js']) {
         const source = (await read(path)).replace(/\/\/.*$/gm, '');
         assert.equal(/HOST_DOMAIN|domains\.savepoints|\bfaded:\s*\(|\.is_system\s*=[^=]|chatPrompt|textPrompt|intercept\(/.test(source), false, `${path} decides nothing about what is faded and filters no prompt`);

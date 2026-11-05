@@ -1,13 +1,14 @@
 // An old copy of Story Block (version 1) enabled next to this one (src/v2/v1-copy.js): told once, as one plain Problems line
 // with a notice, from v1's own signs only (its public object, before or after this copy set its own, and its settings
-// drawer), never from anything else, and not at all once it is gone.
+// drawer), never from anything else, and not at all once it is gone. v1's code is not in this repository any more: it lives
+// on the `v1` branch, and its signs are pinned here by a frozen excerpt (fixtures/v1-index-excerpt.txt).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { V1_COPY_CODE, V1_COPY_PROBLEM, createV1Watch, hasV1Settings, isV1Api } from '../../src/v2/v1-copy.js';
 
 const read = path => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
-// v1's public object as index.v1.js builds it (the parts the check looks at).
+// v1's public object as its entry file builds it (the parts the check looks at); v1 itself lives on the `v1` branch.
 const v1Api = () => Object.freeze({ version: '0.9.31', apiVersion: 1, listBlocks: () => [], getBlock: () => null, registerBlock: () => ({ ok: true }), refresh: () => {} });
 const v2Api = () => Object.freeze({ apiVersion: 2, version: '2.16.3', ready: Promise.resolve(), sdk: {} });
 const docWith = ids => ({ getElementById: id => (ids.includes(id) ? { id } : null) });
@@ -17,8 +18,8 @@ function watch({ before = null, now = null, doc = docWith([]) } = {}) {
     return { w, told, set: value => { now = value; } };
 }
 
-test('v1\'s signs are the ones index.v1.js makes, and v2 makes none of them', () => {
-    const v1 = read('index.v1.js');
+test('v1\'s signs are the ones its entry file makes (a frozen excerpt of it), and v2 makes none of them', () => {
+    const v1 = read('tests/v2/fixtures/v1-index-excerpt.txt');
     assert.match(v1, /globalThis\.StoryBlock = Object\.freeze\(\{\s*version: VERSION,\s*apiVersion: 1,/);
     for (const name of ['listBlocks', 'getBlock', 'registerBlock']) assert.match(v1, new RegExp(`\\b${name}\\b`));
     for (const id of ['story_block_rescan', 'story_block_display', 'story_block_money']) assert.ok(v1.includes(`id="${id}"`), id);
