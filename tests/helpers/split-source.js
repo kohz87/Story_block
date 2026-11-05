@@ -10,6 +10,7 @@ export const SPLIT_PARTS = Object.freeze({
     'src/v2/store.js': [
         'src/v2/store/constants.js', 'src/v2/store/digest.js', 'src/v2/store/tombs.js', 'src/v2/store/sources.js', 'src/v2/store/guards.js',
         'src/v2/store/walk.js', 'src/v2/store/replay-blocks.js', 'src/v2/store/memo.js', 'src/v2/store/read.js',
+        'src/v2/store/write.js',
     ],
     'src/v2/turn.js': [
         'src/v2/turn/text.js', 'src/v2/turn/session.js', 'src/v2/turn/reread.js',
