@@ -7,7 +7,7 @@ How the host keeps save points, installs one absolutely on a restore, and lets a
 beside the story take part. [HISTORY.md](HISTORY.md) documents active history and participant head selection.
 Modules that do not use the timeline keep their existing blocks, replay and saves.
 
-Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `manifest.js` the all-domain payload and the restore plan,
+Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `coordinator-read.js` its settle, release, head, list, status, history and the hiding of faded messages, `manifest.js` the all-domain payload and the restore plan,
 `archive.js` the host archive, `participants.js`, `host-block.js` the blocks the host stores itself, `gate.js` the epoch and rules
 check, `part.js` the core module's commands, query and replay guard). Wiring: `runtime.js` makes it, `sdk.js` exposes it
 (`sdk.timeline`, `sdk.command('savepoint.make')`, recovery in `ensureModules`), `store.js` has `boundary()`, `touch()`, the

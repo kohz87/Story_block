@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { createParticipants, PARTICIPANT_TIMEOUT_MS } from '../../src/v2/timeline/participants.js';
 import { nativeModule, rulesModule, restore, clone, batchFor } from './helpers/timeline.js';
+import { sourceOf } from '../helpers/split-source.js';
 
 const turn = () => new Promise(resolve => setImmediate(resolve));
 
@@ -83,7 +84,7 @@ test('old day-start payloads and old pre-restore pins remain readable for retain
 test('native preparation and registered callbacks share one timeout/quarantine implementation', async () => {
     const { readFile } = await import('node:fs/promises');
     const participants = await readFile(new URL('../../src/v2/timeline/participants.js', import.meta.url), 'utf8');
-    const coordinator = await readFile(new URL('../../src/v2/timeline/coordinator.js', import.meta.url), 'utf8');
+    const coordinator = sourceOf('src/v2/timeline/coordinator.js');
     assert.equal((participants.match(/timer = setTimeout\(/g) ?? []).length, 1);
     assert.equal((participants.match(/async function run\(/g) ?? []).length, 1);
     assert.match(participants, /answer = await run\(module,/);
