@@ -46,7 +46,12 @@ export function createPromptBuild(s, deps) {
             for (const entry of Array.isArray(out?.problems) ? out.problems : []) problem({ module: moduleId, code: entry.code, message: entry.message });
             const lines = Array.isArray(out) ? out : Array.isArray(out?.lines) ? out.lines : [];
             // The RPG's rolls and its "no rolls" line outrank ordinary tail notes when the tail is trimmed (prompt.js).
-            if (lines.length) cues[moduleId] = lines.filter(line => typeof line === 'string').map(line => (line === NO_ROLLS_LINE ? { text: line, keep: true } : line));
+            // A hook may give a line as `{ text, keep: true }`: kept whole whatever the budget says (prompt.js `pinned`), like the no-rolls line.
+            const given = lines.map(line => {
+                if (typeof line === 'string') return line === NO_ROLLS_LINE ? { text: line, keep: true } : line;
+                return line && typeof line === 'object' && typeof line.text === 'string' && line.text.trim() ? (line.keep === true ? { text: line.text, keep: true } : line.text) : null;
+            }).filter(line => line !== null);
+            if (given.length) cues[moduleId] = given;
             for (const command of commit && Array.isArray(out?.commands) ? out.commands : []) {
                 // A prelude (Assist's roll, the RPG's rolls) is previewed for the prompt, without writing on the
                 // previous reply. Completion runs the same seed on the generated reply; only that transaction is stored.
