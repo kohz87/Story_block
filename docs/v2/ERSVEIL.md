@@ -124,7 +124,7 @@ opens as Trust or Affection grows or when the story reaches it; none of it is to
 
 Starting levels (rank band): Temiwa 8 (F), Rika 12 and Barney 14 (E), Torka 18 (E), Gorm 22 and Nerissa 24 (D), Asphodel 30, Lothar 32 and Ysmeth 36 (C), Nysseth 44 and Hush 48 (B), Harrak 56 (A).
 
-The eleven who can be romanced use NPC State Delta's companion meters (Trust, Affection, Desire, Tension); Barney uses the mentor's, with no Desire.
+The eleven who can be romanced use NPC State Delta's companion meters (Trust, Affection, Desire, Tension); Barney uses the mentor's, with no Desire. Everyone starts at 0 on every meter: a relationship is built in play, not given at the first meeting.
 
 ### Signature gear
 
