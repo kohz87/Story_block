@@ -74,7 +74,7 @@ test('no call at all with the feature off, with Rolls off, or with no Character 
 
 test('Rolls is automatic until the reader turns it off', () => {
     const part = createLeanRpgPart();
-    assert.deepEqual(part.settings.defaults, { [ROLLS_SETTING]: 'automatic', rpgPracticePerUse: 3, rpgXpRate: 100, rpgLevelCap: 99 });
+    assert.deepEqual(part.settings.defaults, { [ROLLS_SETTING]: 'automatic', rpgPracticePerUse: 3, rpgXpRate: 100, rpgLevelCap: 99, rpgPlannerSeconds: 45 });
 });
 
 test('a Continue, a quiet prompt and an empty message never call', { skip }, async () => {
@@ -151,14 +151,14 @@ test('a timeout, a failed call or an unreadable answer: no rolls, a quiet line i
     }
 });
 
-test('the timeout is Assist\'s twenty seconds, and with no fight the narrator is told nothing', { skip }, async () => {
+test('the timeout is the Planner time limit setting (45 s unset), and with no fight the narrator is told nothing', { skip }, async () => {
     const timer = manualTimer();
     const blocks = PARTY();
     blocks.foes.fields = foeBlock([]);
     const { host, problems } = await setup({ blocks, answers: [NEVER], timer });
     const sent = host.send(MESSAGE, 'Nothing.');
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(timer.lastMs, 20000);
+    assert.equal(timer.lastMs, 45000);
     timer.fire();
     const { request } = await sent;
     assert.equal(problems.length, 1);

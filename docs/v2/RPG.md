@@ -329,6 +329,12 @@ bonus everywhere: checks, attacks and defence.
   foe is filled in and nothing is rolled for a reply, the narrator is told that if a fight starts now it should set the Foes line
   and stop at the first clash, and the dice decide from the next reply.
 
+- **When the planning step gives nothing usable.** If it times out, its call fails or its answer cannot be read, the reply goes on with no
+  dice: a quiet line in Settings → Diagnostics (`ROLLS_SKIPPED`), and, while a fight is live (a filled foe with health), the narrator keeps the fight
+  undecided. In that case the reply also shows a note where the battle log would have stood (at `[battle]`, else under the reply): *No rolls this
+  reply:* and the reason (the planner did not answer within N s, where N is the limit that reply used; its call failed; its answer could not be read),
+  with a hint to swipe. The note is kept with the reply as a receipt (`rpg.noroll`), so a reload, a rebuild and a Re-read show it again, and a swipe
+  that rolls replaces it with the battle log. It is never sent to the model. Outside a live fight there is no note.
 - A **swipe** rolls again: the reply and its dice are new, and made with the numbers the settings say then.
 - **Re-read** keeps the same dice, and the same numbers (see below).
 - Changes made by a roll, and any level-up, appear under **Changed this reply**.
@@ -344,7 +350,9 @@ The page shows only while the RPG is on.
 - **Stat formula.** **Standard** or **Classic** (see [The stat formulas](#the-stat-formulas)), with the roll table of the one in force
   and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks on
   Standard). A chat that never chose is on Standard. Rolls already made keep the formula and numbers they were made with.
-- **Rolls.** **Automatic** or **Off**, as above.
+- **Rolls.** **Automatic** or **Off**, as above. Under it, **Planner time limit**: how many seconds a reply waits for the roll planner before it
+  goes on without dice (10 to 120 in steps of 5, default 45; it was a fixed 20). A slow model in Settings → Assist needs more. Only the planner's
+  call uses it; Assist's other helpers keep their own 20 seconds. It is read when the reply asks, so a change moves only the replies after it.
 - **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. On the Standard formula the presets move only the foe's base (2, 4 and
   6) and **Custom** shows its thirteen numbers; the paragraph below is Classic's. The presets change the foe's base and how far short
   a roll may fall and still be "success at a cost": Gentle is a base of 3 and a window of 3, Standard 5 and 2 (the rule
