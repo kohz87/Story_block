@@ -94,38 +94,53 @@ export function createStore({
     if (typeof chat !== 'function') throw new TypeError('createStore needs a chat() function.');
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
     void now;
-    let frozenCheckpoints = new WeakMap();
-    const checkpointBytesOf = new WeakMap();
-    let cache = null;          // { key, state, problems }
-    let lastWrite = null;      // { message, swipe, sid, rev } of the last record written, for save verification
-    let holding = 0;           // inside batch(): swipe_info copies wait until it ends
-    const held = new Set();
-    let known = null;          // the carriers (message objects) the last good head was built from
-    let writes = 0;
-    const unsaved = new Map(); // message → { index, chatId, n }: records written since their chat was saved
-    const reserved = new WeakMap();   // message → { swipe, sid }: a record ID handed out before the record
+    // The store's state: one object, so the parts of the store can share it (`s.name`).
+    const s = {
+        frozenCheckpoints: new WeakMap(),
+        checkpointBytesOf: new WeakMap(),
+        cache: null,  // { key, state, problems }
+        lastWrite: null,  // { message, swipe, sid, rev } of the last record written, for save verification
+        holding: 0,  // inside batch(): swipe_info copies wait until it ends
+        held: new Set(),
+        known: null,  // the carriers (message objects) the last good head was built from
+        writes: 0,
+        unsaved: new Map(),  // message → { index, chatId, n }: records written since their chat was saved
+        reserved: new WeakMap(),  // message → { swipe, sid }: a record ID handed out before the record
+        epoch: 0,
+        lineMemo: null,  // { epoch, key, receipts?, untold? }
+        atMemo: new Map(),  // index → { arr, epoch, from, refs: [message, record, swipe, mes][], state }
+        witnessGen: null,  // the generation of timeline witnesses kept now (see witnessGeneration)
+        counts: { replays: 0, recordsRead: 0, lineScans: 0, witnessMisses: 0 },
+        guardCheck: null,
+        guardMark: null,
+        guardSeen: false,  // a guarded block was replayed or written: the mark is looked at on each read
+        applying: null,  // while the head is replayed: { list, index }, where the proof of each block that applies is put
+        walkProofs: null,  // while a Re-read or a reconcile plans blocks: Map id → { proof, block } of what it has planned
+        lastMark: '',
+        replanFrom: Infinity,  // the first carrier seen holding a guarded step with a replan, or revs to number on (none: nothing to reconcile)
+        fallback: null,  // the initial state ensureInitial was given, frozen
+        noted: null,  // the kept-aside start the reader was last told about
+        tombs: new Set(),
+        tombMeta: undefined,  // the metadata object the set was read from
+        idIndex: null,  // { arr, chat, swipeKeys: Map<sw_ id, stored sid>, evidences: Map<ev_ id, stored sid>, logicals: Map<sr_ id, Set<message>> }
+        bodies: new WeakMap(),
+        links: new WeakMap(),
+        staged: null,  // index → the record a Re-read / reconcile has worked out and not stored yet: prefix hashes follow it
+        tail: null,  // { arr, upTo, length, hash }
+        spineDigests: new WeakMap(),
+        spineLinks: new WeakMap(),
+        guardFaults: null,
+        receiptCopies: new WeakMap(),
+        witnessScoped: null,  // { gen, epoch }
+    };
     // Memos of what a reply reads over the whole chat (docs/v2/PERFORMANCE.md, "Long chats"): the stored
     // receipts and the untold ones, each kept until a record is written or the store rebuilds (`epoch`) or
     // the chat's last carrier, length or array changes (headKey); the state at an earlier carrier, kept
     // while the messages it was replayed from are the same objects with the same records and text.
-    let epoch = 0;
-    let lineMemo = null;       // { epoch, key, receipts?, untold? }
-    let atMemo = new Map();    // index → { arr, epoch, from, refs: [message, record, swipe, mes][], state }
     const AT_MEMO_MAX = 64;
-    let witnessGen = null;     // the generation of timeline witnesses kept now (see witnessGeneration)
-    const counts = { replays: 0, recordsRead: 0, lineScans: 0, witnessMisses: 0 };
     // Guarded replay (REPLAY.md): how a block's guard is asked, and the mark that says the answer may differ.
-    let guardCheck = null;
-    let guardMark = null;
-    let guardSeen = false;     // a guarded block was replayed or written: the mark is looked at on each read
-    let applying = null;       // while the head is replayed: { list, index }, where the proof of each block that applies is put
-    let walkProofs = null;     // while a Re-read or a reconcile plans blocks: Map id → { proof, block } of what it has planned
-    let lastMark = '';
-    let replanFrom = Infinity; // the first carrier seen holding a guarded step with a replan, or revs to number on (none: nothing to reconcile)
     // A first record that is a future version's or damaged is never written over (REPLAY.md "Preserved
     // records"): while the chat has no other state, the head is this empty state, read-only.
-    let fallback = null;       // the initial state ensureInitial was given, frozen
-    let noted = null;          // the kept-aside start the reader was last told about
 
     // Every record goes through here, so a save can be checked against the last one written, and a change
     // left in a chat that is no longer open can be found again (rescue).
@@ -133,22 +148,22 @@ export function createStore({
         const there = message.extra?.[KEY];
         const kind = rawKind(there);
         if (KEPT_ASIDE.has(kind)) throw new Error(`The story record on this reply ${WHY[kind](there)}; it is kept as it is and not written over.`);
-        epoch++;
-        if (holding) held.add(message);
+        s.epoch++;
+        if (s.holding) s.held.add(message);
         const keep = keeps(message);
-        if (tail && tail.arr[tail.upTo] !== message) tail = null;      // a reply before the head changed
+        if (s.tail && s.tail.arr[s.tail.upTo] !== message) s.tail = null;      // a reply before the head changed
         const given = withSource(message, record);
         if (isObject(given.source)) noteIds(idsOf(list()), message, given.source, given.sid);
         if (Array.isArray(given.spans)) for (const span of given.spans) if (isMetaSpan(span)) idsOf(list()).blocks.add(span.id);
-        const stored = writeRecord(message, given, { mirror: !holding && keep });
+        const stored = writeRecord(message, given, { mirror: !s.holding && keep });
         if (!keep) dropCopy(message);
-        lastWrite = { message, swipe: stored.swipe, sid: stored.sid, rev: stored.rev };
-        unsaved.set(message, { index: list().indexOf(message), chatId: chatId(), n: ++writes });
+        s.lastWrite = { message, swipe: stored.swipe, sid: stored.sid, rev: stored.rev };
+        s.unsaved.set(message, { index: list().indexOf(message), chatId: chatId(), n: ++s.writes });
         return stored;
     }
 
     function forget(id, upTo) {
-        for (const [message, entry] of unsaved) if (entry.chatId === id && entry.n <= upTo) unsaved.delete(message);
+        for (const [message, entry] of s.unsaved) if (entry.chatId === id && entry.n <= upTo) s.unsaved.delete(message);
     }
 
     // B-b2-timeline-1: the chat a change belongs to, taken when it is made, and checked right before the
@@ -164,15 +179,15 @@ export function createStore({
         if (!arr.length) return { wait: 'a chat is being opened' };
         if (change.carrier && !arr.includes(change.carrier)) {
             let left = false;
-            for (const [message, entry] of unsaved) {
+            for (const [message, entry] of s.unsaved) {
                 if (entry.chatId !== change.chatId) continue;
                 if (arr.includes(message)) left = true;
                 // The same chat read again (a reload, or opened again before the save): the change goes
                 // onto the same message as read back, when it still is that message.
                 else if (carryRecord(message, arr[entry.index])) {
-                    unsaved.delete(message);
-                    unsaved.set(arr[entry.index], { ...entry, n: ++writes });
-                    cache = null;
+                    s.unsaved.delete(message);
+                    s.unsaved.set(arr[entry.index], { ...entry, n: ++s.writes });
+                    s.cache = null;
                     forgetMemos();
                     left = true;
                 }
@@ -186,7 +201,7 @@ export function createStore({
     // something replaced it while the save ran, the save counts as failed (the story stays marked
     // unsaved and the reader is told); the next save writes the chat as it is then.
     const verify = {
-        before: () => lastWrite,
+        before: () => s.lastWrite,
         after(token) {
             if (!token) return '';
             const arr = list();
@@ -204,20 +219,20 @@ export function createStore({
                 if (held.length) rev = held[0].rev;
             }
             if (rev === token.rev) return '';
-            if (lastWrite === token) lastWrite = null;
+            if (s.lastWrite === token) s.lastWrite = null;
             return `The story was saved, but message ${index} no longer holds its latest changes (change ${rev ?? 'none'} instead of ${token.rev ?? 'none'}); the story stays marked unsaved.`;
         },
     };
     const saver = createSaver({
         save: (change, options) => {
-            const upTo = writes;
+            const upTo = s.writes;
             return Promise.resolve(save(change, options)).then(result => {
                 forget(change ? change.chatId : chatId(), upTo);
                 return result;
             });
         },
         rescue: typeof rescue === 'function' ? (change, options = {}) => {
-            const entries = [...unsaved].filter(([, entry]) => entry.chatId === change.chatId)
+            const entries = [...s.unsaved].filter(([, entry]) => entry.chatId === change.chatId)
                 .map(([message, entry]) => ({ message, index: entry.index }));
             return Promise.resolve(rescue(change, entries, options)).then(result => {
                 forget(change.chatId, Infinity);
@@ -277,7 +292,7 @@ export function createStore({
     function keptNow() {
         const head = current();
         if (head.readOnly) return head.readOnly;
-        return fallback && head.state === fallback ? preservedAt(list(), true) : null;
+        return s.fallback && head.state === s.fallback ? preservedAt(list(), true) : null;
     }
     function writable() {
         const kept = keptNow();
@@ -290,28 +305,26 @@ export function createStore({
     // to date by write(): an id that left with a deleted reply only stays "taken", which costs nothing but a salt.
     // The archive (contract §4): ids of the canonical sids, swipe keys and evidence ids of replies and swipes that were
     // deleted. They stay in the chat's metadata, are never handed out again, and confer no eligibility (archived(id)).
-    let tombs = new Set();
-    let tombMeta;           // the metadata object the set was read from
     function archive() {
         let meta = null;
         try { meta = metadata(); } catch { meta = null; }
         if (!isObject(meta)) meta = null;
-        if (meta !== tombMeta) {
-            tombMeta = meta;
+        if (meta !== s.tombMeta) {
+            s.tombMeta = meta;
             const stored = meta?.storySuite?.sourceArchive?.deleted;
-            tombs = new Set(Array.isArray(stored) ? stored.filter(id => typeof id === 'string') : []);
+            s.tombs = new Set(Array.isArray(stored) ? stored.filter(id => typeof id === 'string') : []);
         }
-        return tombs;
+        return s.tombs;
     }
     function bury(ids) {
         const set = archive();
         const before = set.size;
         for (const id of ids) if (typeof id === 'string' && id) set.add(id);
         if (set.size === before) return;
-        if (tombMeta) {
-            if (!isObject(tombMeta.storySuite)) tombMeta.storySuite = {};
+        if (s.tombMeta) {
+            if (!isObject(s.tombMeta.storySuite)) s.tombMeta.storySuite = {};
             // (Not a change to save on its own: SillyTavern saves the chat after a delete, and every later save carries it.)
-            tombMeta.storySuite.sourceArchive = { v: 1, deleted: [...set].sort() };
+            s.tombMeta.storySuite.sourceArchive = { v: 1, deleted: [...set].sort() };
         }
     }
     // What a rebuild finds gone since the index was last built: the ids of replies and swipes that left the chat.
@@ -321,18 +334,17 @@ export function createStore({
         bury(gone);
     }
 
-    let idIndex = null;     // { arr, chat, swipeKeys: Map<sw_ id, stored sid>, evidences: Map<ev_ id, stored sid>, logicals: Map<sr_ id, Set<message>> }
     function idsOf(arr) {
         // (the chat array SillyTavern holds is the same object whichever chat is open: the index is for one chat's ids)
-        if (idIndex?.arr === arr && idIndex.chat === chatId()) return idIndex;
-        idIndex = { arr, chat: chatId(), swipeKeys: new Map(), evidences: new Map(), logicals: new Map(), blocks: new Set() };
+        if (s.idIndex?.arr === arr && s.idIndex.chat === chatId()) return s.idIndex;
+        s.idIndex = { arr, chat: chatId(), swipeKeys: new Map(), evidences: new Map(), logicals: new Map(), blocks: new Set() };
         for (const other of arr) {
             for (const record of [other?.extra?.[KEY], ...(Array.isArray(other?.swipe_info) ? other.swipe_info.map(info => info?.extra?.[KEY]) : [])]) {
-                if (isObject(record?.source)) noteIds(idIndex, other, record.source, record.sid);
-                for (const span of Array.isArray(record?.spans) ? record.spans : []) if (isMetaSpan(span)) idIndex.blocks.add(span.id);
+                if (isObject(record?.source)) noteIds(s.idIndex, other, record.source, record.sid);
+                for (const span of Array.isArray(record?.spans) ? record.spans : []) if (isMetaSpan(span)) s.idIndex.blocks.add(span.id);
             }
         }
-        return idIndex;
+        return s.idIndex;
     }
     function noteIds(index, message, entry, sid) {
         if (entry.swipeKey) index.swipeKeys.set(entry.swipeKey, sid);
@@ -391,10 +403,10 @@ export function createStore({
     // The stored ID a first record on this message's shown swipe will get (handed out once, like carrierSid).
     function reservedSid(message) {
         const swipe = swipeOf(message);
-        const kept = reserved.get(message);
+        const kept = s.reserved.get(message);
         if (kept && kept.swipe === swipe) return kept.sid;
         const sid = recordId();
-        reserved.set(message, { swipe, sid });
+        s.reserved.set(message, { swipe, sid });
         return sid;
     }
 
@@ -422,11 +434,10 @@ export function createStore({
 
     // What a record holds, as a hash: its swipe key and each block's id and ops. Records are never changed in
     // place (each write puts a new one), so it is worked out once per record.
-    const bodies = new WeakMap();
     function bodyDigest(record) {
-        let digest = bodies.get(record);
+        let digest = s.bodies.get(record);
         if (!digest) {
-            bodies.set(record, digest = hashJson({
+            s.bodies.set(record, digest = hashJson({
                 k: record.source?.swipeKey ?? record.sid ?? null,
                 // (a guarded block by all of its metadata: guard, recorded inputs, evidence, claims, boundaries, result)
                 b: blockParts(record).map(({ ops, span }) => [isMetaSpan(span) ? hashJson(span) : null, hashJson(ops)]),
@@ -437,31 +448,28 @@ export function createStore({
 
     // The hash of everything on the carriers before `upTo` (block contents, swipe keys and, for carriers with
     // guarded blocks, their text), chained from the first; each link is kept per record while its input stays.
-    const links = new WeakMap();
-    let staged = null;    // index → the record a Re-read / reconcile has worked out and not stored yet: prefix hashes follow it
     // The hash before the head reply, kept for the next guarded block on it: valid while nothing but that reply is written
     // (write() drops it), the chat is the same array of the same length, and nothing is staged.
-    let tail = null;      // { arr, upTo, length, hash }
     function chainHash(arr, upTo) {
-        if (!staged && tail && tail.arr === arr && tail.upTo === upTo && tail.length === arr.length) return tail.hash;
+        if (!s.staged && s.tail && s.tail.arr === arr && s.tail.upTo === upTo && s.tail.length === arr.length) return s.tail.hash;
         const hash = chainHashUncached(arr, upTo);
-        if (!staged) tail = { arr, upTo, length: arr.length, hash };
+        if (!s.staged) s.tail = { arr, upTo, length: arr.length, hash };
         return hash;
     }
     function chainHashUncached(arr, upTo) {
         let hash = '';
         for (let i = 0; i < upTo && i < arr.length; i++) {
             if (!isCarrier(arr[i])) continue;
-            const record = staged?.get(i) ?? readRecord(arr[i]);
+            const record = s.staged?.get(i) ?? readRecord(arr[i]);
             if (!record) continue;
             const text = hasMeta(record) ? payloadHashOf(arr[i]) : null;
-            const hit = links.get(record);
+            const hit = s.links.get(record);
             if (hit && hit.prev === hash && hit.text === text) {
                 hash = hit.out;
                 continue;
             }
             const out = hashJson({ p: hash, d: bodyDigest(record), t: text });
-            links.set(record, { prev: hash, text, out });
+            s.links.set(record, { prev: hash, text, out });
             hash = out;
         }
         return hash;
@@ -471,19 +479,17 @@ export function createStore({
     // every record before it as it is shown now, from the first: all of replay.js replayInputsOf (everything replay reads
     // from a record), the text of records that hold guarded blocks, and the first record's own starting point. Each link is kept per record while its input stays, so a read costs a lookup
     // per record and a change costs the records from it on.
-    const spineDigests = new WeakMap();
     function spineDigest(record) {
-        let digest = spineDigests.get(record);
-        if (!digest) spineDigests.set(record, digest = hashJson(replayInputsOf(record)));
+        let digest = s.spineDigests.get(record);
+        if (!digest) s.spineDigests.set(record, digest = hashJson(replayInputsOf(record)));
         return digest;
     }
-    const spineLinks = new WeakMap();
     function spineStep(prev, record, message, first) {
         const text = hasMeta(record) ? payloadHashOf(message) : null;
-        const hit = spineLinks.get(record);
+        const hit = s.spineLinks.get(record);
         if (hit && hit.prev === prev && hit.text === text && hit.first === first) return hit.out;
         const out = hashJson({ p: prev, d: spineDigest(record), t: text, c: first ? hashJson(record.checkpoint ?? null) : null });
-        spineLinks.set(record, { prev, text, first, out });
+        s.spineLinks.set(record, { prev, text, first, out });
         return out;
     }
     // The prefix hash in front of carrier `upTo`; `at(i)` gives the record to use for carrier i (a Re-read passes the ones it is
@@ -522,23 +528,22 @@ export function createStore({
     // What the guards could answer differently on (a module registered or went): looked at on each read once a
     // guarded block has been replayed or written here, never for a chat that has none.
     function markNow() {
-        try { return typeof guardMark === 'function' ? String(guardMark()) : ''; } catch { return ''; }
+        try { return typeof s.guardMark === 'function' ? String(s.guardMark()) : ''; } catch { return ''; }
     }
     function seeGuards() {
-        if (guardSeen) return;
-        guardSeen = true;
-        lastMark = markNow();
+        if (s.guardSeen) return;
+        s.guardSeen = true;
+        s.lastMark = markNow();
     }
 
     // Rejected plans have no stored block to replay a Problem from. Keep thrown-guard diagnostics in
     // this chat only, at the one point where every guard is checked; successful checks clear that exact fault.
-    let guardFaults = null;
     function faultsNow() {
         const arr = list(), id = chatId(), holder = metadata();
-        if (!guardFaults || guardFaults.arr !== arr || guardFaults.id !== id || guardFaults.holder !== holder) {
-            guardFaults = { arr, id, holder, entries: new Map() };
+        if (!s.guardFaults || s.guardFaults.arr !== arr || s.guardFaults.id !== id || s.guardFaults.holder !== holder) {
+            s.guardFaults = { arr, id, holder, entries: new Map() };
         }
-        return guardFaults.entries;
+        return s.guardFaults.entries;
     }
     const guardFaultKey = span => `${span.id}:${hashJson(span.guard)}`;
     function thrownGuard(span, message, error) {
@@ -552,12 +557,12 @@ export function createStore({
     // reason }. Nothing to ask, a throw, a promise or any other shape fails closed.
     function askGuard(state, span, message) {
         seeGuards();
-        if (typeof guardCheck !== 'function') return { ok: false, reason: 'nothing here can check its guard, so it stays off' };
+        if (typeof s.guardCheck !== 'function') return { ok: false, reason: 'nothing here can check its guard, so it stays off' };
         let answer;
         try {
             // `payload`: the hash of the reply's text when the block was stored, and now (REPLAY.md): an edit shows as a difference.
             const payload = { saved: span.boundaries?.[0]?.payloadHash ?? null, current: message ? payloadHashOf(message) : null };
-            answer = guardCheck(state, { guard: span.guard, source: span.source, block: span.id, operation: span.operation, recorded: span.recorded ?? null, payload });
+            answer = s.guardCheck(state, { guard: span.guard, source: span.source, block: span.id, operation: span.operation, recorded: span.recorded ?? null, payload });
         } catch (error) {
             return thrownGuard(span, message, error);
         }
@@ -593,7 +598,7 @@ export function createStore({
     function guardHolds(state, span, message) {
         const clockPrefix = markerPrefixProblem(span, state);
         if (clockPrefix) throw prerequisite(clockPrefix);
-        if (typeof guardCheck !== 'function' || !isMetaSpan(span) || !span.guard) return;
+        if (typeof s.guardCheck !== 'function' || !isMetaSpan(span) || !span.guard) return;
         // (the epoch and rules gate first, as a replay does: docs/v2/TIMELINE.md)
         const gate = gateProblem(state, span.guard);
         if (gate) throw new Error(`Its guard would not hold when this is replayed, so it is not stored: ${gate}`);
@@ -656,7 +661,7 @@ export function createStore({
             if (!answer.ok) throw prerequisite(`its guard no longer holds: ${answer.reason}`);
         }
         const next = step(state, span.evidence.length ? pinOps(state, ops) : ops, { replayed: true, strict: true });
-        if (applying && span.evidence.length) for (const each of span.evidence) applying.list.push(Object.freeze({ proof: each, block: span.id, index: applying.index }));
+        if (s.applying && span.evidence.length) for (const each of span.evidence) s.applying.list.push(Object.freeze({ proof: each, block: span.id, index: s.applying.index }));
         return next;
     }
 
@@ -675,8 +680,8 @@ export function createStore({
         return isObject(pins) && Array.isArray(evidence) ? evidence.find(proof => Object.hasOwn(pins, proof?.id)) : undefined;
     }
 
-    function publish(span, at = applying?.index) {
-        if (walkProofs && isMetaSpan(span) && Array.isArray(span.evidence)) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: span.id, index: at }));
+    function publish(span, at = s.applying?.index) {
+        if (s.walkProofs && isMetaSpan(span) && Array.isArray(span.evidence)) for (const proof of span.evidence) s.walkProofs.set(proof.id, Object.freeze({ proof, block: span.id, index: at }));
     }
 
     function stamp(arr, index, record, block, ops, receipt, earlier, offset) {
@@ -723,7 +728,7 @@ export function createStore({
             throw new Error('The block is not the one the cursor its command read named; it is not stored.');
         }
         if (span.guard) seeGuards();
-        if (span.guard && span.replan) replanFrom = Math.min(replanFrom, index);
+        if (span.guard && span.replan) s.replanFrom = Math.min(s.replanFrom, index);
         return span;
     }
 
@@ -750,13 +755,13 @@ export function createStore({
         const writes = [];
         const counted = { planned: 0, removed: 0 };
         let planned = false;
-        staged = overlay;
-        const outerApplying = applying;
+        s.staged = overlay;
+        const outerApplying = s.applying;
         const head = current();
         // Seeded from the walk's own base: the blocks before `first` that replay applied, counted once. A walk that starts before the
         // checkpoint the head replays from lists the records before `first` as could-apply, and every record from `first` on is the walk's.
         const rooted = first <= (head.from ?? -1);
-        applying = head.state && !head.readOnly
+        s.applying = head.state && !head.readOnly
             ? { list: rooted ? [] : [...appliedOf(arr, head).filter(entry => entry.index < first)], index: first, from: rooted ? first : head.from }
             : null;
         try {
@@ -769,9 +774,9 @@ export function createStore({
                 const guardedBefore = history;
                 history ||= hasMeta(later);
                 const checkpoint = later.checkpoint ? structuredClone(state) : undefined;
-                const owners = checkpoint && applying && proofBefore(arr, i, j => overlay.get(j) ?? readRecord(arr[j])) ? packOwners(listProofs(false), sidAtNow) : null;     // (the blocks that applied before this record)
+                const owners = checkpoint && s.applying && proofBefore(arr, i, j => overlay.get(j) ?? readRecord(arr[j])) ? packOwners(listProofs(false), sidAtNow) : null;     // (the blocks that applied before this record)
                 const failed = [];
-                if (applying) applying.index = i;
+                if (s.applying) s.applying.index = i;
                 const out = replayBlocks(state, later, i, failed, { skip: broken, rerun, message: arr[i], running });
                 state = out.state;
                 running = out.running;
@@ -801,8 +806,8 @@ export function createStore({
                 writes.push([arr[i], next]);
             }
         } finally {
-            staged = null;
-            applying = outerApplying;
+            s.staged = null;
+            s.applying = outerApplying;
         }
         // A rewritten checkpoint's state is the chat as it stands now, so its window is too (REPLAY.md "Checkpoints and covers"):
         // the records from the checkpoint before it (itself included) up to the carrier before this one. A window left as it
@@ -872,8 +877,8 @@ export function createStore({
     }
 
     function checkpointState(raw) {
-        let state = frozenCheckpoints.get(raw);
-        if (!state) frozenCheckpoints.set(raw, state = deepFreeze(structuredClone(raw)));
+        let state = s.frozenCheckpoints.get(raw);
+        if (!state) s.frozenCheckpoints.set(raw, state = deepFreeze(structuredClone(raw)));
         return state;
     }
 
@@ -1006,7 +1011,7 @@ export function createStore({
     // on its own, so a bad change cannot take the rest of its carrier, or anything later, with it.
     // `whole`: from the first carrier's own checkpoint, past every later one (carriedTo, below).
     function replay(arr, upTo, { whole = false } = {}) {
-        counts.replays++;
+        s.counts.replays++;
         let { from } = chain(arr, upTo);
         if (whole) {
             const first = carrierIndexes(arr)[0];
@@ -1023,19 +1028,19 @@ export function createStore({
         if (from < 0) return { state: null, problems };
         let state = checkpointState(readRecord(arr[from]).checkpoint);
         // The proof of the blocks that applied, in the order they applied (replayGuarded adds to it).
-        const outer = applying;
+        const outer = s.applying;
         const applied = [];
-        applying = { list: applied, index: from, from };
+        s.applying = { list: applied, index: from, from };
         try {
             for (let i = from; i <= upTo && i < arr.length; i++) {
                 const record = readRecord(arr[i]);
                 if (!record) continue;
-                counts.recordsRead++;
-                applying.index = i;
+                s.counts.recordsRead++;
+                s.applying.index = i;
                 state = replayRecord(state, record, i, problems, null, arr[i]);
             }
         } finally {
-            applying = outer;
+            s.applying = outer;
         }
         return { state, problems, from, applied };
     }
@@ -1062,7 +1067,7 @@ export function createStore({
     function replayBlocks(state, record, index, problems, { skip = null, rerun = null, message = null, running = null } = {}) {
         const parts = blockParts(record);
         const replans = parts.some(({ span }) => isMetaSpan(span) && span.guard && span.replan);
-        if (replans) replanFrom = Math.min(replanFrom, index);
+        if (replans) s.replanFrom = Math.min(s.replanFrom, index);
         const plans = typeof rerun === 'function' && replans;
         // `running`: the rev the replies before this one ended on after a step was planned again; from there on the revs
         // are numbered on (so no two receipts share one), here and on the replies after.
@@ -1092,7 +1097,7 @@ export function createStore({
             // A block numbered at or below the rev the story is at (a swipe made before an earlier reply was read again, shown
             // now): a reconcile from here numbers it on (walkSuffix), so revs stay strictly increasing along the chat.
             const firstRev = ops.find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value;
-            if (firstRev !== undefined && firstRev <= revOf(state)) replanFrom = Math.min(replanFrom, index);
+            if (firstRev !== undefined && firstRev <= revOf(state)) s.replanFrom = Math.min(s.replanFrom, index);
             const receipt = rewrites || anyGuardedReceipt ? record.receipts.find(each => each?.rev === revOfOps(ops)) ?? null : null;
             let blockOps = ops;
             const stands = rewrites || anyGuardedReceipt ? receiptsFor(record, ops) : [];     // every receipt this block's ops are
@@ -1279,8 +1284,8 @@ export function createStore({
     // The cached head still holds when all that changed is messages after its carrier that hold no
     // record (the reader's next message, a reply not read yet): replaying them would give it again.
     function stillHolds(arr, key) {
-        const old = cache?.key;
-        if (!cache?.state || old.arr !== arr || old.index < 0 || key.index < old.index || arr.length < old.length) return false;
+        const old = s.cache?.key;
+        if (!s.cache?.state || old.arr !== arr || old.index < 0 || key.index < old.index || arr.length < old.length) return false;
         const message = arr[old.index];
         if (message !== old.message || message?.swipe_id !== old.swipe || message?.extra !== old.extra || message?.extra?.[KEY] !== old.record) return false;
         for (let i = old.index + 1; i < arr.length; i++) if (arr[i]?.extra?.[KEY] !== undefined) return false;
@@ -1341,9 +1346,9 @@ export function createStore({
     function listProofs(all) {
         const arr = list();
         const memo = lineOf(arr);
-        const laid = base => (walkProofs?.size ? Object.freeze(merged(base, [...walkProofs.values()])) : base);
+        const laid = base => (s.walkProofs?.size ? Object.freeze(merged(base, [...s.walkProofs.values()])) : base);
         // A replay or a walk is going on (a guard asks): the blocks that have applied so far, in the order they did.
-        if (applying && !all) return laid(Object.freeze([...proofsBefore(arr, applying.from), ...applying.list]));
+        if (s.applying && !all) return laid(Object.freeze([...proofsBefore(arr, s.applying.from), ...s.applying.list]));
         const slot = all ? 'proofsAll' : 'proofsApplied';
         if (!memo[slot]) {
             let out = [];
@@ -1377,33 +1382,33 @@ export function createStore({
     function current() {
         const arr = list();
         const key = headKey(arr);
-        if (guardSeen) {
+        if (s.guardSeen) {
             const mark = markNow();
-            if (mark !== lastMark) {
-                lastMark = mark;
-                cache = null;
+            if (mark !== s.lastMark) {
+                s.lastMark = mark;
+                s.cache = null;
                 forgetMemos();
             }
         }
-        if (cache && !sameKey(cache.key, key) && stillHolds(arr, key)) {
-            cache = { ...cache, key };
-            known = carrierIndexes(arr).map(i => arr[i]);
+        if (s.cache && !sameKey(s.cache.key, key) && stillHolds(arr, key)) {
+            s.cache = { ...s.cache, key };
+            s.known = carrierIndexes(arr).map(i => arr[i]);
         }
-        if (!cache || !sameKey(cache.key, key)) {
-            replanFrom = Infinity;
+        if (!s.cache || !sameKey(s.cache.key, key)) {
+            s.replanFrom = Infinity;
             const { state, problems, applied = [], from = -1 } = key.index < 0 ? { state: null, problems: [] } : replay(arr, key.index);
-            const kept = !state && fallback ? preservedAt(arr, true) : null;
-            cache = { key, state: kept ? fallback : state, problems, applied, from, ...(kept ? { readOnly: kept } : {}) };
-            if (state) known = carrierIndexes(arr).map(i => arr[i]);
+            const kept = !state && s.fallback ? preservedAt(arr, true) : null;
+            s.cache = { key, state: kept ? s.fallback : state, problems, applied, from, ...(kept ? { readOnly: kept } : {}) };
+            if (state) s.known = carrierIndexes(arr).map(i => arr[i]);
         }
-        return cache;
+        return s.cache;
     }
 
     // After a write that changed the head carrier's record: keep the cache, with the new key.
     // `applied`: the proof of the blocks that applied since the replay began (cache.applied), as it is after this write: undefined
     // keeps it, null says it is not known (the next read works it out again).
-    function retain(arr, state, problems = cache?.problems ?? [], applied = cache?.applied ?? null) {
-        cache = { key: headKey(arr), state, problems, applied, from: cache?.from ?? -1, ...(cache?.readOnly && cache.state === state ? { readOnly: cache.readOnly } : {}) };
+    function retain(arr, state, problems = s.cache?.problems ?? [], applied = s.cache?.applied ?? null) {
+        s.cache = { key: headKey(arr), state, problems, applied, from: s.cache?.from ?? -1, ...(s.cache?.readOnly && s.cache.state === state ? { readOnly: s.cache.readOnly } : {}) };
     }
 
     function carrierAt(arr, index) {
@@ -1419,42 +1424,41 @@ export function createStore({
     // place with the same record, swipe and text. A card drawn again, or a card under each of several replies
     // on screen, then costs a look at those messages, not a replay with every domain's validator.
     function memoAt(arr, index) {
-        const hit = atMemo.get(index);
+        const hit = s.atMemo.get(index);
         if (hit && hit.arr === arr && hit.refs.every(([message, record, swipe, mes], at) => {
             const now = arr[hit.from + at];
             return now === message && now?.extra?.[KEY] === record && now?.swipe_id === swipe && now?.mes === mes;
         })) {
-            atMemo.delete(index);
-            atMemo.set(index, hit);
+            s.atMemo.delete(index);
+            s.atMemo.set(index, hit);
             return hit.state;
         }
         const { state, from = -1 } = replay(arr, index);
         if (from >= 0) {
             const refs = [];
             for (let i = from; i <= index; i++) refs.push([arr[i], arr[i]?.extra?.[KEY], arr[i]?.swipe_id, arr[i]?.mes]);
-            atMemo.delete(index);
-            atMemo.set(index, { arr, from, refs, state });
-            while (atMemo.size > AT_MEMO_MAX) atMemo.delete(atMemo.keys().next().value);
+            s.atMemo.delete(index);
+            s.atMemo.set(index, { arr, from, refs, state });
+            while (s.atMemo.size > AT_MEMO_MAX) s.atMemo.delete(s.atMemo.keys().next().value);
         }
         return state;
     }
 
     // A record's receipts as frozen copies, made once per record (a record is never changed in place: each
     // write puts a new one), so a pass over the chat copies only the receipts it has not seen yet.
-    const receiptCopies = new WeakMap();
     function frozenReceipts(record) {
-        let list = receiptCopies.get(record);
-        if (!list) receiptCopies.set(record, list = deepFreeze(structuredClone(record.receipts.filter(isObject))));
+        let list = s.receiptCopies.get(record);
+        if (!list) s.receiptCopies.set(record, list = deepFreeze(structuredClone(record.receipts.filter(isObject))));
         return list;
     }
 
     // Forgets the memos (a rebuild, or a write that is not on the head carrier alone).
     function forgetMemos() {
-        epoch++;
-        tail = null;
-        lineMemo = null;
-        atMemo = new Map();
-        witnessGen = null;
+        s.epoch++;
+        s.tail = null;
+        s.lineMemo = null;
+        s.atMemo = new Map();
+        s.witnessGen = null;
     }
 
     // The timeline asks for the witness of every archived boundary on every read (sdk.query → settle → selectionPlan), and each
@@ -1488,16 +1492,16 @@ export function createStore({
     // What else a replay's answer may hang on (the Features the reader has on: they change what the registry validates and scratches).
     const envNow = () => { try { return String(replayEnv()); } catch { return '?'; } };
     const metaNow = () => { try { return metadata(); } catch { return null; } };
-    const markSeen = () => (guardSeen ? markNow() : '');
+    const markSeen = () => (s.guardSeen ? markNow() : '');
 
     function witnessEnv(arr) {
         const fingerprint = [];
         walkChat(arr, value => { fingerprint.push(value); return true; });
-        return { epoch, arr, mark: markSeen(), chatId: chatId(), meta: metaNow(), archived: archive().size, marked: marked(), env: envNow(), fingerprint, answers: new Map() };
+        return { epoch: s.epoch, arr, mark: markSeen(), chatId: chatId(), meta: metaNow(), archived: archive().size, marked: marked(), env: envNow(), fingerprint, answers: new Map() };
     }
 
     function witnessHolds(gen, arr) {
-        if (gen.epoch !== epoch || gen.arr !== arr || gen.chatId !== chatId() || gen.marked !== marked() || gen.env !== envNow() || gen.archived !== archive().size) return false;
+        if (gen.epoch !== s.epoch || gen.arr !== arr || gen.chatId !== chatId() || gen.marked !== marked() || gen.env !== envNow() || gen.archived !== archive().size) return false;
         if (gen.meta !== metaNow() || gen.mark !== markSeen()) return false;
         let at = 0;
         return walkChat(arr, value => gen.fingerprint[at++] === value) && at === gen.fingerprint.length;
@@ -1506,19 +1510,18 @@ export function createStore({
     // Inside `witnessScope` (one synchronous, read-only pass over many boundaries) the chat cannot change under the reader but through
     // a write or a lifecycle change, which move `epoch`: the generation is checked in full once at the start, then by `epoch` and
     // array alone.
-    let witnessScoped = null;   // { gen, epoch }
     function witnessGeneration(arr) {
-        if (witnessScoped && witnessGen && witnessScoped.gen === witnessGen && witnessScoped.epoch === epoch && witnessGen.arr === arr) return witnessGen;
-        if (!witnessGen || !witnessHolds(witnessGen, arr)) witnessGen = witnessEnv(arr);
-        if (witnessScoped) witnessScoped = { gen: witnessGen, epoch };
-        return witnessGen;
+        if (s.witnessScoped && s.witnessGen && s.witnessScoped.gen === s.witnessGen && s.witnessScoped.epoch === s.epoch && s.witnessGen.arr === arr) return s.witnessGen;
+        if (!s.witnessGen || !witnessHolds(s.witnessGen, arr)) s.witnessGen = witnessEnv(arr);
+        if (s.witnessScoped) s.witnessScoped = { gen: s.witnessGen, epoch: s.epoch };
+        return s.witnessGen;
     }
 
     // The memo of the whole line of history (receipts, untold) for the chat as it is now.
     function lineOf(arr) {
         const key = headKey(arr);
-        if (!lineMemo || lineMemo.epoch !== epoch || !sameKey(lineMemo.key, key)) lineMemo = { epoch, key };
-        return lineMemo;
+        if (!s.lineMemo || s.lineMemo.epoch !== s.epoch || !sameKey(s.lineMemo.key, key)) s.lineMemo = { epoch: s.epoch, key };
+        return s.lineMemo;
     }
 
     // The state carrier `index`'s own ops start from: the state after the carrier before it, replayed through the
@@ -1559,8 +1562,8 @@ export function createStore({
 
     // A checkpoint's JSON size, worked out once per stored checkpoint.
     function checkpointSize(raw) {
-        let size = checkpointBytesOf.get(raw);
-        if (size === undefined) checkpointBytesOf.set(raw, size = jsonBytes(raw));
+        let size = s.checkpointBytesOf.get(raw);
+        if (size === undefined) s.checkpointBytesOf.set(raw, size = jsonBytes(raw));
         return size;
     }
 
@@ -1602,8 +1605,8 @@ export function createStore({
 
     // The ID a new record on this message's shown swipe gets: the one handed out by carrierSid(), if any.
     function sidFor(message) {
-        const kept = reserved.get(message);
-        reserved.delete(message);
+        const kept = s.reserved.get(message);
+        s.reserved.delete(message);
         return kept && kept.swipe === swipeOf(message) ? kept.sid : recordId();
     }
 
@@ -1612,9 +1615,9 @@ export function createStore({
     // The deleted replies are replayed whole, from the first one's checkpoint: a later checkpoint among them holds what their
     // blocks did without asking them, and a block that must not outlive its reply (a reply-bound guard) is asked here again.
     function carriedTo(message) {
-        const at = known ? known.indexOf(message) : -1;
+        const at = s.known ? s.known.indexOf(message) : -1;
         if (at <= 0) return null;
-        const { state } = replay(known, at - 1, { whole: true });
+        const { state } = replay(s.known, at - 1, { whole: true });
         return state ? structuredClone(state) : null;
     }
 
@@ -1784,7 +1787,7 @@ export function createStore({
             }
             const first = carrierIndexes(arr)[0];
             const message = arr[first];
-            const checkpoint = structuredClone(fallback);
+            const checkpoint = structuredClone(s.fallback);
             // The checkpoints after it hold the story the start used to be: they go (the story builds new ones as it grows).
             for (const i of carrierIndexes(arr)) {
                 if (i === first) continue;
@@ -1801,7 +1804,7 @@ export function createStore({
                 ? { ...rest, checkpoint, rev: revOf(checkpoint) }
                 : { v: 2, sid: sidFor(message), checkpoint, ops: [], receipts: [], narrated: [], spans: [], rev: revOf(checkpoint) });
             saver.touch();
-            cache = null;
+            s.cache = null;
             forgetMemos();
             return { index: first };
         },
@@ -1814,7 +1817,7 @@ export function createStore({
             void covers; void coverHash; void prefix; void carried; void owned;     // (the first record there is: trusted as the start, whatever was in front of it)
             write(arr[kept.index], rest);
             saver.touch();
-            cache = null;
+            s.cache = null;
             forgetMemos();
             return { index: kept.index };
         },
@@ -1834,15 +1837,15 @@ export function createStore({
             const first = carrierIndexes(arr)[0];
             if (first === undefined) return [];
             const keepAside = () => {
-                if (!fallback) {
-                    fallback = deepFreeze(structuredClone(initialState));
-                    cache = null;
+                if (!s.fallback) {
+                    s.fallback = deepFreeze(structuredClone(initialState));
+                    s.cache = null;
                     forgetMemos();
                 }
                 const kept = preservedAt(arr, true);
                 const key = `${kept.kind}:${kept.index}:${kept.raw ? JSON.stringify(kept.raw).length : 0}`;
-                if (noted === key) return [];
-                noted = key;
+                if (s.noted === key) return [];
+                s.noted = key;
                 return [readOnlyMessage(kept)];
             };
             if (preservedAt(arr)) return keepAside();
@@ -1861,7 +1864,7 @@ export function createStore({
                 : { v: 2, sid: sidFor(message), checkpoint, ops: [], receipts: [], narrated: [], spans: [], rev: revOf(checkpoint) };
             write(message, record);
             saver.touch();
-            cache = null;
+            s.cache = null;
             forgetMemos();
             return [];
         },
@@ -1876,10 +1879,10 @@ export function createStore({
             const own = readRecord(message);
             if (own) return typeof own.sid === 'string' ? own.sid : null;
             const swipe = swipeOf(message);
-            const kept = reserved.get(message);
+            const kept = s.reserved.get(message);
             if (kept && kept.swipe === swipe) return kept.sid;
             const sid = recordId();
-            reserved.set(message, { swipe, sid });
+            s.reserved.set(message, { swipe, sid });
             return sid;
         },
 
@@ -1929,7 +1932,7 @@ export function createStore({
 
         /** The first carrier seen holding a guarded step with a `replan`, or blocks numbered at or below the rev before them (the turn reconciles from it), else null. */
         replansFrom() {
-            return Number.isFinite(replanFrom) ? replanFrom : null;
+            return Number.isFinite(s.replanFrom) ? s.replanFrom : null;
         },
 
         /**
@@ -2021,16 +2024,16 @@ export function createStore({
             const arr = list();
             // Queries ask this for every archived boundary on every read; on an unchanged chat the answer is the same (witnessGeneration).
             const key = witnessKeyOf(cursor);
-            if (key === null || applying || staged) return prefixWitnessUncached(arr, cursor);
+            if (key === null || s.applying || s.staged) return prefixWitnessUncached(arr, cursor);
             const gen = witnessGeneration(arr);
             if (gen.answers.has(key)) {
                 const hit = gen.answers.get(key);
                 return hit === null ? null : { ...hit };
             }
-            counts.witnessMisses++;
+            s.counts.witnessMisses++;
             const answer = prefixWitnessUncached(arr, cursor);
             // (the replay may have seen guarded blocks for the first time: the mark then reads differently, though nothing else did)
-            if (gen === witnessGen && gen.mark === '' && guardSeen && gen.epoch === epoch) gen.mark = markSeen();
+            if (gen === s.witnessGen && gen.mark === '' && s.guardSeen && gen.epoch === s.epoch) gen.mark = markSeen();
             gen.answers.set(key, answer);
             return answer === null ? null : { ...answer };
         },
@@ -2040,14 +2043,14 @@ export function createStore({
          * of on each `prefixWitness` call inside it (the timeline's pass over every boundary). → what `read` returns.
          */
         witnessScope(read) {
-            if (witnessScoped || applying || staged) return read();
-            witnessScoped = { gen: null, epoch };
-            try { witnessGeneration(list()); return read(); } finally { witnessScoped = null; }
+            if (s.witnessScoped || s.applying || s.staged) return read();
+            s.witnessScoped = { gen: null, epoch: s.epoch };
+            try { witnessGeneration(list()); return read(); } finally { s.witnessScoped = null; }
         },
 
         /** The timeline witnesses kept for the chat as it is now (tests). */
         witnessMemoSize() {
-            return witnessGen ? witnessGen.answers.size : 0;
+            return s.witnessGen ? s.witnessGen.answers.size : 0;
         },
 
         /** `prefixWitness` worked out afresh, never from the memo (tests compare the two). */
@@ -2067,11 +2070,11 @@ export function createStore({
          * start from are found by that replay. → true when the chat holds guarded blocks.
          */
         lifecycleChanged() {
-            lastMark = markNow();
-            cache = null;
+            s.lastMark = markNow();
+            s.cache = null;
             forgetMemos();
             current();
-            return guardSeen;
+            return s.guardSeen;
         },
 
         /**
@@ -2081,10 +2084,10 @@ export function createStore({
          * answer could (a module with a guard hook registered or went). The head is replayed again.
          */
         attachGuard(check, mark = null) {
-            guardCheck = typeof check === 'function' ? check : null;
-            guardMark = typeof mark === 'function' ? mark : null;
-            lastMark = markNow();
-            cache = null;
+            s.guardCheck = typeof check === 'function' ? check : null;
+            s.guardMark = typeof mark === 'function' ? mark : null;
+            s.lastMark = markNow();
+            s.cache = null;
             forgetMemos();
         },
 
@@ -2134,8 +2137,8 @@ export function createStore({
                 rev: revOf(next),
             });
             saver.touch();
-            retain(arr, next, undefined, cache?.applied && span?.evidence?.length
-                ? [...cache.applied, ...span.evidence.map(proof => Object.freeze({ proof, block: span.id, index }))] : undefined);
+            retain(arr, next, undefined, s.cache?.applied && span?.evidence?.length
+                ? [...s.cache.applied, ...span.evidence.map(proof => Object.freeze({ proof, block: span.id, index }))] : undefined);
         },
 
         // The state a Re-read of carrier `index` runs its lines on: its own checkpoint when it starts
@@ -2385,7 +2388,7 @@ export function createStore({
             for (const [target, next] of writes) write(target, next);
             saver.touch();
             forgetMemos();
-            cache = null;   // rebuilt on the next read, with the blocks that stay skipped reported
+            s.cache = null;   // rebuilt on the next read, with the blocks that stay skipped reported
         },
 
         // Plans the guarded system blocks that carry a `replan` again, from carrier `index` to the head, on the
@@ -2406,7 +2409,7 @@ export function createStore({
             for (const [target, next] of walked.writes) write(target, next);
             saver.touch();
             forgetMemos();
-            cache = null;
+            s.cache = null;
             return { changed: true, planned: walked.planned, removed: walked.removed };
         },
 
@@ -2450,7 +2453,7 @@ export function createStore({
             const arr = list();
             const memo = lineOf(arr);
             if (memo.receipts) return memo.receipts;
-            counts.lineScans++;
+            s.counts.lineScans++;
             const out = [];
             let started = false;
             for (const i of carrierIndexes(arr)) {
@@ -2537,7 +2540,7 @@ export function createStore({
             const arr = list();
             const memo = lineOf(arr);
             if (memo.untold) return memo.untold;
-            counts.lineScans++;
+            s.counts.lineScans++;
             const records = [];
             for (const i of carrierIndexes(arr)) {
                 const record = readRecord(arr[i]);
@@ -2562,14 +2565,14 @@ export function createStore({
          * passes for receipts or untold), `witnessMisses` (timeline witnesses worked out, not found in the memo). A copy.
          */
         work() {
-            return { ...counts };
+            return { ...s.counts };
         },
 
         rebuild() {
-            frozenCheckpoints = new WeakMap();
-            const previous = idIndex;
-            idIndex = null;
-            cache = null;
+            s.frozenCheckpoints = new WeakMap();
+            const previous = s.idIndex;
+            s.idIndex = null;
+            s.cache = null;
             forgetMemos();
             // The record copies and old receipts are settled over the whole chat, and a record whose
             // swipe moved is stamped again (settleAll).
@@ -2595,22 +2598,22 @@ export function createStore({
         // then copies each once: a reply's change lines are stored one by one (each must apply on its
         // own), but a long block is not copied once per line (B1-1).
         async batch(fn) {
-            holding += 1;
+            s.holding += 1;
             try {
                 return await fn();
             } finally {
-                holding -= 1;
-                if (!holding) {
+                s.holding -= 1;
+                if (!s.holding) {
                     // The copies are written again as they are: a head cached before stays the head.
                     const arr = list();
-                    const kept = cache && sameKey(cache.key, headKey(arr)) ? cache : null;
-                    for (const message of held) {
+                    const kept = s.cache && sameKey(s.cache.key, headKey(arr)) ? s.cache : null;
+                    for (const message of s.held) {
                         const record = message.extra?.[KEY];
                         if (!record) continue;
                         if (keeps(message, arr)) writeRecord(message, record);
                         else dropCopy(message);
                     }
-                    held.clear();
+                    s.held.clear();
                     if (kept) retain(arr, kept.state, kept.problems);
                 }
             }
@@ -2624,7 +2627,7 @@ export function createStore({
         renamed(from, to) {
             if (typeof from !== 'string' || typeof to !== 'string' || !from || !to || from === to) return false;
             let moved = saver.renamed(from, to);
-            for (const entry of unsaved.values()) {
+            for (const entry of s.unsaved.values()) {
                 if (entry.chatId !== from) continue;
                 entry.chatId = to;
                 moved = true;
@@ -2679,9 +2682,9 @@ export function createStore({
     for (const name of ['replaceStory', 'reconcile']) {
         const inner = api[name];
         api[name] = (...args) => {
-            const outer = walkProofs;
-            walkProofs = new Map();
-            try { return inner.apply(api, args); } finally { walkProofs = outer; }
+            const outer = s.walkProofs;
+            s.walkProofs = new Map();
+            try { return inner.apply(api, args); } finally { s.walkProofs = outer; }
         };
     }
     return api;
