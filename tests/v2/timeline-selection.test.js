@@ -73,8 +73,11 @@ test('participant callbacks time out and late calls cannot race a new selection'
     await Promise.resolve();
     await Promise.resolve();
     t.mock.timers.tick(25);
-    assert.equal((await call).code, 'FAILED');
-    assert.equal((await participants.call(NATIVE, 'status', {})).code, 'FAILED');
+    // (a timeout is "retry shortly", STALE, and says the late call is still running; the call that meets it is STALE too)
+    const timedOut = await call;
+    assert.equal(timedOut.code, 'STALE');
+    assert.match(timedOut.message, /still running/);
+    assert.equal((await participants.call(NATIVE, 'status', {})).code, 'STALE');
     release({ ok: true, checkpoint: 'ck_00000001', hash: 'a'.repeat(64), schema: 1 });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal((await participants.call(NATIVE, 'status', {})).code, 'NOT_FOUND');
