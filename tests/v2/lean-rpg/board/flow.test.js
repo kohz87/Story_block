@@ -45,3 +45,30 @@ test('send, swipe and continue an open fight without planning it again', async (
         assert.equal(JSON.stringify(host.head()), live);
     } finally { host.close(); restore(); }
 });
+
+// Round 17: path b (board opened on a standing fight): a regenerate-type send carries every staged exchange, not a stale cached payload.
+for (const count of [1, 2, 4]) test(`path b: ${count} staged exchange(s) are all carried when an older cached payload exists`, async () => {
+    const restore = seedCrypto(81);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 3, 1, 12]]) } };
+    const { host } = await setup({ blocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+        assert.equal(openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } }).error, undefined);
+        let staged;
+        for (let n = 0; n < count; n += 1) {
+            staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+            assert.equal(staged.error, undefined);
+            if (staged.preview.result.stop !== 'open') break;
+        }
+        const session = boardSession(meta), want = staged.preview.result.rounds.length;
+        assert.ok(want >= Math.min(count, 2) || staged.preview.result.stop !== 'open');
+        const board = structuredClone(session);
+        meta.rpgFightLast = { key: `b:${encodeURIComponent(board.id)}:${encodeURIComponent(board.anchor)}:${board.setup.offset}`,
+            board: { id: board.id, anchor: board.anchor, groups: board.groups, setup: board.setup, exchanges: board.exchanges.slice(0, 1) }, practice: 3 };
+        host.ctx.chat.push({ is_user: true, name: 'You', mes: 'I press on.', extra: {} });
+        const sent = await host.st.generate('regenerate', { reply: 'The fight goes on.' });
+        assert.equal(sent.aborted, undefined);
+        const receipt = rollReceipt(host, sent.index);
+        assert.deepEqual(receipt.data.v2.result.rounds, staged.preview.result.rounds, 'every staged exchange is committed');
+    } finally { host.close(); restore(); }
+});

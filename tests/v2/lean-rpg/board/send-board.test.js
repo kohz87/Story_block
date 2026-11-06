@@ -138,3 +138,67 @@ test('a fled fight is carried the same way: staged == committed, no planner call
     assert.deepEqual(result.rounds, staged.rounds);
     assert.equal(result.stop, 'fled');
 });
+
+// Round 17: Send is a 'regenerate'; a stale cached payload (rpgFightLast, same anchor) must never beat the staged session.
+for (const exchanges of [1, 2]) test(`a stale cached payload with ${exchanges} exchange(s) does not replace the ${'staged'} fight at Send (path c)`, async t => {
+    const app = await start(t, 801);
+    const { host, doc, calls } = app;
+    await play(app, 12);
+    const session = boardSession(host.ctx.chatMetadata);
+    assert.ok(session.exchanges.length >= 4);
+    const staged = stagedRounds(host);
+    const stale = structuredClone(session);
+    stale.exchanges = stale.exchanges.slice(0, exchanges);
+    host.ctx.chatMetadata.rpgFightLast = { key: `b:${encodeURIComponent(stale.id)}:${encodeURIComponent(stale.anchor)}:${stale.setup.offset}`,
+        board: { id: stale.id, anchor: stale.anchor, groups: stale.groups, setup: stale.setup, exchanges: stale.exchanges }, practice: 3 };
+    const out = sender(host);
+    doc.querySelector('.rpg-board-send').click();
+    const sent = await out.generation;
+    assert.equal(sent.aborted, undefined);
+    assert.equal(calls.length, 1);
+    const result = roll(host, sent.index).data.v2.result;
+    assert.deepEqual(result.rounds, staged.rounds, 'every staged exchange is committed');
+    assert.equal(result.stop, 'won');
+    assert.equal((promptOf(sent).match(/Exchange \d+/g) ?? []).length, session.exchanges.length);
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
+    assert.equal((await host.sdk.reread(sent.index)).ok, true);
+    assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
+    await host.swipe('Again.');
+    assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
+});
+
+// Round 17b: the waiting reply is released only by "Send with this fight", never by the board holding an exchange.
+test('one exchange on the board does not release the waiting reply; only Send with this fight does (path c)', async t => {
+    const app = await start(t, 801);
+    const { host, doc } = app;
+    let chatLength = host.ctx.chat.length;
+    const choice = [...doc.querySelectorAll('.rpg-board-choice')].find(item => !item.disabled);
+    choice.click();
+    const target = doc.querySelector('.rpg-board-choice');
+    if (target && /target/i.test(doc.querySelector('.rpg-board-prompt')?.textContent ?? '')) target.click();
+    await new Promise(resolve => setTimeout(resolve, 450));
+    await settle();
+    assert.ok(boardSession(host.ctx.chatMetadata).exchanges.length >= 1);
+    for (const type of ['regenerate', 'normal']) {
+        const held = await host.st.generate(type, { reply: 'Too early.' });
+        assert.equal(held.aborted, true, `${type}: held with one exchange on the board`);
+    }
+    assert.equal(host.ctx.chat.length, chatLength, 'the waiting message stays, no reply was written');
+    assert.equal(host.ctx.chat.at(-1).is_user, true);
+    await play(app, 12);
+    const session = boardSession(host.ctx.chatMetadata), staged = stagedRounds(host);
+    assert.ok(session.exchanges.length >= 4);
+    assert.equal((await host.st.generate('regenerate', { reply: 'Still early.' })).aborted, true, 'held with the whole fight staged, before Send');
+    const out = sender(host);
+    doc.querySelector('.rpg-board-send').click();
+    const sent = await out.generation;
+    assert.equal(sent.aborted, undefined);
+    assert.equal((promptOf(sent).match(/Exchange \d+/g) ?? []).length, session.exchanges.length);
+    assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
+    await host.swipe('Again.');
+    assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds, 'a later swipe keeps every exchange');
+    const regen = await host.st.generate('regenerate', { reply: 'Once more.' });
+    if (!regen.aborted) assert.deepEqual(roll(host, regen.index ?? sent.index).data.v2.result.rounds, staged.rounds);
+});

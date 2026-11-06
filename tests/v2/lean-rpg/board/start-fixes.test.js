@@ -5,7 +5,7 @@ import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { knownFoeAction } from '../../../../src/v2/lean-rpg/board/action-gate.js';
 import { pauseViewData } from '../../../../src/v2/lean-rpg/board/start-view-data.js';
 import { buildPanel, panelModel, readResolve } from '../../../../src/v2/lean-rpg/view/battle-log.js';
-import { boardSession, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { boardSession, markSend, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { pendingStart } from '../../../../src/v2/turn/fight-start.js';
 import { dropOf } from '../../../../src/v2/lean-rpg/ambush.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
@@ -154,6 +154,7 @@ test('F4: the board opening rolls only the approach; the first exchange is the r
         assert.equal(acts.length, 1, 'the reader\'s one click rolls one attack');
         const rounds = structuredClone(staged.preview.result.rounds);
         host.settings.set('story-block', 'rpgPracticePerUse', 5);
+        assert.equal(markSend(meta, pending, boardSession(meta)), true); // what the Send button does before it generates
         const sent = await host.st.generate('regenerate', { reply: 'The approach and fight.' });
         assert.equal(sent.aborted, undefined);
         const receipt = host.ctx.chat[sent.index].extra.storySuite.receipts.findLast(item => item.type === 'rpg.resolve' && item.replan?.payload?.board);

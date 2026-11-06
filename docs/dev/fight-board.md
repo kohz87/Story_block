@@ -162,3 +162,19 @@ the approach checks earn practice and a successful ambush applies to the first e
   Where to look when "the reply shows one planner round instead of my exchanges": `readSend`, `markSend`, the board branch of `beforeGenerate`.
 - The planner wait ("Working out the fight…") opens no screen; it shows on the Fight tab dot (`view/index.js` 'fight-start' handler opens only for a ready pause).
 - Tests: `tests/v2/lean-rpg/board/send-board.test.js` (replaces the round-15 F1 close logic; its test and two start-ui tests were changed to the no-pop rule).
+
+## Send carries every staged exchange (round 17)
+
+- "Send with this fight" generates as a `regenerate`. `precall.js` `beforeGenerate` used to prefer the cached payload (`rpgFightLast`, same anchor) over the
+  staged session, so a stale one-exchange payload from an earlier send replaced the reader's 2–4 exchanges (reply, prompt and battle log showed exchange 1 only).
+  Now a staged session with exchanges on this anchor (else the Send copy, `rpgFightSend`) wins over the cache; its key and practice come from the staged
+  fight, not the cache. Swipe still reads its own receipt; Regenerate/Re-read of a captured reply still use the cache. Tests: `send-board.test.js` (path c,
+  stale cache ×2), `flow.test.js` (path b ×3).
+
+## The waiting reply is held until Send (round 17b)
+
+- `precall.js` `canGenerate` held the waiting reply only while the board had no exchange, so the first staged exchange released it: the narrator got "Exchange 1" only
+  while the reader kept playing. Now, with the reader's choice 'board' on this anchor, every commit attempt (regenerate or normal) stays held unless `rpgFightSend`
+  (written by "Send with this fight", `markSend`) holds a copy with as many exchanges as the board now has. Narrate / Discard follow the normal rules.
+- Where to look when "the reply went out after the first exchange": `canGenerate` (hold) in `precall.js`, `send()` in `board/start-controller.js`, `markSend` in `board/session.js`.
+- Test: `send-board.test.js` "one exchange on the board does not release the waiting reply".

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, foeBlock, setup, skillBlock, tailOf } from '../helpers.js';
-import { boardSession, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { boardSession, markSend, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { pendingStart } from '../../../../src/v2/turn/fight-start.js';
 import { dropOf } from '../../../../src/v2/lean-rpg/ambush.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
@@ -71,6 +71,7 @@ test('new foes: the held seeded approach and board exchanges survive swipe, Re-r
         assert.deepEqual(host.turn.fightStartPreview().result.checks, checks);
         assert.equal(pendingStart(meta, host.ctx.chat).choice, 'board');
         host.settings.set('story-block', 'rpgPracticePerUse', 5);
+        assert.equal(markSend(meta, pending, boardSession(meta)), true); // what the Send button does before it generates
         const sent = await host.st.generate('regenerate', { reply: 'The approach and fight.' });
         assert.equal(sent.aborted, undefined);
         const receipt = boardReceipt(host, sent.index);
@@ -154,6 +155,7 @@ test('an opening and its exchange survive deleting an earlier message pair', asy
         const staged = stageExchange(meta, opening.state, [{ who: 'Astra', kind: 'attack', target: 1 }]);
         assert.equal(staged.error, undefined);
         const rounds = structuredClone(staged.preview.result.rounds), checks = structuredClone(opening.result.checks);
+        assert.equal(markSend(meta, pending, boardSession(meta)), true); // what the Send button does before it generates
         const sent = await host.st.generate('regenerate', { reply: 'The fight.' });
         assert.equal(sent.aborted, undefined);
         await host.st.deleteMessage(2);
@@ -187,6 +189,7 @@ test('a newly opened board victory awards XP once through swipe and Re-read', as
             if (played.preview.result.stop !== 'open') break;
         }
         assert.equal(played.preview.result.stop, 'won');
+        assert.equal(markSend(meta, pending, boardSession(meta)), true); // what the Send button does before it generates
         const sent = await host.st.generate('regenerate', { reply: 'The fight ends.' });
         const xp = () => host.head().domains.dataModules.instances['pack.chat/hero'].chat.fields.xp;
         assert.ok(xp() > 0);

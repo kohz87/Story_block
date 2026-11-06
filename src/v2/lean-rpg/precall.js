@@ -257,8 +257,13 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         let board = null;
         if (last?.is_user) {
             const anchor = readRecord(messages.at(-2))?.sid;
-            if (info.commit === true && view?.feature?.('story-block.fight-board') === true && pending?.choice === 'board' && session?.anchor === anchor && !session.exchanges?.length)
-                return { ok: false, reason: 'Play the waiting fight on the board.', action: false, fightStart: true };
+            // The waiting reply is released only by "Send with this fight" (markSend copies the staged fight, exchanges and all): until then every
+            // generation attempt stays held, whatever the board holds. A copy older than the board (more exchanges staged since) does not release it.
+            if (info.commit === true && view?.feature?.('story-block.fight-board') === true && pending?.choice === 'board' && session?.anchor === anchor) {
+                const sent = readSend(meta, messages)?.board;
+                if (!session.exchanges?.length || !sent || (sent.exchanges?.length ?? 0) !== session.exchanges.length)
+                    return { ok: false, reason: 'Play the waiting fight on the board.', action: false, fightStart: true };
+            }
             if (session?.exchanges?.length && !isStandard(currentRules(view))) return { ok: false, reason: 'The fight board needs Standard rules. Switch back to Standard or discard the staged fight before using Classic.', action: false };
             const legacyKey = `${messages.length - 1}-${hashText(String(last.mes ?? '').trim())}`;
             const remembered = lastBoard(meta, anchor, legacyKey, last);
@@ -312,16 +317,20 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             const remembered = type === 'regenerate' ? lastBoard(meta, anchorRecord?.sid, key, last) : null;
             let session = boardSession(meta);
             if (session?.anchor === anchorRecord?.sid) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
-            const board = previous?.board ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' ? boardPayload(session) : null)
-                ?? (isStandard(rules) && type !== 'swipe' && pending?.choice !== 'narrate' ? structuredClone(readSend(meta, messages)?.board ?? null) : null);
+            // A fight the reader staged on this very anchor is what this send carries: "Send with this fight" is a 'regenerate', and the
+            // cached payload of an earlier send (rpgFightLast, same anchor) must never stand in for it (it kept only the first exchange).
+            const staged = isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' && session.exchanges?.length ? boardPayload(session) : null;
+            const copied = isStandard(rules) && type !== 'swipe' && pending?.choice !== 'narrate' ? structuredClone(readSend(meta, messages)?.board ?? null) : null;
+            const fresh = previous ? null : staged ?? copied;
+            const board = previous?.board ?? fresh ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' ? boardPayload(session) : null);
             if (board) {
                 const anchored = board.anchor ? board : { ...board, anchor: anchorRecord?.sid ?? board.id };
-                const fightKey = previous?.key?.startsWith('b:') ? previous.key : remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
+                const fightKey = previous?.key?.startsWith('b:') ? previous.key : !fresh && remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
                 linkBoard(last, fightKey);
                 const opening = anchored.setup?.opening;
                 return { commands: [
                     ...(opening ? [{ type: RESOLVE, payload: opening.payload, seed: opening.seed }] : []),
-                    { type: RESOLVE, payload: { key: fightKey, board: anchored, practice: previous?.practice ?? remembered?.practice ?? practiceOf(opening?.payload?.practice) ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } },
+                    { type: RESOLVE, payload: { key: fightKey, board: anchored, practice: previous?.practice ?? (fresh ? null : remembered?.practice) ?? practiceOf(opening?.payload?.practice) ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } },
                 ] };
             }
         }
