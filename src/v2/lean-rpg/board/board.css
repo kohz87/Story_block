@@ -12,7 +12,7 @@
 .rpg-board-log { flex: 1 1 160px; min-height: 80px; max-height: 35vh; overflow-y: auto; padding: 8px 12px; margin: 0; font-size: calc(13px / var(--ss-zoomed, 1)); overflow-wrap: anywhere; }
 .rpg-board-log p { margin: 2px 0; }
 .rpg-board-round { font-weight: 700; margin-top: 8px !important; }
-.rpg-board-controls { flex: 0 0 auto; min-width: 0; padding: 8px; border: 1px solid var(--ss-border); border-radius: 10px; background: var(--ss-panel-opaque, var(--ss-glass-strong)); }
+.rpg-board-controls { flex: 0 0 auto; min-width: 0; padding: 8px; border: 1px solid var(--ss-border); border-radius: 10px; background: var(--ss-panel-opaque); }
 .rpg-board-prompt, .rpg-board-end { margin: 0 0 4px; font-weight: 700; }
 .rpg-board-choices { display: grid; gap: 4px; max-height: 35vh; overflow-y: auto; }
 .rpg-board-choice { box-sizing: border-box; width: 100%; min-height: 48px; padding: 9px 12px; border: 1px solid var(--ss-border); border-radius: 8px; color: var(--ss-text); background: var(--ss-glass); font: inherit; font-size: calc(15px / var(--ss-zoomed, 1)); text-align: left; overflow-wrap: anywhere; touch-action: manipulation; cursor: pointer; }
@@ -58,7 +58,7 @@
     :is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-controls > button.rpg-board-send { min-height: calc(48px / var(--ss-zoomed, 1)) !important; }
 }
 /* The end card: Send and Discard full width, stacked with a gap (approved mockup, frame 4). */
-.rpg-board-ended .rpg-board-send { display: block; width: 100%; min-height: 44px; }
+.rpg-board-ended .rpg-board-send { display: block; width: 100%; }
 .rpg-board-ended .rpg-board-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .rpg-board-ended .rpg-board-actions button { width: 100%; }
 .rpg-board-sending { margin: 8px 0 0; font-weight: 700; }

@@ -5,6 +5,7 @@
 import { foeLabel } from '../foes.js';
 import { STAGES, stageWord } from '../names.js';
 import { readSheet } from '../read.js';
+import { text as sentence } from '../../view/widgets/dom.js';
 
 export const OFFER_BOARD_LABEL = 'Fight on the board';
 export const OFFER_KEEP_LABEL = 'Keep narrating';
@@ -15,9 +16,6 @@ export const WORKING_TEXT = 'Working out the fight…';
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const list = value => (Array.isArray(value) ? value : []);
 const whole = value => (Number.isSafeInteger(value) ? value : null);
-const sentence = (value, max = 80) => (typeof value === 'string' || typeof value === 'number'
-    ? String(value).replace(/\s+/gu, ' ').trim().slice(0, max)
-    : '');
 const slotOf = value => {
     if (Number.isSafeInteger(value)) return value;
     if (typeof value === 'string' && /^\d+$/u.test(value.trim())) return Number(value);
@@ -118,7 +116,7 @@ function edgeText(opening) {
 }
 
 /**
- * The inline offer under the narrator's reply: `{ visible, text, names, foes, actions, … }`, or null with no fight.
+ * The inline offer under the narrator's reply: `{ visible, text, foes, label, boardLabel, narrateLabel }`, or null with no fight.
  * `hidden` is the reader's choice to keep narrating this fight. `state` lets the names come from the current sheet.
  */
 export function offerLineData(fight, { state = null, hidden = false } = {}) {
@@ -127,28 +125,18 @@ export function offerLineData(fight, { state = null, hidden = false } = {}) {
     const names = [...new Set(foes.map(foe => foe.name))];
     const joined = names.join(', ');
     return {
-        kind: 'offer', visible: hidden !== true, foes, names,
+        visible: hidden !== true, foes,
         text: `A fight started: ${joined}.`,
         label: `Fight offer: ${joined}`,
-        dotLabel: 'Fight offer open',
         boardLabel: OFFER_BOARD_LABEL,
         narrateLabel: OFFER_KEEP_LABEL,
-        actions: [
-            { key: 'board', label: OFFER_BOARD_LABEL, primary: true },
-            { key: 'narrate', label: OFFER_KEEP_LABEL, primary: false },
-        ],
     };
 }
-
-const pauseActions = () => [
-    { key: 'board', label: PAUSE_BOARD_LABEL, primary: true },
-    { key: 'narrate', label: PAUSE_NARRATE_LABEL, primary: false },
-];
 
 /**
  * The pause screen's data. Prefer the planner's rolled `opening` when it names new foes or approach checks; otherwise
  * show a staged/opened fight's known foes, or the waiting state while the planner call is out.
- * → { mode: 'new' | 'known' | 'working', title, foes, checks, edge, note, actions, … } or null.
+ * → { mode: 'new' | 'known' | 'working', title, foes, checks, edge, note, … } or null.
  */
 export function pauseViewData({ fight = null, opening = null, state = null, waiting = false } = {}) {
     const newFoes = openingFoes(opening);
@@ -157,7 +145,7 @@ export function pauseViewData({ fight = null, opening = null, state = null, wait
         return {
             mode: 'new', title: 'Your message starts a fight', foeTitle: 'New foes',
             foes: newFoes, checks, edge: edgeText(opening), note: '',
-            label: 'Fight starts', actions: pauseActions(),
+            label: 'Fight starts',
             boardLabel: PAUSE_BOARD_LABEL, narrateLabel: PAUSE_NARRATE_LABEL,
         };
     }
@@ -166,14 +154,14 @@ export function pauseViewData({ fight = null, opening = null, state = null, wait
         return {
             mode: 'known', title: 'Your message starts a fight', foeTitle: 'Foes',
             foes: known, checks: [], edge: '', note: 'The reply is waiting. Choose how this fight is played.',
-            label: 'Fight paused', actions: pauseActions(),
+            label: 'Fight paused',
             boardLabel: PAUSE_BOARD_LABEL, narrateLabel: PAUSE_NARRATE_LABEL,
         };
     }
     if (waiting === true) {
         return {
             mode: 'working', title: '', status: WORKING_TEXT, foeTitle: '', foes: [], checks: [], edge: '', note: '',
-            label: 'Working out the fight', actions: [pauseActions()[1]], boardLabel: PAUSE_BOARD_LABEL, narrateLabel: PAUSE_NARRATE_LABEL,
+            label: 'Working out the fight', boardLabel: PAUSE_BOARD_LABEL, narrateLabel: PAUSE_NARRATE_LABEL,
         };
     }
     return null;

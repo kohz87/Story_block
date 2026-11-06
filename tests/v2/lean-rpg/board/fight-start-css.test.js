@@ -1,4 +1,4 @@
-// The new start-view stylesheet: touch sizes, wrapping, the tab dot and the reduced-motion spinner.
+// The new start-view stylesheet: touch sizes, wrapping and the reduced-motion spinner.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,11 +29,7 @@ test('action buttons are 44px at rest and 48px on the zoomed phone frame', () =>
     assert.match(coarse, /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
 });
 
-test('the offer dot is the mockup size and the waiting spinner respects reduced motion', () => {
-    const dot = rule('.rpg-fight-offer-dot {');
-    assert.match(dot, /position: absolute/);
-    assert.match(dot, /width: 9px/);
-    assert.match(dot, /height: 9px/);
+test('the waiting spinner respects reduced motion', () => {
     assert.match(rule('.rpg-fight-pause-working {'), /align-items: center/);
     assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.rpg-fight-pause-spinner \{ animation: none; \} \}/);
 });

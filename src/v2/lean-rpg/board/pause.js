@@ -1,20 +1,9 @@
 // The pause screen between Send and the fight board: known foes, the planner's wait, or new foes with rolled approach checks.
 // It renders pauseViewData only; both choices are callbacks so the send flow keeps ownership of the fight.
 
-import { h } from '../../view/widgets/dom.js';
+import { button, h, text } from '../../view/widgets/dom.js';
 
 export const PAUSE_ROOT = 'rpg-fight-pause';
-
-const text = (value, max = 300) => (typeof value === 'string' || typeof value === 'number'
-    ? String(value).replace(/\s+/gu, ' ').trim().slice(0, max)
-    : '');
-
-const button = (doc, label, className, click) => {
-    const node = h(doc, 'button', className, label);
-    node.setAttribute('type', 'button');
-    node.addEventListener('click', click);
-    return node;
-};
 
 const outcomeName = value => (value === 'success' || value === 'cost' || value === 'fail' ? value : 'neutral');
 

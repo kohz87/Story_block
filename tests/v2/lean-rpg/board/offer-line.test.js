@@ -1,9 +1,9 @@
-// The reply offer line: its text, two labelled actions, callback payloads, dot and cleanup.
+// The reply offer line: its text, two labelled actions, callback payloads and cleanup.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createOfferDot, createOfferLineView } from '../../../../src/v2/lean-rpg/board/offer-line.js';
+import { createOfferLineView } from '../../../../src/v2/lean-rpg/board/offer-line.js';
 import { setupDom } from '../../view/mounts/helpers.js';
 
 const data = {
@@ -34,15 +34,11 @@ test('the offer line renders the sentence and exactly two callback actions', () 
     view.destroy();
 });
 
-test('the offer text is text, and the Fight-tab dot names the open offer', () => {
+test('the offer text is text, never markup', () => {
     const doc = setupDom(), view = createOfferLineView({ doc }), reply = doc.createElement('div');
     const node = view.render(reply, { ...data, text: 'A fight started: <b>not markup</b>.' });
     assert.equal(node.querySelector('b'), null);
     assert.match(node.textContent, /<b>not markup<\/b>/);
-    const dot = createOfferDot(doc, { dotLabel: 'Fight offer open' });
-    assert.equal(dot.className, 'rpg-fight-offer-dot');
-    assert.equal(dot.getAttribute('role'), 'img');
-    assert.equal(dot.getAttribute('aria-label'), 'Fight offer open');
     view.destroy();
 });
 
@@ -51,5 +47,4 @@ test('the offer buttons are at least 44px touch targets at once and 48px before 
     assert.match(css, /\.rpg-fight-offer-actions > button[\s\S]*?min-height: 44px/);
     assert.match(css, /touch-action: manipulation/);
     assert.match(css, /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
-    assert.match(css, /\.rpg-fight-offer-dot \{[^}]*width: 9px;[^}]*height: 9px;/);
 });

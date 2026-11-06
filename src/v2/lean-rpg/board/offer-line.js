@@ -1,21 +1,9 @@
-// The small fight offer under a narrator reply that set foes.
+// The small fight offer under a narrator reply that set foes (the Fight tab's alert is the badge in view/fight.js).
 // It draws only from offerLineData and hands the two choices back to the caller; it keeps no fight state itself.
 
-import { h } from '../../view/widgets/dom.js';
+import { button, h, text } from '../../view/widgets/dom.js';
 
 export const OFFER_LINE_ROOT = 'rpg-fight-offer';
-export const OFFER_DOT = 'rpg-fight-offer-dot';
-
-const text = (value, max = 120) => (typeof value === 'string' || typeof value === 'number'
-    ? String(value).replace(/\s+/gu, ' ').trim().slice(0, max)
-    : '');
-
-const button = (doc, label, className, click) => {
-    const node = h(doc, 'button', className, label);
-    node.setAttribute('type', 'button');
-    node.addEventListener('click', click);
-    return node;
-};
 
 /**
  * createOfferLineView({ doc, onFight, onNarrate })
@@ -32,15 +20,15 @@ export function createOfferLineView({ doc = globalThis.document, onFight = () =>
         root.replaceChildren();
         root.className = OFFER_LINE_ROOT;
         root.setAttribute('role', 'group');
-        root.setAttribute('aria-label', text(shown.label) || 'Fight offer');
+        root.setAttribute('aria-label', text(shown.label, 120) || 'Fight offer');
         const line = h(doc, 'p', 'rpg-fight-offer-line');
         const mark = h(doc, 'span', 'rpg-fight-offer-mark', '⚔');
         mark.setAttribute('aria-hidden', 'true');
         line.append(mark, h(doc, 'strong', '', text(shown.text, 300)));
         root.appendChild(line);
         const actions = h(doc, 'div', 'rpg-fight-offer-actions');
-        actions.appendChild(button(doc, text(shown.boardLabel) || 'Fight on the board', 'ss-button ss-button-primary rpg-fight-offer-fight', () => onFight?.(shown)));
-        actions.appendChild(button(doc, text(shown.narrateLabel) || 'Keep narrating', 'ss-button rpg-fight-offer-narrate', () => onNarrate?.(shown)));
+        actions.appendChild(button(doc, text(shown.boardLabel, 120) || 'Fight on the board', 'ss-button ss-button-primary rpg-fight-offer-fight', () => onFight?.(shown)));
+        actions.appendChild(button(doc, text(shown.narrateLabel, 120) || 'Keep narrating', 'ss-button rpg-fight-offer-narrate', () => onNarrate?.(shown)));
         root.appendChild(actions);
         if (root.parentNode !== host) host.appendChild(root);
         return root;
@@ -58,12 +46,4 @@ export function createOfferLineView({ doc = globalThis.document, onFight = () =>
         destroy() { clear(); host = null; shown = null; },
         get element() { return root; },
     };
-}
-
-/** The marker the Fight tab puts by its icon while an offer is open. */
-export function createOfferDot(doc = globalThis.document, data = {}) {
-    const dot = h(doc, 'span', OFFER_DOT);
-    dot.setAttribute('role', 'img');
-    dot.setAttribute('aria-label', text(data?.dotLabel) || 'Fight offer open');
-    return dot;
 }
