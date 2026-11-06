@@ -9,22 +9,50 @@ import { boardFlags } from './overrides.js';
 import { orderOf } from '../resolve.js';
 import { hashText } from '../../assist/common.js';
 import { readRecord } from '../../persist.js';
+import { keptFrom, matchesBlock } from './members.js';
 
 const KEY = 'rpgFightBoard', ATTEMPTS = 'rpgFightAttempts', LAST = 'rpgFightLast';
 const LINKS = 'rpgFightLinks', SEND = 'rpgFightSend';
+const START = 'rpgFightStart', HISTORY = 'rpgFightHistory';
 const object = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const claimOf = (key, sid) => `rpg:resolve:${key}${key.startsWith('b:') && sid ? `:reply:${sid}` : ''}`;
+
+const receiptsOf = receipts => (typeof receipts === 'function' ? receipts() : receipts) ?? [];
+
+/** The latest committed board result that still collapses to each real slot's count and hurt. */
+function keptBoards(realFoes, receipts, claims = null) {
+    const wanted = new Set((Array.isArray(realFoes) ? realFoes : []).filter(foe => foe?.filled && foe.hurt > 0).map(foe => foe.slot));
+    const kept = {};
+    for (const entry of [...receiptsOf(receipts)].reverse()) {
+        const receipt = entry?.receipt ?? entry, result = receipt?.type === 'rpg.resolve' ? receipt.data?.v2?.result : null;
+        const members = Array.isArray(entry?.members) ? entry.members : result?.members;
+        if (entry?.claim && claims && claims[entry.claim] !== true) continue;
+        if ((!object(result?.board) && !Array.isArray(entry?.members)) || !Array.isArray(members)) continue;
+        const values = keptFrom(members);
+        for (const foe of (Array.isArray(realFoes) ? realFoes : [])) {
+            if (!wanted.has(foe.slot) || kept[foe.slot] || !Array.isArray(values[foe.slot])) continue;
+            if (matchesBlock(members, foe)) kept[foe.slot] = [...values[foe.slot]];
+        }
+        if (wanted.size === Object.keys(kept).length) break;
+    }
+    return Object.keys(kept).length ? kept : null;
+}
 
 export const boardSession = meta => (object(meta?.[KEY]) ? meta[KEY] : null);
 
 /** Open on a carrier: its ID and discard count determine the fight's seed. */
-export function openBoard(meta, state, { sid, rules, gear = null, weapons = {} } = {}) {
+export function openBoard(meta, state, { sid, rules, gear = null, weapons = {}, receipts = null } = {}) {
     if (!object(meta) || typeof sid !== 'string' || !sid) return { error: 'There is no reply to open a fight from.' };
     const sheet = readSheet(state), groups = sheet.foes.filter(foe => foe.filled && foe.hurt > 0).map(foe => foe.slot);
     if (!sheet.characters.some(actor => actor.alive !== false && actor.health !== 0) || !groups.length) return { error: 'There is no fight to open.' };
     const attempt = Number.isSafeInteger(meta[ATTEMPTS]?.[sid]) ? meta[ATTEMPTS][sid] : 0;
     const seed = fightSeed(sid, attempt);
+    const kept = keptBoards(sheet.foes, receipts ?? meta[HISTORY], receipts ? null : state?.meta?.claims ?? {}),
+        pending = object(meta[START]) && meta[START].anchor === sid ? meta[START] : null;
+    const opened = Array.isArray(pending?.result?.opened) && pending.result.opened.length ? structuredClone(pending.result.opened) : null;
     const session = { id: `${sid}:${attempt}`, origin: sid, anchor: sid, groups,
-        setup: { seed, offset: 0, rules: structuredClone(rules), flags: boardFlags(state), weapons: structuredClone(weapons), ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
+        setup: { seed, offset: 0, rules: structuredClone(rules), members: 1, ...(kept ? { kept } : {}), ...(opened ? { opened } : {}),
+            flags: boardFlags(state), weapons: structuredClone(weapons), ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
     const preview = playBoard(state, session.setup, []);
     if (preview.error) return preview;
     meta[KEY] = session;
@@ -92,6 +120,10 @@ export function linkBoard(message, key) {
 export function receiveBoard(meta, payload, result, sid, receiptId = null, state = null, query = null) {
     if (!object(meta) || !object(payload?.board) || !object(result) || typeof sid !== 'string' || !sid) return false;
     meta[LAST] = structuredClone(payload);
+    if (Array.isArray(result.members) && typeof payload.key === 'string') {
+        const claim = claimOf(payload.key, sid), history = Array.isArray(meta[HISTORY]) ? meta[HISTORY] : [];
+        meta[HISTORY] = [{ claim, members: structuredClone(result.members) }, ...history.filter(entry => entry?.claim !== claim)].slice(0, 24);
+    }
     const board = payload.board;
     if (result.stop !== 'open') { delete meta[KEY]; return true; }
     const current = boardSession(meta), nextOffset = board.setup.offset + board.exchanges.length;

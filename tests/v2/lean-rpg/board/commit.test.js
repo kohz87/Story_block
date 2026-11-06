@@ -45,6 +45,26 @@ test('the reply resolver commits exactly the staged exchange and refuses a dupli
     } finally { host.close(); }
 });
 
+test('a new members setup records its opened foes; an old setup records neither new field', async () => {
+    const blocks = { hero: { role: 'character', fields: character('Astra') }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
+    const { host } = await setup({ blocks });
+    try {
+        const rules = { ...STANDARD_FORMULA, levelDivisor: 5 }, opened = [{ name: 'Rats', count: 2, level: 1 }];
+        const made = host.bus.run('rpg.resolve', { key: '6-abc', board: {
+            id: 'members-open', groups: [1], exchanges: [],
+            setup: { seed: 24, offset: 0, rules, members: 1, opened },
+        } }, { cause: 'system' });
+        assert.equal(made.ok, true, made.message);
+        assert.deepEqual(made.receipt.data.v2.result.opened, opened);
+        const old = host.bus.run('rpg.resolve', { key: '7-abc', board: {
+            id: 'old-open', groups: [1], exchanges: [], setup: { seed: 24, offset: 0, rules },
+        } }, { cause: 'system' });
+        assert.equal(old.ok, true, old.message);
+        assert.equal(Object.hasOwn(old.receipt.data.v2.result, 'opened'), false);
+        assert.equal(Object.hasOwn(old.receipt.data.v2.result, 'members'), false);
+    } finally { host.close(); }
+});
+
 test('editing a staged sheet holds generation until the original input is restored', async () => {
     const restore = seedCrypto(81);
     const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
