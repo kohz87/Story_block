@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../../../../src/v2/lean-rpg/board/board.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const hostCss = readFileSync(new URL('../../../../src/v2/view/host.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 const rule = (text, selector) => {
     const lines = text.split('\n');
     const at = lines.findIndex(line => line.trimStart().startsWith(`${selector} {`));
@@ -78,8 +79,11 @@ test('finished phone fights unlock the body and show the whole log', () => {
 test('the finished board leaves bottom-bar room in panel and phone game views', () => {
     for (const selector of ['.story-suite-sheet-body:has(.rpg-board-active.rpg-board-finished)::after',
         '.ss-gameview-body:has(.rpg-board-active.rpg-board-finished)::after']) {
-        const spacer = rule(css, selector);
+        const spacer = rule(phone, selector);
         assert.match(spacer, /display: block/);
         assert.match(spacer, /height: var\(--ss-bottom-bar-space, var\(--ss-bottom-bar-height, 0px\)\)/);
     }
+    const panelSpacer = rule(hostCss, '.story-suite-sheet-body::after');
+    assert.match(panelSpacer, /display: block/);
+    assert.match(panelSpacer, /height: var\(--ss-bottom-bar-space\)/);
 });

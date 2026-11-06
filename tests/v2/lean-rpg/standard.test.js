@@ -1,4 +1,4 @@
-// The Standard stat formula's roll engine (src/v2/lean-rpg/standard.js, rules.js, plan.js, precall.js, cue.js): the recorded rules, the
+// The Standard stat formula's roll engine (src/v2/lean-rpg/standard/roll.js, re-exported by standard.js; rules.js, plan.js, precall.js, cue.js): the recorded rules, the
 // planner's lines, the typed roll with its breakdown, the bars a hit or a heal moves, the turn order, the opening action, area and support,
 // and a whole roll through the real turn. The numbers themselves are formula.js's (formula.test.js).
 import test from 'node:test';
