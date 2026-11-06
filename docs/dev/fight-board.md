@@ -140,3 +140,17 @@ the approach checks earn practice and a successful ambush applies to the first e
 - Tests: `tests/v2/lean-rpg/board/end-card.test.js`.
 - Where to look when "Send needs two presses" again: anything that redraws the Fight widget on a head/save event
   (`view/index.js` `fightStart.changed()`), and `pressButton`.
+
+### Fight start fixes (round 15, 6 Nov)
+- The Fight screen opens at 'fight-start' only while a pause is really waiting for this message (`view/index.js`, `fightStart.current()`).
+  The planner wait opens it (the working pause); when the planner finds no fight the screen that wait opened is closed again.
+  Where to look when "the Fight page opens on an old fight": the `events.on('head')` block in `view/index.js`, `onPlanning` in `runtime.js`.
+- Engage words: `fight-start.js` `ACTION` (starts the planner wait) and `ENGAGE`/`engagesFight` (a planner answer with new foes and approach
+  checks but no act still opens the pause, `precall.js` beforeGenerate); `board/action-gate.js` `ATTACK` for known foes.
+  Where to look when "engage/pounce/… did not start the fight".
+- The pause edge (`board/start-view-data.js` `edgeText`) claims an ambush only when an ambush check succeeded and says "acts first (initiative)"
+  for a turn-order lead; every approach check is listed with its real result. The Fight log's lead line (`strings.js` `quickStartLine`) says
+  the same and is left out when the ambush worked (`view/battle-log.js`).
+- A board exchange records the quick-start lead but rolls no opening action (`standard.js` opening loop, `board` option); the reader's own
+  action is the first roll. "Narrate it instead" keeps the planner's plan and its opening action.
+- Tests: `tests/v2/lean-rpg/board/start-fixes.test.js`.

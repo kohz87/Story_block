@@ -28,7 +28,7 @@ export function clearStart(meta) {
 }
 
 // The gate for a known fight must not turn a conversation or a quiet observation into a fight.
-const ACTION = /\b(?:attack\w*|strik\w*|struck|stab\w*|slash\w*|hit(?:s|ting)?|punch\w*|kick\w*|swing\w*|swung|smash\w*|bash\w*|fight\w*|fought|battl\w*|duel\w*|kill\w*|slay\w*|slew|smite\w*|shoot\w*|shot|hurl\w*|throw\w*|threw|cast\w*|charge\w*|ambush\w*|grappl\w*|tackl\w*|shov\w*|disarm\w*|block\w*|brac\w*|parr\w*|dodg\w*|evad\w*|defend\w*|guard\w*|lunge\w*|thrust\w*|flee\w*|fled|run\w*|ran|escap\w*|retreat\w*|cut\w*|slic\w*|cleav\w*|hack\w*|brawl\w*)\b/iu;
+const ACTION = /\b(?:attack\w*|strik\w*|struck|stab\w*|slash\w*|hit(?:s|ting)?|punch\w*|kick\w*|swing\w*|swung|smash\w*|bash\w*|fight\w*|fought|battl\w*|duel\w*|kill\w*|slay\w*|slew|smite\w*|shoot\w*|shot|hurl\w*|throw\w*|threw|cast\w*|charge\w*|ambush\w*|grappl\w*|tackl\w*|shov\w*|disarm\w*|block\w*|brac\w*|parr\w*|dodg\w*|evad\w*|defend\w*|guard\w*|lunge\w*|thrust\w*|engag\w*|assault\w*|pounc\w*|jump\w*|leap\w*|leapt|fall(?:s|ing)?\s+upon|fell\s+upon|flee\w*|fled|run\w*|ran|escap\w*|retreat\w*|cut\w*|slic\w*|cleav\w*|hack\w*|brawl\w*)\b/iu;
 const WEAPON_ACTION = /\b(?:fire|fires|fired|firing|draw|draws|drew|drawing|loose|loosed|aim|aims|aimed)\b[^.!?]{0,35}\b(?:at|arrow|bow|bolt|blade|sword|dagger|weapon|gun|spear)\b/iu;
 export function fightsInMessage(text, sheet) {
     if (ACTION.test(String(text ?? '')) || WEAPON_ACTION.test(String(text ?? ''))) return true;
@@ -38,3 +38,7 @@ export function fightsInMessage(text, sheet) {
         return name.length >= 4 && message.includes(name);
     }));
 }
+
+// The planner's answer for a message that engages (not just prepares) a fight: approach checks and new foes, but maybe no act of its own.
+const ENGAGE = /\b(?:engag\w*|attack\w*|strik\w*|struck|charg\w*|ambush\w*|assault\w*|lunge\w*|lung(?:e|ed|es|ing)|fall(?:s|ing)?\s+upon|fell\s+upon|jump\w*|pounc\w*|leap\w*|leapt)\b/iu;
+export const engagesFight = text => ENGAGE.test(String(text ?? ''));

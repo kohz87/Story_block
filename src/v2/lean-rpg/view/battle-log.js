@@ -354,7 +354,8 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
     });
 
     if (model.order.length) body.appendChild(el(doc, 'p', 'rpg-bl-order', `${B.turnOrder} ${(model.orderEntries ?? model.order.map(name => ({ name, total: null }))).map(item => { const name = item.level ? fill(RPG_STRINGS.blocks.orderNameLevel, item) : item.name; return item.total === null ? name : `${name} ${item.total}`; }).join(' > ')}`));
-    for (const item of model.quickStart ?? []) body.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-quick', fill(RPG_STRINGS.blocks.quickStartLine, item)));
+    // (a lead from a worked ambush is told by the ambush line below; this line is the turn-order lead only)
+    for (const item of model.ambush?.success ? [] : model.quickStart ?? []) body.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-quick', fill(RPG_STRINGS.blocks.quickStartLine, item)));
     for (const check of model.checks) body.appendChild(lineNode(doc, check, { check: true }));
     if (model.ambush && (model.rounds.length || model.ambush.drop)) {
         const a = model.ambush, which = a.success ? (a.drop ? 'ambushDrop' : 'ambushWon') : a.half ? 'ambushHalf' : 'ambushLost';

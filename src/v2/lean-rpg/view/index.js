@@ -117,10 +117,24 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
     const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf, levels, offer: offers });
     widgets[FIGHT_WIDGET] = createFightWidget({ headState, readerName, roleOf, battleLog, closeView, levels, board, start: fightStart });
     screens.setPack(PACK, [createPartyScreen(), createFightScreen({ roleOf, offer: () => Boolean(offers.find()), waiting: () => Boolean(fightStart.current()) }), wizard.screen, exporter.screen, start.holdScreen]);
+    // The Fight screen opens only for a pause really waiting for THIS message (the planner wait counts: it is the working pause). When the planner
+    // finds no fight the working pause is gone, so a screen that only it opened is closed again: it must not sit there showing an earlier fight.
+    let openedForWorking = false;
     const offFightStart = events?.on?.('head', info => {
-        if (info?.reason === 'fight-start' || info?.reason === 'fight-start-done') {
-            fightStart.changed();
-            if (info.reason === 'fight-start') openScreen(FIGHT_SCREEN_ID);
+        if (info?.reason !== 'fight-start' && info?.reason !== 'fight-start-done') return;
+        fightStart.changed();
+        if (info.reason === 'fight-start') {
+            const waiting = fightStart.current();
+            if (!waiting) return;
+            openedForWorking = waiting.mode === 'working';
+            openScreen(FIGHT_SCREEN_ID);
+        } else if (openedForWorking) {
+            // (a found fight raises its own 'fight-start' right after this event, so the check waits one turn)
+            setTimeout(() => {
+                if (!openedForWorking) return;
+                openedForWorking = false;
+                if (!fightStart.current()) { try { closeView?.(); } catch { /* the reader closes it */ } }
+            }, 0);
         }
     });
     start.attach();

@@ -81,8 +81,7 @@ function approachChecks(opening) {
     const result = resultOf(opening);
     if (!result) return [];
     const checks = list(result.checks).filter(check => check?.kind === 'check' || check?.pc?.who || check?.who);
-    const ambushChecks = checks.filter(check => check?.ambush === true);
-    return (ambushChecks.length ? ambushChecks : checks).map(check => {
+    return checks.map(check => {
         const who = sentence(check.pc?.who ?? check.who, 60);
         const skill = sentence(check.skill, 60);
         const stat = sentence(check.pc?.stat ?? check.stat, 8).toUpperCase();
@@ -99,17 +98,23 @@ function approachChecks(opening) {
     });
 }
 
+// The edge line says only what the rolls gave. An ambush is claimed only when the approach check that grants it succeeded; the turn-order lead
+// is its own thing and is called initiative (a lead from a worked ambush is the ambush, not initiative).
 function edgeText(opening) {
     const result = resultOf(opening);
     if (!result) return '';
     const ambush = isObject(result.ambush) ? result.ambush : null;
-    if (ambush) {
-        if (ambush.success !== true) return 'Edge: no ambush';
+    const grants = list(result.checks).filter(check => check?.ambush === true);
+    const worked = ambush?.success === true && ambush.carried !== true && (!grants.length || grants.some(check => check.outcome === 'success'));
+    if (worked) {
         const who = sentence(ambush.who, 60);
         return `Edge: ambush${who ? ` · ${who} acts first` : ''}`;
     }
+    const parts = [];
+    if (grants.length || ambush) parts.push(grants.some(check => check.outcome === 'cost') ? 'no ambush (it only half worked)' : 'no ambush (the check failed)');
     const quick = list(result.quickStart).find(item => sentence(item?.who));
-    return quick ? `Edge: quick start · ${sentence(quick.who, 60)} acts first` : '';
+    if (quick) parts.push(`${sentence(quick.who, 60)} acts first (initiative)`);
+    return parts.length ? `Edge: ${parts.join(' · ')}` : '';
 }
 
 /**

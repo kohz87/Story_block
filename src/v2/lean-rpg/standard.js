@@ -392,6 +392,8 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
             const roll = source('open', base.at ?? 0), pcDie = roll(), foeDie = roll();
             const me = bars.get(owner(entry)), target = bars.get(foeId(entry.foe.slot));
             quick.push({ who: entry.pc.who, against: entry.foe.name });
+            // (the board: the lead is only recorded; the reader's own first exchange is the first action, no action is rolled for them)
+            if (board) continue;
             if (!standing(me.id) || !standing(target.id)) continue;
             const rolled = contested(entry, pcDie, foeDie, rules);
             const damage = rolled.pcWins && ['physical', 'magic'].includes(entry.type) ? damageOf(target, rolled.decisive ? 2 : 1) : undefined;

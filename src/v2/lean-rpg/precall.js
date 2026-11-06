@@ -26,7 +26,7 @@ import { SOUL_LABEL, soulShortOf } from './soul.js';
 import { readRecord } from '../persist.js';
 import { boardKey, boardPayload, boardSession, lastBoard, linkBoard, priorBoard, receiveBoard, reconcileBoard } from './board/session.js';
 import { boardInputError } from './board/commit.js';
-import { clearStart, fightsInMessage, holdStart, pendingStart } from '../turn/fight-start.js';
+import { clearStart, engagesFight, fightsInMessage, holdStart, pendingStart } from '../turn/fight-start.js';
 
 // The query that names a level's rank (LV-C: `rpg.rank { level }` → `{ name } | null`); without it a level has no rank.
 const RANK_QUERY = 'rpg.rank';
@@ -369,7 +369,9 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         const payload = { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, fix: FIX_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) };
         if (!pending && !narrateWhilePlanning && normalizeType(info?.type) === 'normal' && view?.feature?.('story-block.fight-board') === true && isStandard(rules)
             && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) && planned.plan.open?.length
-            && (planned.plan.acts?.length || planned.plan.foes?.some(foe => !foe.hold))) {
+            && (planned.plan.acts?.length || planned.plan.foes?.some(foe => !foe.hold)
+                // (a message that engages, with approach checks and new foes but no act of its own: "hide … as I engage them")
+                || (planned.plan.checks?.length && engagesFight(text)))) {
             const opening = { ...payload, start: startAnchor, plan: { ...payload.plan, acts: [], foes: [] } };
             return { fightStart: { opening, original: payload, anchor: startAnchor, message: hashText(text) } };
         }
