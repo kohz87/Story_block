@@ -165,8 +165,12 @@ test('the story panel: the tabs are the screen bar at its foot (no strip left), 
     assert.doesNotMatch(host, /\.story-suite-tab\.active|\.story-suite-tabs \{ display: flex/);
     assert.match(block(host, '.story-suite-sheet-head'), /padding: 12px 12px 0;/);
     assert.match(block(host, '.story-suite-sheet-head .story-suite-sheet-close'), /width: 40px;/);
-    assert.match(declared(host, '.story-suite-sheet-bar {'), /position: absolute;[^}]*bottom: calc\(14px/, 'the bar floats at the foot');
-    assert.match(declared(host, '.story-suite-sheet-body::after {'), /height: calc\(72px \+ 14px \+ 12px/, 'the body ends with room for the bar');
+    assert.match(declared(host, '.story-suite-sheet-bar {'), /position: absolute;[^}]*bottom: calc\(var\(--ss-bottom-bar-offset\)/, 'the bar floats at the foot');
+    // Room for the bar: 72px + 14px + 12px + the safe area, through the bar's variables (the fight board measures the same).
+    assert.match(host, /--ss-bottom-bar-height: 72px;/);
+    assert.match(host, /--ss-bottom-bar-offset: 14px;/);
+    assert.match(host, /--ss-bottom-bar-space: calc\(var\(--ss-bottom-bar-height\) \+ var\(--ss-bottom-bar-offset\) \+ 12px/);
+    assert.match(declared(host, '.story-suite-sheet-body::after {'), /height: var\(--ss-bottom-bar-space\)/, 'the body ends with room for the bar');
     assert.match(host, /@media \(min-width: 760px\) \{\s*\.story-suite-sheet \{[^}]*height: calc\(100dvh - var\(--topBarBlockSize, 40px\)\);/, 'a side sheet to the window height');
     assert.match(mounts, /\.ss-tabs-list\[data-ss-axis="x"\]\[data-ss-more="end"\]/, 'the sub-tab lists keep their fade');
 });

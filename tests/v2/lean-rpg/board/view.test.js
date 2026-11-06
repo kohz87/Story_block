@@ -15,6 +15,7 @@ import { character, levelFoeBlock, setup, sheetDomain, skillBlock } from '../hel
 import { page, begin, makeBlocks, settle } from '../view/page.js';
 import { planGear } from '../../../../src/v2/lean-rpg/gear.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
+import { aiMessage } from '../../../../testkit/fake-st.js';
 
 async function defineFoes(host, entries) {
     const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
@@ -285,6 +286,39 @@ test('a changed sheet leaves discard and its confirmation on the board', async t
     assert.match(fight().textContent, /Discard this fight/);
     fight().querySelector('.rpg-board-confirm').click();
     assert.equal(boardSession(meta), null);
+});
+
+test('the reloaded board explains a held reply and lets the reader discard it', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    const blocks = await makeBlocks(host, { character: { str: 10 } });
+    await defineFoes(host, [['Rats', 3, 3, 5]]);
+    const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+    openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+    stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 1 }]);
+    host.st.addUser('I strike.');
+    await host.turn.interceptor([], 8192, () => assert.fail('the fight should preflight'), 'normal');
+    const edit = host.bus.run('dm.set', { module: blocks.character, field: 'str', value: 12 }, { cause: 'ui' });
+    assert.equal(edit.ok, true, edit.message);
+    host.store.append({ ops: edit.ops, receipt: edit.receipt, ...(edit.block ? { block: edit.block } : {}) });
+    await host.store.flush();
+    assert.equal(host.head().domains.dataModules.instances[blocks.character].chat.fields.str, 12);
+    const index = host.st.addMessage(aiMessage('The fight continues.'));
+    assert.equal(await host.turn.onMessageReceived(index), null);
+    await host.store.flush();
+    const chat = structuredClone(host.st.saves.at(-1));
+    host.ctx.chatMetadata = structuredClone(meta);
+    await host.st.loadChat(chat, 'held-board-view');
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    const fight = () => doc.querySelector('[data-ss-screen="story-block/fight"]');
+    assert.match(fight().textContent, /waiting.*restore.*discard.*regenerate/i);
+    fight().querySelector('.rpg-board-discard').click();
+    fight().querySelector('.rpg-board-confirm').click();
+    assert.equal(boardSession(host.ctx.chatMetadata), null);
+    assert.equal(host.ctx.chatMetadata.rpgFightHeldDiscarded[host.store.carrierSid(index)], true);
+    assert.match(fight().textContent, /discarded.*regenerate/i);
+    assert.equal((await host.turn.reread(index)).ok, false);
 });
 
 test('the next attack choice loses a weapon that broke in the staged exchange', async t => {

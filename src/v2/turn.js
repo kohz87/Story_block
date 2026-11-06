@@ -140,9 +140,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     };
     const contextNow = () => contextRoom(liveContext(), s.lastSize);
     const whenIdle = () => (s.replyBusy ? new Promise(resolve => s.idleWaiters.push(resolve)) : Promise.resolve());
-    // A board prelude was already shown to the narrator. Keep its witnessed inputs until the reply is captured.
-    bus.setCommitGuard?.(next => {
-        const board = s.boardCapture ?? (s.replyBusy && s.session?.prechecks?.find(step => step.type === 'rpg.resolve' && step.payload?.board)?.payload.board);
+    // Keep the witnessed inputs against reader edits while the reply is in flight. Capture runs its own changes in order.
+    bus.setCommitGuard?.((next, receipt) => {
+        if (receipt?.cause !== 'ui') return null;
+        const board = s.replyBusy && s.session?.prechecks?.find(step => step.type === 'rpg.resolve' && step.payload?.board)?.payload.board;
         if (!board) return null;
         const check = rpgLib()?.boardInputError;
         return typeof check !== 'function' || check(next(), board) ? 'Wait for the reply to finish before changing the fight sheet or gear.' : null;

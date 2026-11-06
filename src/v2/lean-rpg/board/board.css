@@ -28,6 +28,18 @@
 .rpg-board-skill-flag { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 @media (max-width: 600px) {
     .rpg-board-active { height: calc(100dvh - 170px); min-height: 350px; }
+    /* The panel and game view float their bars over the body. Give the board the actual remaining
+       space, through the widget wrappers, so its controls sit above the bar even in a short sheet. */
+    :is(.story-suite-sheet-body, .ss-gameview-body):has(.rpg-board-active) {
+        display: flex; flex-direction: column; overflow: hidden;
+        padding-bottom: var(--ss-bottom-bar-space);
+    }
+    :is(.story-suite-sheet-body, .ss-gameview-body):has(.rpg-board-active)::after { display: none; }
+    :is(.story-suite-sheet-body, .ss-gameview-body) :has(.rpg-board-active) {
+        display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+    }
+    :is(.story-suite-sheet-body, .ss-gameview-body) .rpg-board-active { flex: 1 1 auto; height: auto; min-height: 0; }
+    .ss-gameview-single .ss-gameview-body:has(.rpg-board-active) { padding-bottom: 12px; }
     .rpg-board-status { max-height: 29%; }
     .rpg-board-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rpg-board-log { max-height: none; }

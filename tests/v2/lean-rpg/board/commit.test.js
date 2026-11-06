@@ -16,6 +16,7 @@ import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { gearAnswer } from '../../../../src/v2/domains/gear.js';
 import { condOf, defCarry, ENCUMBERED_PENALTY } from '../../../../src/v2/domains/inventory.js';
 import { aiMessage } from '../../../../testkit/fake-st.js';
+import { heldForMessage } from '../../../../src/v2/turn/held-board.js';
 
 test('the reply resolver commits exactly the staged exchange and refuses a duplicate claim', async () => {
     const blocks = { hero: { role: 'character', fields: character('Astra') }, foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 5]]) } };
@@ -162,6 +163,24 @@ test('sheet edits and preview commits cannot change board inputs while the reply
     } finally { host.close(); restore(); }
 });
 
+test('a non-reader command is not refused by the in-flight edit guard', async () => {
+    const restore = seedCrypto(93);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
+    const { host } = await setup({ blocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+        openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        host.st.addUser('I strike.');
+        let aborted = false;
+        await host.turn.interceptor([], 8192, () => { aborted = true; }, 'normal');
+        const edit = host.bus.command('test.set', { slug: 'hero', field: 'str', value: 20 }, { cause: 'system' });
+        assert.equal(edit.ok, true, edit.message);
+        host.events.emit('committed', { receipt: edit.receipt });
+        assert.equal(aborted, true, 'an input change still stops the reply');
+    } finally { host.close(); restore(); }
+});
+
 test('gear cannot be unequipped while a board reply is in flight', async () => {
     const restore = seedCrypto(84), host = await gearHost();
     try {
@@ -252,6 +271,137 @@ test('discarding a held fight allows the reply to be regenerated with the planne
         const index = host.st.addMessage(aiMessage('The fight continues.'));
         assert.equal(await host.turn.onMessageReceived(index), null);
         assert.equal(discardBoard(meta), true);
+        const sent = await host.st.generate('regenerate', { reply: 'A new telling.' });
+        assert.notEqual(sent.aborted, true);
+        assert.equal(callModel.calls.length, 1);
+        assert.equal(host.ctx.chat[sent.index].extra.storySuite.receipts.some(item => item.type === 'rpg.resolve' && item.replan?.payload?.board), false);
+    } finally { host.close(); restore(); }
+});
+
+test('a board reply applies its fight and its own sheet and equipment lines', async () => {
+    const restore = seedCrypto(88), host = await gearHost();
+    try {
+        openWithGear(host);
+        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        assert.equal(staged.error, undefined);
+        host.st.addUser('I strike.');
+        await host.turn.interceptor([], 8192, () => assert.fail('the board should preflight'), 'normal');
+        const equipped = Object.values(host.head().domains.inventory.stacks).find(item => item.equipped === 'weapon');
+        assert.equal((await host.sdk.command('inventory.unequip', { stack: equipped.id })).code, 'REPLY_BUSY');
+        const lines = [
+            '~ dm character — a bruise | kind: set-health | to: Hurt',
+            '+ dm character — learned | kind: add-xp | amount: 1',
+            '~ item Cane Sword — nicked | wear: scuff',
+            '- item Cane Sword | qty: 1',
+            '+ item New Sword | kind: weapon | equipped: weapon',
+        ];
+        const index = host.st.addMessage(aiMessage(`The fight continues.\n<Changes>\n${lines.join('\n')}\n</Changes>`));
+        const turn = await host.turn.onMessageReceived(index);
+        assert.ok(turn, 'the reply was captured');
+        assert.deepEqual(turn.steps.find(item => item.type === 'rpg.resolve').data.v2.result.rounds, staged.preview.result.rounds);
+        assert.deepEqual(turn.problems, [], JSON.stringify(turn.problems));
+        assert.equal(turn.receipts.filter(item => item.cause === 'story').length, lines.length);
+        const sheet = host.head().domains.dataModules.instances['pack.chat/character'].chat.fields;
+        assert.equal(sheet.health, 3, JSON.stringify(sheet));
+        assert.equal(sheet.xp, 1);
+        const items = host.sdk.query('inventory.items');
+        assert.equal(items.some(item => item.name === 'Cane Sword'), false);
+        assert.equal(items.find(item => item.name === 'New Sword')?.equipped, 'weapon');
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live);
+    } finally { host.close(); restore(); }
+});
+
+test('a held reply survives reload and captures its fight only after inputs are restored', async () => {
+    const restore = seedCrypto(89);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
+    const { host } = await setup({ blocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+        openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        host.st.addUser('I strike.');
+        await host.turn.interceptor([], 8192, () => assert.fail('the board should preflight'), 'normal');
+        const edit = host.bus.run('test.set', { slug: 'hero', field: 'str', value: 20 }, { cause: 'system' });
+        host.store.append({ ops: edit.ops, receipt: edit.receipt });
+        const index = host.st.addMessage(aiMessage('The fight continues.'));
+        assert.equal(await host.turn.onMessageReceived(index), null);
+        await host.store.flush();
+        const savedChat = structuredClone(host.st.saves.at(-1)), savedMeta = structuredClone(host.ctx.chatMetadata);
+        host.ctx.chatMetadata = savedMeta;
+        await host.st.loadChat(savedChat, 'held-reload');
+        const record = host.ctx.chat[index].extra?.storySuite;
+        assert.ok(record?.sid);
+        assert.ok(savedMeta.rpgFightHeld?.[record.sid], 'the marker belongs to the reply sid');
+        assert.equal(record.receipts.some(item => item.type === 'rpg.resolve'), false);
+        assert.match(host.turn.problems().at(-1).message, /restore.*discard.*regenerate/i);
+        assert.equal((await host.turn.reread(index)).ok, false, 'Re-read cannot capture the story without the fight');
+        const blocked = await host.st.generate('normal', { reply: 'Not yet.' });
+        assert.equal(blocked.aborted, true);
+        assert.equal((await host.sdk.command('test.set', { slug: 'hero', field: 'str', value: 5 })).ok, true);
+        for (let n = 0; n < 30 && !host.ctx.chat[index].extra?.storySuite?.receipts?.some(item => item.type === 'rpg.resolve'); n += 1) await new Promise(resolve => setImmediate(resolve));
+        const receipt = host.ctx.chat[index].extra.storySuite.receipts.find(item => item.type === 'rpg.resolve');
+        assert.deepEqual(receipt.data.v2.result.rounds, staged.preview.result.rounds);
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live);
+        await host.turn.onChatChanged();
+        assert.equal(heldForMessage(host.ctx.chatMetadata, host.ctx.chat[index]), null, 'a captured reply is no longer held');
+    } finally { host.close(); restore(); }
+});
+
+test('after reload a held reply cannot read story lines before its fight', async () => {
+    const restore = seedCrypto(94), host = await gearHost();
+    try {
+        openWithGear(host);
+        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        host.st.addUser('I strike.');
+        await host.turn.interceptor([], 8192, () => assert.fail('the board should preflight'), 'normal');
+        const edit = host.bus.run('dm.set', { module: 'pack.chat/character', field: 'str', value: 8 }, { cause: 'ui' });
+        assert.equal(edit.ok, true, edit.message);
+        host.store.append({ ops: edit.ops, receipt: edit.receipt, ...(edit.block ? { block: edit.block } : {}) });
+        await host.store.flush();
+        const index = host.st.addMessage(aiMessage('A bruise.\n<Changes>\n~ dm character — hurt | kind: set-health | to: 2\n</Changes>'));
+        assert.equal(await host.turn.onMessageReceived(index), null);
+        await host.store.flush();
+        const chat = structuredClone(host.st.saves.at(-1));
+        host.ctx.chatMetadata = structuredClone(host.ctx.chatMetadata);
+        await host.st.loadChat(chat, 'held-with-lines');
+        assert.equal((await host.turn.reread(index)).ok, false);
+        assert.equal(host.ctx.chat[index].extra.storySuite.receipts.length, 0);
+        assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/character', field: 'str', value: 3 })).ok, true);
+        for (let n = 0; n < 30 && !host.ctx.chat[index].extra.storySuite.receipts.some(item => item.type === 'rpg.resolve'); n += 1) await new Promise(resolve => setImmediate(resolve));
+        const receipts = host.ctx.chat[index].extra.storySuite.receipts;
+        assert.deepEqual(receipts.find(item => item.type === 'rpg.resolve').data.v2.result.rounds, staged.preview.result.rounds);
+        assert.equal(receipts.filter(item => item.cause === 'story').length, 1);
+        assert.equal(host.head().domains.dataModules.instances['pack.chat/character'].chat.fields.health, 2);
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live);
+    } finally { host.close(); restore(); }
+});
+
+test('discarding a reloaded held fight requires regenerating its reply', async () => {
+    const restore = seedCrypto(90);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
+    const { host, callModel } = await setup({ blocks, board: true, answers: ['none'] });
+    try {
+        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+        openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        host.st.addUser('I strike.');
+        await host.turn.interceptor([], 8192, () => {}, 'normal');
+        const edit = host.bus.run('test.set', { slug: 'hero', field: 'str', value: 20 }, { cause: 'system' });
+        host.store.append({ ops: edit.ops, receipt: edit.receipt });
+        const index = host.st.addMessage(aiMessage('The fight continues.'));
+        assert.equal(await host.turn.onMessageReceived(index), null);
+        await host.store.flush();
+        const chat = structuredClone(host.st.saves.at(-1));
+        host.ctx.chatMetadata = structuredClone(meta);
+        await host.st.loadChat(chat, 'held-discard');
+        assert.equal(discardBoard(host.ctx.chatMetadata), true);
+        assert.equal((await host.turn.reread(index)).ok, false);
         const sent = await host.st.generate('regenerate', { reply: 'A new telling.' });
         assert.notEqual(sent.aborted, true);
         assert.equal(callModel.calls.length, 1);

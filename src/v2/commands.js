@@ -833,7 +833,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
 
     function storeResult(ops, receipt, block = null) {
         if (commitGuard) {
-            const refused = commitGuard(() => apply(store.head(), ops));
+            const refused = commitGuard(() => apply(store.head(), ops), receipt);
             if (refused) return { ok: false, code: 'REPLY_BUSY', message: refused };
         }
         try {

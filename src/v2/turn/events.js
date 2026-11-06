@@ -12,6 +12,7 @@ import { notWritten } from '../assist/extractor.js';
 import { refusedWhy } from '../assist/safety.js';
 import { within } from './text.js';
 import { ensureModules } from '../sdk.js';
+import { heldForMessage, rememberHeld } from './held-board.js';
 
 export function createEvents(s, deps) {
     const { markIdle, clearPrompts, ctx, isCarrier, store, ensureInitial, problem, notify, stopChangedBoard, boardError, changeHeads, readBlock, strayProblems, legacyProblem, lateLines, captureLines, withCaps, timeline, trySave, saveText, redraw, events, registry, view, prepare, RPG_LOAD_WAIT_MS, rebuild, bus, hasCarrier, reconcileNow, REBUILD_REASONS, INTERCEPTOR_NAME, V1_KEYS, setPrompt, interceptor, onGenerationStarted, onPromptReady, onTextPromptReady, getApi } = deps;
@@ -103,8 +104,17 @@ export function createEvents(s, deps) {
         } catch (error) {
             problem({ index: id, code: 'FAILED', message: `The reply's changes could not be kept: ${error?.message ?? error}` });
             if (error?.code === 'BOARD_PRELUDE') {
+                const staged = ctx?.chatMetadata?.rpgFightBoard?.id === s.boardCapture?.id;
                 s.session = current;
-                s.heldBoard = { index: id, message, current, board: s.boardCapture, staged: ctx?.chatMetadata?.rpgFightBoard?.id === s.boardCapture?.id };
+                s.heldBoard = { index: id, message, current, board: s.boardCapture, staged };
+                // Give an otherwise empty reply its stable ID, then save the add-only recovery marker.
+                const record = readRecord(message);
+                if (!record) store.setNarrated(id, []);
+                const sid = store.carrierSid(id);
+                if (rememberHeld(ctx?.chatMetadata, sid, current, staged)) {
+                    store.touch?.();
+                    await trySave('after holding the fight');
+                }
                 try { notify?.(error.message, 'story-block'); } catch { /* the problem remains visible */ }
             }
             return null;
@@ -117,15 +127,35 @@ export function createEvents(s, deps) {
     function resumeHeldBoard() {
         const held = s.heldBoard;
         if (!held) return;
-        if (ctx?.chat?.[held.index] !== held.message) {
+        const index = (ctx?.chat ?? []).indexOf(held.message);
+        if (index < 0 || !heldForMessage(ctx?.chatMetadata, held.message)) {
             s.heldBoard = null;
             if (s.session === held.current) s.session = null;
             return;
         }
+        held.index = index;
+        held.current.index = index;
+        const sid = readRecord(held.message)?.sid;
+        if (store.headIndex() !== index || ctx?.chatMetadata?.rpgFightHeldDiscarded?.[sid]) return;
         if (!held.board || boardError(store.head(), held.board)) return;
         if (held.staged && ctx?.chatMetadata?.rpgFightBoard?.id !== held.board.id) return;
         s.heldBoard = null;
         Promise.resolve().then(() => onMessageReceived(held.index));
+    }
+
+    function restoreHeldBoard() {
+        if (s.heldBoard || !ctx?.chatMetadata?.rpgFightHeld) return;
+        const chat = ctx?.chat ?? [];
+        for (let index = chat.length - 1; index >= 0; index -= 1) {
+            const message = chat[index], saved = heldForMessage(ctx?.chatMetadata, message);
+            if (!saved) continue;
+            const current = { ...structuredClone(saved.current), index };
+            const board = current.prechecks.find(step => step.type === 'rpg.resolve' && step.payload?.board).payload.board;
+            s.session = current;
+            s.heldBoard = { index, message, current, board, staged: saved.staged === true };
+            problem({ index, code: 'BOARD_HELD', message: 'The fight reply is still waiting. Restore the sheet or gear, or discard the fight and regenerate the reply.' });
+            return;
+        }
     }
 
     // afterReply (the assist extractor): a reply that came without change lines may get them from a
@@ -257,6 +287,7 @@ export function createEvents(s, deps) {
             if (store.dirty?.()) store.scheduleSave?.();
         }
         await ensureModules({ store, bus, registry, events });
+        restoreHeldBoard();
         events?.emit('head', { index: store.headIndex(), reason: 'chat' });
     }
 
@@ -299,6 +330,8 @@ export function createEvents(s, deps) {
      */
     async function onTimelineChanged(reason) {
         rebuild({ publish: false });
+        resumeHeldBoard();
+        restoreHeldBoard();
         reconcileNow();
         timeline?.settle();
         if (timeline?.needsRecovery()) await timeline.recover();

@@ -23,7 +23,7 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/skill-editor.js`: draws the three checkboxes in the skill editor.
 - `src/v2/lean-rpg/board/board.css`: provides the touch layout and sizing.
 - `src/v2/lean-rpg/precall.js`: selects a board segment or the planner and checks whether generation may proceed.
-- `src/v2/turn/prompt-build.js`, `capture-flow.js`, `events.js` and `src/v2/commands.js`: preview, protect and capture the prelude.
+- `src/v2/turn/prompt-build.js`, `capture-flow.js`, `events.js`, `held-board.js` and `src/v2/commands.js`: preview, protect, capture and recover the prelude.
 - `src/v2/lean-rpg/practice.js` and `fight.js`: award practice and win XP from recorded results.
 
 ## Data flow
@@ -35,10 +35,11 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
    exchange order, and the commit records the same wear events.
 3. `precall.beforeGenerate` chooses a staged segment, a swipe's receipt or a regenerate's cached payload and
    requests an `rpg.resolve` prelude. An existing receipt keeps its recorded rules. The host previews the
-   prelude after other cues; a failed board preview stops the send. During the reply, commands that would
-   change its witnessed sheet or gear are refused until capture finishes. If a changed input reaches capture,
-   the reply is held until the input is restored; after Discard, regenerate that reply. This hold is in
-   memory and does not survive reloading the page.
+   prelude after other cues; a failed board preview stops the send. While the reply is in flight, reader
+   edits that would change its witnessed sheet or gear are refused. Capture checks the witness before it
+   commits the fight; the fight and the reply's own story lines then apply in order. If an input changed,
+   the reply stays uncaptured. A saved marker restores the hold after reload: restore the inputs to finish
+   capture, or discard the fight and regenerate the reply. Re-read cannot bypass a held fight.
 4. `resolveBoard` replays the setup and actions, checks the witness and claim, writes hurts and gear wear,
    and records the result on the reply. After capture, distinct rolled skills are sorted and split into
    guarded practice steps of at most 40 skills; each skill keeps its 20-point per-reply cap.
@@ -56,6 +57,11 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `chatMetadata.rpgFightAttempts`: `{ [originSid]: discardCount }`, used to give the next opening a new seed.
 - `chatMetadata.rpgFightLast`: the last `{ key, board, practice }`, used for regenerate.
 - Reader message `extra.rpgFightLinks`: add-only board-key links to the cached segment for regenerate.
+- `chatMetadata.rpgFightHeld`: add-only `{ [replySid]: { current, staged } }`; `current` holds the
+  prechecks, generation type, base text and receipt IDs needed to finish the reply. An empty reply gets a
+  record with that sid before the marker is saved. The matching board receipt resolves the marker.
+- `chatMetadata.rpgFightHeldDiscarded`: add-only `{ [replySid]: true }` when a held fight is discarded;
+  the old reply remains held until regenerated or removed.
 - `state.domains.dataModules.boardFlags`: scratch map `{ [sid]: { [entryId]: { id, key, flags, rev } } }`.
   A skill key includes its block, slot and folded name; the latest revision wins.
 - Board receipts keep each segment's seed, actions, opening reply identity and input witness; each new-style
@@ -79,7 +85,8 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 ## Test map
 
 - `awards.test.js` covers batched practice, the per-skill cap, swipe and Re-read, and XP across a split fight.
-- `commit.test.js` covers staged versus committed results, claims, gear wear, changed inputs and host preflight.
+- `commit.test.js` covers staged versus committed results, claims, gear wear, story lines during capture,
+  reader edits in flight, and held-reply restore/discard after reload. `view.test.js` covers the hold notice.
 - `dice.test.js`, `engine.test.js`, `plan.test.js` and `rules.test.js` cover seeds, final exchanges, flee,
   action validation, resources, weapon stats and automatic defence.
 - `feature.test.js` covers planner and prompt identity, rules switches and receipt replay under Classic.
@@ -87,7 +94,8 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
   flags on rename, replay, and deletion of either edit.
 - `flow.test.js` and `replay.test.js` cover continuation, swipe, regenerate, reload, rewind and middle deletion.
 - `note.test.js` and `view.test.js` cover defence, bar words, wear, controls, pending awards and discard.
-- `touch.test.js` renders the board at 390×844 and 360×740 when the optional browser is available.
+- `touch.test.js` renders the board at 390×844 and 360×740 in the game view and the Story panel when
+  the optional browser is available; choices and end-card controls must clear each bottom bar.
 - `tests/v2/qa/state-fuzz.test.js` includes board fights; `delete-fuzz.test.js` creates winning board segments
   among deletable replies and checks deleted and replayed rounds, practice and XP.
 
@@ -99,4 +107,5 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - A send is held or a planner runs: `canGenerate` and `beforeGenerate` in `precall.js`, then `prompt-build.js`.
 - XP or practice is wrong: `fight.js`, `boardWin` and `practice.js`.
 - A choice or flag is wrong: `flags.js`, `plan.js`, `overrides.js` and `view-data.js`.
-- A phone tap or layout is wrong: `board.css`, `view.js` and `touch.test.js`.
+- A phone tap or layout is wrong: `board.css`, `view.js` and `touch.test.js`; `host.css` and
+  `mounts.css` expose the bar height, offset and safe-area clearance to the board.
