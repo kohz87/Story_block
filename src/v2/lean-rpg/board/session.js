@@ -14,7 +14,10 @@ import { carriedFrom } from './members.js';
 const KEY = 'rpgFightBoard', ATTEMPTS = 'rpgFightAttempts', LAST = 'rpgFightLast';
 const LINKS = 'rpgFightLinks', SEND = 'rpgFightSend';
 const START = 'rpgFightStart';
+const OPENING_KEYS = ['opening', 'approach', 'drop', 'opened'];
 const object = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const openingContext = setup => Object.fromEntries(OPENING_KEYS.filter(key => Object.hasOwn(setup ?? {}, key))
+    .map(key => [key, structuredClone(setup[key])]));
 
 export const boardSession = meta => (object(meta?.[KEY]) ? meta[KEY] : null);
 
@@ -113,7 +116,7 @@ export function receiveBoard(meta, payload, result, sid, receiptId = null, state
         return true;
     }
     const base = { offset: board.setup.offset, order: structuredClone(board.setup.order ?? null),
-        carriedMembers: structuredClone(board.setup.carriedMembers ?? null) };
+        carriedMembers: structuredClone(board.setup.carriedMembers ?? null), ...openingContext(board.setup) };
     const setup = { ...structuredClone(board.setup), offset: nextOffset, order: structuredClone(result.order ?? []), ...(carried ? { carriedMembers: carried } : {}) };
     delete setup.witness;
     delete setup.opening;
@@ -146,6 +149,10 @@ export function reconcileBoard(meta, hasReceipt) {
     if (orderOf(base.order)) session.setup.order = structuredClone(base.order); else delete session.setup.order;
     if (object(base.carriedMembers)) session.setup.carriedMembers = structuredClone(base.carriedMembers);
     else delete session.setup.carriedMembers;
+    for (const key of OPENING_KEYS) {
+        if (Object.hasOwn(base, key)) session.setup[key] = structuredClone(base[key]);
+        else delete session.setup[key];
+    }
     delete session.setup.witness;
     // Choices staged after the take-back are kept; they now roll from the segment's first die.
     delete session.carried;

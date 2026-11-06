@@ -80,13 +80,16 @@ export function splitFoes(realFoes, { carried = null, maxOf } = {}) {
     const out = [];
     for (const real of (Array.isArray(realFoes) ? realFoes : [])) {
         const group = num(real?.slot), blockCount = num(real?.count), hurt = num(real?.hurt);
-        if (!real?.filled || blockCount <= 0 || hurt <= 0) continue;
+        if (!real?.filled || blockCount <= 0) continue;
         const count = carriedCount(carried, group) ?? blockCount, values = carriedValues(carried);
         if (count === 1 && blockCount === 1) {
-            const exact = carriedValue(values, group) ?? carriedValue(values, virtualSlot(group, 1));
-            out.push(exact === undefined ? real : { ...real, hurt: held(exact, memberSize(real, maxOf)) });
+            // A real count-one foe always writes its own field. Its carried count only keeps a foe that went
+            // Down during this open fight on the list; a group that was already Down was never in the fight.
+            if (hurt <= 0 && carriedCount(carried, group) === null) continue;
+            out.push(hurt <= 0 ? { ...real, hurt: 0 } : real);
             continue;
         }
+        if (hurt <= 0) continue;
         const one = memberSize(real, maxOf);
         if (isPack(real)) {
             const counts = packCounts(count);
@@ -116,10 +119,11 @@ export function carriedFrom(members) {
         const group = groupOf(member), slot = Number.isInteger(member?.slot) ? member.slot : virtualSlot(group, nOf(member) || 1);
         const value = Number(valueOf(member));
         if (!Number.isFinite(group) || !Number.isFinite(value)) continue;
-        values[slot] = value;
+        // Carried bars are for virtual foes only. A real count-one foe's next value comes from its live field.
+        if (slot !== group) values[slot] = value;
         counts[group] = (counts[group] ?? 0) + (member?.pack ? Math.max(0, num(member.count)) : 1);
     }
-    return Object.keys(values).length ? { values, counts } : null;
+    return Object.keys(counts).length ? { values, counts } : null;
 }
 
 function packBars(real, values, maxOf) {
@@ -166,8 +170,8 @@ function entriesOf(members) {
 }
 
 /** The UI's virtual foe list: values override the bars rebuilt from the real block. */
-export function boardFoes(realFoes, values, { maxOf } = {}) {
-    return splitFoes(realFoes, { maxOf }).map(foe => {
+export function boardFoes(realFoes, values, { maxOf, carried = null } = {}) {
+    return splitFoes(realFoes, { maxOf, carried }).map(foe => {
         const size = Number.isFinite(Number(foe.size)) ? num(foe.size) : memberSize(foe, maxOf);
         const value = held(valuesAt(values, foe.slot) ?? foe.hurt, size), standing = value > 0;
         if (foe.pack) {

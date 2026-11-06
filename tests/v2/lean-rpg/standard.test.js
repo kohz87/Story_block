@@ -600,6 +600,74 @@ test('R3: a pack turn is capped by its current bar and uses only the attacks act
     assert.deepEqual(defences.map(line => line.pc.who), ['Ren', 'Wessel'], 'targets rotate over the attacks actually made');
 });
 
+test('R3: a killed first planned attacker hands the first target and its defence to the next executed attack', () => {
+    const plain = {
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
+        ally: { role: 'character', fields: character('Ren', { agi: 10, health: 8 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bat', 1, 1, 1], ['Wolf', 1, 1, 4]]) },
+    };
+    const order = sheetOf(plain).characters.map(item => item.who), first = order[0];
+    const blocks = { ...plain, [`${first}-skills`]: { role: 'skills', fields: skillBlock(first, [['Dodge', 3, 'agi', 'stamina', 'evasion']]) } };
+    const base = sheetOf(blocks), sheet = { ...base, foes: splitFoes(base.foes) };
+    const actions = [{ who: order[0], kind: 'attack', target: 1 }, { who: order[1], kind: 'attack', target: 2 }];
+    const built = exchangePlan(sheet, actions, {}, 1, { members: true });
+    assert.equal(built.error, undefined, built.error);
+    assert.notEqual(built.plan.rotation.targets[0].target, built.plan.foes[1].target, 'the second foe was not planned for the first target');
+    const prepared = prepareStandard(built.plan, sheet, std(), { lv: true, fix: true, then: true });
+    const source = (kind, at) => () => {
+        if (kind === 'init') return at === 0 ? 20 : at === 1 ? 19 : at === 17 ? 1 : 2;
+        if (kind === 'act') return at === 0 ? (source.act0.shift() ?? 1) : 1;
+        return 10;
+    };
+    source.act0 = [20, 1];
+    const rolled = rollStandard(built.plan, prepared, source, std(), { flow: 2, fix: true, then: true, board: true });
+    assert.equal(rolled.hurts.find(hurt => hurt.id === 'f:1')?.to, 0, 'the first planned attacker is killed before its turn');
+    const defences = rolled.rounds[0].lines.filter(line => line.kind === 'foe');
+    assert.equal(defences.length, 1);
+    assert.equal(defences[0].foe.name, 'Wolf');
+    assert.equal(defences[0].pc.who, built.plan.rotation.targets[0].target, 'the surviving attack takes the first rotation slot');
+    assert.equal(defences[0].skill, built.plan.rotation.targets[0].skill, 'and that target\'s own defence');
+});
+
+test('R3: mixed groups keep rotating after a pack thins to fewer attacks', () => {
+    const blocks = {
+        wessel: { role: 'character', fields: character('Wessel', { health: 8, str: 20, agi: 20, vit: 20, stamina: 4 }) },
+        'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', [['Sweep', 3, 'str', 'stamina', 'sweep every foe']]) },
+        ren: { role: 'character', fields: character('Ren', { health: 8, agi: 10, vit: 20 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Rat', 12, 1, 4], ['Bat', 1, 1, 4]]) },
+    };
+    const base = sheetOf(blocks), sheet = { ...base, foes: splitFoes(base.foes) };
+    const actions = [{ who: 'Wessel', kind: 'skill', skill: 'Sweep', area: true, group: 1 }, { who: 'Ren', kind: 'attack', target: 2 }];
+    const built = exchangePlan(sheet, actions, {}, 1, { members: true });
+    const prepared = prepareStandard(built.plan, sheet, std(), { lv: true, fix: true, then: true });
+    const wesselAt = base.characters.findIndex(item => item.who === 'Wessel'), renAt = base.characters.findIndex(item => item.who === 'Ren');
+    const source = (kind, at) => () => {
+        if (kind === 'init') return at === wesselAt ? 20 : at === renAt ? 19 : 1;
+        if (kind === 'act') return at === 0 ? (source.act0.shift() ?? 1) : 1;
+        return 10;
+    };
+    source.act0 = [20, 1];
+    const rolled = rollStandard(built.plan, prepared, source, std(), { flow: 2, fix: true, then: true, board: true });
+    const defences = rolled.rounds[0].lines.filter(line => line.kind === 'foe');
+    assert.deepEqual(defences.map(line => line.foe.slot), [11, 11, 2]);
+    assert.deepEqual(defences.map(line => line.pc.who), [
+        built.plan.rotation.targets[0].target, built.plan.rotation.targets[1].target, built.plan.rotation.targets[0].target,
+    ], 'the bat takes the next slot after the pack\'s two executed attacks');
+});
+
+test('R3: an old plan keeps its exact shape and gains no new-board rotation', () => {
+    const sheet = sheetOf({
+        hero: { role: 'character', fields: character('Astra') },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bat', 1, 1, 4]]) },
+    });
+    const built = exchangePlan(sheet, [{ who: 'Astra', kind: 'attack', target: 1 }]);
+    assert.deepEqual(built.plan, {
+        formula: 'standard', pace: 'careful',
+        acts: [{ who: 'Astra', target: 'foe1', type: 'physical' }],
+        foes: [{ slot: 1, target: 'Astra' }], checks: [],
+    });
+});
+
 test('R3: automatic defence is paid on the first attack that reaches the member and covers the rest', () => {
     const blocks = {
         wessel: { role: 'character', fields: character('Wessel', { health: 8, agi: 20, stamina: 4 }) },

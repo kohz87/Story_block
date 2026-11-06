@@ -193,20 +193,34 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
                 ...(later ? { then: later } : {}), foe: foeSide(foe) });
         }
     }
+    const preparedFoe = (entry, target, skillName, at, { note = true } = {}) => {
+        const foe = sheet.foes.find(slot => slot.slot === entry.slot && slot.filled);
+        const label = `${foe?.name ?? `Foe ${entry.slot}`} attacks ${target}`;
+        if (!foe) { if (note) refuse(`foe${entry.slot}`, `${label}: not rolled (that foe slot is empty).`); return null; }
+        const defender = ready(target);
+        if (defender.refusal) { if (note) refuse(target, `${label}: not rolled (${defender.refusal}).`); return null; }
+        const skill = skillStd(defender.character, skillName, {});
+        const { side, check } = skillSide(defender.character, skill, 'defence', { againstMagic: entry.againstMagic === true });
+        if (check.refusal) { if (note) refuse(target, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); return null; }
+        if (skill.refused && note) refuse(target, skill.refused, skill.refusedPlain);
+        return { at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...(entry.paid === true ? { paid: true } : {}),
+            ...(entry.once === true ? { once: true } : {}),
+            ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: foeSide(foe) };
+    };
     for (const [at, entry] of (plan.foes ?? []).entries()) {
         if (entry.hold) continue;
-        const foe = sheet.foes.find(slot => slot.slot === entry.slot && slot.filled);
-        const label = `${foe?.name ?? `Foe ${entry.slot}`} attacks ${entry.target}`;
-        if (!foe) { refuse(`foe${entry.slot}`, `${label}: not rolled (that foe slot is empty).`); continue; }
-        const defender = ready(entry.target);
-        if (defender.refusal) { refuse(entry.target, `${label}: not rolled (${defender.refusal}).`); continue; }
-        const skill = skillStd(defender.character, entry.skill, {});
-        const { side, check } = skillSide(defender.character, skill, 'defence', { againstMagic: entry.againstMagic === true });
-        if (check.refusal) { refuse(entry.target, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
-        if (skill.refused) refuse(entry.target, skill.refused, skill.refusedPlain);
-        out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...(entry.paid === true ? { paid: true } : {}),
-            ...(entry.once === true ? { once: true } : {}),
-            ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: foeSide(foe) });
+        const base = preparedFoe(entry, entry.target, entry.skill, at);
+        if (!base) continue;
+        out.foes.push(base);
+        if (entry.once === true && plan.rotation?.targets?.length) {
+            const options = plan.rotation.targets.map(option => {
+                if (option.target === entry.target && (option.skill ?? '') === (entry.skill ?? '')) return base;
+                const alternate = preparedFoe(entry, option.target, option.skill, at, { note: false });
+                return alternate ? { ...alternate, base } : null;
+            });
+            if (!out.foeChoices) out.foeChoices = [];
+            out.foeChoices[at] = options;
+        }
     }
     for (const [at, entry] of (plan.checks ?? []).entries()) {
         const actor = ready(entry.who);
@@ -329,6 +343,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     });
     const order = turnOrder(entries).map(id => entries.find(entry => entry.id === id));
     const owner = entry => (entry.kind === 'foe' ? foeId(entry.foe.slot) : entry.actor);
+    const rotation = plan.rotation && Array.isArray(plan.rotation.targets) && plan.rotation.targets.length ? plan.rotation : null;
 
     const actOf = entry => {
         const roll = diceOf(entry), pcDie = roll(), foeDie = roll();
@@ -424,6 +439,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const all = [];
     for (let n = 1; n <= most; n += 1) {
         const roundLines = [], roundIdle = [];
+        let made = 0;
         for (const { id } of order) {
             const bar = bars.get(id);
             if (bar.kind === 'char') {
@@ -437,10 +453,14 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
             } else {
                 let mine = board ? prepared.foes.filter(entry => entry.foe.slot === bar.slot) : [prepared.foes.find(entry => entry.foe.slot === bar.slot)];
                 if (board && bar.foe.pack === true) mine = mine.slice(0, packAttacks(bar.foe.count, bar.value, bar.size));
-                for (const entry of mine) {
-                    if (!entry) continue;
+                for (const base of mine) {
+                    if (!base) continue;
+                    const choices = rotation && base.once === true ? prepared.foeChoices?.[base.at] : null;
+                    const offset = Math.max(0, (Number(rotation?.number) || 1) - 1);
+                    const entry = Array.isArray(choices) ? choices[(offset + made) % rotation.targets.length] ?? base : base;
                     const done = doFoe(entry);
                     if (done.idle) roundIdle.push({ n, id, who: bar.name, kind: 'foe', why: done.idle }); else roundLines.push(...done.lines);
+                    if (done.lines?.length) made += 1;
                 }
             }
         }

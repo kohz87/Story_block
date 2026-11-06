@@ -2,11 +2,14 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { settledNote } from '../../../../src/v2/lean-rpg/board/note.js';
-import { boardPayload, boardSession, openBoard, receiveBoard, reconcileBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { boardPayload, boardSession, markSend, openBoard, receiveBoard, reconcileBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { dropOf } from '../../../../src/v2/lean-rpg/ambush.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
-import { character, foeBlock, sheetDomain } from '../helpers.js';
+import { pendingStart } from '../../../../src/v2/turn/fight-start.js';
+import { character, foeBlock, setup, sheetDomain, skillBlock } from '../helpers.js';
 
 const RULES = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const state = (foes = [['Rats', 3, 1, 4]]) => ({ meta: { claims: {} }, domains: { dataModules: sheetDomain({
@@ -78,6 +81,83 @@ test('OPENING_NOTE: the preview names the new foes, and the next segment does no
     const next = playBoard(value, nextSetup, []);
     assert.equal(next.error, undefined, next.error);
     assert.doesNotMatch(settledNote(next.result), /New foes:/, 'the next segment has only its own note');
+});
+
+test('NEW4: a real-host opening ambush rewind restores its context and restages the same fight', async t => {
+    const restore = seedCrypto(500);
+    const answer = ['foe Rats | new | count: 3 | level: 2', 'check Astra | skill: Sneak | type: check | difficulty: normal | ambush',
+        'act Astra | target: Rats | type: physical', 'foe Rats | target: Astra'].join('\n');
+    const { host } = await setup({
+        blocks: {
+            hero: { role: 'character', fields: character('Astra', { str: 10, agi: 20, vit: 20, health: 8 }) },
+            skills: { role: 'skills', fields: skillBlock('Astra', [['Sneak', 2, 'agi', 'stamina', 'hide before the fight']]) },
+            foes: { role: 'foes', fields: foeBlock([]) },
+        }, board: true, answers: [answer],
+    });
+    t.after(() => { host.close(); restore(); });
+    const stopped = await host.send('I sneak up and attack the rats.', 'Not sent.');
+    const meta = host.ctx.chatMetadata, pending = pendingStart(meta, host.ctx.chat), opening = host.turn.fightStartPreview();
+    assert.equal(stopped.aborted, true);
+    assert.ok(pending, 'the opening is pending');
+    assert.equal(opening?.result?.ambush?.success, true, 'the approach succeeds');
+    const sid = host.store.carrierSid(host.store.headIndex());
+    const made = openBoard(meta, opening.state, { sid, rules: RULES });
+    assert.equal(made.error, undefined, made.error);
+    const context = { opening: structuredClone(pending.opening), approach: structuredClone(opening.result.checks), drop: dropOf(opening.result) };
+    const opened = structuredClone(made.session.setup.opened);
+    assert.ok(opened?.length, 'the opening names its New foes');
+    Object.assign(made.session.setup, context);
+    assert.equal(Object.hasOwn(made.session.setup, 'carriedMembers'), false, 'the opening has no prior carry');
+    pending.choice = 'board';
+    const actions = [{ who: 'Astra', kind: 'attack', target: 11 }];
+    const staged = stageExchange(meta, opening.state, actions);
+    assert.equal(staged.error, undefined, staged.error);
+    assert.equal(staged.preview.result.stop, 'open');
+    const before = structuredClone(staged.preview.result);
+    assert.equal(markSend(meta, pending, boardSession(meta)), true);
+    const sent = await host.st.generate('regenerate', { reply: 'The approach and fight.' });
+    const receipt = host.ctx.chat[sent.index].extra.storySuite.receipts.findLast(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
+    assert.ok(receipt, 'the fight was committed');
+    const rewind = await host.sdk.rewind({ index: sent.index, beforeRev: receipt.rev });
+    assert.equal(rewind.ok, true);
+    reconcileBoard(meta, id => host.store.receipts().some(entry => entry.receipt.id === id));
+    const restored = boardSession(meta);
+    assert.equal(restored.setup.offset, 0, 'the rewind returns to the opening segment');
+    for (const [key, value] of Object.entries({ ...context, opened })) assert.deepEqual(restored.setup[key], value, `the rewind restores ${key}`);
+    assert.equal(Object.hasOwn(restored.setup, 'carriedMembers'), false, 'an ordinary opening still has no prior carry');
+    const restaged = stageExchange(meta, host.head(), actions);
+    assert.equal(restaged.error, undefined, restaged.error);
+    assert.deepEqual(bits(restaged.preview.result), bits(before));
+    const edge = result => result.rounds[0]?.lines.find(line => line.kind === 'act')?.pc.edge;
+    assert.equal(edge(restaged.preview.result), edge(before), 'the ambush edge is not applied twice');
+    assert.deepEqual(restaged.preview.result.checks, before.checks, 'the approach check is unchanged');
+    assert.deepEqual(restaged.preview.result.opened, before.opened, 'the same New foes are named');
+});
+
+test('NEW4: an ordinary opening with no prior carry restages its first segment unchanged', () => {
+    const value = state(), meta = {}, sid = 'origin';
+    let found = null;
+    for (let attempt = 0; attempt < 200 && !found; attempt += 1) {
+        meta.rpgFightAttempts = { [sid]: attempt };
+        delete meta.rpgFightBoard;
+        const opened = openBoard(meta, value, { sid, rules: RULES });
+        assert.equal(opened.error, undefined, opened.error);
+        const target = opened.preview.result.members.find(member => member.standing)?.slot;
+        if (!target) continue;
+        const staged = stageExchange(meta, value, [{ who: 'Astra', kind: 'attack', target }]);
+        if (staged.error || staged.preview.result.stop !== 'open') continue;
+        found = { staged, target };
+    }
+    assert.ok(found, 'found an open first segment');
+    for (const key of ['carriedMembers', 'opening', 'approach', 'drop', 'opened']) assert.equal(Object.hasOwn(found.staged.session.setup, key), false);
+    receiveBoard(meta, { key: 'b:first', board: boardPayload(found.staged.session) }, found.staged.preview.result, 'reply1', 'receipt1', value);
+    reconcileBoard(meta, id => id !== 'receipt1');
+    const restored = boardSession(meta);
+    assert.equal(restored.setup.offset, 0);
+    for (const key of ['carriedMembers', 'opening', 'approach', 'drop', 'opened']) assert.equal(Object.hasOwn(restored.setup, key), false);
+    const restaged = stageExchange(meta, value, [{ who: 'Astra', kind: 'attack', target: found.target }]);
+    assert.equal(restaged.error, undefined, restaged.error);
+    assert.deepEqual(bits(restaged.preview.result), bits(found.staged.preview.result));
 });
 
 test('NEW1: a rewind restores the segment\'s prior carried bars for members and packs', () => {

@@ -125,6 +125,53 @@ test('R1: carried member bars continue an open segment; a lone real foe writes i
     assert.deepEqual(again, first, 'the real move replays byte-identically');
 });
 
+test('NEW5: a real count-one foe reads its live field, while split groups still carry their exact bars', () => {
+    const state = stateOf({
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bat', 1, 1, 4], ['Boar', 3, 1, 4]]) },
+    });
+    const carriedMembers = { values: { 1: 2, 21: 4, 22: 4, 23: 4 }, counts: { 1: 1, 2: 3 } };
+    const config = { seed: 0, offset: 0, rules, members: 1, carriedMembers };
+    const preview = playBoard(state, config, []);
+    assert.equal(preview.error, undefined, preview.error);
+    assert.equal(preview.result.members.find(member => member.slot === 1).value, 4, 'the live real bar wins over carried 2');
+    assert.deepEqual(preview.result.members.filter(member => member.group === 2).map(member => member.value), [4, 4, 4]);
+
+    let played, playedSeed;
+    for (let seed = 0; seed < 200 && !played; seed += 1) {
+        const run = playBoard(state, { ...config, seed }, [choice]);
+        if (run.result?.hurts?.some(hurt => hurt.id === 'f:1' && hurt.from === 4)) { played = run; playedSeed = seed; }
+    }
+    assert.ok(played, 'found a hit on the real foe');
+    assert.ok(played.result.members.find(member => member.slot === 1).value < 4);
+    assert.deepEqual(playBoard(state, { ...config, seed: playedSeed }, [choice]), played, 'the live-field segment replays byte-identically');
+});
+
+test('NEW6: a real foe that went Down stays on the list across segments, as it does in one run', () => {
+    const state = stateOf({
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bat', 1, 1, 1], ['Boar', 3, 1, 4]]) },
+    });
+    const firstChoice = { actions: [{ who: 'Astra', kind: 'attack', target: 1 }] };
+    const secondChoice = { actions: [{ who: 'Astra', kind: 'attack', target: 21 }] };
+    let found;
+    for (let seed = 0; seed < 200 && !found; seed += 1) {
+        const config = { seed, offset: 0, rules, members: 1 };
+        const first = playBoard(state, config, [firstChoice]);
+        if (first.error || first.result.stop !== 'open' || first.result.members.find(member => member.slot === 1)?.value !== 0) continue;
+        const nextSetup = { ...config, offset: 1, order: first.result.order, carriedMembers: carriedFrom(first.result.members) };
+        const next = playBoard(first.state, nextSetup, [secondChoice]);
+        const together = playBoard(state, config, [firstChoice, secondChoice]);
+        if (next.error || together.error) continue;
+        found = { first, next, together, preview: playBoard(first.state, nextSetup, []) };
+    }
+    assert.ok(found, 'found an open fight where the real Bat goes Down');
+    assert.equal(found.first.result.members.find(member => member.slot === 1).value, 0);
+    assert.equal(found.preview.result.members.find(member => member.slot === 1)?.value, 0, 'the next preview keeps the Down real card');
+    assert.deepEqual(found.next.result.members, found.together.result.members, 'separate replies list the same members as one run');
+    assert.deepEqual(found.next.state, found.together.state, 'separate replies leave the same domains as one run');
+});
+
 test('R1: split groups carry exact bars and collapse only when the fight ends', () => {
     const state = stateOf({
         hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },

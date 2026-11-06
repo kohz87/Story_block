@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    MEMBER_CAP, PACK_MAX_ATTACKS, PACK_MAX_SIZE, boardFoes, collapseFoes, memberSize,
+    MEMBER_CAP, PACK_MAX_ATTACKS, PACK_MAX_SIZE, boardFoes, carriedFrom, collapseFoes, memberSize,
     packAreaBlocks, packAttacks, packCounts, packFullAttacks, packLeft, packSize, splitFoes, virtualSlot,
 } from '../../../../src/v2/lean-rpg/board/members.js';
 
@@ -101,6 +101,21 @@ test('splitFoes names members, leaves a lone real foe unchanged, skips Down grou
     assert.deepEqual(count99.map(foe => foe.count), [11, 11, 11, 11, 11, 11, 11, 11, 11]);
     assert.ok(count99.every(foe => foe.name.startsWith('Bristle-boar pack ')));
     assert.ok(count13.concat(count99).every(foe => foe.slot > 4 && foe.slot % 10 > 0));
+});
+
+test('NEW5/NEW6: real count-one bars use the live field, carry only virtual values and keep a real Down card', () => {
+    const lone = realFoe({ slot: 1, name: 'Bat', count: 1, hurt: 4 });
+    const live = splitFoes([lone], { carried: { values: { 1: 2 }, counts: { 1: 1 } } });
+    assert.equal(live[0].hurt, 4, 'the real field is the authority between segments');
+    const down = splitFoes([{ ...lone, hurt: 0 }], { carried: { values: {}, counts: { 1: 1 } } });
+    assert.deepEqual(down.map(foe => [foe.slot, foe.hurt, foe.filled]), [[1, 0, true]], 'a real foe downed in the fight stays listed');
+    assert.deepEqual(splitFoes([{ ...lone, hurt: 0 }]), [], 'a group already Down was never in this fight');
+    const carried = carriedFrom([
+        { slot: 1, group: 1, name: 'Bat', value: 2, pack: false, count: 1 },
+        { slot: 11, group: 1, name: 'Bat 1', value: 1, pack: false, count: 1 },
+        { slot: 12, group: 1, name: 'Bat 2', value: 0, pack: false, count: 1 },
+    ]);
+    assert.deepEqual(carried, { values: { 11: 1, 12: 0 }, counts: { 1: 3 } });
 });
 
 test('packs rebuild from hurt, resume exact carried values, and collapse in pack order', () => {

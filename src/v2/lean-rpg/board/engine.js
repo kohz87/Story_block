@@ -189,6 +189,6 @@ export function playBoard(state, setup, exchanges) {
     const opened = members && Array.isArray(setup.opened) && setup.opened.length ? structuredClone(setup.opened) : null;
     const result = { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
         ...(opened ? { opened } : {}), summary: summaryStd([], rounds, refused) };
-    if (members) result.members = boardFoes(realFoes, values, { maxOf: limits });
+    if (members) result.members = boardFoes(realFoes, values, { maxOf: limits, carried: setup.carriedMembers });
     return { state: copy, result };
 }
