@@ -93,7 +93,7 @@ export function createFightWidget({ headState = () => null, readerName = () => '
                 if (!alive) return;
                 clear();
                 const staged = board?.snapshot(headState());
-                if (staged) { board.render(root, staged, draw, handles); return; }
+                if (staged) { board.render(root, staged, draw, handles, api?.resolve?.('settings') ?? {}); return; }
                 const state = headState(), { ranks, playerRank } = levels(), foes = readFight(state, { roleOf, ranks }), party = readParty(state, { own: readerName(), roleOf, ranks, playerRank });
                 // Who has which level, so the turn order can say it ("Astra (Lv 14)").
                 const levelByName = new Map([...party, ...foes].map(item => [fold(item.name), item.level]));
