@@ -280,5 +280,5 @@ export function createParty(deps) {
         if (check.returning) refuse('REFUSED', '', fill(J.taken, { name: request.name }));
         return makeParty(ctx, request, check.soul, call);
     }
-    return { skillsBlockOf, defaultSeeds, seededData, makeParty, party, leave, addParty, restoreKept, giveGear };
+    return { skillsBlockOf, standingBlock, defaultSeeds, seededData, makeParty, party, leave, addParty, restoreKept, giveGear };
 }
