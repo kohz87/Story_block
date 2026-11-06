@@ -2,9 +2,12 @@
 // It reads skill flags and current bars; the view only renders the returned plain data.
 // Unusable skills stay visible with a reason and cannot be chosen.
 
-import { STAGES, stageWord } from '../names.js';
-import { readSheet } from '../read.js';
+import { PRACTICE, PRACTICE_SETTING, STAGES, practiceOf, stageWord } from '../names.js';
+import { fold, readSheet } from '../read.js';
 import { applyGear } from '../gear.js';
+import { fightOf, memberLevel, memberXp } from '../fight.js';
+import { scaleXp, xpRateFrom } from '../levels.js';
+import { usesOf } from '../practice.js';
 import { actionSkills } from './plan.js';
 import { attackStat, bestDefence } from './rules.js';
 import { skillKey } from './flags.js';
@@ -30,4 +33,17 @@ export function boardChoices(state, setup, chosen = []) {
 export function targetLabel(foe) {
     const size = foe.size ?? 5, health = stageWord(STAGES.health, foe.hurt, size);
     return `${foe.name} (Lv ${foe.level}, ${health})`;
+}
+
+/** Awards for the unsent segment; earlier segments have already paid their own practice. */
+export function pendingAwards(state, session, result, settings = {}) {
+    const sheet = readSheet(state), fight = fightOf(sheet, session.groups ?? []);
+    const rate = xpRateFrom(settings), perUse = practiceOf(settings[PRACTICE_SETTING]) ?? PRACTICE.perUse;
+    const xp = result.stop === 'won' && fight.won ? sheet.characters.filter(actor => actor.alive !== false && Number.isSafeInteger(actor.xp))
+        .map(actor => ({ who: actor.who, amount: scaleXp(memberXp(fight.groups, memberLevel(actor)), rate) })) : [];
+    const practice = usesOf(result).filter(use => {
+        const actor = sheet.characters.find(entry => entry.key === fold(use.who));
+        return actor?.skills.some(skill => fold(skill.name) === fold(use.skill));
+    }).map(use => ({ who: use.who, skill: use.skill, amount: Math.min(PRACTICE.max, use.n * perUse) }));
+    return { xp, practice };
 }

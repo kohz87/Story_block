@@ -8,11 +8,12 @@ import { drawStageBars } from '../view/bars.js';
 import { readFoes, readParty } from '../view/party-data.js';
 import { readSheet } from '../read.js';
 import { planGear } from '../gear.js';
+import { isStandard } from '../rules.js';
 import { boardFlags } from './overrides.js';
-import { boardChoices, targetLabel } from './view-data.js';
-import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange, undoExchange } from './session.js';
+import { boardChoices, pendingAwards, targetLabel } from './view-data.js';
+import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
 import { playBoard } from './engine.js';
-import { settledNote } from './note.js';
+import { barMovement, settledNote } from './note.js';
 
 const button = (doc, text, cls, click) => {
     const node = h(doc, 'button', cls, text);
@@ -24,12 +25,23 @@ const signed = n => n >= 0 ? `+${n}` : String(n);
 const labelLine = line => {
     const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
     const bonus = (pc.statBonus ?? 0) + (pc.classBonus ?? 0) + (pc.rank ?? 0) + (pc.edge ?? 0);
-    const changes = [line.damage, line.cost].filter(Boolean).map(move => `${move.name} ${move.id?.endsWith(':mana') ? 'Mana ' : move.id?.endsWith(':stamina') ? 'Stamina ' : ''}${move.from} → ${move.to}`);
-    return `${who}${line.skill ? ` (${line.skill})` : ''}: d20 ${pc.die} ${signed(bonus)} = ${pc.total} vs ${foe.total ?? line.dc} — ${String(line.outcome).toUpperCase()}${line.decisive ? ', DECISIVE' : ''}${changes.length ? ` · ${changes.join(' · ')}` : ''}`;
+    const changes = [line.damage ? barMovement(line.damage) : '', line.cost ? barMovement(line.cost, true) : ''].filter(Boolean);
+    const skill = line.skill ? ` (${line.skill})` : '';
+    const verdict = `${line.kind === 'foe' ? `${pc.who}'s defence${skill}: ` : ''}${String(line.outcome).toUpperCase()}`;
+    return `${who}${line.kind === 'foe' ? '' : skill}: d20 ${pc.die} ${signed(bonus)} = ${pc.total} vs ${foe.total ?? line.dc} — ${verdict}${line.decisive ? ', DECISIVE' : ''}${changes.length ? ` · ${changes.join(' · ')}` : ''}`;
 };
 
 export function createBoardView({ doc, headState, meta, save, store, rules, query, readerName, roleOf, levels, on = () => false } = {}) {
-    let chosen = [], targeting = null, confirm = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false;
+    let chosen = [], targeting = null, confirm = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
+    const releaseAfterResult = () => {
+        const wait = () => setTimeout(() => {
+            busy = false;
+            for (const line of lockedChoices) line.disabled = false;
+            lockedChoices = [];
+        }, 400);
+        const frame = doc.defaultView?.requestAnimationFrame?.bind(doc.defaultView);
+        if (frame) frame(() => frame(wait)); else wait();
+    };
     const persist = () => { try { save?.(); } catch { /* staging still works in this page */ } };
     const current = () => boardSession(meta());
     const reset = () => { chosen = []; targeting = null; confirm = false; };
@@ -51,21 +63,22 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         if (gear) session.setup.gear = gear; else delete session.setup.gear;
     };
     const snapshot = state => {
-        if (!on()) return null;
+        if (!on() || !isStandard(rules())) return null;
         reconcileBoard(meta(), id => (store?.receipts?.() ?? []).some(entry => entry?.receipt?.id === id));
         const session = current();
-        if (!session || session.anchor !== store?.carrierSid?.(store.headIndex?.())) return null;
+        if (!session || !isStandard(session.setup?.rules) || session.anchor !== store?.carrierSid?.(store.headIndex?.())) return null;
         if (session.id !== activeId) { activeId = session.id; reset(); }
         fresh(session, state);
         return { session, played: playBoard(state, session.setup, session.exchanges) };
     };
     const offer = (root, redraw) => {
-        if (!on()) return;
+        if (!on() || !isStandard(rules())) return;
         const state = headState(), sheet = readSheet(state);
         if (!sheet.foes.some(foe => foe.filled && foe.hurt > 0)) return;
         const box = h(doc, 'div', 'rpg-board-offer ss-glass');
         box.appendChild(h(doc, 'p', '', 'Choose each exchange on the fight board, or keep telling the story.'));
         box.appendChild(button(doc, 'Fight on the board', 'ss-button ss-button-primary rpg-board-open', () => {
+            if (!isStandard(rules())) return;
             const sid = store?.carrierSid?.(store.headIndex?.()), { gear, weapons } = equipment(headState());
             const result = openBoard(meta(), headState(), { sid, rules: rules(), gear, weapons });
             if (result.error) { box.appendChild(h(doc, 'p', 'rpg-board-error', result.error)); return; }
@@ -73,7 +86,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         }));
         root.appendChild(box);
     };
-    const render = (root, snapshot, redraw, handles) => {
+    const render = (root, snapshot, redraw, handles, settings = {}) => {
         const { session, played } = snapshot, thisGeneration = ++generation;
         if (!listening) { doc.addEventListener?.('keydown', keydown, true); listening = true; }
         keyRoot = root;
@@ -87,13 +100,14 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             const card = h(doc, 'article', 'rpg-foe ss-glass');
             card.appendChild(h(doc, 'p', 'rpg-name', `${foe.name} · ${foe.levelText}`));
             const slot = h(doc, 'div', 'rpg-bar-meter'); card.appendChild(slot);
-            handles.push(meter.render(slot, { label: 'Health', value: foe.hurt, max: foe.max ?? 5, tone: foe.hurt ? 'warn' : 'bad', text: foe.text ?? foe.word, segments: foe.max ?? 5 }, {}));
+            handles.push(meter.render(slot, { label: 'Health', value: foe.hurt, max: foe.max ?? 5, tone: foe.hurt ? 'warn' : 'bad', text: foe.word, segments: foe.max ?? 5 }, {}));
             cards.appendChild(card);
         }
         for (const character of party) {
             const card = h(doc, 'article', 'rpg-pc ss-glass');
             card.appendChild(h(doc, 'p', 'rpg-name', character.name));
-            drawStageBars(doc, card, character, { api: null, handles });
+            const bars = Object.fromEntries(Object.entries(character.bars).map(([key, bar]) => [key, { ...bar, text: bar.word }]));
+            drawStageBars(doc, card, { ...character, bars }, { api: null, handles });
             cards.appendChild(card);
         }
         status.appendChild(cards);
@@ -120,6 +134,10 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         } else if (ended) {
             panel.appendChild(h(doc, 'h4', 'rpg-board-end', `Fight ${played.result.stop}`));
             panel.appendChild(h(doc, 'p', '', 'Your next message carries this fight; the narrator tells it first.'));
+            const awards = pendingAwards(state, session, played.result, settings);
+            const xp = awards.xp.filter(item => item.amount > 0).map(item => `${item.who} +${item.amount} XP`).join(', ');
+            const practice = awards.practice.map(item => `${item.who}: ${item.skill} +${item.amount}`).join(', ');
+            panel.appendChild(h(doc, 'p', 'rpg-board-awards', `Pending XP: ${xp || 'none'}. Pending practice: ${practice || 'none'}.`));
         } else {
             panel.appendChild(h(doc, 'p', 'rpg-board-prompt', targeting ? 'Choose a target' : `${data.actor?.who ?? 'Party'}: choose an action`));
             if (!targeting) panel.appendChild(h(doc, 'p', 'rpg-board-defence', `Defence: ${data.defence ?? 'plain defence'}, automatic`));
@@ -127,30 +145,30 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             const options = targeting ? data.foes.map(foe => ({ label: targetLabel(foe), target: foe.slot })) : data.choices;
             const take = item => {
                 if (busy || thisGeneration !== generation || item.reason) return;
-                busy = true;
                 if (targeting) { chosen.push({ ...targeting, target: item.target }); targeting = null; }
                 else if (item.action.kind === 'flee') chosen = [item.action];
                 else if (!item.action.area && data.foes.length > 1) targeting = item.action;
                 else chosen.push({ ...item.action, ...(!item.action.area ? { target: data.foes[0]?.slot } : {}) });
+                let rolled = false;
                 if (!targeting && (chosen[0]?.kind === 'flee' || chosen.length === data.actors.length)) {
                     const result = stageExchange(meta(), headState(), chosen);
                     reset();
-                    if (result.error) panel.appendChild(h(doc, 'p', 'rpg-board-error', result.error)); else persist();
+                    if (result.error) panel.appendChild(h(doc, 'p', 'rpg-board-error', result.error));
+                    else { persist(); busy = true; rolled = true; }
                 }
                 redraw();
-                busy = false;
+                if (rolled) releaseAfterResult();
             };
             options.forEach((item, at) => {
                 const line = button(doc, `${at + 1}  ${item.label}${item.reason ? ` — ${item.reason}` : ''}`, 'rpg-board-choice', () => take(item));
-                line.disabled = Boolean(item.reason); line.setAttribute('data-choice', String(at + 1)); list.appendChild(line);
+                line.disabled = Boolean(item.reason) || busy;
+                if (busy && !item.reason) lockedChoices.push(line);
+                line.setAttribute('data-choice', String(at + 1)); list.appendChild(line);
             });
             panel.appendChild(list);
             if (targeting) panel.appendChild(button(doc, 'Back', 'ss-button rpg-board-back', () => { targeting = null; redraw(); }));
         }
         const tools = h(doc, 'div', 'rpg-board-actions');
-        const undo = button(doc, 'Undo last exchange', 'ss-button rpg-board-undo', () => { undoExchange(meta(), headState()); persist(); reset(); redraw(); });
-        undo.disabled = !session.exchanges.length;
-        tools.appendChild(undo);
         tools.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
         panel.appendChild(tools);
         const details = h(doc, 'details', 'rpg-board-note');
