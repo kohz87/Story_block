@@ -26,7 +26,7 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/note.js`: builds the settled account and word-based bar movements.
 - `src/v2/lean-rpg/board/awards.js`: selects the opening foe groups for one win award.
 - `src/v2/lean-rpg/board/view-data.js`: builds choices, member groups and target labels, pending awards and their compact phone wording.
-- `src/v2/lean-rpg/board/view.js`: renders the board, member and pack cards, measures the first card row, marks finished fights, handles keys and confirms discards in-page. Down packs omit the thinning line.
+- `src/v2/lean-rpg/board/view.js`: renders the board, member and pack cards, measures phone card rows, choices and log content, marks finished fights, handles keys and confirms discards in-page. Down packs omit the thinning line.
 - `src/v2/lean-rpg/board/skill-editor.js`: draws the three checkboxes in the skill editor.
 - `src/v2/lean-rpg/board/board.css`: provides the touch layout, phone log, card and choice scrolling, finished-fight page scrolling and bottom-bar clearance.
 - `src/v2/view/mounts/screen.js`, `view/widgets/hero.js` and `view/glass.css`: offer the game-view hero's More/Less control while a phone board is open, resetting it when the board is discarded; board CSS activates the compact presentation.
@@ -127,7 +127,7 @@ the approach checks earn practice and a successful ambush applies to the first e
 - `action-gate.test.js`, `start-flow.test.js`, `start-ui.test.js` and `trim.test.js` cover the waiting choice, approach, branch, offer, settings and prompt.
 - `note.test.js`, `view.test.js`, `view-data.test.js`, `phone-css.test.js` and `view/widgets/blocks.test.js` cover defence, bar words, wear, controls, downed packs, pending awards, the expandable hero and phone layout.
 - `touch.test.js` renders the board at 390×844 and 360×740 in the game view and the Story panel when
-  the optional browser is available; it checks the compact hero, card and log sizing, finished-board scrolling and bottom-bar clearance.
+  the optional browser is available; it checks choice priority, content-sized logs, whole card rows, the narrator fold, finished-board scrolling and bottom-bar clearance.
 - `tests/v2/qa/state-fuzz.test.js` includes board fights; `delete-fuzz.test.js` creates winning board segments
   among deletable replies and checks deleted and replayed rounds, practice and XP.
 

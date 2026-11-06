@@ -3,6 +3,7 @@
 // Text is placed in DOM nodes, never interpreted as markup.
 
 import { button, h } from '../../view/widgets/dom.js';
+import { zoomOf } from '../../view/scroll.js';
 import { discardHeld, heldForSid } from '../../turn/held-board.js';
 import { meter } from '../../view/widgets/meter.js';
 import { drawStageBars } from '../view/bars.js';
@@ -183,33 +184,24 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             cards.appendChild(card);
         }
         status.appendChild(cards);
-        // Keep the first grid row whole even if its cards wrap or grow; later rows scroll inside the cards area.
-        const firstCard = cards.firstElementChild;
-        const Observer = doc.defaultView?.ResizeObserver;
-        if (firstCard && Observer) {
-            const observer = new Observer(() => {
-                const height = firstCard.offsetHeight;
-                if (height > 0) cards.style.setProperty('--rpg-first-row-height', `${height}px`);
-            });
-            observer.observe(firstCard);
-            handles.push({ destroy: () => observer.disconnect() });
-        }
         if (played.result.order.length) {
             const line = members ? memberOrderLine(played.result.order, members, foes) : `Order: ${played.result.order.map(item => item.name).join(' · ')}`;
             if (line) status.appendChild(h(doc, 'p', 'rpg-board-order', line));
         }
         root.appendChild(status);
         const log = h(doc, 'div', 'rpg-board-log rpg-battle');
+        const logContent = h(doc, 'div', 'rpg-board-log-content');
         log.setAttribute('aria-live', 'polite');
         const history = (store?.receipts?.() ?? []).map(entry => entry.receipt?.data?.v2?.result).filter(result => result?.board?.id === session.id);
         for (const result of [...history, played.result]) {
-            for (const line of result.opening ?? []) log.appendChild(h(doc, 'p', '', `Opening · ${labelLine(line)}`));
+            for (const line of result.opening ?? []) logContent.appendChild(h(doc, 'p', '', `Opening · ${labelLine(line)}`));
             for (const round of result.rounds ?? []) {
-                log.appendChild(h(doc, 'p', 'rpg-board-round', `Exchange ${round.n}`));
-                for (const line of round.lines) log.appendChild(h(doc, 'p', '', labelLine(line)));
+                logContent.appendChild(h(doc, 'p', 'rpg-board-round', `Exchange ${round.n}`));
+                for (const line of round.lines) logContent.appendChild(h(doc, 'p', '', labelLine(line)));
             }
         }
-        if (!log.childNodes.length) log.appendChild(h(doc, 'p', '', 'Choose an action to begin.'));
+        if (!logContent.childNodes.length) logContent.appendChild(h(doc, 'p', '', 'Choose an action to begin.'));
+        log.appendChild(logContent);
         root.appendChild(log);
         const panel = h(doc, 'div', 'rpg-board-controls');
         const gear = session.setup.gear ? equipmentForBoard(state, session.setup.gear) : {};
@@ -285,7 +277,52 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         details.appendChild(h(doc, 'p', '', settledNote(played.result, session.setup)));
         panel.appendChild(details);
         root.appendChild(panel);
+        // Phone rows use real content heights, including wrapped cards and choice labels. Observing
+        // the content rather than the scrollers lets their minimums shrink after a width change.
+        const list = panel.querySelector('.rpg-board-choices');
+        const choiceRows = list ? [...list.children].slice(0, 5) : [];
+        const cardRows = [...cards.children];
+        let followLog = true;
+        log.addEventListener('scroll', () => { followLog = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop) < 2; });
+        const measure = () => {
+            const setHeight = (node, property, value) => {
+                const height = `${Math.ceil(value)}px`;
+                if (value > 0 && node.style.getPropertyValue(property) !== height) node.style.setProperty(property, height);
+            };
+            setHeight(cards, '--rpg-card-row-height', Math.max(0, ...cardRows.map(card => card.offsetHeight || 0)));
+            const style = doc.defaultView?.getComputedStyle?.bind(doc.defaultView);
+            if (style && list && choiceRows.length) {
+                const gap = parseFloat(style(list).rowGap) || 0;
+                setHeight(list, '--rpg-choice-limit', choiceRows.reduce((height, row) => height + (row.offsetHeight || 0), 0) + gap * (choiceRows.length - 1));
+            }
+            if (style && logContent.offsetHeight) {
+                const frame = style(log);
+                const edges = ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((height, name) => height + (parseFloat(frame[name]) || 0), 0);
+                setHeight(log, '--rpg-log-content-height', logContent.offsetHeight + edges);
+                log.classList.add('rpg-board-log-measured');
+            }
+            if (followLog) log.scrollTop = log.scrollHeight;
+        };
+        const Observer = doc.defaultView?.ResizeObserver;
+        if (Observer) {
+            const observer = new Observer(measure);
+            for (const node of [...cardRows, ...choiceRows, log, logContent]) observer.observe(node);
+            handles.push({ destroy: () => observer.disconnect() });
+        }
+        measure();
         log.scrollTop = log.scrollHeight;
+        // A short sheet may need to move after choices or targeting change height. Move only its
+        // own scroller, and keep the controls clear of the floating bar on phones.
+        if (!ended && doc.defaultView?.matchMedia?.('(max-width: 759.98px)').matches) {
+            const body = root.closest?.('.story-suite-sheet-body, .ss-gameview-body');
+            const frame = body?.closest?.('.story-suite-sheet, .ss-gameview');
+            const bar = frame?.querySelector?.('.story-suite-sheet-bar, .ss-gameview-nav');
+            const bodyBox = body?.getBoundingClientRect?.(), barBox = bar?.getBoundingClientRect?.(), panelBox = panel.getBoundingClientRect?.();
+            if (bodyBox?.height && panelBox?.height) {
+                const limit = Math.min(bodyBox.bottom, barBox?.height ? barBox.top : bodyBox.bottom) - 8;
+                if (panelBox.bottom > limit) body.scrollTop += (panelBox.bottom - limit) / zoomOf(body);
+            }
+        }
     };
     const keydown = event => {
         if (!keyRoot || event.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;

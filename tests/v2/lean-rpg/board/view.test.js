@@ -471,27 +471,43 @@ test('a Down pack keeps its health and pack pill but drops its thinning line', a
     assert.equal(root.classList.contains('rpg-board-finished'), false);
 });
 
-test('the first card row tracks its real height and releases its observer on redraw', async t => {
+test('card rows track the tallest card, shrink again, and release their observer on redraw', async t => {
     const { doc, host } = await page(t, { formula: 'standard' });
     await begin(host);
     await makeBlocks(host);
     await defineFoes(host, [['Cellar-rats', 12, 1, 5]]);
     const observers = [];
     doc.defaultView.ResizeObserver = class {
-        constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this); }
-        observe(node) { this.node = node; }
+        constructor(callback) { this.callback = callback; this.disconnected = false; this.nodes = []; observers.push(this); }
+        observe(node) { this.nodes.push(node); }
         disconnect() { this.disconnected = true; }
     };
+    doc.defaultView.getComputedStyle = () => ({ rowGap: '4px', paddingTop: '8px', paddingBottom: '8px', borderTopWidth: '1px', borderBottomWidth: '1px' });
     const pack = { slot: 11, group: 1, n: 1, name: 'Cellar-rats', value: 5, size: 8, pack: true, count: 12, left: 8, attacks: 2, standing: true };
     const root = renderMembers(t, { doc, host, members: [pack], order: [] });
-    const cards = root.querySelector('.rpg-board-cards'), first = cards.firstElementChild;
-    assert.equal(observers[0].node, first);
+    const cards = root.querySelector('.rpg-board-cards'), [first, second] = cards.children;
+    assert.ok(observers[0].nodes.includes(first));
+    assert.ok(observers[0].nodes.includes(second));
+    const log = root.querySelector('.rpg-board-log'), content = root.querySelector('.rpg-board-log-content');
+    const list = root.querySelector('.rpg-board-choices'), choices = [...list.children];
+    assert.ok(observers[0].nodes.includes(log));
+    assert.ok(observers[0].nodes.includes(content));
+    assert.ok(choices.length >= 2 && choices.every(choice => observers[0].nodes.includes(choice)));
+    choices.forEach(choice => { choice.offsetHeight = 60; });
+    content.offsetHeight = 50;
     first.offsetHeight = 173;
+    second.offsetHeight = 231;
     observers[0].callback();
-    assert.equal(cards.style.getPropertyValue('--rpg-first-row-height'), '173px');
-    first.offsetHeight = 192;
+    assert.equal(cards.style.getPropertyValue('--rpg-card-row-height'), '231px');
+    assert.equal(list.style.getPropertyValue('--rpg-choice-limit'), `${choices.length * 60 + (choices.length - 1) * 4}px`);
+    assert.equal(log.style.getPropertyValue('--rpg-log-content-height'), '68px');
+    assert.ok(log.classList.contains('rpg-board-log-measured'));
+    first.offsetHeight = 128;
+    second.offsetHeight = 192;
+    content.offsetHeight = 20;
     observers[0].callback();
-    assert.equal(cards.style.getPropertyValue('--rpg-first-row-height'), '192px');
+    assert.equal(cards.style.getPropertyValue('--rpg-card-row-height'), '192px');
+    assert.equal(log.style.getPropertyValue('--rpg-log-content-height'), '38px');
     root.querySelector('[data-choice="1"]').click();
     assert.equal(observers[0].disconnected, true);
     assert.equal(observers.length, 2, 'the redrawn row receives its own observer');

@@ -60,7 +60,6 @@ for (let n = 0; n < 100; n += 1) {
 if (!ready) throw new Error('No open two-exchange fight');
 const id = boardSession(meta).id;
 const lines = Array.from({ length:35 }, (_, n) => ({ n:n+1, lines:[{ kind:'act', pc:{ who:'Astra', die:12, total:18 }, foe:{ name:'Rats', total:10 }, outcome:'success' }] }));
-receipts.push({ receipt:{ data:{ v2:{ result:{ board:{ id }, rounds:lines } } } } });
 const node = document.querySelector('#board'), handles = [];
 if (location.search.includes('panel')) {
     document.querySelector('.ss-gameview').hidden = true;
@@ -73,7 +72,16 @@ const view = createBoardView({ doc:document, headState:() => state, meta:() => m
 function draw() { for (const handle of handles.splice(0)) handle.destroy?.(); view.clear(); node.replaceChildren(); node.classList.remove('rpg-board-active');
     const snapshot = view.snapshot(state); if (snapshot) view.render(node, snapshot, draw, handles, {}); else view.offer(node, draw); }
 draw();
-window.boardTest = { count:() => boardSession(meta)?.exchanges.length ?? 0, end:() => {
+window.boardTest = { count:() => boardSession(meta)?.exchanges.length ?? 0, configure:({ skills = 2, rounds = 0, wrap = false } = {}) => {
+    const fields = domain.instances['pack.chat/skills'].chat.fields;
+    for (let n = 1; n <= 5; n += 1) {
+        fields['skill' + n] = n <= skills ? (wrap && n === 2 ? 'An exceptionally long skill name that must wrap over several lines on a phone' : 'Cut ' + n) : '';
+        fields['about' + n] = 'strike a foe'; fields['stat' + n] = 'str'; fields['uses' + n] = 'stamina';
+    }
+    receipts.length = 0;
+    if (rounds) receipts.push({ receipt:{ data:{ v2:{ result:{ board:{ id }, rounds:lines.slice(0, rounds) } } } } });
+    draw();
+}, end:() => {
     discardBoard(meta);
     for (let n = 0; n < 200; n += 1) {
         openBoard(meta, state, { sid:'reply', rules:{ ...STANDARD_FORMULA, levelDivisor:5 } });
@@ -124,7 +132,7 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         const page = await context.newPage();
         await page.goto(`http://127.0.0.1:${web.address().port}/${frame === 'panel' ? '?panel' : ''}`);
         await page.waitForSelector('[data-ready="yes"]', { state: 'attached' });
-        await page.waitForFunction(() => document.querySelector('.rpg-board-cards').style.getPropertyValue('--rpg-first-row-height'));
+        await page.waitForFunction(() => document.querySelector('.rpg-board-cards').style.getPropertyValue('--rpg-card-row-height'));
         if (frame === 'game') {
             const hero = page.locator('.ss-gameview-hero .ss-hero'), more = page.locator('.ss-hero-board-more');
             assert.equal(await hero.evaluate(el => el.classList.contains('ss-hero-compact')), true);
@@ -138,12 +146,69 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
             await more.tap();
             assert.equal(await more.getAttribute('aria-expanded'), 'false');
         }
-        // A short Story panel may need its own scroll to expose the controls above its floating bar.
-        await page.evaluate(() => {
+        const revealControls = () => page.evaluate(() => {
             const body = document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-body') ?? document.querySelector('.ss-gameview-body');
-            const bar = document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-bar') ?? document.querySelector('.ss-gameview-nav');
-            if (document.querySelector('.rpg-board-controls').getBoundingClientRect().bottom > bar.getBoundingClientRect().top) body.scrollTop = body.scrollHeight;
+            body.scrollTop = body.scrollHeight;
         });
+        const configure = async options => {
+            await page.evaluate(options => window.boardTest.configure(options), options);
+            await page.waitForFunction(() => document.querySelector('.rpg-board-log').style.getPropertyValue('--rpg-log-content-height') &&
+                document.querySelector('.rpg-board-choices').style.getPropertyValue('--rpg-choice-limit'));
+            await revealControls();
+        };
+        const fit = () => page.evaluate(() => {
+            const list = document.querySelector('.rpg-board-choices'), log = document.querySelector('.rpg-board-log');
+            const controls = document.querySelector('.rpg-board-controls'), note = controls.querySelector('.rpg-board-note');
+            const bar = document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-bar') ?? document.querySelector('.ss-gameview-nav');
+            const body = document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-body') ?? document.querySelector('.ss-gameview-body');
+            const box = node => { const r = node.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, height:r.height }; };
+            const zoom = list.getBoundingClientRect().width / list.offsetWidth;
+            const logStyle = getComputedStyle(log), controlStyle = getComputedStyle(controls);
+            const logEdges = ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((sum, key) => sum + parseFloat(logStyle[key]), 0) * zoom;
+            const controlEdges = (parseFloat(controlStyle.paddingBottom) + parseFloat(controlStyle.borderBottomWidth)) * zoom;
+            return { rows:[...list.children].map(box), list:box(list), log:box(log), logContent:box(log.firstElementChild), logEdges,
+                logScroll:log.scrollHeight > log.clientHeight + 1, newest:Math.abs(log.scrollHeight-log.clientHeight-log.scrollTop) < 2,
+                listScroll:list.scrollHeight > list.clientHeight + 1, note:box(note), controls:box(controls), controlEdges, bar:box(bar), body:box(body) };
+        });
+        for (const skills of [0, 1, 2, 3, 4]) {
+            await configure({ skills, rounds:0 });
+            const current = await fit(), visible = current.rows.slice(0, 5);
+            assert.equal(current.rows.length, skills + 2);
+            assert.ok(visible.every(row => row.height >= 47.5 && row.top >= current.list.top - 1 && row.bottom <= current.list.bottom + 1), 'the first five choices are whole');
+            assert.equal(current.listScroll, current.rows.length > 5, 'only choices after the fifth scroll');
+            assert.ok(current.list.top >= current.body.top - 1 && current.note.bottom <= current.bar.top + 1, 'the choices and actions fit above the floating bar');
+            assert.ok(Math.abs(current.controls.bottom - current.note.bottom - current.controlEdges) < 2, 'the controls do not grow empty space under the note');
+            assert.ok(current.log.height < 140 && Math.abs(current.log.height - current.logContent.height - current.logEdges) < 3, 'the empty log is content-sized');
+            if (skills === 4) {
+                await page.locator('.rpg-board-choices').evaluate(list => { list.scrollTop = list.scrollHeight; });
+                const lastVisible = await page.locator('.rpg-board-choices').evaluate(list => {
+                    const last = list.lastElementChild.getBoundingClientRect(), box = list.getBoundingClientRect();
+                    return last.top >= box.top - 1 && last.bottom <= box.bottom + 1;
+                });
+                assert.ok(lastVisible, 'choices after the fifth remain reachable');
+            }
+        }
+        await configure({ skills:3, rounds:0, wrap:true });
+        const wrapped = await fit();
+        assert.ok(wrapped.rows.some(row => row.height > 50), 'the fixture contains a wrapped choice');
+        assert.ok(!wrapped.listScroll && wrapped.rows.every(row => row.bottom <= wrapped.list.bottom + 1), 'five choices remain whole when a label wraps');
+        await configure({ skills:2, rounds:1 });
+        const shortLog = await fit();
+        assert.ok(shortLog.log.height < 140 && !shortLog.logScroll && Math.abs(shortLog.log.height - shortLog.logContent.height - shortLog.logEdges) < 3, 'a short exchange log is content-sized');
+        await configure({ skills:2, rounds:35 });
+        const longLog = await fit();
+        assert.ok(longLog.log.height >= 139.5, 'a long log keeps its screen-pixel minimum');
+        assert.ok(longLog.logScroll, 'a long log scrolls within the available space');
+        assert.ok(longLog.newest, 'a long log shows the newest exchange');
+        await page.locator('.rpg-board-log').evaluate(log => { log.scrollTop = 0; });
+        await page.locator('.rpg-board-note summary').tap();
+        await revealControls();
+        const expanded = await fit();
+        assert.ok(Math.abs(expanded.controls.bottom - expanded.note.bottom - expanded.controlEdges) < 2, 'the expanded narrator note has no empty controls space below it');
+        assert.equal(await page.locator('.rpg-board-log').evaluate(log => log.scrollTop), 0, 'resizing the log does not pull a reader away from older exchanges');
+        await page.locator('.rpg-board-log').evaluate(log => { log.scrollTop = log.scrollHeight; });
+        await page.locator('.rpg-board-note summary').tap();
+        await revealControls();
         const metrics = await page.evaluate(() => {
             const choice = document.querySelector('.rpg-board-choice'), list = document.querySelector('.rpg-board-choices');
             const log = document.querySelector('.rpg-board-log'), status = document.querySelector('.rpg-board-status');
@@ -166,8 +231,7 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         assert.ok(metrics.choices.every(choice => choice.height >= 47.5 && Math.abs(choice.width - metrics.list.width) < 2));
         assert.ok(metrics.discard.height >= 47.5 && metrics.discard.width >= 47.5);
         assert.ok(metrics.choiceFont >= 14.8 && metrics.logFont >= 12.8);
-        const minLog = frame === 'panel' && viewport.height <= 760 ? 79.5 : 139.5;
-        assert.ok(metrics.log.height >= minLog, 'the live log keeps its screen-pixel minimum');
+        assert.ok(metrics.log.height >= 139.5, 'the long live log keeps its screen-pixel minimum');
         assert.match(metrics.logFamily, /Arial/i);
         assert.equal(metrics.lineFamily, metrics.logFamily);
         assert.equal(metrics.logFamily, metrics.bodyFamily);
@@ -179,10 +243,16 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         assert.ok(metrics.controls.bottom <= metrics.bar.top + 1, 'choices and actions stay above the bottom bar');
         assert.ok(metrics.choice.top >= metrics.list.top - 1 && metrics.choice.bottom <= metrics.list.bottom + 1, 'the first choice fits in its scroller');
         assert.ok(metrics.list.bottom <= metrics.controls.bottom + 1 && metrics.discard.bottom <= metrics.controls.bottom + 1 && metrics.note.bottom <= metrics.controls.bottom + 1, 'the choice list, action and note fit inside the controls');
-        if (frame === 'panel' && viewport.height <= 760) assert.ok(metrics.listScroll, 'the short panel scrolls its choices');
+        assert.equal(metrics.listScroll, false, 'four choices do not scroll');
         assert.ok(metrics.padding + 0.5 >= metrics.safe);
         assert.ok(metrics.scroll && metrics.newest);
         assert.equal(metrics.overflow, false);
+        await page.locator('.rpg-board-cards').evaluate(cards => { cards.scrollTop = cards.scrollHeight; });
+        await page.waitForFunction(() => {
+            const cards = document.querySelector('.rpg-board-cards'), last = cards.lastElementChild.getBoundingClientRect(), box = cards.getBoundingClientRect();
+            return last.top >= box.top - 1 && last.bottom <= box.bottom + 1;
+        });
+        await page.locator('.rpg-board-cards').evaluate(cards => { cards.scrollTop = 0; });
         if (metrics.listScroll) {
             const scrolled = await page.locator('.rpg-board-choices').evaluate(list => {
                 list.scrollTop = list.scrollHeight;

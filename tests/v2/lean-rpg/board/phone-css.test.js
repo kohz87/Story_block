@@ -12,7 +12,7 @@ const rule = (text, selector) => {
     const rest = lines.slice(at).join('\n');
     return rest.slice(0, rest.indexOf('}'));
 };
-const phone = css.slice(css.indexOf('@media (max-width: 759.98px) {'), css.indexOf('@media (max-width: 759.98px) and (max-height: 800px)'));
+const phone = css.slice(css.indexOf('@media (max-width: 759.98px) {'), css.indexOf('@media (max-width: 759.98px), (pointer: coarse)'));
 
 test('only a phone game header with an active board presents the compact fight hero', () => {
     assert.match(phone, /\.ss-gameview-main:has\(\.rpg-board-active\) \.ss-gameview-hero \.ss-hero-board-more/);
@@ -24,44 +24,40 @@ test('only a phone game header with an active board presents the compact fight h
     assert.match(rule(phone, '.ss-gameview-main:has(.rpg-board-active) .ss-gameview-hero .ss-hero-board-expanded .ss-hero-head .ss-hero-edit'), /right: calc\(70px \/ var\(--ss-zoomed, 1\)\)/);
 });
 
-test('phone log uses the body font and a 140px on-screen minimum', () => {
+test('phone log grows with its content up to the available space', () => {
     const log = rule(phone, '.rpg-board-log.rpg-battle');
-    assert.match(log, /min-height: calc\(140px \/ var\(--ss-zoomed, 1\)\)/);
+    assert.match(log, /min-height: min\(var\(--rpg-log-content-height, 0px\), calc\(140px \/ var\(--ss-zoomed, 1\)\)\)/);
+    assert.match(rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-log.rpg-battle'), /flex: 0 1 auto/);
+    const measured = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-log.rpg-battle.rpg-board-log-measured');
+    assert.match(measured, /contain: size/);
+    assert.match(measured, /flex: 1 1 min\(var\(--rpg-log-content-height\), calc\(140px \/ var\(--ss-zoomed, 1\)\)\)/);
+    assert.match(measured, /max-height: var\(--rpg-log-content-height\)/);
+    assert.match(rule(phone, '.rpg-board-log-content'), /display: flow-root/);
     assert.match(log, /font-family: inherit/);
     assert.match(log, /font-size: calc\(13px \/ var\(--ss-zoomed, 1\)\)/);
 });
 
-test('phone cards scroll after at least the measured first row', () => {
+test('phone cards scroll in measured whole rows', () => {
     const status = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-status');
-    assert.match(status, /min-height: 0(?:;|\s*})/);
-    assert.doesNotMatch(status, /min-height:\s*min-content/);
-    assert.match(status, /max-height: 42%/);
+    assert.match(status, /flex: 0 0 auto/);
     const cards = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-cards');
-    assert.match(cards, /min-height: var\(--rpg-first-row-height, 120px\)/);
+    assert.match(cards, /height: var\(--rpg-card-row-height, auto\)/);
+    assert.match(cards, /grid-auto-rows: var\(--rpg-card-row-height, max-content\)/);
     assert.match(cards, /overflow-y: auto/);
-    assert.match(rule(phone, '.rpg-board-cards'), /grid-auto-rows: max-content/);
+    assert.match(cards, /scroll-snap-type: y mandatory/);
+    assert.match(rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-cards > *'), /scroll-snap-align: start/);
 });
 
-test('phone controls let the choice list shrink and scroll while keeping a full touch target', () => {
+test('phone controls fit their contents and prioritize up to five choices', () => {
     const controls = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-controls');
     const choices = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-choices');
-    assert.match(controls, /flex: 1 1 auto/);
-    assert.match(controls, /min-height: min-content/);
-    assert.match(choices, /flex: 1 1 auto/);
-    assert.match(choices, /contain: size/);
-    assert.match(choices, /(?:^|;)\s*height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
-    assert.match(choices, /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
+    assert.match(controls, /flex: 0 0 auto/);
+    assert.match(choices, /flex: 0 0 auto/);
+    assert.match(choices, /grid-auto-rows: max-content/);
+    assert.match(choices, /max-height: var\(--rpg-choice-limit, calc\(5 \* \(48px \/ var\(--ss-zoomed, 1\)\) \+ 16px\)\)/);
     assert.match(rule(css, '.rpg-board-choices'), /overflow-y: auto/);
     assert.match(rule(css, ':is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-choices > button.rpg-board-choice'), /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important/);
-});
-
-test('only a very short phone panel can shrink its active log below 140px', () => {
-    const start = css.indexOf('@media (max-width: 759.98px) and (max-height: 760px) {');
-    const end = css.indexOf('@media (max-width: 759.98px), (pointer: coarse)', start);
-    assert.ok(start >= 0 && end > start);
-    const shortPanel = css.slice(start, end);
-    assert.match(rule(shortPanel, '.story-suite-sheet .rpg-board-active:not(.rpg-board-finished) .rpg-board-log.rpg-battle'), /min-height: calc\(80px \/ var\(--ss-zoomed, 1\)\)/);
-    assert.doesNotMatch(shortPanel, /\.ss-gameview/);
+    assert.match(rule(phone, ':is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-controls :is(button, summary)'), /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important/);
 });
 
 test('phone end card replaces its long copy and keeps full-width 48px buttons', () => {
