@@ -1,5 +1,5 @@
 // Foe members and packs for a board fight.
-// A filled slot of 1..5 foes becomes numbered bars; 6 or more become evenly split packs of at most 12. These helpers only
+// A filled slot of 2..5 foes becomes numbered bars; 1 stays a real lone foe and 6 or more become evenly split packs of at most 12. These helpers only
 // turn the real Foes block into virtual bars and back, so the engine can keep its own values and write ordinary moves.
 import { foeBlocksByLevel } from '../foes.js';
 import { foeHealthBlocks } from '../formula.js';
@@ -40,7 +40,7 @@ export function memberSize(foe, maxOf = () => Infinity) {
 export const packSize = (memberBlocks, count) => Math.min(PACK_MAX_SIZE,
     Math.max(1, num(memberBlocks)) + Math.floor(Math.max(0, num(count)) / 3));
 
-/** How many attacks a full pack makes each exchange. Rounding the count term preserves the six-foe pack's two and the ten-foe table's three. */
+/** How many attacks a full pack makes each exchange. Rounding the count term gives a six-foe pack two and a twelve-foe pack three. */
 export const packFullAttacks = count => Math.min(PACK_MAX_ATTACKS, 1 + Math.floor(Math.max(0, num(count)) / 6));
 
 /** A pack's attacks now, thinning with its bar; 0 when it is Down. */
@@ -72,31 +72,63 @@ const memberName = (name, n, count) => (num(count) === 1 ? name : `${name} ${n}`
 const packValue = (hurt, one, size) => held(Math.ceil(size * held(hurt, one) / Math.max(1, one)), size);
 const packName = (name, n, count) => (count === 1 ? name : `${name} pack ${n}`);
 
+const carriedValues = carried => (carried && typeof carried.values === 'object' ? carried.values : null);
+const carriedCount = (carried, group) => {
+    const count = num(carried?.counts?.[group]);
+    return count > 0 ? count : null;
+};
+const carriedValue = (values, slot) => (values && Object.hasOwn(values, slot) && Number.isFinite(Number(values[slot]))
+    ? Number(values[slot]) : undefined);
+
 /** Split filled, standing real slots into virtual foes, sorted by group then number. A Down group has no bars. */
-export function splitFoes(realFoes, { kept = null, maxOf } = {}) {
+export function splitFoes(realFoes, { kept = null, carried = null, maxOf } = {}) {
     const out = [];
     for (const real of (Array.isArray(realFoes) ? realFoes : [])) {
-        const group = num(real?.slot), count = num(real?.count), hurt = num(real?.hurt);
-        if (!real?.filled || count <= 0 || hurt <= 0) continue;
-        if (count === 1) { out.push(real); continue; }
+        const group = num(real?.slot), blockCount = num(real?.count), hurt = num(real?.hurt);
+        if (!real?.filled || blockCount <= 0 || hurt <= 0) continue;
+        const count = carriedCount(carried, group) ?? blockCount, values = carriedValues(carried);
+        if (count === 1 && blockCount === 1) {
+            const exact = carriedValue(values, group) ?? carriedValue(values, virtualSlot(group, 1));
+            out.push(exact === undefined ? real : { ...real, hurt: held(exact, memberSize(real, maxOf)) });
+            continue;
+        }
         const one = memberSize(real, maxOf), saved = keptAt(kept, group);
         if (isPack(real)) {
             const counts = packCounts(count), useSaved = saved?.length === counts.length;
             counts.forEach((packCount, at) => {
                 const n = at + 1, size = packSize(one, packCount);
-                const value = useSaved && Number.isFinite(Number(saved[at])) ? held(saved[at], size) : packValue(hurt, one, size);
+                const exact = carriedValue(values, virtualSlot(group, n));
+                const value = exact === undefined
+                    ? useSaved && Number.isFinite(Number(saved[at])) ? held(saved[at], size) : packValue(hurt, one, size)
+                    : held(exact, size);
                 out.push({ ...real, slot: virtualSlot(group, n), group, n, name: packName(real.name, n, counts.length),
                     module: null, levelled: true, size, hurt: value, count: packCount, filled: true, pack: true });
             });
             continue;
         }
         for (let n = 1; n <= Math.min(MEMBER_CAP, count); n += 1) {
-            const value = saved?.length === count && Number.isFinite(Number(saved[n - 1])) ? held(saved[n - 1], one) : held(hurt, one);
+            const exact = carriedValue(values, virtualSlot(group, n));
+            const value = exact === undefined
+                ? saved?.length === count && Number.isFinite(Number(saved[n - 1])) ? held(saved[n - 1], one) : held(hurt, one)
+                : held(exact, one);
             out.push({ ...real, slot: virtualSlot(group, n), group, n, name: memberName(real.name, n, count), module: null,
                 levelled: true, size: one, hurt: value, count: 1, filled: true, member: true });
         }
     }
     return out.sort((a, b) => groupOf(a) - groupOf(b) || nOf(a) - nOf(b));
+}
+
+/** The exact bars a committed result records as the next segment's carried state. */
+export function carriedFrom(members) {
+    const values = {}, counts = {};
+    for (const member of entriesOf(members)) {
+        const group = groupOf(member), slot = Number.isInteger(member?.slot) ? member.slot : virtualSlot(group, nOf(member) || 1);
+        const value = Number(valueOf(member));
+        if (!Number.isFinite(group) || !Number.isFinite(value)) continue;
+        values[slot] = value;
+        counts[group] = (counts[group] ?? 0) + (member?.pack ? Math.max(0, num(member.count)) : 1);
+    }
+    return Object.keys(values).length ? { values, counts } : null;
 }
 
 function packBars(real, values, maxOf) {
@@ -112,8 +144,13 @@ export function collapseFoes(realFoes, values, { maxOf } = {}) {
     const out = [];
     for (const real of (Array.isArray(realFoes) ? realFoes : [])) {
         const group = num(real?.slot), count = num(real?.count), hurt = num(real?.hurt);
-        if (!real?.filled || count <= 0 || hurt <= 0 || count === 1) continue;
+        if (!real?.filled || count <= 0 || hurt <= 0) continue;
         let toCount = count, toHurt = 0;
+        if (count === 1) {
+            toHurt = held(valuesAt(values, group) ?? valuesAt(values, virtualSlot(group, 1)), memberSize(real, maxOf));
+            out.push({ slot: group, module: real.module, count: { from: count, to: count }, hurt: { from: hurt, to: toHurt } });
+            continue;
+        }
         if (isPack(real)) {
             const standing = packBars(real, values, maxOf).filter(bar => bar.value > 0);
             if (standing.length) {

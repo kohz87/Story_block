@@ -25,10 +25,10 @@ export function actionSkills(actor, flags = {}) {
 }
 
 /** Build a Standard plan from one choice for each standing member, or one flee choice. */
-export function exchangePlan(sheet, actions, flags = {}, number = 1) {
+export function exchangePlan(sheet, actions, flags = {}, number = 1, { members = false } = {}) {
     const actors = (sheet?.characters ?? []).filter(standing), foes = (sheet?.foes ?? []).filter(up);
     if (!actors.length || !foes.length) return { error: 'The fight has already ended.' };
-    const grouped = foes.some(foe => Number.isInteger(foe.group));
+    const grouped = members;
     const fleeing = Array.isArray(actions) && actions.length === 1 && actions[0]?.kind === 'flee';
     if (!Array.isArray(actions) || !actions.length || actions.length > actors.length || (!fleeing && actions.length !== actors.length)) return { error: 'Choose an action for each standing member.' };
     const seen = new Set(), acts = [];
@@ -66,16 +66,13 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1) {
         acts.push({ who: actor.who, ...(skill ? { skill: skill.name } : {}), target: `foe${target.slot}`, type: skill?.uses === 'mana' ? 'magic' : 'physical',
             ...(area ? { area: true } : {}), ...(group !== undefined ? { group } : {}) });
     }
-    // Every member attacks once and a pack attacks as its thinning bar allows. The flattened attacker index rotates targets;
-    // a defence skill is marked paid after its first attack on a member, so the rest of that exchange's attacks use it without spending again.
+    // Every member attacks once and a pack attacks as its thinning bar allows. The flattened attacker index rotates targets.
+    // A new-board defence is charged on its first executed attack, so Standard decides `paid` at the table, not here.
     const attackers = foes.flatMap(foe => Array.from({ length: foe.pack === true ? packAttacks(foe.count, foe.hurt, foe.size) : 1 }, () => foe));
-    const defended = new Set();
     const attacks = attackers.map((foe, at) => {
         const target = actors[(at + number - 1) % actors.length];
         const skill = bestDefence(target, item => flagsFor(flags, target, item));
-        const paid = grouped && defended.has(target.key);
-        defended.add(target.key);
-        return { slot: foe.slot, target: target.who, ...(skill ? { skill: skill.name } : {}), ...(paid ? { paid: true } : {}) };
+        return { slot: foe.slot, target: target.who, ...(skill ? { skill: skill.name } : {}), ...(members ? { once: true } : {}) };
     });
     return { plan: { formula: 'standard', pace: 'careful', acts, foes: attacks, checks: [] }, ...(runner ? { flee: runner } : {}) };
 }

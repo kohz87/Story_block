@@ -130,7 +130,7 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
                 bar:box(document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-bar') ?? document.querySelector('.ss-gameview-nav')) };
         });
         assert.ok(metrics.choices.every(choice => choice.height >= 47.5 && Math.abs(choice.width - metrics.list.width) < 2));
-        assert.ok(metrics.discard.height >= 43.5 && metrics.discard.width >= 43.5);
+        assert.ok(metrics.discard.height >= 47.5 && metrics.discard.width >= 47.5);
         assert.ok(metrics.choiceFont >= 14.8 && metrics.logFont >= 12.8);
         assert.equal(metrics.touch, 'manipulation');
         assert.ok(metrics.status.bottom <= metrics.log.top && metrics.log.bottom <= metrics.controls.top);
@@ -144,7 +144,7 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         await page.locator('[data-choice="1"]').tap();
         assert.match(await page.locator('.rpg-board-prompt').innerText(), /Choose a target/);
         const back = page.locator('.rpg-board-back'), backBox = await back.boundingBox();
-        assert.ok(backBox.width >= 43.5 && backBox.height >= 43.5);
+        assert.ok(backBox.width >= 47.5 && backBox.height >= 47.5);
         await back.tap();
         await page.locator('[data-choice="1"]').tap();
         const target = await page.locator('[data-choice="1"]').boundingBox();

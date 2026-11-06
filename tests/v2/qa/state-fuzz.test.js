@@ -176,7 +176,8 @@ async function fuzz(t, seed, steps) {
     let boardFights = 0;
 
     // A board fight from the first reply on: it stays open for the whole run, so the fuzz's sends carry
-    // the same setup and never need the planner. The blocks are pinned before any request, so the
+    // the same setup and never need the planner. It has a real count-one foe and a three-member group, so
+    // both the lone-foe and member paths are exercised. The blocks are pinned before any request, so the
     // static prompt still has one value (the fight stays open: not quiet).
     async function startBoardFight() {
         const definitions = structuredClone(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
@@ -189,6 +190,8 @@ async function fuzz(t, seed, steps) {
         foes.slug = 'fuzz-foes'; foes.name = 'Fuzz Foes';
         Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 1 });
         Object.assign(foes.state.level1, { default: 99 }); Object.assign(foes.state.hurt1, { default: 5 });
+        Object.assign(foes.state.foe2, { default: 'Fuzz Boars' }); Object.assign(foes.state.count2, { default: 3 });
+        Object.assign(foes.state.level2, { default: 1 }); Object.assign(foes.state.hurt2, { default: 4 });
         for (const definition of definitions) {
             const made = await host.sdk.command('dm.define', { definition });
             assert.equal(made.ok, true, `the board sheet is made: ${made.message}`);
@@ -196,12 +199,19 @@ async function fuzz(t, seed, steps) {
         const meta = ctx.chatMetadata, sid = store.carrierSid(store.headIndex());
         const opened = openBoard(meta, store.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
         assert.equal(opened.error, undefined, `the board opens: ${opened.error}`);
-        assert.equal(stageExchange(meta, store.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]).error, undefined, 'the board exchange stages');
+        assert.equal(stageExchange(meta, store.head(), [{ who: 'Astra', kind: 'attack', target: 21 }]).error, undefined, 'the board exchange stages');
         const result = await host.send('We stand and fight.', 'The fuzz rats press in.');
         statics.add(result.request.chat[0].content);
         const receipt = readRecord(ctx.chat[result.index])?.receipts?.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
         assert.ok(receipt, 'the first reply is a board fight');
         assert.equal(receipt.data?.v2?.result?.stop, 'open', 'the seeded foe group leaves the fight open for the rest of the run');
+        const members = receipt.data.v2.result.members;
+        assert.equal(members.find(member => member.group === 1)?.name, 'Fuzz Rats', 'the lone real foe stays in the mixed fight');
+        assert.deepEqual(members.filter(member => member.group === 2).map(member => member.name), ['Fuzz Boars 1', 'Fuzz Boars 2', 'Fuzz Boars 3'],
+            'the count-three group is split into members');
+        const carried = boardSession(meta)?.setup?.carriedMembers;
+        assert.deepEqual(carried?.counts, { 1: 1, 2: 3 }, 'the continuation records both original counts');
+        assert.equal(carried.values[21], members.find(member => member.group === 2).value, 'the continuation carries the exact first-member bar');
         checkInvariants(host, 'board fight opens');
     }
 

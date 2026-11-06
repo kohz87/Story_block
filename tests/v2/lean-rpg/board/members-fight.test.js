@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
-import { keptFrom, packAreaBlocks, splitFoes } from '../../../../src/v2/lean-rpg/board/members.js';
+import { carriedFrom, collapseFoes, packAreaBlocks, splitFoes } from '../../../../src/v2/lean-rpg/board/members.js';
 import { exchangePlan } from '../../../../src/v2/lean-rpg/board/plan.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { hashJson } from '../../../../src/v2/replay.js';
@@ -20,6 +20,9 @@ const dice = (table = {}, fallback = 10) => (kind, at) => {
 };
 const action = target => ({ actions: [{ who: 'Astra', kind: 'attack', target }] });
 const fieldsAt = (state, slug = 'foes') => state.domains.dataModules.instances[`pack.chat/${slug}`].chat.fields;
+const carriedFor = (values, counts = { 1: 3 }, group = 1) => ({
+    values: Object.fromEntries(values.map((value, at) => [group * 10 + at + 1, value])), counts,
+});
 const boars = () => ({
     hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
     foes: { role: 'foes', fields: levelFoeBlock([['Bristle-boar', 3, 1, 4]]) },
@@ -35,10 +38,10 @@ test('three boars replay, continue and keep one initiative total and adjacency p
     assert.equal(new Set(foes.map(entry => entry.total)).size, 1, 'one real-slot initiative die gives every member the same total');
     assert.deepEqual(first.result.members.map(member => member.name), ['Bristle-boar 1', 'Bristle-boar 2', 'Bristle-boar 3']);
 
-    const kept = keptFrom(first.result.members);
-    const next = playBoard(first.state, { ...setup, offset: 1, order: first.result.order, kept }, [choice]);
+    const carriedMembers = carriedFrom(first.result.members);
+    const next = playBoard(first.state, { ...setup, offset: 1, order: first.result.order, carriedMembers }, [choice]);
     const together = playBoard(state, setup, [choice, choice]);
-    assert.deepEqual(next.state, together.state, 'kept bars make the next segment equal to one continuous run');
+    assert.deepEqual(next.state, together.state, 'carried bars make the next segment equal to one continuous run');
     assert.deepEqual(next.result.rounds[0], together.result.rounds[1]);
     assert.deepEqual(next.result.members, together.result.members);
 });
@@ -48,10 +51,10 @@ test('a pack makes its attacks-now count as its bar thins, and every pack attack
     const attack = [{ who: 'Astra', kind: 'attack', target: 11 }];
     for (const [value, attacks] of [[8, 3], [5, 2], [2, 1]]) {
         const pack = splitFoes(base.foes, { kept: { 1: [value] } })[0], sheet = { ...base, foes: [pack] };
-        const built = exchangePlan(sheet, attack);
+        const built = exchangePlan(sheet, attack, {}, 1, { members: true });
         assert.equal(built.error, undefined);
         assert.deepEqual(built.plan.foes.map(foe => foe.slot), Array(attacks).fill(11));
-        assert.deepEqual(built.plan.foes.map(foe => foe.paid), [undefined, ...Array(attacks - 1).fill(true)]);
+        assert.deepEqual(built.plan.foes.map(foe => foe.once), Array(attacks).fill(true));
     }
 });
 
@@ -62,7 +65,7 @@ test('H3: an area act is scoped to its group, and a decisive area hit takes a th
         foes: { role: 'foes', fields: levelFoeBlock([['Bristle-boar', 2, 1, 4], ['Cellar-rat', 2, 1, 4]]) },
     };
     const base = readSheet(stateOf(blocks)), sheet = { ...base, foes: splitFoes(base.foes) };
-    const built = exchangePlan(sheet, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true, group: 2 }]);
+    const built = exchangePlan(sheet, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true, group: 2 }], {}, 1, { members: true });
     assert.equal(built.plan.acts[0].group, 2);
     assert.equal(built.plan.acts[0].target, 'foe21');
     const prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true });
@@ -71,7 +74,7 @@ test('H3: an area act is scoped to its group, and a decisive area hit takes a th
 
     const packBase = readSheet(stateOf({ hero: blocks.hero, skills: blocks.skills, foes: { role: 'foes', fields: levelFoeBlock([['Cellar-rat', 12, 1, 4]]) } }));
     const pack = splitFoes(packBase.foes, { kept: { 1: [8] } })[0], packSheet = { ...packBase, foes: [pack] };
-    const packPlan = exchangePlan(packSheet, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }]);
+    const packPlan = exchangePlan(packSheet, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }], {}, 1, { members: true });
     assert.equal(packPlan.error, undefined, 'one group is selected automatically');
     const packPrepared = prepareStandard(packPlan.plan, packSheet, rules, { lv: true, fix: true, then: true });
     const packRolled = rollStandard(packPlan.plan, packPrepared, dice({ init0: [20], init17: [1], act0: [20, 1] }), rules, { flow: 2, fix: true, then: true, board: true });
@@ -88,10 +91,12 @@ test('H4: automatic defence is paid once per exchange and covers every attack on
         foes: boars().foes,
     };
     const base = readSheet(stateOf(blocks)), sheet = { ...base, foes: splitFoes(base.foes) };
-    const built = exchangePlan(sheet, [{ who: 'Astra', kind: 'attack', target: 11 }]);
-    assert.deepEqual(built.plan.foes.map(foe => foe.paid), [undefined, true, true]);
+    const built = exchangePlan(sheet, [{ who: 'Astra', kind: 'attack', target: 11 }], {}, 1, { members: true });
+    assert.deepEqual(built.plan.foes.map(foe => foe.once), [true, true, true]);
+    assert.deepEqual(built.plan.foes.map(foe => foe.paid), [undefined, undefined, undefined]);
     const prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true });
-    assert.deepEqual(prepared.foes.map(foe => foe.paid), [undefined, true, true]);
+    assert.deepEqual(prepared.foes.map(foe => foe.once), [true, true, true]);
+    assert.deepEqual(prepared.foes.map(foe => foe.paid), [undefined, undefined, undefined]);
     const source = dice({ init0: [20], init17: [1] });
     const rolled = rollStandard(built.plan, prepared, source, rules, { flow: 2, fix: true, then: true, board: true });
     const defence = rolled.rounds[0].lines.filter(line => line.kind === 'foe');
@@ -103,10 +108,32 @@ test('H4: automatic defence is paid once per exchange and covers every attack on
     assert.deepEqual(rolled.hurts.filter(hurt => hurt.field === 'stamina').map(hurt => [hurt.from, hurt.to]), [[4, 3]]);
 
     const nextSheet = { ...sheet, characters: sheet.characters.map(member => ({ ...member, stamina: 3 })) };
-    const nextPlan = exchangePlan(nextSheet, [{ who: 'Astra', kind: 'attack', target: 11 }]);
+    const nextPlan = exchangePlan(nextSheet, [{ who: 'Astra', kind: 'attack', target: 11 }], {}, 1, { members: true });
     const nextPrepared = prepareStandard(nextPlan.plan, nextSheet, rules, { lv: true, fix: true, then: true });
     const next = rollStandard(nextPlan.plan, nextPrepared, source, rules, { flow: 2, fix: true, then: true, board: true });
     assert.equal(next.rounds[0].lines.find(line => line.kind === 'foe').cost.to, 2, 'the next exchange pays again');
+});
+
+test('DEFENCE_FIRST_KILLED: payment belongs to the first attack that actually reaches the defender', () => {
+    const state = stateOf({
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, dex: 20, health: 8, stamina: 4 }) },
+        skills: { role: 'skills', fields: skillBlock('Astra', [['Dodge', 3, 'agi', 'stamina', 'evasion']]) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Boar', 3, 1, 1]]) },
+    });
+    const base = readSheet(state), sheet = { ...base, foes: splitFoes(base.foes) };
+    const built = exchangePlan(sheet, [{ who: 'Astra', kind: 'attack', target: 11 }], {}, 1, { members: true });
+    const prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true });
+    const fixed = (kind, at) => {
+        if (kind === 'init') return () => (at === 0 ? 20 : 1);
+        if (kind === 'act') return () => (at === 0 ? 20 : 1);
+        return () => 10;
+    };
+    const rolled = rollStandard(built.plan, prepared, fixed, rules, { flow: 2, fix: true, then: true, board: true });
+    const defences = rolled.rounds[0].lines.filter(line => line.kind === 'foe');
+    assert.deepEqual(defences.map(line => line.foe.name), ['Boar 2', 'Boar 3'], 'the first attacker fell before it could defend');
+    assert.deepEqual(defences.map(line => line.skill), ['Dodge', 'Dodge']);
+    assert.deepEqual(defences.map(line => (line.cost ? [line.cost.from, line.cost.to] : null)), [[4, 3], null]);
+    assert.deepEqual(rolled.hurts.filter(hurt => hurt.field === 'stamina').map(hurt => [hurt.from, hurt.to]), [[4, 3]]);
 });
 
 test('flee faces the real slot, not a virtual member', () => {
@@ -124,7 +151,7 @@ test('won, lost and fled fights collapse members to ordinary count/hurt fields',
         skills: { role: 'skills', fields: skillBlock('Astra', [['Sweep', 3, 'str', 'stamina', 'sweep every foe']]) },
         foes: boars().foes,
     });
-    const won = playBoard(wonState, { seed: 0, offset: 0, rules, members: 1, kept: { 1: [1, 1, 1] } },
+    const won = playBoard(wonState, { seed: 0, offset: 0, rules, members: 1, carriedMembers: carriedFor([1, 1, 1]) },
         [{ actions: [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }] }]);
     assert.equal(won.result.stop, 'won');
     assert.deepEqual(fieldsAt(won.state).count1, 3);
@@ -135,13 +162,13 @@ test('won, lost and fled fights collapse members to ordinary count/hurt fields',
         hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 12, health: 1 }) },
         foes: boars().foes,
     });
-    const lost = playBoard(lostState, { seed: 1, offset: 0, rules, members: 1, kept: { 1: [1, 4, 4] } }, [action(11)]);
+    const lost = playBoard(lostState, { seed: 1, offset: 0, rules, members: 1, carriedMembers: carriedFor([1, 4, 4]) }, [action(11)]);
     assert.equal(lost.result.stop, 'lost');
     assert.deepEqual([fieldsAt(lost.state).count1, fieldsAt(lost.state).hurt1], [2, 4]);
     assert.ok(lost.result.hurts.some(hurt => hurt.field === 'count1' && hurt.from === 3 && hurt.to === 2));
 
     const fledState = stateOf(boars());
-    const fled = playBoard(fledState, { seed: 0, offset: 0, rules, members: 1, kept: { 1: [1, 4, 4] } },
+    const fled = playBoard(fledState, { seed: 0, offset: 0, rules, members: 1, carriedMembers: carriedFor([1, 4, 4]) },
         [action(11), { actions: [{ who: 'Astra', kind: 'flee' }] }]);
     assert.equal(fled.result.stop, 'fled');
     assert.deepEqual([fieldsAt(fled.state).count1, fieldsAt(fled.state).hurt1], [2, 4]);
@@ -150,12 +177,12 @@ test('won, lost and fled fights collapse members to ordinary count/hurt fields',
 
 test('pack collapse writes its left count and per-member hurt, and a setup without members keeps the old result', () => {
     const packState = stateOf({ hero: boars().hero, foes: { role: 'foes', fields: levelFoeBlock([['Reed-gnasher', 13, 1, 4]]) } });
-    const packed = playBoard(packState, { seed: 0, offset: 0, rules, members: 1, kept: { 1: [0, 3] } }, []);
-    assert.deepEqual(packed.result.hurts, [
-        { id: 'f:1', kind: 'foe', name: 'Reed-gnasher', module: 'pack.chat/foes', field: 'count1', from: 13, to: 3 },
-        { id: 'f:1', kind: 'foe', name: 'Reed-gnasher', module: 'pack.chat/foes', field: 'hurt1', from: 4, to: 2, size: 4 },
-    ]);
-    assert.deepEqual([fieldsAt(packed.state).count1, fieldsAt(packed.state).hurt1], [3, 2]);
+    const packed = playBoard(packState, { seed: 0, offset: 0, rules, members: 1, carriedMembers: carriedFor([0, 3], { 1: 13 }) }, []);
+    assert.deepEqual(packed.result.hurts, [], 'an open fight keeps the real Foes block untouched');
+    assert.deepEqual([fieldsAt(packed.state).count1, fieldsAt(packed.state).hurt1], [13, 4]);
+    assert.deepEqual(collapseFoes(readSheet(packState).foes, { 11: 0, 12: 3 }), [
+        { slot: 1, module: 'pack.chat/foes', count: { from: 13, to: 3 }, hurt: { from: 4, to: 2 } },
+    ], 'the pure collapse keeps the pack split');
 
     const fixture = JSON.parse(readFileSync(new URL('../fixtures/party.json', import.meta.url), 'utf8'));
     const role = { Character: 'character', Skills: 'skills', Foes: 'foes' };

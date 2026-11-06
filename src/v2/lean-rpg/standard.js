@@ -205,6 +205,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         if (check.refusal) { refuse(entry.target, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(entry.target, skill.refused, skill.refusedPlain);
         out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...(entry.paid === true ? { paid: true } : {}),
+            ...(entry.once === true ? { once: true } : {}),
             ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: foeSide(foe) });
     }
     for (const [at, entry] of (plan.checks ?? []).entries()) {
@@ -385,7 +386,17 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         return { ...rest, ...later, base: base.base ?? base };
     };
     const doAct = (base, round = 0) => withUse(ambushedStandard(round > 1 ? laterOf(base) : base, round, ambush), actOf);
-    const doFoe = base => withUse(base, foeOf);
+    // A new-board defence is paid on the first attack that actually reaches its defender. Later attacks reuse that
+    // defence; if the first fell back to a plain roll (or an `else:` skill), they fall back the same way and never
+    // gain the unspent skill for free.
+    const defended = new Map();
+    const doFoe = base => {
+        const first = base.once === true ? defended.get(base.actor) : undefined;
+        const use = first === true ? { ...base, paid: true } : base;
+        const done = withUse(use, foeOf);
+        if (base.once === true && done.lines?.length && first === undefined) defended.set(base.actor, !done.lines[0]?.without && Boolean(use.skill));
+        return done;
+    };
 
     // The opening action: a character who leads a foe by the margin acts once against it before the first round.
     const opening = [], quick = [];

@@ -8,7 +8,8 @@ import { practiceHook, practiceStep, usesOf } from '../../../../src/v2/lean-rpg/
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { memberXp } from '../../../../src/v2/lean-rpg/fight.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
-import { boardSession, discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { carriedFrom } from '../../../../src/v2/lean-rpg/board/members.js';
+import { boardSession, discardBoard, openBoard, receiveBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, foeBlock, levelFoeBlock, recordOf, rollReceipt, setup, sheetDomain, skillBlock } from '../helpers.js';
 
@@ -103,9 +104,9 @@ test('a fight split over two replies pays both groups once and replays after a s
         for (let attempt = 0; attempt < 100; attempt += 1) {
             assert.equal(openBoard(meta, host.head(), config).error, undefined);
             first = stageExchange(meta, host.head(), action(1));
-            const result = first.preview?.result, fields = first.preview?.state?.domains?.dataModules?.instances['pack.chat/foes'].chat.fields;
-            const next = result?.stop === 'open' && fields?.hurt1 === 0 && fields?.hurt2 > 0
-                ? playBoard(first.preview.state, { ...boardSession(meta).setup, offset: 1, order: result.order }, [{ actions: action(2) }]) : null;
+            const result = first.preview?.result, firstGroupDown = result?.members?.filter(member => member.group === 1).every(member => !member.standing);
+            const next = result?.stop === 'open' && firstGroupDown && result.members.some(member => member.group === 2 && member.standing)
+                ? playBoard(first.preview.state, { ...boardSession(meta).setup, offset: 1, order: result.order, carriedMembers: carriedFrom(result.members) }, [{ actions: action(2) }]) : null;
             if (next?.result?.stop === 'won') break;
             discardBoard(meta); first = null;
         }
@@ -151,5 +152,70 @@ test('a fight split over two replies pays both groups once and replays after a s
         host.store.rebuild();
         assert.equal(JSON.stringify(host.head()), afterDelete);
         assert.deepEqual(host.store.problems(), []);
+    } finally { host.close(); restore(); }
+});
+
+test('A1: a count-three win across replies pays its original-count XP once, with no partial XP', async () => {
+    const restore = seedCrypto(90);
+    const blocks = {
+        hero: { role: 'character', fields: character('Astra', { level: 1, str: 20, agi: 20, vit: 20, health: 5 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Boar', 3, 1, 1]]) },
+    };
+    const { host, callModel } = await setup({ blocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex()), rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
+        const findWin = (initial, original) => {
+            let state = initial, local = { rpgFightBoard: structuredClone(original) };
+            for (let i = 0; i < 10; i += 1) {
+                const board = structuredClone(local.rpgFightBoard), before = playBoard(state, board.setup, []);
+                const target = before.result?.members?.find(member => member.standing)?.slot;
+                if (!target) return false;
+                const actions = [{ who: 'Astra', kind: 'attack', target }], played = playBoard(state, board.setup, [{ actions }]);
+                if (played.error) return false;
+                state = played.state;
+                if (played.result.stop === 'won') return i >= 2;
+                if (played.result.stop !== 'open') return false;
+                board.exchanges = [{ actions }];
+                receiveBoard(local, { key: `b:${i}`, board }, played.result, `reply${i}`, `receipt${i}`, state);
+            }
+            return false;
+        };
+        let attempt;
+        for (attempt = 0; attempt < 150; attempt += 1) {
+            const opened = openBoard(meta, host.head(), { sid, rules });
+            assert.equal(opened.error, undefined);
+            if (findWin(host.head(), opened.session)) break;
+            discardBoard(meta);
+        }
+        assert.ok(attempt < 150, 'found a multi-reply count-three win');
+
+        let latest, partial = [];
+        for (let step = 0; step < 10; step += 1) {
+            const before = playBoard(host.head(), boardSession(meta).setup, []);
+            const target = before.result.members?.find(member => member.standing)?.slot;
+            const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target }]);
+            assert.equal(staged.error, undefined);
+            const sent = await host.send(`Attack ${step}.`, 'The fight continues.');
+            latest = rollReceipt(host, sent.index).data.v2.result;
+            assert.deepEqual(latest.rounds, staged.preview.result.rounds);
+            const xp = host.head().domains.dataModules.instances['pack.chat/hero'].chat.fields.xp;
+            if (latest.stop === 'won') break;
+            partial.push(xp);
+            assert.equal(latest.stop, 'open');
+        }
+        assert.equal(latest.stop, 'won');
+        assert.ok(partial.length >= 2, 'the win took several replies');
+        assert.deepEqual(partial, partial.map(() => 0), 'no partial fight pays XP');
+        const xp = () => host.head().domains.dataModules.instances['pack.chat/hero'].chat.fields.xp;
+        const expected = memberXp([{ count: 3, level: 1 }], 1);
+        assert.equal(expected, 6);
+        assert.equal(xp(), expected, 'the win pays for the original count');
+        const index = host.store.headIndex(), rounds = JSON.stringify(latest.rounds);
+        await host.swipe('Another telling.');
+        assert.equal(xp(), expected);
+        assert.equal(JSON.stringify(rollReceipt(host, index).data.v2.result.rounds), rounds);
+        assert.equal((await host.sdk.reread(index)).ok, true);
+        assert.equal(xp(), expected);
+        assert.equal(callModel.calls.length, 0);
     } finally { host.close(); restore(); }
 });
