@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { crash } from '../../src/v2/timeline/index.js';
-import { BATCH, DEATH, clone, nativeModule, reload, rulesModule, seal, slice, track } from './helpers/timeline.js';
+import { BATCH, DEATH, NATIVE, clone, nativeModule, reload, rulesModule, seal, slice, track } from './helpers/timeline.js';
+import { RETRY_SCHEDULE_MS } from '../../src/v2/timeline/coordinator-block.js';
 
 const reply = (text, lines = []) => (lines.length ? `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>` : text);
 const cmd = async (host, type, payload = {}) => assert.equal((await host.sdk.command(type, payload)).ok, true, type);
@@ -155,6 +156,49 @@ test('a restore whose participants were pending when the process died is finishe
     assert.deepEqual(Object.keys(again.head().domains.savepoints.returns), [prepared.return]);
     assert.equal(again.head().domains.savepoints.returns[prepared.return].snapshot, saved.id);
 });
+
+for (const registerLate of [true, false]) {
+    test(`a missing participant on reload waits quietly ${registerLate ? 'until it registers' : 'until retries are exhausted'}`, async t => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const { host, native, state } = await dies(t, 'never');
+        const saved = (await host.sdk.timeline.make({ kind: 'manual' })).snapshot;
+        await cmd(host, 'tl.xp', { amount: 100 });
+        await seal(host);
+        const head = await host.sdk.timeline.head();
+        const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+        native.native.fail.add('activate');
+        assert.equal((await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash })).status, 'participants-pending');
+        const image = clone(state.disk.image);
+        const again = await reload(createHost, image, [rulesModule()]);
+        t.after(() => again.close());
+        let status = await again.sdk.timeline.status();
+        assert.equal(status.state, 'pending');
+        assert.equal(status.blockedBy, null);
+        assert.match(again.timeline.host.journal().find(entry => entry.id === prepared.prepared).why, /not registered at the schema/);
+        assert.deepEqual(again.turn.problems(NATIVE), []);
+        assert.deepEqual(again.st.notices, []);
+        if (registerLate) {
+            native.native.fail.clear();
+            await again.sdk.registerModule(native.def);
+            assert.equal((await again.sdk.timeline.status()).state, 'idle');
+            assert.equal(again.head().domains.savepoints.returns[prepared.return].status, 'complete');
+            assert.deepEqual(again.turn.problems(NATIVE), []);
+        } else {
+            for (const [index, ms] of RETRY_SCHEDULE_MS.entries()) {
+                t.mock.timers.tick(ms);
+                for (let i = 0; i < 40; i += 1) await new Promise(resolve => setImmediate(resolve));
+                status = await again.sdk.timeline.status();
+                if (index < RETRY_SCHEDULE_MS.length - 1) {
+                    assert.equal(status.blockedBy, null);
+                    assert.deepEqual(again.turn.problems(NATIVE), []);
+                }
+            }
+            assert.deepEqual(status.blockedBy, { module: NATIVE, code: 'DEPENDENCY_UNAVAILABLE' });
+            assert.equal(again.turn.problems(NATIVE).length, 1);
+            assert.equal(again.turn.problems(NATIVE)[0].toast, true);
+        }
+    });
+}
 
 test('the barrier is up from the moment a restore is committed until every part has agreed, even across a reload', async t => {
     const { host, native, state, modules } = await dies(t, 'never');

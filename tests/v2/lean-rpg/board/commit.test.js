@@ -272,6 +272,13 @@ test('a late input change holds the received reply until the sheet is restored',
         assert.match(host.st.notices.at(-1).reason, /fight could not be saved.*restore.*discard/i);
         assert.equal(host.ctx.chat[index].extra?.storySuite?.receipts?.some(item => item.type === 'rpg.resolve') ?? false, false);
         assert.equal(boardSession(meta).exchanges.length, 1);
+        const heldSession = host.turn.session();
+        host.registry.setRestore('pending', 'Waiting for the saved records.');
+        let blocked = false;
+        await host.turn.interceptor([], 8192, () => { blocked = true; }, 'normal');
+        assert.equal(blocked, true);
+        assert.deepEqual(host.turn.session(), heldSession, 'a restore barrier does not discard the held reply');
+        host.registry.setRestore('idle');
         assert.equal((await host.sdk.command('test.set', { slug: 'hero', field: 'str', value: 5 })).ok, true);
         for (let n = 0; n < 20 && !host.ctx.chat[index].extra?.storySuite?.receipts?.some(item => item.type === 'rpg.resolve'); n += 1) await new Promise(resolve => setImmediate(resolve));
         const receipt = host.ctx.chat[index].extra.storySuite.receipts.find(item => item.type === 'rpg.resolve');

@@ -12,6 +12,7 @@ export function createLifecycle({ defs }) {
     // Modules switched off by the host (id → reason), and the restore barrier (setRestore).
     const switchedOff = new Map();
     let barrier = { state: 'idle', reason: '' };
+    let barrierEpoch = 0;
     // id → { status: 'ready'|'dormant', reason }: the peers' verdict, without the barrier. Cleared
     // whenever a module registers or is switched on or off; worked out again when next asked.
     let lifeCache = null;
@@ -96,13 +97,16 @@ export function createLifecycle({ defs }) {
     }
     /** The restore barrier: `{ state: 'idle'|'pending'|'failed', reason }`. */
     const restore = () => ({ ...barrier });
+    /** Changes when a new restore barrier is raised, not when its reason changes. */
+    const restoreEpoch = () => barrierEpoch;
     /**
      * Host-internal: raise or drop the restore barrier (the save-point package drives it; tests use it).
      * While 'pending', no module but Story Block's own is ready (see held). 'failed' is only reported
      * (sdk.preflight): it holds nothing.
      */
-    function setRestore(state, reason = '') {
+    function setRestore(state, reason = '', { temporary = false } = {}) {
         if (!RESTORE_STATES.includes(state)) throw new Error(`Story Suite: a restore is ${RESTORE_STATES.join(', ')}, not "${state}".`);
+        if (!temporary && state === 'pending' && barrier.state !== 'pending') barrierEpoch += 1;
         barrier = { state, reason: state === 'idle' ? '' : String(reason ?? '') };
     }
     /** [{ module, range }] the peers module `id` named when it registered. */
@@ -112,5 +116,5 @@ export function createLifecycle({ defs }) {
         lifeCache = null;
     }
 
-    return { lifecycle, held, setEnabled, restore, setRestore, peers, setPeers, nameOf };
+    return { lifecycle, held, setEnabled, restore, restoreEpoch, setRestore, peers, setPeers, nameOf };
 }

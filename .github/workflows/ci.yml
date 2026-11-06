@@ -28,4 +28,14 @@ jobs:
       - name: Syntax check
         run: npm run check
       - name: Behavioral tests
+        env:
+          FUZZ_DUMP_DIR: ${{ runner.temp }}
         run: npm test
+      - name: Keep state-fuzz replay dumps
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-fuzz-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/state-fuzz-*/mismatch.json
+          if-no-files-found: ignore
+          retention-days: 7

@@ -48,7 +48,7 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
     // { id, name, version, requires, version: true when it was the Story Block version, message }.
     const refusals = new Map();
     const life = createLifecycle({ defs });
-    const { lifecycle, held, setEnabled, restore, setRestore, peers } = life;
+    const { lifecycle, held, setEnabled, restore, restoreEpoch, setRestore, peers } = life;
     const featureLookups = createFeatureLookups({ defs, declared, owners, fallbacks, canonical, featureValue, held, lifecycle });
     const { featureDecl, needsOf, featureOn, withFeatures, hypothetical, off, offQuery } = featureLookups;
     const commandLookups = createCommandLookups({ defs, owners, canonical, held, lifecycle, nameOf: life.nameOf, off, warn });
@@ -140,6 +140,8 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         setEnabled,
         /** The restore barrier: `{ state: 'idle'|'pending'|'failed', reason }`. */
         restore,
+        /** Changes when a new restore barrier is raised, not when its reason changes. */
+        restoreEpoch,
         /**
          * Host-internal: raise or drop the restore barrier (the save-point package drives it; tests use it).
          * While 'pending', no module but Story Block's own is ready (see held). 'failed' is only reported
