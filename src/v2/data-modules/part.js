@@ -12,7 +12,7 @@ import { editableLayout } from './editable-layout.js';
 import { STRINGS, fill } from '../strings.js';
 import { blockTabScreen } from './block-screen.js';
 import { roleTail } from '../lean-rpg/tail.js';
-import { LEAN_RPG_FEATURE, practiceFromRollsOnly } from '../lean-rpg/names.js';
+import { LEAN_RPG_FEATURE, ROLLS_SETTING, practiceFromRollsOnly } from '../lean-rpg/names.js';
 import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blocks.js';
 import { fold, readSheet } from '../lean-rpg/read.js';
 // (foes.js and levels.js are small and need nothing of the RPG's library: they stay static, like read.js)
@@ -22,6 +22,7 @@ import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { SKILL_SLOTS_BASE, SKILL_SLOTS_EVERY, SKILL_SLOTS_MAX, signatureAt, skillSlots } from '../skill-slots.js';
 // The companions who join, the rules they are made with and their words are the RPG's library, loaded only when it is needed (rpg-lazy.js).
 import { rpgLib } from '../rpg-lazy.js';
+import { boardGrammar, boardXpGuide } from './board-static.js';
 import { castGearOf, gearLine } from '../packs/cast-gear.js';
 import { castSkillsOf } from '../packs/cast-skills.js';
 import { gearOn } from '../domains/inventory.js';
@@ -72,8 +73,8 @@ const prefixImports = definition => {
 };
 
 export function validateDomain(domain) {
-    if (!dmObject(domain) || Object.keys(domain).some(key => !['pins', 'active', 'instances', 'perReply'].includes(key))
-        || ['pins', 'active', 'instances', 'perReply'].some(key => !dmObject(domain[key]))) return ['Invalid dataModules domain.'];
+    if (!dmObject(domain) || Object.keys(domain).some(key => !['pins', 'active', 'instances', 'perReply', 'boardFlags'].includes(key))
+        || ['pins', 'active', 'instances', 'perReply'].some(key => !dmObject(domain[key])) || (domain.boardFlags !== undefined && !dmObject(domain.boardFlags))) return ['Invalid dataModules domain.'];
     const errors = [];
     if (Object.keys(domain.pins).length > L.pins || sizeOf(domain.pins) > L.pinsBytes) errors.push('Retained pins exceed budget.');
     for (const [module, active] of Object.entries(domain.active)) {
@@ -136,7 +137,7 @@ export function pinnedPresentation(state, kind = 'screens', noTab = []) {
  * The static lines for the pinned modules (empty without a pin); they change only when a pin does, and (the RPG on) with a quiet reply
  * (`quiet`, the RPG's QUIET_GRAMMAR table, lean-rpg/quiet.js: no combat text and only the opening Foes line). A long list of values (the health words) is told once.
  */
-export function grammarFor(state, quiet = null, { rolled = false } = {}) {
+export function grammarFor(state, quiet = null, { rolled = false, board = false } = {}) {
     // `rolled` (the RPG on, Rolls automatic): skill practice comes only from rolled uses, so the narrator is not offered `practice-N` and the texts
     // that told it to practise a skill say nothing of it (the Combat rules' XP guide line, the Skills block's description).
     const noPractice = text => String(text ?? '').replace(/\s*Practice a skill 5 to 20 per use\./u, '').replace(/\s+and adds practice/u, '');
@@ -144,11 +145,13 @@ export function grammarFor(state, quiet = null, { rolled = false } = {}) {
     const seen = new Map();
     const lines = active.map(id => {
         const definition = activeDefinition(state, id);
-        const only = quiet && definition?.role ? quiet[definition.role] : null;
+        // (The board's pieces come from a static file, so a preview before the lazy RPG library has loaded words them the same.)
+        const only = (board && boardGrammar(definition?.role)) || (quiet && definition?.role ? quiet[definition.role] : null);
         if (definition && only?.skip) {
             // (A skipped block may keep one line of its text: the XP guide stays on a quiet reply, whatever words the pinned block holds it in.)
             const kept = only.keep ? new RegExp(only.keep.source, 'u').exec(String(definition.prompt ?? ''))?.[0] : '';
-            return kept ? oneLine(rolled ? noPractice(kept) : kept) : '';
+            const value = rolled ? noPractice(kept) : kept;
+            return kept ? oneLine(board ? boardXpGuide(value) : value) : '';
         }
         const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
         return shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
@@ -389,7 +392,7 @@ export function blockCards(state) {
 }
 const blockCardSlots = Object.fromEntries(Array.from({ length: CARD_SLOTS }, (_, at) => [`block-card-${at + 1}`, { for: state => blockCards(state)[at]?.card ?? null }]));
 
-export function createDataModulesPart({ packs, state: head = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }), settings = () => ({}), persona = () => '' } = {}) {
+export function createDataModulesPart({ packs, state: head = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }), settings = () => ({}), persona = () => '', boardOn = () => false } = {}) {
     // The runtime's late-bound readers may not exist yet while the definition registers: read as "no state" until they do.
     const state = () => { try { return head(); } catch { return null; } };
     // Whether a name is the reader's own (the persona's): the Party tab shows that character as You.
@@ -1237,7 +1240,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     const kind = { get enabled() { return Boolean(Object.keys(state()?.domains?.dataModules?.active ?? {}).length); },
         grammar: '! dm Module — reason | kind: name | label: value (only the lines listed under Data modules; each has its own op)', apply: wrap((ctx, line, call) => act(ctx, {}, line, call)) };
     return {
-        domains: { dataModules: { initial, deferred: true, snapshot: 'when-present', scratch: ['perReply'], validate: validateDomain } },
+        domains: { dataModules: { initial, deferred: true, snapshot: 'when-present', scratch: ['perReply', 'boardFlags'], validate: validateDomain } },
         commands: { 'dm.pin': wrap((ctx, payload, call) => target(ctx, payload, false, call)), 'dm.migrate': wrap((ctx, payload, call) => target(ctx, payload, true, call)),
             'dm.define': wrap((ctx, payload, call) => changeBlock(ctx, payload, 'define', call)),
             'dm.redefine': wrap((ctx, payload, call) => changeBlock(ctx, payload, 'redefine', call)),
@@ -1278,8 +1281,23 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         hooks: { afterCapture: afterCapture, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
         cards: blockCardSlots,
         context: {
-            static: hint => grammarFor(state(), rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null, { rolled: practiceFromRollsOnly(hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()) }),
-            tail: view => ({ lines: tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true), optional: [] }),
+            static: hint => {
+                const board = boardOn() === true;
+                return grammarFor(state(), !board && rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null,
+                    { rolled: board || practiceFromRollsOnly(hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()), board });
+            },
+            tail: view => {
+                const lines = tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true);
+                if (boardOn()) {
+                    const lib = rpgLib();
+                    let pack = null;
+                    try { pack = lib?.packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { /* no pack rules */ }
+                    const manual = settings()?.[ROLLS_SETTING] === 'off' || (lib && !lib.isStandard(lib.rulesFromSettings(settings(), pack)));
+                    const fight = readSheet(view.state).foes.some(foe => foe.filled);
+                    lines.push(...(lib?.boardReplyGrammar?.(view.state, { fight, manual, practice: settings()?.[ROLLS_SETTING] === 'off' }) ?? []));
+                }
+                return { lines, optional: [] };
+            },
             // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
             extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id), true, instanceOf(state(), id)?.fields), 0),
         },

@@ -40,6 +40,37 @@ character who gets an opening action against a foe (a quick start). Under it are
 or its pencil, to set the foe's health from Down to Unhurt, the same way as on the Party card), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
 reply that was rolled. **See it in the story** closes the game view and scrolls the chat to that reply.
 
+### The fight board
+
+The board is on by default and is offered under Standard rules; Classic keeps the usual planner. Its switch is in
+**Settings → RPG** and **Settings → Features**. When a reply introduces foes, a line beneath it offers **Fight on the board** or
+**Keep narrating**, and a dot marks the Fight tab while the offer is open. Keeping narration hides the offer for that fight;
+the board remains available in the Fight tab.
+
+When you send a fight action against known foes, the reply waits while you choose **Fight it on the board** or **Narrate it instead**.
+When your message starts a fight with new foes, the planner first finds the foes and rolls any approach checks; the pause shows
+those results and any ambush. The board uses the same approach and carries the ambush into its first exchange. Choose one numbered line for each standing party member: Attack with
+the equipped weapon, a skill with one target or every foe in reach, or Flee. Tap a line or press its number; when there is
+more than one foe group, choose the target next, or press Esc to go back. A line that cannot be used stays visible with its
+reason. Defence is automatic: the best usable defence skill, else the plain defence roll. Foes act by code.
+
+The bars stay above a scrolling battle log, and the next choices stay at the bottom on a phone. Each rolled exchange is final.
+**Discard fight** asks first and gives the next opening a new seed. A changed sheet or equipment holds a staged board fight until
+the original inputs are restored or the fight is discarded. If you switch to Classic with a staged fight, switch back to Standard
+or discard it before continuing. While the reply is being written, wait until it finishes before changing that fight's sheet or gear.
+If a reply is held after its inputs change, restore them to finish it, or discard the fight and regenerate it. Both the waiting
+fight choice and a held reply survive a reload.
+The log shows bar changes as words with the dice and totals. The board labels defence results as the defender's and sends each
+recorded gear condition change to the narrator at its exchange. The end card says won, lost or fled, shows pending XP and practice,
+and offers **Send with this fight** when a reply is waiting. The folded note shows what the narrator will be told.
+
+When you send while exchanges are played, they become that reply's settled rolls: the narrator tells them first, then your
+own action, and an unfinished fight stays open with its current bars. The planner is not called while a board fight is open.
+A swipe of the narrated reply keeps the same fight, seed and actions; Re-read, reload, rewind, regenerate and a middle delete
+replay the same result. A branch does not keep a staged fight if the reply that anchored it is absent. A won fight pays its XP once;
+open, lost and fled fights pay none. With the board on, the narrator's fixed combat instructions omit rules already handled by code;
+the roll notes still explain each narrated roll. With the board off, the original instructions and planner path are used.
+
 With the Standard formula a foe group's health bar has `4 + floor(level/30)` blocks (levels 1 to 29 give 4, 30 to 59 give 5, 60 to 89 give 6, 90 to 99 give 7) and reads
 "Scratched · 5 of 6"; the battle log shows the recorded turn order with its totals (`Turn order: Wessel 21 > Weir-drake 18`), the
 quick start and its opening action, "<who> does not act: beaten before its turn" for a group or character beaten before its turn
@@ -226,8 +257,11 @@ shows its name, its rank, the stat and resource it uses, what it does, a mastery
 the next one filling as practice grows; its colour follows the rank (Novice grey, Adept blue, Expert purple, Master green).
 Empty slots show a dashed line and are filled when the story has the character learn a skill.
 
-The pencil on a skill fixes its name or what it does, and nothing else: rank and practice only move through play (a swipe takes
-them back), and a skill's stat and resource are fixed by its Skills block.
+The pencil on a skill fixes its name or what it does, and, while the fight board is on, its three optional board choices:
+**One foe**, **Every foe in reach** and **Automatic defence**. The defaults come from the skill's words (for example, a
+description saying "every foe" sets area); the choices are stored on the reply that saved them, so a swipe or delete takes
+the edit back. While the Fight board is on, renaming a skill keeps its saved board choices; without saved choices, the flags
+continue to follow the skill's wording. Rank and practice only move through play, and a skill's stat and resource are fixed by its Skills block.
 
 ## Stage bars
 
@@ -350,6 +384,7 @@ The page shows only while the RPG is on.
 - **Stat formula.** **Standard** or **Classic** (see [The stat formulas](#the-stat-formulas)), with the roll table of the one in force
   and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks on
   Standard). A chat that never chose is on Standard. Rolls already made keep the formula and numbers they were made with.
+- **Fight board.** Turn the board on or off here; this is the same switch as the one on Features.
 - **Rolls.** **Automatic** or **Off**, as above. Under it, **Planner time limit**: how many seconds a reply waits for the roll planner before it
   goes on without dice (10 to 120 in steps of 5, default 45; it was a fixed 20). A slow model in Settings → Assist needs more. Only the planner's
   call uses it; Assist's other helpers keep their own 20 seconds. It is read when the reply asks, so a change moves only the replies after it.

@@ -2,6 +2,7 @@
 // and Foes blocks as the RPG reads them), a scripted pre-call model, and a host that has the RPG part on it.
 import { createHost } from '../../../testkit/index.js';
 import { LEAN_RPG_FEATURE, ROLLS_SETTING, createLeanRpgPart } from '../../../src/v2/lean-rpg/index.js';
+import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { receiptCue } from '../../../src/v2/lean-rpg/cue.js';
 
 export const OWNER = 'story-block';
@@ -75,7 +76,7 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {}, bare = false } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, board = false, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {}, bare = false } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
@@ -85,7 +86,7 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
     });
     const module = {
         id: OWNER, name: 'Story Block (RPG test)', version: '0.0.1',
-        features: [{ id: LEAN_RPG_FEATURE, label: 'RPG', describe: 'Test.', default: false }],
+        features: [{ id: LEAN_RPG_FEATURE, label: 'RPG', describe: 'Test.', default: false }, { id: CORE_FEATURE.fightBoard, label: 'Fight board', describe: 'Test.', default: false }],
         domains: { dataModules: { initial: () => sheetDomain(blocks) } },
         commands: {
             ...part.commands,
@@ -111,8 +112,9 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         settings: { defaults: { ...part.settings.defaults } },
     };
     // (The stat formula is Classic here unless a test asks otherwise: these tests pin Classic's numbers.)
-    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { rpgFormula: 'classic', ...settings } } } });
+    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { rpgFormula: board ? 'standard' : 'classic', ...settings } } } });
     host.features.set(LEAN_RPG_FEATURE, feature);
+    host.features.set(CORE_FEATURE.fightBoard, board);
     return { host, callModel, problems, part };
 }
 

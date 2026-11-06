@@ -207,6 +207,7 @@ async function realWorld(t, answers, templates = LEAN_RPG_TEMPLATES) {
     const host = await createHost({ callModel: model });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
+    host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
     for (const entry of templates.slice(0, 3)) success(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Wessel', level: 15 } }));

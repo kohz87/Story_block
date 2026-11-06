@@ -124,6 +124,31 @@ test('the tail: [Happened] first, then scene, inventory, party … director, the
     assert.ok(!assemble({ registry, view: view(state) }).tailText.includes(HAPPENED));
 });
 
+test('a prelude [Happened] cue joins the untold receipts in one block', () => {
+    const registry = createRegistry();
+    registry.register({ id: 'a', context: { tail: () => ({ lines: ['a note'] }) } });
+    const out = assemble({
+        registry, view: {},
+        untold: [{ id: 'rc_1', narrate: true, summary: 'A bonus is paid.' }],
+        cues: { a: [{ text: '[Happened]\nThe fight is still open.', keep: true, board: true }] },
+        settings: { tailBudget: 5 },
+    });
+    assert.equal(out.tailText, [HAPPENED, 'A bonus is paid.', 'The fight is still open.'].join('\n'));
+});
+
+test('with the board off the RPG\'s own roll cue stays in its section, exactly as before the board existed', () => {
+    const registry = createRegistry();
+    registry.register({ id: 'a', context: { tail: () => ({ lines: ['a note'] }) } });
+    const out = assemble({
+        registry, view: {},
+        untold: [{ id: 'rc_1', narrate: true, summary: 'A bonus is paid.' }],
+        cues: { a: [{ text: '[Happened]\nGoblin: hit, 5 damage.', keep: true }] },
+        settings: { tailBudget: 5 },
+    });
+    // (the text origin/main's assemble builds for the same input: the cue is not merged into the leading note)
+    assert.equal(out.tailText, '[Happened]\nA bonus is paid.\n[Happened]\nGoblin: hit, 5 damage.');
+});
+
 test('a module over its budget drops its optional lines first, then its last lines', () => {
     const registry = createRegistry();
     const line = n => `${'x'.repeat(36)} ${n}`; // 38-39 chars: about 10 tokens each

@@ -6,14 +6,16 @@
 import { adoptLegacy, extractBlock, hideBlock, legacyRead, markOff } from '../capture.js';
 import { replacedProofs, reusePlan } from '../evidence.js';
 import { readRecord } from '../persist.js';
+import { heldForMessage } from './held-board.js';
 
 export function createReread(s, deps) {
-    const { ctx, store, events, timeline, refusal, changeHeads, readBlock, strayProblems, capped, lateLines, assistRoom, nowLines, heldInReply, legacyProblem, storySeeds, afterCapture, captureEach, stepSeeds, withCaps, isPrelude, LATE, NOW, planAgain, problem, trySave } = deps;
+    const { ctx, metadata = () => ctx?.chatMetadata, store, events, timeline, refusal, changeHeads, readBlock, strayProblems, capped, lateLines, assistRoom, nowLines, heldInReply, legacyProblem, storySeeds, afterCapture, captureEach, stepSeeds, withCaps, isPrelude, LATE, NOW, planAgain, problem, trySave } = deps;
 
     async function reread(index) {
         const chat = ctx?.chat ?? [];
         const message = Number.isInteger(index) ? chat[index] : undefined;
         if (!message) return refusal('NOT_FOUND', `There is no message ${index} in this chat.`);
+        if (heldForMessage(metadata(), message)) return refusal('REFUSED', 'Restore the fight sheet or gear, or discard the fight and regenerate this reply.');
         if (message.is_user) return refusal('REFUSED', 'This is the reader\'s own message; only replies hold story changes.');
         // (a reply a restore hid keeps its record, and can be read again; a system message of SillyTavern's has none)
         if (message.is_system && !readRecord(message)) return refusal('REFUSED', 'This is a system message; it holds no story changes.');

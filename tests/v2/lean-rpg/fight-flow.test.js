@@ -478,6 +478,7 @@ test('Standard dice: a fight opened by the pre-call and won by the dice in the s
     const host = await createHost({ callModel: model });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
+    host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
     for (const entry of STANDARD_TEMPLATES.slice(0, 3)) success(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 2, str: 20, dex: 20 } }));

@@ -59,6 +59,17 @@ test('Rolls: Automatic or Off, through the existing setting', async t => {
     assert.equal(stored().rpgRolls, 'automatic');
 });
 
+test('Fight board uses the same feature switch as Features', async t => {
+    const { host, card, root } = await open(t);
+    assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), true);
+    assert.ok(card('rolls').querySelector('[data-card="board"]'), 'the switch is beside Rolls and its planner limit');
+    card('board').querySelector('[role="switch"]').click();
+    assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), false);
+    assert.equal(root.querySelector('[data-card="board"] [role="switch"]').getAttribute('aria-checked'), 'false');
+    root.querySelector('[data-card="board"] [role="switch"]').click();
+    assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), true);
+});
+
 test('Companions who join: Ask by default, then Automatically or Off, through the rpgJoin setting', async t => {
     const { card, stored, root } = await open(t);
     assert.deepEqual(card('join').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Ask', 'Automatically', 'Off']);
@@ -149,6 +160,7 @@ test('the odds are for the persona\'s own character, else the first Character bl
 
 test('Combat: the chat\'s Combat rules text is edited here and saved as an edit of that block; it reaches the narrator and survives a rebuild and a reload', async t => {
     const { host, root, card, win } = await open(t, { rules: true });
+    host.features.set(CORE_FEATURE.fightBoard, false);
     const area = card('combat').querySelector('textarea');
     assert.equal(area.value, COMBAT_DEFAULT, 'the block\'s own text');
     assert.equal(card('combat').querySelector('.rpg-set-count').textContent, `${[...COMBAT_DEFAULT].length} / 1200`);

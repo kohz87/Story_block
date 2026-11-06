@@ -186,7 +186,9 @@ export function readResolve(result, { soulOf = () => null } = {}) {
 /** The recorded rolls of a reply's record: the result of its `rpg.resolve` receipt that the replay kept, or null. */
 export function resolveOf(record, problems = [], options = {}) {
     const skipped = new Set(list(problems).flatMap(problem => list(problem?.receipts)));
-    for (const receipt of list(record?.receipts)) {
+    const receipts = list(record?.receipts);
+    const board = receipts.findLast(receipt => receipt?.type === RESOLVE && receipt?.data?.v2?.result?.board && !skipped.has(receipt.id));
+    for (const receipt of board ? [board, ...receipts.filter(item => item !== board)] : receipts) {
         if (receipt?.type !== RESOLVE || skipped.has(receipt.id)) continue;
         const read = readResolve(receipt.data?.v2?.result, options);
         if (read) return read;
@@ -352,7 +354,8 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
     });
 
     if (model.order.length) body.appendChild(el(doc, 'p', 'rpg-bl-order', `${B.turnOrder} ${(model.orderEntries ?? model.order.map(name => ({ name, total: null }))).map(item => { const name = item.level ? fill(RPG_STRINGS.blocks.orderNameLevel, item) : item.name; return item.total === null ? name : `${name} ${item.total}`; }).join(' > ')}`));
-    for (const item of model.quickStart ?? []) body.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-quick', fill(RPG_STRINGS.blocks.quickStartLine, item)));
+    // A lead from a worked ambush is told by the ambush line below; this line is the turn-order lead only.
+    for (const item of model.ambush?.success ? [] : model.quickStart ?? []) body.appendChild(el(doc, 'p', 'rpg-bl-note rpg-bl-quick', fill(RPG_STRINGS.blocks.quickStartLine, item)));
     for (const check of model.checks) body.appendChild(lineNode(doc, check, { check: true }));
     if (model.ambush && (model.rounds.length || model.ambush.drop)) {
         const a = model.ambush, which = a.success ? (a.drop ? 'ambushDrop' : 'ambushWon') : a.half ? 'ambushHalf' : 'ambushLost';
@@ -584,10 +587,11 @@ export function createFoldStore(doc) {
  * → { refresh(index, element?), refreshAll({ recent }), modelAt(index), latest(), destroy() }.
  * Draws, redraws or removes the panel of every drawn reply that has recorded rolls; `featureOn()` false removes them all.
  */
-export function createBattleLog({ ctx, doc = globalThis.document, store, events = null, featureOn = () => true, roleOf, levels = () => ({}), messageElement = null, Observer = doc?.defaultView?.MutationObserver ?? globalThis.MutationObserver } = {}) {
+export function createBattleLog({ ctx, doc = globalThis.document, store, events = null, featureOn = () => true, roleOf, levels = () => ({}), messageElement = null, offer = null, Observer = doc?.defaultView?.MutationObserver ?? globalThis.MutationObserver } = {}) {
     const chat = () => (Array.isArray(ctx?.chat) ? ctx.chat : []);
     const elementOf = messageElement ?? (index => doc.querySelector(`.mes[mesid="${index}"]`));
     const folds = createFoldStore(doc);
+    let refreshingAll = false;
     const chatKey = () => String(ctx?.getCurrentChatId?.() ?? ctx?.chatId ?? '');
     const problems = () => { try { return store?.problems?.() ?? []; } catch { return []; } };
     const stateAt = index => { try { return store.at(index); } catch { return null; } };
@@ -642,6 +646,7 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
     }
 
     function refresh(index, element = null) {
+        if (!refreshingAll) offer?.update();
         const message = element ?? elementOf(index);
         if (!message) return null;
         const old = panelsIn(message);
@@ -682,10 +687,14 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
 
     function refreshAll({ recent = false } = {}) {
         const drawn = Array.from(doc.querySelectorAll('.mes[mesid]'));
-        for (const message of recent ? drawn.slice(Math.max(0, drawn.length - RECENT_MESSAGES)) : drawn) {
-            const index = Number(message.getAttribute('mesid'));
-            if (Number.isInteger(index)) refresh(index, messageElement ? null : message);
-        }
+        refreshingAll = true;
+        try {
+            for (const message of recent ? drawn.slice(Math.max(0, drawn.length - RECENT_MESSAGES)) : drawn) {
+                const index = Number(message.getAttribute('mesid'));
+                if (Number.isInteger(index)) refresh(index, messageElement ? null : message);
+            }
+        } finally { refreshingAll = false; }
+        offer?.update();
     }
 
     const offs = [];

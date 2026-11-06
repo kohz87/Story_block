@@ -230,9 +230,11 @@ export function blocksOf(record) {
 }
 
 /** Whether a guarded block may apply on `state` (the state before it): a loot offer (reply-bound, so it stands while its reply
- * does, and the oracle reads only the replies there are), or a loot take whose offer still holds what it took (above). */
+ * does, and the oracle reads only the replies there are), a loot take whose offer still holds what it took (above), or a
+ * data-modules / RPG block (the host writes those ops; this oracle checks the patch replay, not the guard's input hash). */
 export function guardHolds(state, guard) {
     const predicate = guard?.predicate;
+    if (String(predicate?.kind ?? '').startsWith('dm.') || predicate?.kind === 'rpg.resolve') return true;
     if (predicate?.kind === 'loot.offer') return guard.replyBound === true;
     if (predicate?.kind === 'inventory.reader-edit') {
         if (predicate.action === 'inventory.add') return !predicate.target && !predicate.pieces;

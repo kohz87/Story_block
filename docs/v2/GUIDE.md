@@ -66,6 +66,10 @@ The story decides how much money and how many items a reply gives; there is no p
 
 The optional RPG adds a party sheet, automatic dice for fights and checks, and levels and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
 
+With the RPG on, the Fight tab can also offer a **fight board** under Standard rules; Classic keeps the usual fight planner. Choose each character's action, tap or number-key it, and the code rolls the exchange at once. Each rolled exchange is final; use **Discard fight** to start again after confirming. If the sheet or gear changes before sending, restore it or discard the fight. If you switch to Classic with a staged fight, switch back to Standard or discard it before continuing.
+
+When a reply introduces foes, its offer and the Fight tab's dot let you open the board or keep narrating. Sending a fight action pauses the reply for the same choice. If the planner finds new foes, the pause shows the already rolled approach and any ambush; the board carries that into the fight. **Send with this fight** sends the waiting reply, so one reply tells the approach and the exchanges. A waiting fight survives reload. The board shows bar changes as words and keeps the dice and totals in the log; an unfinished fight stays open. If a reply is held after its fight inputs change, restore them to finish it, or discard the fight and regenerate it. The **Fight board** switch is in **Settings → RPG** and **Settings → Features**. With no staged fight, turning it off keeps the ordinary planner path.
+
 ## Removing Story Block from a chat
 
 Story Block keeps change lists inside hidden reply comments and removes them from prompts while it runs. To continue a chat with Story Block switched off, add a SillyTavern regex script under **Extensions → Regex → New global script**:

@@ -45,8 +45,11 @@ test('the desktop row has no raised pill: the current screen is the accent icon 
 test('the phone keeps the bottom bar: a floating pill of 72px at the foot, the body keeps room for it', () => {
     const phoneNav = rules(mounts, '.ss-gameview-nav {')[0];
     assert.match(phoneNav, /position: absolute;/);
-    assert.match(phoneNav, /bottom: calc\(14px \+ env\(safe-area-inset-bottom/);
-    assert.match(phoneNav, /height: 72px;/);
+    // The bar's size and offset live in variables (the fight board pins its choices above the bar): same 72px and 14px.
+    assert.match(mounts, /--ss-bottom-bar-height: 72px;/);
+    assert.match(mounts, /--ss-bottom-bar-offset: 14px;/);
+    assert.match(phoneNav, /bottom: calc\(var\(--ss-bottom-bar-offset\) \+ env\(safe-area-inset-bottom/);
+    assert.match(phoneNav, /height: var\(--ss-bottom-bar-height\);/);
     const pill = rules(glass, '.ss-screenbar {')[0];
     assert.match(pill, /border-radius: var\(--ss-radius-xxl\);/, 'radius 26px');
     assert.match(pill, /backdrop-filter: var\(--ss-blur\);/, 'the glass blur');

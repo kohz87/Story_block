@@ -339,6 +339,7 @@ async function world(t, { answers, templates, settings = {}, party = true, soul 
     const host = await createHost({ callModel: model, settings: { modules: { 'story-block': settings } } });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
+    host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
     if (party) {
         const character = structuredClone(templates.find(entry => entry.name === 'Character').definition);

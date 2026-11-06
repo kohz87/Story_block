@@ -337,7 +337,7 @@ test('what is not held: an empty box, a slash command, a Shift+Enter, a send whi
     off.host.features.set(CORE_FEATURE.leanRpg, true);
     await settle();
     plain.field.value = 'Again.';
-    assert.equal(listening(), 1);
+    assert.equal(listening(), 2, 'the character and fight holds listen while the RPG is on');
     assert.equal(plain.press().defaultPrevented, true, 'switched on: held');
     off.ui.mounts.dialog.closeAll();
     off.host.features.set(CORE_FEATURE.leanRpg, false);

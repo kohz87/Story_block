@@ -22,6 +22,9 @@ import { HAPPENED } from '../../../src/v2/prompt.js';
 import { prng, seedCrypto } from './helpers/seeded.js';
 import { BONUS_CLAIM, probeModule } from './helpers/probe-module.js';
 import { carriers, checkInvariants, rebuildAt } from './helpers/oracle.js';
+import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
+import { boardSession, openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
 
 // QA_FUZZ_SEEDS=200 QA_FUZZ_STEPS=200 runs a longer hunt locally (QA_FUZZ_SEED=n one seed); CI runs the fixed list.
 const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : process.env.QA_FUZZ_SEEDS ? Array.from({ length: Number(process.env.QA_FUZZ_SEEDS) }, (_, i) => i + 1) : [1, 7, 42, 1337, 2024, 31337, 90210, 424242];
@@ -152,21 +155,78 @@ async function fuzz(t, seed, steps) {
     await host.packs.packs.install({ id: 'guild', version: '1.0.0', requires: { storyBlock: '^2' }, content: { you: { rank: { label: 'Guild rank' } } } });
     t.after(() => host.close());
     const { st, ctx, store } = host;
+    // Saves per burst: what the interceptor flushes before a reply, then the reply's own save. The
+    // flush is recorded because `dirty()` alone cannot say it will write: a Regenerate pops the old
+    // reply first, and a pending reconcile of that reply is "gone" (persist.js), so its flush clears
+    // the mark without a write.
+    const flushes = [];
+    const originalFlush = store.flush.bind(store);
+    store.flush = async () => {
+        const before = { saves: st.saves.length, dirty: store.dirty() };
+        const out = await originalFlush();
+        flushes.push({ ...before, after: { saves: st.saves.length, dirty: store.dirty() } });
+        return out;
+    };
     let committed = new Set();
     host.events.on('committed', ({ receipt }) => committed.add(receipt.id));
     const finals = new Map();          // carrier message → { swipe, state } when it stopped being the head
     const statics = new Set();
     let other = null;                   // the second chat for chat switches
     const log = [];
+    let boardFights = 0;
+
+    // A board fight from the first reply on: it stays open for the whole run, so the fuzz's sends carry
+    // the same setup and never need the planner. The blocks are pinned before any request, so the
+    // static prompt still has one value (the fight stays open: not quiet).
+    async function startBoardFight() {
+        const definitions = structuredClone(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
+        const hero = definitions.find(definition => definition.role === 'character'), foes = definitions.find(definition => definition.role === 'foes');
+        hero.slug = 'fuzz-hero'; hero.name = 'Fuzz Hero';
+        Object.assign(hero.state.who, { default: 'Astra' });
+        Object.assign(hero.state.str, { default: 14 }); Object.assign(hero.state.vit, { default: 20 });
+        Object.assign(hero.state.agi, { default: 20 }); Object.assign(hero.state.health, { default: 5 });
+        Object.assign(hero.state.level, { default: 1 });
+        foes.slug = 'fuzz-foes'; foes.name = 'Fuzz Foes';
+        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 99 });
+        Object.assign(foes.state.level1, { default: 99 }); Object.assign(foes.state.hurt1, { default: 5 });
+        for (const definition of definitions) {
+            const made = await host.sdk.command('dm.define', { definition });
+            assert.equal(made.ok, true, `the board sheet is made: ${made.message}`);
+        }
+        const meta = ctx.chatMetadata, sid = store.carrierSid(store.headIndex());
+        const opened = openBoard(meta, store.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        assert.equal(opened.error, undefined, `the board opens: ${opened.error}`);
+        assert.equal(stageExchange(meta, store.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]).error, undefined, 'the board exchange stages');
+        const result = await host.send('We stand and fight.', 'The fuzz rats press in.');
+        statics.add(result.request.chat[0].content);
+        const receipt = readRecord(ctx.chat[result.index])?.receipts?.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
+        assert.ok(receipt, 'the first reply is a board fight');
+        assert.equal(receipt.data?.v2?.result?.stop, 'open', 'the seeded foe group leaves the fight open for the rest of the run');
+        checkInvariants(host, 'board fight opens');
+    }
+
+    // A deleted opening reply takes its board anchor with it. A later send opens a new segment on the
+    // current head, so the fuzz keeps exercising the board's commit and replay instead of the planner.
+    function ensureBoard() {
+        const sid = store.carrierSid(store.headIndex());
+        if (sid && boardSession(ctx.chatMetadata)?.anchor === sid) return;
+        const opened = openBoard(ctx.chatMetadata, store.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        if (opened.error) return;
+    }
+
+    await startBoardFight();
 
     const lastIsCarrier = () => ctx.chat.length > 1 && !ctx.chat.at(-1).is_user;
 
     async function generation(kind, step) {
         const reply = replyText(r, step);
         const dirtyBefore = store.dirty();
+        const idle = store.idleSaves();
+        const flushAt = flushes.length;
         const savesBefore = st.saves.length;
         const appends = kind === 'send' || (kind === 'regenerate' && !lastIsCarrier());
         const previous = store.headIndex();
+        if (kind === 'send') ensureBoard();
         committed = new Set();
         let result;
         if (kind === 'send') result = await host.send(`Message of step ${step}.`, reply);
@@ -181,6 +241,7 @@ async function fuzz(t, seed, steps) {
         if (appends && previous >= 0) finals.set(ctx.chat[previous], { swipe: ctx.chat[previous].swipe_id ?? 0, state: plain(store.at(previous)) });
         const record = readRecord(ctx.chat[index]);
         assert.ok(record, `${log.at(-1)}: the reply has a record (narrated at least)`);
+        if (record.receipts.some(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board)) boardFights += 1;
         if (kind === 'swipe') {
             for (const receipt of record.receipts) {
                 assert.ok(committed.has(receipt.id), `${log.at(-1)}: the new swipe holds receipt ${receipt.id} ("${receipt.summary}") that was not committed during this swipe`);
@@ -198,7 +259,12 @@ async function fuzz(t, seed, steps) {
         // A cue committed before the reply is saved with the reply (turn.js runCues): the whole chat file
         // is written once for both.
         const saves = st.saves.length - savesBefore;
-        assert.equal(saves, (dirtyBefore ? 1 : 0) + 1, `${log.at(-1)}: one flush of what was pending, one save at the end of the reply (with any cue)`);
+        const beforeReply = idle ? null : flushes.slice(flushAt).find(entry => entry.saves === savesBefore);
+        const pending = Boolean(beforeReply) && beforeReply.after.saves > beforeReply.saves;
+        // A pending change the flush did not write must have been "gone" (its reply was popped): anything
+        // else is a change dropped unsaved.
+        if (!idle && dirtyBefore && beforeReply && !pending) assert.equal(beforeReply.after.dirty, false, `${log.at(-1)}: a pending change that was not written is gone, not dropped`);
+        assert.equal(saves, (pending ? 1 : 0) + 1, `${log.at(-1)}: one flush of what was pending, one save at the end of the reply (with any cue; saves ${saves}, dirty before ${dirtyBefore}, dirty after ${store.dirty()}, idle saves ${idle}, saved is chat ${JSON.stringify(st.saved()) === JSON.stringify(plain(ctx.chat))})`);
         assert.equal(store.dirty(), false, `${log.at(-1)}: saved after the reply`);
         assert.deepEqual(st.saved(), plain(ctx.chat), `${log.at(-1)}: the saved chat is the chat`);
     }
@@ -366,6 +432,7 @@ async function fuzz(t, seed, steps) {
         const checkpoints = carriers(ctx.chat).filter(index => readRecord(ctx.chat[index])?.checkpoint).length;
         console.log(JSON.stringify({ seed, carriers: carriers(ctx.chat).length, checkpoints, told: [...ctx.chat].reduce((n, m) => n + (readRecord(m)?.narrated.length ?? 0), 0), counts }));
     }
+    assert.ok(boardFights > 0, `seed ${seed}: the fuzz ran board fights`);
     assert.equal(statics.size, 1, `seed ${seed}: the static prompt is byte-identical in every request of the chat`);
     assert.deepEqual(host.turn.problems().filter(problem => problem.module === null && problem.code === 'FAILED'), [], `seed ${seed}: the host itself never failed`);
 }

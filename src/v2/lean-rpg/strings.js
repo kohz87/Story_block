@@ -25,7 +25,7 @@ export const RPG_STRINGS = Object.freeze({
         orderNameLevel: '{name} (Lv {level})',
         orderLine: 'Turn order: {list}',
         quickStart: '{who} gets an opening action against {against}: 10 or more ahead in the turn order.',
-        quickStartLine: 'Quick start: {who} acts first against {against}.',
+        quickStartLine: '{who} acts first (initiative) against {against}.',
         ambushWon: 'Ambush: {who}\'s {what} — Success ({total} vs {dc}): the party strikes first, +2 this round',
         ambushLost: 'Ambush: {who}\'s {what} — Failed: no surprise',
         ambushHalf: 'Ambush: {who}\'s {what} — Success at a cost ({total} vs {dc}): ambush only half works: no surprise',

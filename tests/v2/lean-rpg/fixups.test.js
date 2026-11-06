@@ -20,6 +20,7 @@ async function game(t, { answers, settings = { rpgFormula: 'standard' }, foes = 
     const host = await createHost({ callModel, settings: { modules: { 'story-block': settings } } });
     t.after(() => host.close());
     host.features.set('story-block.rpg', true);
+    host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
     const character = standard('Character'); character.slug = 'wessel'; character.name = 'Wessel'; character.state.who.default = 'Wessel';
     const stats = { str: 10, vit: 10, agi: 10, dex: 10, int: 5, luk: 5, cha: 5 };

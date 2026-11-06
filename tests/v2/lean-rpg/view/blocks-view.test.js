@@ -113,7 +113,7 @@ test('the battle log reads the recorded turn order with its totals, the quick st
     assert.equal(sweep.area, true);
     const panel = buildPanel(setupDom(), panelModel({ resolve: read, state: state(), before: null, roleOf }));
     assert.equal(panel.querySelector('.rpg-bl-order').textContent, 'Turn order: Wessel (Lv 2) 21 > Weir-drake (Lv 35) 18 > Sluice Rat (Lv 15) 17');
-    assert.equal(panel.querySelector('.rpg-bl-quick').textContent, 'Quick start: Wessel acts first against Sluice Rat.');
+    assert.equal(panel.querySelector('.rpg-bl-quick').textContent, 'Wessel acts first (initiative) against Sluice Rat.');
     assert.equal(panel.querySelector('.rpg-bl-opening .rpg-bl-round-title').textContent, 'Opening action');
     assert.deepEqual(panel.querySelectorAll('.rpg-bl-skip').map(node => node.textContent), ['Sluice Rat does not act: beaten before its turn.', 'Ren does not act: down.']);
     const texts = panel.querySelectorAll('.rpg-bl-round:not(.rpg-bl-opening) .rpg-act-text').map(node => node.textContent);

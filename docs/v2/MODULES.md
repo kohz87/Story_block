@@ -618,6 +618,18 @@ These settle questions agents raised; the host changes they need are made at int
     reply's last line of the kinds it names, whatever order the narrator wrote them in, so it reads what those lines set up (Story Director's
     `~ trip` plans from the place and the mount pace the same reply sets). Every other line keeps its written order, and so do the moved ones.
     Words that are no kind are left out, and a reply with none of the named kinds runs as written. A Re-read runs the same order.
+129. **The fight board is the written exception to F95/F96's no story-action buttons** (feature
+    `story-block.fight-board`, on by default; the RPG Feature and Fight tab still gate it; with no staged fight, off keeps the ordinary planner
+    path unchanged). The Fight tab may offer one board button while a foe stands under Standard rules; Classic uses the planner.
+    A staged Standard fight must be restored to Standard or discarded before using Classic. On the board the reader chooses their own
+    character's exchange from lines the code validates: Attack, a usable skill (one target or every foe in reach), or Flee,
+    for each standing party member. Automatic defence, foe actions, the dice and every bar change are settled by code, never
+    by a button that asks the narrator to invent a story action. Unsent exchanges live in `chatMetadata.rpgFightBoard`; the
+    first message sent carries them through the reply's one `rpg.resolve`, and an open fight continues. A swipe keeps the
+    recorded setup, fixed fight seed and actions; exchanges are final and a Discard before sending changes the next seed. Skills may carry the three
+    optional flags `target`, `area` and `defence`, defaulted from their wording and stored as reply-owned entries under
+    `dataModules.boardFlags` (see DATA_MODULES.md). The board stops only won, lost or fled; a won board fight pays the fight
+    XP once, and the settled note reaches the narrator whole. It adds no static prompt text.
 
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 

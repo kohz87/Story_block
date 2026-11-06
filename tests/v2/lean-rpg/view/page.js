@@ -14,11 +14,11 @@ export const PARTY = 'story-block/party';
 export const party = doc => doc.querySelector(`.ss-gameview [data-ss-screen="${PARTY}"]`);
 
 /** { doc, host, ui, loads, draw }; `formula` is the stat formula the chat is on ('classic' unless a test asks for 'standard': most of these pin Classic's screens); `feature` turns the RPG on first, `persona` is the reader's name, `wrap` stands between the page and the host's commands, `modules` are modules the host runs (a stand-in for a party module, say). */
-export async function page(t, { feature = true, persona = null, wrap = null, modules = [], formula = 'classic' } = {}) {
+export async function page(t, { feature = true, persona = null, wrap = null, modules = [], formula = 'classic', callModel = null } = {}) {
     const doc = setupDom();
     const form = doc.createElement('div'); form.id = 'send_form'; doc.body.appendChild(form);
     doc.defaultView = { confirm: () => true, localStorage: null };
-    const host = await createHost({ modules, settings: { modules: { 'story-block': { rpgFormula: formula } } } });
+    const host = await createHost({ modules, ...(callModel ? { callModel } : {}), settings: { modules: { 'story-block': { rpgFormula: formula } } } });
     if (persona !== null) host.ctx.name1 = persona;
     if (feature) host.features.set(CORE_FEATURE.leanRpg, true);
     const loads = [];

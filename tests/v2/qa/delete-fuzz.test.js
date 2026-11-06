@@ -14,6 +14,12 @@ import { createHost } from '../../../testkit/index.js';
 import { prng, seedCrypto } from './helpers/seeded.js';
 import { checkInvariants } from './helpers/oracle.js';
 import { displayLines } from '../../../src/v2/extras.js';
+import { readRecord } from '../../../src/v2/persist.js';
+import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
+import { memberXp } from '../../../src/v2/lean-rpg/fight.js';
+import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
+import { boardSession, discardBoard, openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
 
 const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 6, 9, 11, 19, 22, 27, 29, 101];
 const REPLIES = 20;
@@ -118,17 +124,54 @@ function validators(host) {
     });
 }
 
+// The shared patch oracle accepts RPG rolls but does not yet recognise their award guards.
+// On a copy, give those guards the same patch-only treatment; the live store still checks
+// their real guards, and the assertions below verify the actual results and awards.
+function checkFuzzInvariants(host, label) {
+    const chat = structuredClone(host.ctx.chat);
+    for (const message of chat) {
+        const record = readRecord(message);
+        for (const span of record?.spans ?? []) {
+            if (['rpg.practice', 'rpg.fight'].includes(span.guard?.predicate?.kind)) span.guard.predicate.kind = 'rpg.resolve';
+        }
+        for (const receipt of record?.receipts ?? []) {
+            if (['rpg.practice', 'rpg.fight'].includes(receipt.data?.v2?.guard?.predicate?.kind)) receipt.data.v2.guard.predicate.kind = 'rpg.resolve';
+        }
+    }
+    checkInvariants({ ...host, ctx: { ...host.ctx, chat } }, label);
+}
+
 for (const seed of SEEDS) {
     test(`delete fuzz seed ${seed}: middle deletes on clean input skip nothing; replay equals rebuild`, async t => {
         t.mock.method(console, 'warn', () => {});
         const restore = seedCrypto(seed);
-        const host = await createHost({ settings: { features: { 'story-block.choices': true, 'story-block.chatter': true } } });
+        const host = await createHost({ settings: { features: { 'story-block.choices': true, 'story-block.chatter': true, 'story-block.rpg': true } } });
         // A pack that gives Your look a Rank, so the `~ you rank:` lines are read (without one they are refused).
         await host.packs.packs.install({ id: 'guild', version: '1.0.0', requires: { storyBlock: '^2' }, content: { you: { rank: { label: 'Guild rank' } } } });
         t.after(() => { host.close(); restore(); });
         const r = prng(seed);
         await host.send('Hello.', 'The road.');
         await host.send('We set out.', reply('Supplies.', ['+ coin 300', '+ item Torch | qty: 40', '~ place Bluewatch Village | kind: settlement']));
+        // The sheets live in the permanent setup; board fights are made among the deletable replies below.
+        const definitions = structuredClone(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
+        const hero = definitions.find(definition => definition.role === 'character'), skills = definitions.find(definition => definition.role === 'skills'), foes = definitions.find(definition => definition.role === 'foes');
+        hero.slug = 'delete-fuzz-hero'; hero.name = 'Delete Fuzz Hero';
+        Object.assign(hero.state.who, { default: 'Astra' });
+        Object.assign(hero.state.str, { default: 20 }); Object.assign(hero.state.vit, { default: 20 });
+        Object.assign(hero.state.agi, { default: 20 }); Object.assign(hero.state.health, { default: 5 });
+        Object.assign(hero.state.level, { default: 1 });
+        skills.slug = 'delete-fuzz-skills'; skills.name = 'Delete Fuzz Skills';
+        Object.assign(skills.state.who, { default: 'Astra' }); Object.assign(skills.state.skill1, { default: 'Cut' });
+        Object.assign(skills.state.about1, { default: 'strike one foe' }); Object.assign(skills.state.stat1, { default: 'str' });
+        Object.assign(skills.state.uses1, { default: 'stamina' });
+        foes.slug = 'delete-fuzz-foes'; foes.name = 'Delete Fuzz Foes';
+        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 99 });
+        Object.assign(foes.state.level1, { default: 1 }); Object.assign(foes.state.hurt1, { default: 1 });
+        for (const definition of definitions) {
+            const made = await host.sdk.command('dm.define', { definition });
+            assert.equal(made.ok, true, `seed ${seed}: the board sheet is made: ${made.message}`);
+        }
+        let boardFights = 0, boardDeletes = 0, boardReplays = 0;
         const base = { coin: coin(host), torches: qty(host, 'Torch') };
         const setup = host.store.headIndex();
         // The replies after the first, by the record ID that stays with them: what each did.
@@ -139,11 +182,40 @@ for (const seed of SEEDS) {
             made.weather = weatherLines(step);
             made.mounts = mountLines(step, done);
             made.you = youOf(step);
+            made.step = step;
             const all = [...made.weather, ...youLines(made.you), ...made.mounts, ...made.lines, ...made.extras];
             if (step % 4 === 1) dropEcho(made, all);
+            let staged = null;
+            if (step === 1 || step === 8) {
+                const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+                if (boardSession(meta)) discardBoard(meta);
+                for (let attempt = 0; attempt < 100; attempt += 1) {
+                    const opened = openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+                    assert.equal(opened.error, undefined, `seed ${seed}: the board opens: ${opened.error}`);
+                    staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 1 }]);
+                    assert.equal(staged.error, undefined, `seed ${seed}: board exchange stages: ${staged.error}`);
+                    if (staged.preview.result.stop === 'won') break;
+                    discardBoard(meta); staged = null;
+                }
+                assert.ok(staged, `seed ${seed}: a winning board exchange is staged`);
+            }
             await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, all));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
+            if (staged) {
+                const receipts = readRecord(host.ctx.chat[index]).receipts;
+                const roll = receipts.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
+                const practice = receipts.filter(entry => entry.type === 'rpg.practice').flatMap(entry => entry.data.v2.result.practice.skills);
+                const awards = receipts.filter(entry => entry.type === 'rpg.fight').flatMap(entry => entry.data.v2.result.fight.awards);
+                assert.ok(roll, `seed ${seed} step ${step}: the board fight is committed`);
+                assert.deepEqual(roll.data.v2.result.rounds, staged.preview.result.rounds, `seed ${seed} step ${step}: committed rounds match staging`);
+                const uses = usesOf(roll.data.v2.result).find(entry => entry.who === 'Astra' && entry.skill === 'Cut');
+                assert.ok(uses, `seed ${seed} step ${step}: Cut was used`);
+                assert.equal(practice.find(entry => entry.who === 'Astra' && entry.skill === 'Cut')?.amount, Math.min(20, uses.n * 3));
+                assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, memberXp([{ count: 99, level: 1 }], 1));
+                made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards };
+                boardFights += 1;
+            }
             done.set(host.store.carrierSid(index), made);
             if (made.loot && r.chance(0.7)) {
                 // The reader takes the first thing, or both (claim loot:<sid>; the receipt lands on this reply).
@@ -154,20 +226,40 @@ for (const seed of SEEDS) {
                 if (both) made.relics = made.loot[1];
                 assert.equal((await host.sdk.command('inventory.lootTake', { sid: host.store.carrierSid(index), pick: [1] })).ok, false, 'once per reply');
             }
-            if (step < 3 || !r.chance(0.35)) continue;
+            const forced = step === 3 ? 1 : step === 10 ? 7 : null;
+            if (step < 3 || (forced === null && !r.chance(0.35))) continue;
             // Delete a reply in the middle (after the set-up, not the last) and the reader's message before it.
-            const replies = host.ctx.chat.map((message, at) => (!message.is_user && at > setup && at < index ? at : -1)).filter(at => at >= 0);
+            const replies = host.ctx.chat.map((message, at) => (!message.is_user && at > setup && at < index ? at : -1)).filter(at => at >= 0)
+                .filter(at => forced !== null || step > 10 || ![7, 8].includes(done.get(host.store.carrierSid(at))?.step));
             if (!replies.length) continue;
-            const gone = r.pick(replies);
+            const gone = forced === null ? r.pick(replies) : replies.find(at => done.get(host.store.carrierSid(at))?.step === forced);
+            assert.notEqual(gone, undefined, `seed ${seed} step ${step}: the intended reply can be deleted`);
             const goneSid = host.store.carrierSid(gone);
+            if (done.get(goneSid)?.board) boardDeletes += 1;
             done.delete(goneSid);
             await host.st.deleteMessage(gone);
             await host.st.deleteMessage(gone - 1);
             const label = `seed ${seed} step ${step} (deleted ${gone})`;
             assert.deepEqual(host.store.problems(), [], `${label}: nothing was skipped`);
             assert.deepEqual(validators(host), [], `${label}: the head passes its validators`);
-            checkInvariants(host, label);
+            checkFuzzInvariants(host, label);
             const kept = [...done.values()];
+            let expectedPractice = 0, expectedXp = 0;
+            for (const [at, message] of host.ctx.chat.entries()) {
+                const board = message.is_user ? null : done.get(host.store.carrierSid(at))?.board;
+                if (!board) continue;
+                const receipts = readRecord(message).receipts;
+                const roll = receipts.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
+                assert.ok(roll, `${label}: surviving board receipt is present`);
+                assert.deepEqual(roll.data.v2.result.rounds, board.rounds, `${label}: surviving board rounds replay`);
+                assert.deepEqual(receipts.filter(entry => entry.type === 'rpg.practice').flatMap(entry => entry.data.v2.result.practice.skills), board.practice, `${label}: surviving practice receipt`);
+                assert.deepEqual(receipts.filter(entry => entry.type === 'rpg.fight').flatMap(entry => entry.data.v2.result.fight.awards), board.awards, `${label}: surviving XP receipt`);
+                expectedPractice += board.practice.find(entry => entry.who === 'Astra' && entry.skill === 'Cut').amount;
+                expectedXp += board.awards.find(entry => entry.who === 'Astra').xp;
+                if (at >= gone - 1) boardReplays += 1;
+            }
+            assert.equal(host.head().domains.dataModules.instances['pack.chat/delete-fuzz-skills'].chat.fields.practice1, expectedPractice, `${label}: board practice is paid once`);
+            assert.equal(host.head().domains.dataModules.instances['pack.chat/delete-fuzz-hero'].chat.fields.xp, expectedXp, `${label}: board XP is paid once`);
             assert.equal(coin(host), base.coin + kept.reduce((sum, made) => sum + made.coin, 0), `${label}: coin`);
             assert.equal(qty(host, 'Torch'), base.torches + kept.reduce((sum, made) => sum + made.torches, 0), `${label}: torches`);
             for (const name of kept.flatMap(made => made.own)) assert.equal(qty(host, name), 1, `${label}: ${name}`);
@@ -188,5 +280,8 @@ for (const seed of SEEDS) {
             const look = part => remaining.filter(made => made.you[part] !== undefined).at(-1)?.you[part] ?? '';
             assert.deepEqual(host.sdk.query('scene.you'), { rank: look('rank'), rankLabel: 'Guild rank', wearing: look('wearing'), condition: look('condition') }, `${label}: your look, each part from the latest reply still there that wrote it`);
         }
+        assert.ok(boardFights > 0, `seed ${seed}: the fuzz ran board fights in the deleted range`);
+        assert.ok(boardDeletes > 0, `seed ${seed}: a board fight was deleted`);
+        assert.ok(boardReplays > 0, `seed ${seed}: a later board fight replayed after a deletion`);
     });
 }
