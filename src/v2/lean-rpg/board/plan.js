@@ -3,6 +3,7 @@
 // It reads no DOM and writes no state; the board and the committed roll both use it.
 
 import { fold } from '../read.js';
+import { packAttacks } from './members.js';
 import { bestDefence } from './rules.js';
 import { skillFlags, skillKey } from './flags.js';
 
@@ -26,6 +27,7 @@ export function actionSkills(actor, flags = {}) {
 export function exchangePlan(sheet, actions, flags = {}, number = 1) {
     const actors = (sheet?.characters ?? []).filter(standing), foes = (sheet?.foes ?? []).filter(up);
     if (!actors.length || !foes.length) return { error: 'The fight has already ended.' };
+    const grouped = foes.some(foe => Number.isInteger(foe.group));
     const fleeing = Array.isArray(actions) && actions.length === 1 && actions[0]?.kind === 'flee';
     if (!Array.isArray(actions) || !actions.length || actions.length > actors.length || (!fleeing && actions.length !== actors.length)) return { error: 'Choose an action for each standing member.' };
     const seen = new Set(), acts = [];
@@ -47,15 +49,32 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1) {
         if (area ? !scope.area : !scope.target) return { error: 'That skill cannot be used on that target.' };
         const resource = skill?.uses === 'mana' ? 'mana' : 'stamina';
         if (skill && actor[resource] === 0) return { error: `${isEmpty(resource === 'mana' ? 'Mana' : 'Stamina')}.` };
-        const target = area ? foes[0] : foes.find(foe => foe.slot === action.target);
+        let target = null, group;
+        if (area) {
+            if (grouped) {
+                const groups = [...new Set(foes.map(foe => foe.group))];
+                const chosen = Number.isInteger(action.group) ? action.group
+                    : Number.isInteger(action.target) ? foes.find(foe => foe.slot === action.target)?.group
+                        : groups.length === 1 ? groups[0] : null;
+                if (!Number.isInteger(chosen)) return { error: 'Choose a group for that area skill.' };
+                target = foes.find(foe => foe.group === chosen);
+                group = chosen;
+            } else target = foes[0];
+        } else target = foes.find(foe => foe.slot === action.target);
         if (!target) return { error: 'That foe is no longer standing.' };
-        acts.push({ who: actor.who, ...(skill ? { skill: skill.name } : {}), target: `foe${target.slot}`, type: skill?.uses === 'mana' ? 'magic' : 'physical', ...(area ? { area: true } : {}) });
+        acts.push({ who: actor.who, ...(skill ? { skill: skill.name } : {}), target: `foe${target.slot}`, type: skill?.uses === 'mana' ? 'magic' : 'physical',
+            ...(area ? { area: true } : {}), ...(group !== undefined ? { group } : {}) });
     }
-    // Each foe picks a standing member in stable order; the defender's best available evasion is automatic.
-    const attacks = foes.map((foe, at) => {
+    // Every member attacks once and a pack attacks as its thinning bar allows. The flattened attacker index rotates targets;
+    // a defence skill is marked paid after its first attack on a member, so the rest of that exchange's attacks use it without spending again.
+    const attackers = foes.flatMap(foe => Array.from({ length: foe.pack === true ? packAttacks(foe.count, foe.hurt, foe.size) : 1 }, () => foe));
+    const defended = new Set();
+    const attacks = attackers.map((foe, at) => {
         const target = actors[(at + number - 1) % actors.length];
         const skill = bestDefence(target, item => flagsFor(flags, target, item));
-        return { slot: foe.slot, target: target.who, ...(skill ? { skill: skill.name } : {}) };
+        const paid = grouped && defended.has(target.key);
+        defended.add(target.key);
+        return { slot: foe.slot, target: target.who, ...(skill ? { skill: skill.name } : {}), ...(paid ? { paid: true } : {}) };
     });
     return { plan: { formula: 'standard', pace: 'careful', acts, foes: attacks, checks: [] }, ...(runner ? { flee: runner } : {}) };
 }

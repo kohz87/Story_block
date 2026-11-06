@@ -19,6 +19,7 @@
 // agi, party, fresh }] (the turn order for the fight), `quickStart` = [{ who, against }], `opening` = [Line], `idle` = [{ n, id, who,
 // kind, why }] and `hurts` = [{ id, kind, name, module, field, from, to, size }].
 import { ambushOf, ambushRecord, ambushedStandard } from './ambush.js';
+import { packAreaBlocks } from './board/members.js';
 import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, levelBonus, luckWindow, quickStart, statPart, turnOrder } from './formula.js';
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
@@ -188,7 +189,8 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
             out.acts.push({ ...entry, support: true, difficulty: act.difficulty, dc: LIMITS.dc[act.difficulty], target: { id: charId(mate), name: mate.who } });
         } else {
             const later = then && act.then ? laterOf(actor.character, act) : null;
-            out.acts.push({ ...entry, ...(act.area === true && !spent ? { area: true } : {}), ...(later ? { then: later } : {}), foe: foeSide(foe) });
+            out.acts.push({ ...entry, ...(act.area === true && !spent ? { area: true } : {}), ...(act.group !== undefined ? { group: act.group } : {}),
+                ...(later ? { then: later } : {}), foe: foeSide(foe) });
         }
     }
     for (const [at, entry] of (plan.foes ?? []).entries()) {
@@ -202,7 +204,8 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         const { side, check } = skillSide(defender.character, skill, 'defence', { againstMagic: entry.againstMagic === true });
         if (check.refusal) { refuse(entry.target, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(entry.target, skill.refused, skill.refusedPlain);
-        out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: foeSide(foe) });
+        out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...(entry.paid === true ? { paid: true } : {}),
+            ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: foeSide(foe) });
     }
     for (const [at, entry] of (plan.checks ?? []).entries()) {
         const actor = ready(entry.who);
@@ -280,6 +283,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     // A skill costs a block of its resource (Stamina or Mana) each time it is used; with the resource empty an action is rolled without the skill.
     // With the resource empty an action goes on with its `else:` skill when that one's resource is not empty, else as a plain attack (single foe, no skill).
     const usable = entry => {
+        if (entry.paid === true) return entry;
         const bar = entry.skill && entry.plain ? bars.get(`${entry.actor}:${entry.uses}`) : null;
         if (!(bar && bar.value === 0)) return entry;
         const spentOn = { without: entry.skill, ...(fix ? { withoutUses: entry.uses } : {}), base: entry.base ?? entry };
@@ -294,7 +298,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         // rolled, before its own cost: so the cue never blames the wrong pool)
         const other = then && use.without && use.withoutUses ? bars.get(`${use.actor}:${use.withoutUses === 'mana' ? 'stamina' : 'mana'}`) : null;
         const otherUp = Boolean(other && other.value > 0);
-        const cost = use.skill && use.uses ? damageOf(bars.get(`${use.actor}:${use.uses}`), 1) : undefined;
+        const cost = use.skill && use.uses && use.paid !== true ? damageOf(bars.get(`${use.actor}:${use.uses}`), 1) : undefined;
         return [{ ...lines[0], ...(use.without ? { without: use.without, ...(use.withoutUses ? { withoutUses: use.withoutUses } : {}), ...(otherUp ? { otherUp: true } : {}) } : {}), ...(cost ? { cost } : {}) }, ...lines.slice(1)];
     };
     const damageOf = (bar, blocks) => (blocks === 0 ? undefined : move(bar, blocks) ?? undefined);
@@ -318,7 +322,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const kept = goesOn ? same(bar) : null;
         const party = bar.kind === 'char', agi = party ? bar.character.stats.agi ?? 0 : 0;
         if (kept) return { id: bar.id, name: bar.name, total: kept.total, die: kept.die ?? null, bonus: kept.bonus ?? null, agi, party, fresh: false };
-        const die = source('init', party ? bar.at : 16 + bar.at)();
+        const die = source('init', party ? bar.at : 16 + (bar.foe.group ?? bar.at))();
         const bonus = party ? initiativeBonus(bar.character.stats, classTerm(rules, bar.character).classBonus) : bar.initiative ?? foeInitiativeBonus(bar.foe.class);
         return { id: bar.id, name: bar.name, total: die + bonus, die, bonus, agi, party, fresh: true };
     });
@@ -327,8 +331,10 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
 
     const actOf = entry => {
         const roll = diceOf(entry), pcDie = roll(), foeDie = roll();
-        // (an area attack: the foe die already drawn is the first foe's, one more is drawn for each other foe group)
-        const areaDice = entry.area ? foes.map((_, at) => (at === 0 ? foeDie : roll())) : [];
+        // (an area attack: the foe die already drawn is the first target's, one more for each other target. An old act has no group
+        // and keeps drawing for every foe bar, as it always did; a grouped act draws only for its standing group.)
+        const areaBars = entry.area ? (entry.group === undefined ? foes : foes.filter(bar => standing(bar.id) && bar.foe.group === entry.group)) : [];
+        const areaDice = areaBars.map((_, at) => (at === 0 ? foeDie : roll()));
         const me = bars.get(owner(entry));
         if (!standing(me.id)) return { idle: 'down' };
         if (entry.support) {
@@ -342,14 +348,15 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         }
         const hit = (foeBar, dice) => {
             const rolled = contested(entry, dice.pcDie, dice.foeDie, rules);
-            const damage = rolled.pcWins && ['physical', 'magic'].includes(entry.type) ? damageOf(foeBar, rolled.decisive ? 2 : 1) : undefined;
+            const blocks = entry.area && foeBar.foe.pack === true ? packAreaBlocks(foeBar.size, rolled.decisive) : rolled.decisive ? 2 : 1;
+            const damage = rolled.pcWins && ['physical', 'magic'].includes(entry.type) ? damageOf(foeBar, blocks) : undefined;
             return { kind: 'act', type: entry.type, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), ...(entry.area ? { area: true } : {}),
                 pc: rolled.pc, foe: { ...rolled.foe, name: foeBar.name, slot: foeBar.slot }, outcome: rolled.outcome, decisive: rolled.decisive, ...(damage ? { damage } : {}) };
         };
         if (entry.area) {
-            const targets = foes.filter(bar => standing(bar.id));
+            const targets = entry.group === undefined ? foes.filter(bar => standing(bar.id)) : areaBars;
             if (!targets.length) return { idle: 'no-target' };
-            return { lines: targets.map(bar => hit(bars.get(bar.id), { pcDie, foeDie: areaDice[foes.indexOf(bar)] })) };
+            return { lines: targets.map((bar, at) => hit(bars.get(bar.id), { pcDie, foeDie: areaDice[entry.group === undefined ? foes.indexOf(bar) : at] })) };
         }
         const target = bars.get(foeId(entry.foe.slot));
         if (!standing(target.id)) return { idle: 'no-target' };
@@ -416,10 +423,12 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
                     roundLines.push(...done.lines);
                 }
             } else {
-                const mine = prepared.foes.find(entry => entry.foe.slot === bar.slot);
-                if (!mine) continue;
-                const done = doFoe(mine);
-                if (done.idle) roundIdle.push({ n, id, who: bar.name, kind: 'foe', why: done.idle }); else roundLines.push(...done.lines);
+                const mine = board ? prepared.foes.filter(entry => entry.foe.slot === bar.slot) : [prepared.foes.find(entry => entry.foe.slot === bar.slot)];
+                for (const entry of mine) {
+                    if (!entry) continue;
+                    const done = doFoe(entry);
+                    if (done.idle) roundIdle.push({ n, id, who: bar.name, kind: 'foe', why: done.idle }); else roundLines.push(...done.lines);
+                }
             }
         }
         const decisive = roundLines.some(line => line.decisive);
