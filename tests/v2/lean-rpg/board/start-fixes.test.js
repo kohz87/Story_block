@@ -24,7 +24,7 @@ const empty = () => ({ hero: { role: 'character', fields: character('Astra', { a
 // the planner finds the approach and the boars but gives no act of its own
 const approachOnly = ['foe Bristle-boar | new | count: 2 | level: 2', 'check Astra | skill: Obscure | type: check | difficulty: normal | ambush'].join('\n');
 
-test('F1: a stale event opens nothing; a planner wait that finds no fight closes the screen it opened', async t => {
+test('F1/B2: a stale event opens nothing; the planner wait opens nothing, shows on the Fight tab dot, and a message with no fight never pops the screen', async t => {
     let finish;
     const callModel = () => new Promise(resolve => { finish = resolve; });
     const app = await page(t, { formula: 'standard', callModel });
@@ -39,12 +39,14 @@ test('F1: a stale event opens nothing; a planner wait that finds no fight closes
     assert.equal(opened(), false, 'a fight-start event with nothing waiting opens nothing');
     const sending = host.send(A, 'The boars pass by.');
     await settle();
-    assert.match(doc.querySelector('.rpg-fight-pause')?.textContent ?? '', /Working out the fight/);
+    assert.equal(opened(), false, 'the planner wait does not open the Fight screen');
+    assert.equal(doc.querySelector('.rpg-fight-pause'), null);
+    assert.ok(doc.querySelector('.ss-screenbar-alert'), 'the wait shows on the Fight tab dot');
     finish('none');
     assert.equal((await sending).aborted, undefined, 'no fight: the reply is sent');
     await new Promise(resolve => setTimeout(resolve, 5));
     await settle();
-    assert.equal(opened(), false, 'the screen the wait opened is closed again');
+    assert.equal(opened(), false, 'still nothing opened');
     assert.equal(doc.querySelector('.rpg-fight-pause'), null);
     assert.equal(host.ctx.chatMetadata.rpgFightStart, undefined);
 });

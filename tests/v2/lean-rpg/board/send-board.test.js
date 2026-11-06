@@ -1,0 +1,140 @@
+// Round 16: the staged board fight is what the reply carries at Send (never a planner re-roll).
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
+import { boardSession } from '../../../../src/v2/lean-rpg/board/session.js';
+import { seedCrypto } from '../../qa/helpers/seeded.js';
+import { begin, makeBlocks, page, settle } from '../view/page.js';
+
+const MSG = 'I hide with Obscure until the boars appear and approach as I attack and engage them.';
+const PLAN = ['foe Bristle-boar | new | count: 1 | level: 1', 'check Wessel | skill: Obscure | type: check | difficulty: normal | ambush', 'act Wessel | skill: Obscure | target: Bristle-boar | type: physical', 'foe Bristle-boar | target: Wessel'].join('\n');
+
+async function start(t, seed) {
+    const restore = seedCrypto(seed);
+    t.after(restore);
+    const calls = [];
+    const callModel = async (...args) => { calls.push(args); return PLAN; };
+    const app = await page(t, { formula: 'standard', callModel });
+    const { host, doc } = app;
+    await begin(host);
+    await makeBlocks(host, { character: { str: 8, agi: 8, dex: 2, vit: 20 }, skills: { skill1: 'Obscure', stat1: 'dex', about1: 'hide before a fight' } });
+    const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
+    assert.equal((await host.send(MSG, 'Not yet.')).aborted, true);
+    await settle();
+    doc.querySelector('.rpg-fight-pause-board').click();
+    await settle();
+    return { ...app, calls };
+}
+
+async function play(app, count, pick = () => true) {
+    const { doc, host } = app;
+    for (let n = 0; n < count && !doc.querySelector('.rpg-board-send'); n += 1) {
+        const choice = [...doc.querySelectorAll('.rpg-board-choice')].find(item => !item.disabled && pick(item.textContent));
+        assert.ok(choice, 'a choice is offered');
+        choice.click();
+        const target = doc.querySelector('.rpg-board-choice');
+        if (target && /target/i.test(doc.querySelector('.rpg-board-prompt')?.textContent ?? '')) target.click();
+        await new Promise(resolve => setTimeout(resolve, 450));
+        await settle();
+    }
+}
+
+const roll = (host, index) => host.ctx.chat[index].extra.storySuite.receipts.findLast(item => item.type === 'rpg.resolve' && item.replan?.payload?.board);
+const stagedRounds = host => {
+    const session = boardSession(host.ctx.chatMetadata), opening = host.turn.fightStartPreview();
+    return structuredClone(playBoard(opening.state, session.setup, session.exchanges).result);
+};
+const promptOf = sent => sent.request.chat.filter(m => m.role === 'system').map(m => m.content).join('\n');
+const sender = host => { const out = {}; host.ctx.generate = type => { out.generation = host.st.generate(type, { reply: 'Told.' }); return out.generation; }; return out; };
+
+// seeds chosen so that the fight takes 4+ exchanges (801: 7, 805/806: 4) and the approach check fails or succeeds
+for (const seed of [801, 806]) for (const reload of [false, true]) test(`seed ${seed}: Send with this fight carries every staged exchange, byte for byte, no planner call${reload ? ' (after a reload)' : ''}`, async t => {
+    const app = await start(t, seed);
+    const { host, doc, calls, draw } = app;
+    await play(app, 12);
+    const session = boardSession(host.ctx.chatMetadata);
+    assert.ok(session.exchanges.length >= 4, 'four or more staged exchanges');
+    const staged = stagedRounds(host);
+    assert.equal(staged.stop, 'won');
+    if (reload) {
+        const meta = structuredClone(host.ctx.chatMetadata);
+        await host.st.loadChat(structuredClone(host.ctx.chat), 'before-send');
+        host.ctx.chatMetadata = meta;
+        draw();
+        host.events.emit('head', { index: host.store.headIndex() });
+        await settle();
+    }
+    const out = sender(host);
+    doc.querySelector('.rpg-board-send').click();
+    const sent = await out.generation;
+    assert.equal(sent.aborted, undefined);
+    assert.equal(calls.length, 1, 'the planner ran once, for the opening, and not at Send');
+    const result = roll(host, sent.index).data.v2.result;
+    assert.deepEqual(result.rounds, staged.rounds, 'committed rounds == staged rounds (dice and lines)');
+    assert.deepEqual(result.checks, staged.checks);
+    assert.equal(result.stop, 'won');
+    assert.equal((promptOf(sent).match(/Exchange \d+/g) ?? []).length, session.exchanges.length, 'every exchange is told');
+    // replay == live; swipe and Re-read keep the same rounds
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
+    assert.equal((await host.sdk.reread(sent.index)).ok, true);
+    assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
+    await host.swipe('Again.');
+    assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
+    assert.equal(calls.length, 1);
+});
+
+test('a vanished session and waiting choice at Send: the copy made at the press still carries the staged fight', async t => {
+    const app = await start(t, 801);
+    const { host, doc, calls } = app;
+    await play(app, 12);
+    const staged = stagedRounds(host);
+    const out = {};
+    host.ctx.generate = type => {
+        delete host.ctx.chatMetadata.rpgFightBoard; delete host.ctx.chatMetadata.rpgFightStart;
+        out.generation = host.st.generate(type, { reply: 'Told.' }); return out.generation;
+    };
+    doc.querySelector('.rpg-board-send').click();
+    const sent = await out.generation;
+    assert.equal(sent.aborted, undefined);
+    assert.equal(calls.length, 1, 'no planner call');
+    assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
+    assert.equal(host.ctx.chatMetadata.rpgFightSend, undefined, 'the copy goes once the reply is received');
+});
+
+test('a fight that cannot be attached refuses the send with a reason and calls nothing', async t => {
+    const app = await start(t, 801);
+    const { host, doc, calls } = app;
+    await play(app, 12);
+    let generated = 0;
+    host.ctx.generate = () => { generated += 1; return Promise.resolve({}); };
+    const chat = host.ctx.chat.length;
+    host.ctx.chatMetadata.rpgFightBoard.anchor = 'some-other-reply';
+    doc.querySelector('.rpg-board-send').click();
+    await settle();
+    assert.equal(generated, 0, 'nothing is sent');
+    assert.equal(calls.length, 1);
+    assert.equal(host.ctx.chat.length, chat);
+    assert.match(doc.body.textContent, /cannot be attached|no longer matches/);
+});
+
+test('a fled fight is carried the same way: staged == committed, no planner call', async t => {
+    const app = await start(t, 801);
+    const { host, doc, calls } = app;
+    await play(app, 25, label => /flee|run|retreat/i.test(label));
+    const session = boardSession(host.ctx.chatMetadata);
+    const staged = stagedRounds(host);
+    assert.equal(staged.stop, 'fled');
+    assert.ok(session.exchanges.length >= 1);
+    const out = sender(host);
+    doc.querySelector('.rpg-board-send').click();
+    const sent = await out.generation;
+    assert.equal(sent.aborted, undefined);
+    assert.equal(calls.length, 1);
+    const result = roll(host, sent.index).data.v2.result;
+    assert.deepEqual(result.rounds, staged.rounds);
+    assert.equal(result.stop, 'fled');
+});

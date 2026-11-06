@@ -5,7 +5,7 @@ import { createPauseView } from './pause.js';
 import { pauseViewData } from './start-view-data.js';
 import { pendingStart } from '../../turn/fight-start.js';
 import { readSheet } from '../read.js';
-import { boardSession } from './session.js';
+import { boardSession, clearSend, markSend } from './session.js';
 
 export function createStartController({ doc, chat, meta, state, preview, board, on, save, refresh, generate, show = () => {}, close = () => {} } = {}) {
     const listeners = new Set();
@@ -31,6 +31,12 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
     const send = () => {
         const pending = current();
         if (!pending || sending) return;
+        // The staged fight goes with the send or the send does not happen: it is never replaced by a new planner roll.
+        if (pending.choice === 'board' && !markSend(meta(), pending, boardSession(meta()))) {
+            error = 'The staged fight cannot be attached to this reply (its anchor reply or exchanges are missing). Discard it and start the fight again.';
+            tell(); return;
+        }
+        if (pending.choice === 'board') persist();
         sending = true;
         tell();
         try {
@@ -38,13 +44,14 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
             // The reply has started: close the panel so the reader sees it being written.
             try { close(); } catch { /* the panel stays open */ }
             Promise.resolve(running).finally(() => { sending = false; tell(); }).catch(() => {});
-        } catch { sending = false; tell(); }
+        } catch { sending = false; clearSend(meta()); tell(); }
     };
     const narrate = () => {
         const pending = current();
         if (!pending || pending.choice) return;
         if (boardSession(meta())?.exchanges?.length === 0) delete meta().rpgFightBoard;
         pending.choice = 'narrate';
+        clearSend(meta());
         persist(); tell();
         if (pending.mode !== 'working') send();
     };
@@ -78,7 +85,7 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
     return {
         current, draw, state: sheetState, send, changed: tell, sending: () => sending,
         waiting: () => current()?.choice === 'board',
-        discard() { const pending = current(); if (pending?.choice === 'board') { pending.choice = null; error = ''; persist(); } },
+        discard() { const pending = current(); if (pending?.choice === 'board') { pending.choice = null; error = ''; clearSend(meta()); persist(); } },
         listen(fn) { listeners.add(fn); return () => listeners.delete(fn); },
         clear: () => pause.clear(),
         destroy() { listeners.clear(); doc.removeEventListener?.('click', click, true); doc.removeEventListener?.('keydown', key, true); pause.destroy(); },

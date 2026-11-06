@@ -154,3 +154,11 @@ the approach checks earn practice and a successful ambush applies to the first e
 - A board exchange records the quick-start lead but rolls no opening action (`standard.js` opening loop, `board` option); the reader's own
   action is the first roll. "Narrate it instead" keeps the planner's plan and its opening action.
 - Tests: `tests/v2/lean-rpg/board/start-fixes.test.js`.
+
+### Send carries the staged fight (round 16, 6 Nov)
+- "Send with this fight" (`board/start-controller.js` `send`) copies the staged session beside the waiting message (`board/session.js` `markSend`, metadata key `rpgFightSend`: anchor reply, message hash, board payload) and
+  refuses the send with a reason when it cannot (anchor or exchanges missing). `precall.js` `canGenerate`/`beforeGenerate` take the board from the live session, else from this copy (`readSend`), so the
+  planner can never stand in for a staged fight; `afterReceive`, Narrate and Discard clear the copy.
+  Where to look when "the reply shows one planner round instead of my exchanges": `readSend`, `markSend`, the board branch of `beforeGenerate`.
+- The planner wait ("Working out the fight…") opens no screen; it shows on the Fight tab dot (`view/index.js` 'fight-start' handler opens only for a ready pause).
+- Tests: `tests/v2/lean-rpg/board/send-board.test.js` (replaces the round-15 F1 close logic; its test and two start-ui tests were changed to the no-pop rule).

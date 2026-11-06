@@ -24,7 +24,7 @@ import { plannerWanted } from './gate.js';
 import { knownFoeAction } from './board/action-gate.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
 import { readRecord } from '../persist.js';
-import { boardKey, boardPayload, boardSession, lastBoard, linkBoard, priorBoard, receiveBoard, reconcileBoard } from './board/session.js';
+import { boardKey, boardPayload, boardSession, clearSend, lastBoard, linkBoard, priorBoard, readSend, receiveBoard, reconcileBoard } from './board/session.js';
 import { boardInputError } from './board/commit.js';
 import { clearStart, engagesFight, fightsInMessage, holdStart, pendingStart } from '../turn/fight-start.js';
 
@@ -263,6 +263,8 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             const legacyKey = `${messages.length - 1}-${hashText(String(last.mes ?? '').trim())}`;
             const remembered = lastBoard(meta, anchor, legacyKey, last);
             board = session?.anchor === anchor && (view?.feature?.('story-block.fight-board') === true || session.exchanges?.length) ? boardPayload(session) : remembered?.board;
+            // (the copy made at "Send with this fight" stands in when the session itself is gone)
+            if (!board && pending?.choice !== 'narrate') board = readSend(meta, messages)?.board ? structuredClone(readSend(meta, messages).board) : null;
             if (!board && session?.exchanges?.length) return { ok: false, reason: 'The fight no longer matches this reply. Restore the reply or discard the fight.', action: false };
             if (session?.anchor === anchor && session.exchanges?.length && !session.setup?.witness) return { ok: false, reason: 'This older fight cannot be checked. Discard it and start the fight again.', action: false };
         } else if (last && !last.is_user && !String(last.mes ?? '')) board = priorBoard(last)?.board;
@@ -310,7 +312,8 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             const remembered = type === 'regenerate' ? lastBoard(meta, anchorRecord?.sid, key, last) : null;
             let session = boardSession(meta);
             if (session?.anchor === anchorRecord?.sid) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
-            const board = previous?.board ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' ? boardPayload(session) : null);
+            const board = previous?.board ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' ? boardPayload(session) : null)
+                ?? (isStandard(rules) && type !== 'swipe' && pending?.choice !== 'narrate' ? structuredClone(readSend(meta, messages)?.board ?? null) : null);
             if (board) {
                 const anchored = board.anchor ? board : { ...board, anchor: anchorRecord?.sid ?? board.id };
                 const fightKey = previous?.key?.startsWith('b:') ? previous.key : remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
@@ -390,6 +393,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         let current = null;
         try { current = metadata(); } catch { /* no saved start */ }
         clearStart(current);
+        clearSend(current);
         const record = readRecord((chat() ?? [])[info.index]);
         const receipt = record?.receipts?.findLast(item => item?.type === RESOLVE && item.replan?.payload?.board);
         if (!receipt) return;

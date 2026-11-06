@@ -7,9 +7,11 @@ import { fightSeed } from './dice.js';
 import { boardWitness, equipmentForBoard, playBoard } from './engine.js';
 import { boardFlags } from './overrides.js';
 import { orderOf } from '../resolve.js';
+import { hashText } from '../../assist/common.js';
+import { readRecord } from '../../persist.js';
 
 const KEY = 'rpgFightBoard', ATTEMPTS = 'rpgFightAttempts', LAST = 'rpgFightLast';
-const LINKS = 'rpgFightLinks';
+const LINKS = 'rpgFightLinks', SEND = 'rpgFightSend';
 const object = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 export const boardSession = meta => (object(meta?.[KEY]) ? meta[KEY] : null);
@@ -140,3 +142,23 @@ export function reconcileBoard(meta, hasReceipt) {
     delete session.base;
     return session;
 }
+
+/**
+ * "Send with this fight": at the press the staged fight is copied, byte for byte, beside the reader's waiting message and its anchor reply.
+ * The send takes the fight from this copy whenever the session itself is not there, so the planner can never stand in for a staged fight.
+ */
+export function markSend(meta, pending, session) {
+    if (!object(meta) || !object(pending) || !object(session) || !session.exchanges?.length || session.anchor !== pending.anchor) return false;
+    meta[SEND] = { anchor: pending.anchor, message: pending.message, board: boardPayload(session) };
+    return true;
+}
+
+/** The copy for the chat's waiting message (its anchor reply and text must still match), else null. */
+export function readSend(meta, chat) {
+    const mark = meta?.[SEND], last = Array.isArray(chat) ? chat.at(-1) : null;
+    if (!object(mark) || !object(mark.board) || !last?.is_user || readRecord(chat.at(-2))?.sid !== mark.anchor
+        || hashText(String(last.mes ?? '').trim()) !== mark.message) return null;
+    return mark;
+}
+
+export function clearSend(meta) { if (object(meta)) delete meta[SEND]; }

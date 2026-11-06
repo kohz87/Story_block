@@ -85,7 +85,7 @@ test('Send opens a pause, board choice opens the board, and its end card sends t
     assert.ok(!boardSession(meta) || boardSession(meta).anchor === host.store.carrierSid(host.store.headIndex()));
 });
 
-test('a planner opening shows the working screen and then the rolled approach', async t => {
+test('a planner opening waits without opening the screen, then the pause opens once the rolled approach is ready', async t => {
     let finish;
     const callModel = () => new Promise(resolve => { finish = resolve; });
     const { doc, host } = await page(t, { formula: 'standard', callModel });
@@ -96,7 +96,7 @@ test('a planner opening shows the working screen and then the rolled approach', 
     const sending = host.send('I sneak up and attack the rats.', 'Not yet.');
     await settle();
     assert.equal(typeof finish, 'function');
-    assert.match(doc.querySelector('.rpg-fight-pause').textContent, /Working out the fight/);
+    assert.equal(doc.querySelector('[data-ss-screen="story-block/fight"]'), null, 'the wait opens nothing');
     finish('foe Rats | new | count: 1 | level: 2\ncheck Wessel | skill: Sneak | type: check | difficulty: normal | ambush\nact Wessel | target: Rats | type: physical');
     assert.equal((await sending).aborted, true);
     await settle();
@@ -113,12 +113,14 @@ test('a planner opening shows the working screen and then the rolled approach', 
 test('choosing narration during planning resumes the same send without a second planner call', async t => {
     let finish, calls = 0;
     const callModel = () => { calls += 1; return new Promise(resolve => { finish = resolve; }); };
-    const { doc, host } = await page(t, { formula: 'standard', callModel });
+    const { doc, host, ui } = await page(t, { formula: 'standard', callModel });
     await begin(host);
     await makeBlocks(host, { character: { agi: 20 }, skills: { skill1: 'Sneak', stat1: 'agi', about1: 'hide before a fight' } });
     const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
     assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
     const sending = host.send('I sneak up and attack the rats.', 'The fight is narrated.');
+    await settle();
+    ui.mounts.screen.open('story-block/fight');
     await settle();
     const button = doc.querySelector('.rpg-fight-pause-narrate');
     assert.ok(button);
