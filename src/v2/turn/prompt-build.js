@@ -22,7 +22,7 @@ export const KEPT_LINES_MAX = 4;
 export const KEPT_CHARS_MAX = 4000;
 
 export function createPromptBuild(s, deps) {
-    const { ctx, metadata, store, bus, registry, settings, events, onBlocked, notify, initial, prepare, hostSettings, viewReader, view, contextNow, hasCarrier, lastCarrier, isPrelude, markBusy, markIdle, setPrompts, clearPrompts, problem, trySave, claimQuiet, FOREGROUND, HOOK_TIMEOUT_MS, ASSIST_WAIT_MS, RPG_LOAD_WAIT_MS, OWN_PROMPT_PARTS, OWN_PROMPT_CHARS, STRIP_CACHE, HAS_BLOCK, HAS_LEGACY, hookTimeout, normalizeType } = deps;
+    const { ctx, metadata, store, bus, registry, settings, events, timeline, onBlocked, notify, initial, prepare, hostSettings, viewReader, view, contextNow, hasCarrier, lastCarrier, isPrelude, markBusy, markIdle, setPrompts, clearPrompts, problem, trySave, claimQuiet, FOREGROUND, HOOK_TIMEOUT_MS, ASSIST_WAIT_MS, RPG_LOAD_WAIT_MS, OWN_PROMPT_PARTS, OWN_PROMPT_CHARS, STRIP_CACHE, HAS_BLOCK, HAS_LEGACY, hookTimeout, normalizeType } = deps;
 
     // beforeGenerate (§4.1 step 3): each hook may return lines for the tail, or commands to
     // commit now as `system` receipts: string[] | { lines?: string[], commands?: [{ type, payload }] }.
@@ -238,6 +238,9 @@ export function createPromptBuild(s, deps) {
         s.session = null;
         markIdle();
         clearPrompts();
+        if (moduleId === HOST_MODULE && registry.restore?.().state === 'pending') {
+            problem({ code: 'RESTORE_PENDING', message: `The reply was not sent. ${reason}` });
+        }
         try { abort?.(true); } catch (error) { console.warn('[Story Suite] the generation could not be stopped', error); }
         if (fightStart) {
             try { Promise.resolve(ctx?.saveChat?.()).catch(() => {}); } catch { /* the next chat write saves it */ }
@@ -303,6 +306,16 @@ export function createPromptBuild(s, deps) {
             // A Regenerate removes the old reply before this runs, without an event for it.
             if (store.headIndex() !== lastCarrier()) store.rebuild();
             if (hasCarrier()) store.ensureInitial(initial());
+            // Do not start or await another recovery before telling a reader whose send is already held.
+            // `settle` catches a head change first; recovery continues on its own schedule.
+            timeline?.settle();
+            if (registry.restore?.().state === 'pending') {
+                if (timeline?.needsRecovery()) {
+                    timeline.recover().catch(error => problem({ code: 'FAILED', message: `The restore could not be checked: ${error?.message ?? error}` }));
+                }
+                const waiting = await blockedBy(kind);
+                if (waiting) { block({ ...waiting, keepSession: Boolean(s.heldBoard) }, abort); return; }
+            }
             await ensureModules({ store, bus, registry, events });
             if (s.heldBoard) {
                 block({ moduleId: 'story-block', reason: 'Restore the fight sheet or gear, or discard the fight and regenerate the held reply.', keepSession: true }, abort);

@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { crash } from '../../src/v2/timeline/index.js';
+import { PARTICIPANT_TIMEOUT_MS } from '../../src/v2/timeline/participants.js';
 import { BATCH, NATIVE, NPC, batchFor, clone, nativeModule, reload, rulesModule, seal, track } from './helpers/timeline.js';
 
 const reply = (text, lines = []) => (lines.length ? `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>` : text);
@@ -246,6 +247,8 @@ test('nativeMutation: an activation that fails leaves the barrier up and the jou
     const failed = await mutate(host, native, state => { state.dossiers.tavi.trust = 7; });
     assert.equal(failed.ok, false);
     assert.equal(host.registry.restore().state, 'pending', 'not unblocked while the participant is split from the story');
+    assert.deepEqual((await host.sdk.timeline.status()).blockedBy, { module: NATIVE, code: 'FAILED' });
+    assert.match(host.registry.restore().reason, /Test native.*activate failed/);
     assert.equal(host.timeline.host.journal().find(each => each.kind === 'native-mutation').phase, 'prepared');
     assert.equal((await host.sdk.timeline.head()).code, 'RESTORE_PENDING');
     native.native.fail.clear();
@@ -267,6 +270,33 @@ test('nativeMutation: an activation that fails leaves the barrier up and the jou
     });
     assert.equal(lying.code, 'CONFLICT');
     assert.equal(host.registry.restore().state, 'pending');
+});
+
+test('a hung native status reports its timeout and does not start activation before it settles', { timeout: 3000 }, async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let hang = false;
+    let finish;
+    const native = nativeModule();
+    const status = native.def.participant.status;
+    native.def.participant.status = input => hang ? new Promise(resolve => { finish = () => resolve(status(input)); }) : status(input);
+    const host = await createHost({ modules: [rulesModule(), native.def] });
+    t.after(() => host.close());
+    await host.send('Start.', 'A road.');
+    hang = true;
+    const changing = mutate(host, native, state => { state.dossiers.tavi.trust = 7; });
+    for (let i = 0; i < 40 && !finish; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(typeof finish, 'function');
+    t.mock.timers.tick(PARTICIPANT_TIMEOUT_MS);
+    for (let i = 0; i < 40; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal((await changing).code, 'STALE');
+    assert.deepEqual((await host.sdk.timeline.status()).blockedBy, { module: NATIVE, code: 'STALE' });
+    assert.match(host.registry.restore().reason, /did not answer status in time/);
+    assert.equal(native.native.calls.some(call => call.name === 'activate'), false);
+    hang = false;
+    finish();
+    for (let i = 0; i < 40; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal((await host.timeline.host.recover()).state, 'idle');
+    assert.equal(native.native.store.dossiers.tavi.trust, 7);
 });
 
 for (const phase of ['native.prepared', 'native.journaled']) {
