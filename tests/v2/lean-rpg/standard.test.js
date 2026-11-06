@@ -10,8 +10,9 @@ import { LIMITS, PACE, RESOLVE, STAGES, leanRpgGuard, normalizeRules, parsePlanA
 import { FORMULA_SETTING, STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_RULE_KEYS, formulaOf, oddsFor, presetOf, rulesFromSettings, sameRules, PRESETS, subjectOdds, oddsSubject, STANDARD_SETTING, DIFFICULTY_SETTING } from '../../../src/v2/lean-rpg/rules.js';
 import { PRECALL_HEAD, PRECALL_HEAD_STANDARD, precallPrompt, sheetText } from '../../../src/v2/lean-rpg/precall.js';
 import { cueText } from '../../../src/v2/lean-rpg/cue.js';
-import { judge, outcomeStd, prepareStandard, rollStandard } from '../../../src/v2/lean-rpg/standard.js';
+import { judge, outcomeStd, prepareStandard as prepareMemberStandard, rollStandard as rollMemberStandard } from '../../../src/v2/lean-rpg/standard.js';
 import { packAttacks, splitFoes } from '../../../src/v2/lean-rpg/board/members.js';
+import { memberRolls } from '../../../src/v2/lean-rpg/board/member-rolls.js';
 import { exchangePlan } from '../../../src/v2/lean-rpg/board/plan.js';
 import { rollsOf } from '../../../src/v2/lean-rpg/resolve.js';
 import { hashJson } from '../../../src/v2/replay.js';
@@ -19,6 +20,8 @@ import { PARTY, character, foeBlock, levelFoeBlock, rollReceipt, setup, sheetDom
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
+const prepareStandard = (plan, sheet, rules, options) => prepareMemberStandard(plan, sheet, rules, { ...options, memberRolls: memberRolls(plan) });
+const rollStandard = (plan, prepared, source, rules, options) => rollMemberStandard(plan, prepared, source, rules, { ...options, memberRolls: memberRolls(plan) });
 
 // ---- helpers ----------------------------------------------------------------------------------------------------------
 

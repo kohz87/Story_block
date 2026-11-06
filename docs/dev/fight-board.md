@@ -9,6 +9,7 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 
 - `src/v2/lean-rpg/board/session.js`: opens, stages, discards and reconciles the metadata session, saves the last payload, keeps the Send copy (`markSend`, `readSend`, `clearSend`) and the `rpgFightLinks` message links.
 - `src/v2/lean-rpg/board/members.js`: splits a foe slot of 2–5 into numbered members and 6+ into even packs of at most 12 (bar, attacks, "about N left", area blocks), and collapses their final bars to ordinary count/hurt moves. A count of 1 is never split.
+- `src/v2/lean-rpg/board/member-rolls.js`: supplies new-board hooks for pack attacks and area damage, target rotation and defence paid once per exchange; a setup marker preserves earlier rotations on replay.
 - `src/v2/lean-rpg/board/engine.js`: plays the setup and exchanges on a private state copy and checks their input witness; in a new fight (`setup.members: 1`) it runs split groups as virtual foes and collapses them only when the fight ends.
 - `src/v2/lean-rpg/board/plan.js`: validates member actions and makes a Standard plan with foe actions and automatic defence (a new fight: one attack per member, pack attacks, an area scoped to one group, defence paid once per exchange).
 - `src/v2/lean-rpg/board/rules.js`: picks the attack stat and the best usable defence skill.

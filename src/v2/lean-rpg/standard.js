@@ -1,25 +1,13 @@
-// The Standard formula's roll (formula.js has the numbers; resolve.js dispatches here when the recorded rules say `formula: 'standard'`).
-//
-// What is different from Classic (resolve.js):
-// - a roll is typed: physical, magic, defence, social or check (plan.js). The stat part is formula.js statPart: a skill's stat takes the
-//   main slot, half of the type's second stat is added, the sum is halved once. Class = the level bonus (floor(level / divisor); before levels classWeight × Soul Class), then the skill's rank,
-//   then the situation's edge held inside LUK's window (formula.js luckWindow, edgeWithLuck).
-// - a foe adds foeBonus(class, rules) = foeBase + foeClassWeight × class.
-// - a fight has a turn order (rolled once, kept across replies, carried in the payload), an opening action for a character who leads a
-//   foe by the quick-start margin, and bars: a hit takes 1 block (2 when decisive) from the target's Health, a heal gives 1 (2). A foe
-//   group or a character who is beaten before their turn does not act. Area attacks roll once against each target. Support rolls
-//   against a difficulty.
-// - the blocks the told rolls take or give are recorded on the roll (`hurts`) and written to the bars by resolve.js.
-//
-// The record (extends resolve.js's): result.formula 'standard'; each Line has `type`, and pc = { who, die, type, stat (the main stat),
-// second, mainValue, secondValue, statBonus (the pair), style ('dodge'|'block'|'ward'|null), classValue, classBonus, rank, window { min, max } (what LUK allows the edge),
-// situation (the edge asked for), edge (after luck), total }, foe = { slot, name, die, base, classValue, classBonus, total }; contested lines
-// have `decisive` and, where a bar moved, `damage` = { id, kind: 'char'|'foe', name, blocks (+ hurt, − healed), from, to, size };
-// `area`, `support` (target = the one healed) and `opening` mark those lines. The result adds `order` = [{ id, name, total, die, bonus,
-// agi, party, fresh }] (the turn order for the fight), `quickStart` = [{ who, against }], `opening` = [Line], `idle` = [{ n, id, who,
-// kind, why }] and `hurts` = [{ id, kind, name, module, field, from, to, size }].
+// The Standard formula's rolls: formula.js supplies the numbers and resolve.js dispatches the recorded rules here.
+// Typed rolls combine stats, class or level, skill and edge; fights carry initiative, opening actions and Health bars.
+// A beaten actor cannot act, area attacks roll once per target, and support rolls against a difficulty.
+// Lines record both sides, outcome, decisive hits and damage; the result also records order, opening, idle and hurts.
+// Each pc side carries its die, main and second stats, class, rank, luck window, edge and total; a foe side carries
+// its slot, name, die, base, class and total. A damage record names the bar, blocks, from, to and size.
+// Order entries retain each actor's initiative, die and bonus; quickStart names each leading character and foe.
+// Idle entries say who could not act and why; hurts contain the field moves applied after the roll.
+// resolve.js writes the told bar movements. Optional board hooks add member rules without changing planner rolls.
 import { ambushOf, ambushRecord, ambushedStandard } from './ambush.js';
-import { packAreaBlocks, packAttacks } from './board/members.js';
 import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, levelBonus, luckWindow, quickStart, statPart, turnOrder } from './formula.js';
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
@@ -110,7 +98,7 @@ function sideStd(character, type, skill, { fit = null, edge = 0, againstMagic = 
  * The plan against the sheet under Standard `rules`: what can be rolled, what is refused, the witness (every sheet number the roll
  * depends on, which the replay guard asks again) and the roster (the bars). → { acts, foes, checks, refused, plainRefused, witness, roster }
  */
-export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false, fix = false, then = false } = {}) {
+export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv = false, fix = false, then = false, memberRolls = null } = {}) {
     // (`then`: the mark of the follow-up skill, plan.js; without it an act's `then:` is not read.) (`fix`: the stage-65 fallback of a spent skill, see FIX_VERSION in open.js; a roll made before keeps the plain roll it had: the plan's own type, the skill's area, no `else:`)
     const out = { acts: [], foes: [], checks: [], refused: [], plainRefused: [] };
     const roster = rosterOf(sheet, maxOf);
@@ -212,15 +200,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
         const base = preparedFoe(entry, entry.target, entry.skill, at);
         if (!base) continue;
         out.foes.push(base);
-        if (entry.once === true && plan.rotation?.targets?.length) {
-            const options = plan.rotation.targets.map(option => {
-                if (option.target === entry.target && (option.skill ?? '') === (entry.skill ?? '')) return base;
-                const alternate = preparedFoe(entry, option.target, option.skill, at, { note: false });
-                return alternate ? { ...alternate, base } : null;
-            });
-            if (!out.foeChoices) out.foeChoices = [];
-            out.foeChoices[at] = options;
-        }
+        memberRolls?.prepareFoe(out, entry, base, at, preparedFoe);
     }
     for (const [at, entry] of (plan.checks ?? []).entries()) {
         const actor = ready(entry.who);
@@ -283,7 +263,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null, opened = null, fix = false, then = false, board = false } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null, drop = null, opened = null, fix = false, then = false, board = false, memberRolls = null } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -343,7 +323,6 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     });
     const order = turnOrder(entries).map(id => entries.find(entry => entry.id === id));
     const owner = entry => (entry.kind === 'foe' ? foeId(entry.foe.slot) : entry.actor);
-    const rotation = plan.rotation && Array.isArray(plan.rotation.targets) && plan.rotation.targets.length ? plan.rotation : null;
 
     const actOf = entry => {
         const roll = diceOf(entry), pcDie = roll(), foeDie = roll();
@@ -365,7 +344,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         }
         const hit = (foeBar, dice) => {
             const rolled = contested(entry, dice.pcDie, dice.foeDie, rules);
-            const blocks = entry.area && foeBar.foe.pack === true ? packAreaBlocks(foeBar.size, rolled.decisive) : rolled.decisive ? 2 : 1;
+            const blocks = memberRolls?.hitBlocks(entry, foeBar, rolled.decisive) ?? (rolled.decisive ? 2 : 1);
             const damage = rolled.pcWins && ['physical', 'magic'].includes(entry.type) ? damageOf(foeBar, blocks) : undefined;
             return { kind: 'act', type: entry.type, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), ...(entry.area ? { area: true } : {}),
                 pc: rolled.pc, foe: { ...rolled.foe, name: foeBar.name, slot: foeBar.slot }, outcome: rolled.outcome, decisive: rolled.decisive, ...(damage ? { damage } : {}) };
@@ -401,17 +380,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         return { ...rest, ...later, base: base.base ?? base };
     };
     const doAct = (base, round = 0) => withUse(ambushedStandard(round > 1 ? laterOf(base) : base, round, ambush), actOf);
-    // A new-board defence is paid on the first attack that actually reaches its defender. Later attacks reuse that
-    // defence; if the first fell back to a plain roll (or an `else:` skill), they fall back the same way and never
-    // gain the unspent skill for free.
-    const defended = new Map();
-    const doFoe = base => {
-        const first = base.once === true ? defended.get(base.actor) : undefined;
-        const use = first === true ? { ...base, paid: true } : base;
-        const done = withUse(use, foeOf);
-        if (base.once === true && done.lines?.length && first === undefined) defended.set(base.actor, !done.lines[0]?.without && Boolean(use.skill));
-        return done;
-    };
+    const doFoe = base => withUse(base, foeOf);
 
     // The opening action: a character who leads a foe by the margin acts once against it before the first round.
     const opening = [], quick = [];
@@ -439,7 +408,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const all = [];
     for (let n = 1; n <= most; n += 1) {
         const roundLines = [], roundIdle = [];
-        let made = 0;
+        memberRolls?.startRound();
         for (const { id } of order) {
             const bar = bars.get(id);
             if (bar.kind === 'char') {
@@ -451,16 +420,11 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
                     roundLines.push(...done.lines);
                 }
             } else {
-                let mine = board ? prepared.foes.filter(entry => entry.foe.slot === bar.slot) : [prepared.foes.find(entry => entry.foe.slot === bar.slot)];
-                if (board && bar.foe.pack === true) mine = mine.slice(0, packAttacks(bar.foe.count, bar.value, bar.size));
+                const mine = memberRolls?.attacks(prepared.foes, bar) ?? (board ? prepared.foes.filter(entry => entry.foe.slot === bar.slot) : [prepared.foes.find(entry => entry.foe.slot === bar.slot)]);
                 for (const base of mine) {
                     if (!base) continue;
-                    const choices = rotation && base.once === true ? prepared.foeChoices?.[base.at] : null;
-                    const offset = Math.max(0, (Number(rotation?.number) || 1) - 1);
-                    const entry = Array.isArray(choices) ? choices[(offset + made) % rotation.targets.length] ?? base : base;
-                    const done = doFoe(entry);
+                    const done = memberRolls ? memberRolls.foe(base, prepared, doFoe, standing) : doFoe(base);
                     if (done.idle) roundIdle.push({ n, id, who: bar.name, kind: 'foe', why: done.idle }); else roundLines.push(...done.lines);
-                    if (done.lines?.length) made += 1;
                 }
             }
         }

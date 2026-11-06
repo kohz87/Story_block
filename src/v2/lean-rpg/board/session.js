@@ -30,8 +30,9 @@ export function openBoard(meta, state, { sid, rules, gear = null, weapons = {} }
     const seed = fightSeed(sid, attempt);
     const pending = object(meta[START]) && meta[START].anchor === sid ? meta[START] : null;
     const opened = Array.isArray(pending?.result?.opened) && pending.result.opened.length ? structuredClone(pending.result.opened) : null;
+    // Record the rotation rule so an earlier member fight still replays its original attacks.
     const session = { id: `${sid}:${attempt}`, origin: sid, anchor: sid, groups,
-        setup: { seed, offset: 0, rules: structuredClone(rules), members: 1, ...(opened ? { opened } : {}),
+        setup: { seed, offset: 0, rules: structuredClone(rules), members: 1, standingTargets: 1, ...(opened ? { opened } : {}),
             flags: boardFlags(state), weapons: structuredClone(weapons), ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
     const preview = playBoard(state, session.setup, []);
     if (preview.error) return preview;

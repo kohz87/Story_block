@@ -5,14 +5,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { carriedFrom, collapseFoes, packAreaBlocks, splitFoes } from '../../../../src/v2/lean-rpg/board/members.js';
+import { memberRolls } from '../../../../src/v2/lean-rpg/board/member-rolls.js';
 import { exchangePlan } from '../../../../src/v2/lean-rpg/board/plan.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { hashJson } from '../../../../src/v2/replay.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
-import { prepareStandard, rollStandard } from '../../../../src/v2/lean-rpg/standard.js';
+import { prepareStandard as prepareMemberStandard, rollStandard as rollMemberStandard } from '../../../../src/v2/lean-rpg/standard.js';
 import { character, levelFoeBlock, sheetDomain, skillBlock } from '../helpers.js';
 
 const rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
+const prepareStandard = (plan, sheet, rules, options) => prepareMemberStandard(plan, sheet, rules, { ...options, memberRolls: memberRolls(plan) });
+const rollStandard = (plan, prepared, source, rules, options) => rollMemberStandard(plan, prepared, source, rules, { ...options, memberRolls: memberRolls(plan) });
 const stateOf = blocks => ({ domains: { dataModules: sheetDomain(blocks) } });
 const dice = (table = {}, fallback = 10) => (kind, at) => {
     const list = [...(table[`${kind}${at}`] ?? [])];

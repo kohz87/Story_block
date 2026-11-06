@@ -13,6 +13,7 @@ import { hasLevels, isStandard } from '../rules.js';
 import { prepareStandard, rollStandard, summaryStd } from '../standard.js';
 import { boardDice } from './dice.js';
 import { fleeRoll } from './flee.js';
+import { memberRolls } from './member-rolls.js';
 import { boardFoes, collapseFoes, memberSize, splitFoes } from './members.js';
 import { exchangePlan } from './plan.js';
 import { attackStat } from './rules.js';
@@ -141,9 +142,10 @@ export function playBoard(state, setup, exchanges) {
             stop = 'fled';
             continue;
         }
-        const prepared = prepareStandard(built.plan, fightSheet, rules, { maxOf: limits, lv: hasLevels(rules), fix: true, then: true });
+        const hooks = members ? memberRolls(built.plan, { standingTargets: setup.standingTargets === 1 }) : null;
+        const prepared = prepareStandard(built.plan, fightSheet, rules, { maxOf: limits, lv: hasLevels(rules), fix: true, then: true, memberRolls: hooks });
         weaponSides(prepared, fightSheet, equipment.weapons);
-        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
+        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, memberRolls: hooks, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
         const lines = rolled.rounds[0]?.lines ?? [];
         if (equipment.gear) {
             noteGear([...rolled.opening, ...lines], equipment.gear);
