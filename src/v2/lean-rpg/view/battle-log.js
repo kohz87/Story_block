@@ -26,7 +26,7 @@
 // For a 'foe' line `pc` is the defender. The numbers read the party's total against the foe's total (or the DC).
 
 import { RESOLVE } from '../index.js';
-import { LEVEL, CLASS_NAMES, RANK_NAMES } from '../names.js';
+import { LEVEL, CLASS_NAMES, RANK_NAMES, STAGES, stageWord } from '../names.js';
 import { readRecord } from '../../persist.js';
 import { fold } from '../read.js';
 import { characterReading, soulShortOf } from '../soul.js';
@@ -34,6 +34,7 @@ import { RPG_STRINGS, fill } from '../strings.js';
 import { wearLine } from '../cue.js';
 import { noRollOf } from '../noroll.js';
 import { BARS, readFoes, readParty } from './party-data.js';
+import { memberOrderEntries } from '../board/order.js';
 
 const B = RPG_STRINGS.battle;
 // The result word of a foe's attack, by the recorded outcome (the party's): the colour stays the outcome's (fail red, cost amber, success green).
@@ -118,7 +119,7 @@ const costOf = cost => (isRecord(cost) ? /:(mana|stamina)$/.exec(String(cost.id 
 
 // One Line as the panel draws it: who acts, on whom, the acting side's total against the other's, and the roll behind it. A party
 // act or check reads the party's total first; a foe's attack reads from the attacker's side, so the foe's total and roll come first.
-function lineOf(raw, soulOf = () => null, lv = false, divisor = null) {
+function lineOf(raw, soulOf = () => null, lv = false, divisor = null, members = null) {
     if (!isRecord(raw) || !isRecord(raw.pc) || !Number.isFinite(raw.pc.total)) return null;
     // The divisor the roll was made with is the result's own (rules.levelDivisor): both sides of the line tell it, not today's default.
     if (lv && divisor !== null) raw = { ...raw, pc: { ...raw.pc, divisor: raw.pc.divisor ?? divisor }, ...(isRecord(raw.foe) ? { foe: { ...raw.foe, divisor: raw.foe.divisor ?? divisor } } : {}) };
@@ -136,7 +137,20 @@ function lineOf(raw, soulOf = () => null, lv = false, divisor = null) {
     const standard = typeof raw.type === 'string' && Number.isFinite(raw.pc.mainValue) && Number.isFinite(raw.pc.secondValue);
     const breakdown = told || (standard ? breakdownStandard(raw, skill, soul, foeSide, against, lv) : why ? `${detail} · ${why}` : detail);
     const gear = gearText(raw.pc.gear);
-    const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: gear && breakdown ? `${breakdown} · ${gear}` : breakdown, arrows: [], ...(costOf(raw.cost) ? { cost: costOf(raw.cost) } : {}), ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}), ...(gear ? { gear } : {}) };
+    // New-board virtual bars never reach the Foes block. Their own recorded moves, and each actual skill cost,
+    // belong on the line that made them, rather than on a line chosen from the reply's final state.
+    const arrows = [], cost = costOf(raw.cost);
+    const movement = (move, kind, name) => {
+        if (!isRecord(move) || !Number.isFinite(move.from) || !Number.isFinite(move.to) || !Number.isFinite(move.size) || move.size <= 0 || !name) return false;
+        const to = stageWord(STAGES[kind], move.to, move.size);
+        if (move.from !== move.to) arrows.push(kind === 'health' ? `${name} ${to}` : fill(B.arrowBar, { name, bar: RPG_STRINGS.bars[kind], word: to }));
+        return true;
+    };
+    const member = members?.get(raw.damage?.id);
+    if (member) movement(raw.damage, 'health', words(member.name, 40));
+    const recordedCost = members && cost && movement(raw.cost, cost, words(raw.cost?.name ?? raw.pc.who, 40));
+    const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: gear && breakdown ? `${breakdown} · ${gear}` : breakdown, arrows, ...(cost ? { cost } : {}),
+        ...(recordedCost ? { recordedCost: cost } : {}), ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}), ...(gear ? { gear } : {}) };
     // A support action (a heal or a buff, a `check` line that names the one helped) reads like an act on that character.
     if (raw.kind === 'check' && raw.support === true && words(raw.target, 40)) return { ...base, who: words(raw.pc.who, 40), target: words(raw.target, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, support: true, heals: isRecord(raw.damage) && raw.damage.blocks < 0 };
     if (raw.kind === 'foe') return { ...base, total: foeSide?.total ?? null, vs: raw.pc.total, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', defence: skill, stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
@@ -152,15 +166,18 @@ export function readResolve(result, { soulOf = () => null } = {}) {
     if (!isRecord(result)) return null;
     const lv = result.lv === 1;
     const divisor = Number.isInteger(result.rules?.levelDivisor) ? result.rules.levelDivisor : null;
+    const memberList = Array.isArray(result.members) ? result.members.filter(isRecord) : null;
+    const virtual = memberList ? memberList.filter(item => Number.isInteger(item.slot) && Number.isInteger(item.group) && item.slot !== item.group) : [];
+    const members = memberList ? new Map(virtual.map(item => [`f:${item.slot}`, item])) : null;
     const rounds = list(result.rounds).map((round, at) => {
         // Who does not act this round: Standard's `idle` entries (with why), or plain names (read as beaten before their turn).
         const skipped = list(round?.idle ?? round?.skipped).map(item => ({ who: words(isRecord(item) ? item.who ?? item.name : item, 40), why: IDLE[item?.why] ? item.why : 'beaten' })).filter(item => item.who);
         const n = Number.isSafeInteger(round?.n) ? round.n : at + 1;
         // What the round wore out (gear.js): "Boiled Leather Jerkin is worn (Torn)", from the roll's own record.
         const wear = list(result.wear).filter(item => isRecord(item) && item.n === n && words(item.item, 60)).map(item => wearLine({ ...item, item: words(item.item, 60) }));
-        return { n, lines: list(round?.lines).map(line => lineOf(line, soulOf, lv, divisor)).filter(line => line?.who), ...(skipped.length ? { skipped } : {}), ...(wear.length ? { wear } : {}) };
+        return { n, lines: list(round?.lines).map(line => lineOf(line, soulOf, lv, divisor, members)).filter(line => line?.who), ...(skipped.length ? { skipped } : {}), ...(wear.length ? { wear } : {}) };
     }).filter(round => round.lines.length || round.skipped?.length);
-    const opening = list(result.opening).map(line => lineOf(line, soulOf, lv, divisor)).filter(line => line?.who);
+    const opening = list(result.opening).map(line => lineOf(line, soulOf, lv, divisor, members)).filter(line => line?.who);
     const checks = list(result.checks).map(line => lineOf(line, soulOf, lv, divisor)).filter(line => line?.who);
     const refused = list(result.refused).filter(isRecord).map(item => ({ who: words(item.who, 40), why: words(item.text, 160) })).filter(item => item.why);
     if (!rounds.length && !checks.length) return null;
@@ -173,14 +190,22 @@ export function readResolve(result, { soulOf = () => null } = {}) {
         if (isRecord(raw.pc) && raw.pc.who) rolledAt.set(fold(words(raw.pc.who, 40)), raw.pc.level ?? raw.pc.classValue);
         if (isRecord(raw.foe) && raw.foe.name) rolledAt.set(fold(words(raw.foe.name, 40)), raw.foe.level ?? raw.foe.classValue);
     }
-    const entries = list(result.order).filter(isRecord).map(item => ({ name: words(item.name, 40), total: Number.isFinite(item.total) ? item.total : null, party: item.party === true,
+    const entries = list(result.order).filter(isRecord).map(item => ({ ...(memberList ? { id: item.id, slot: item.slot } : {}), name: words(item.name, 40), total: Number.isFinite(item.total) ? item.total : null, party: item.party === true,
         ...(rolledAt.has(fold(words(item.name, 40))) && Number.isFinite(rolledAt.get(fold(words(item.name, 40)))) ? { level: rolledAt.get(fold(words(item.name, 40))) } : {}) })).filter(item => item.name);
+    if (memberList) {
+        for (const item of entries) if (item.level === undefined && !item.party) {
+            const member = memberList.find(entry => `f:${entry.slot}` === item.id);
+            const level = memberList.filter(entry => entry.group === member?.group).map(entry => rolledAt.get(fold(words(entry.name, 40)))).find(Number.isFinite);
+            if (level !== undefined) item.level = level;
+        }
+        entries.splice(0, entries.length, ...memberOrderEntries(entries, memberList));
+    }
     const order = entries.length ? entries.map(item => item.name) : [...new Set(rounds[0]?.lines.map(line => line.who) ?? [])];
     const quickStart = list(result.quickStart).filter(isRecord).map(item => ({ who: words(item.who, 40), against: words(item.against, 40) })).filter(item => item.who && item.against);
     // An ambush check's result (ambush.js): told in one line before Round 1.
     const ambush = isRecord(result.ambush) && words(result.ambush.who, 40) && typeof result.ambush.success === 'boolean'
         ? { who: words(result.ambush.who, 40), what: words(result.ambush.skill, 40) ? `${words(result.ambush.skill, 40)} check` : 'check', success: result.ambush.success, half: result.ambush.outcome === 'cost', drop: result.ambush.drop === true, total: Number.isFinite(result.ambush.total) ? result.ambush.total : '?', dc: Number.isFinite(result.ambush.dc) ? result.ambush.dc : '?' } : null;
-    return { rounds, checks, refused, order, ...(ambush ? { ambush } : {}), ...(entries.length ? { orderEntries: entries } : {}), ...(quickStart.length ? { quickStart } : {}), ...(opening.length ? { opening } : {}), ended: '' };
+    return { rounds, checks, refused, order, ...(memberList ? { virtualGroups: [...new Set(virtual.map(item => item.group))] } : {}), ...(ambush ? { ambush } : {}), ...(entries.length ? { orderEntries: entries } : {}), ...(quickStart.length ? { quickStart } : {}), ...(opening.length ? { opening } : {}), ended: '' };
 }
 
 /** The recorded rolls of a reply's record: the result of its `rpg.resolve` receipt that the replay kept, or null. */
@@ -202,7 +227,7 @@ function consequences(state, before, roleOf) {
     const foesBefore = new Map(readFoes(before, { roleOf }).map(foe => [foe.name, foe]));
     for (const foe of readFoes(state, { roleOf })) {
         const was = foesBefore.get(foe.name);
-        if (was && was.hurt !== foe.hurt) out.push({ name: foe.name, kind: 'health', text: `${foe.name} ${foe.word}` });
+        if (was && was.hurt !== foe.hurt) out.push({ name: foe.name, kind: 'health', foeSlot: foe.slot, text: `${foe.name} ${foe.word}` });
     }
     const was = new Map(readParty(before, { roleOf }).map(character => [`${character.module}|${character.subject}`, character]));
     for (const character of readParty(state, { roleOf })) {
@@ -231,15 +256,23 @@ function attach(model, changes) {
  * `state` and `before` are the reply's state and the one before it (null for none).
  */
 export function panelModel({ resolve, state, before = null, roleOf, ranks = [] }) {
-    const model = { ...resolve, rounds: resolve.rounds.map(round => ({ ...round, lines: round.lines.map(line => ({ ...line, arrows: [] })) })),
-        ...(resolve.opening ? { opening: resolve.opening.map(line => ({ ...line, arrows: [] })) } : {}) };
-    attach(model, consequences(state, before, roleOf));
+    const copyLine = line => ({ ...line, arrows: [...(line.arrows ?? [])] });
+    const model = { ...resolve, rounds: resolve.rounds.map(round => ({ ...round, lines: round.lines.map(copyLine) })),
+        ...(resolve.opening ? { opening: resolve.opening.map(copyLine) } : {}) };
+    const recordedCosts = [...(model.opening ?? []), ...model.rounds.flatMap(round => round.lines)]
+        .filter(line => line.recordedCost).map(line => `${fold(line.foe ? line.target : line.who)}|${line.recordedCost}`);
+    const changes = consequences(state, before, roleOf).filter(change => !resolve.virtualGroups?.includes(change.foeSlot)
+        && !recordedCosts.includes(`${fold(change.name)}|${change.kind}`));
+    attach(model, changes);
     const names = new Set([...(model.opening ?? []), ...model.rounds.flatMap(round => round.lines)].flatMap(line => [line.who, line.target]));
     const party = readParty(state, { roleOf });
     const foes = readFoes(state, { roleOf, ranks });
     // The turn order says each one's level, "Astra (Lv 14)": the level the roll used where the record has it, else read from the reply's state (so a swipe and a Re-read agree).
     const levelByName = new Map([...party, ...foes].map(item => [fold(item.name), item.level]));
-    if (model.orderEntries) model.orderEntries = model.orderEntries.map(item => (item.level === undefined && levelByName.has(fold(item.name)) ? { ...item, level: levelByName.get(fold(item.name)) } : item));
+    if (model.orderEntries) model.orderEntries = model.orderEntries.map(item => {
+        const level = item.group ? foes.find(foe => foe.slot === item.group)?.level : levelByName.get(fold(item.name));
+        return item.level === undefined && level !== undefined ? { ...item, level } : item;
+    });
     const involved = party.filter(character => names.has(character.name));
     model.status = (involved.length ? involved : party).map(character => ({ name: character.name,
         rows: BARS.map(key => ({ key, ...character.bars[key], label: character.definition.state?.[key]?.label ?? RPG_STRINGS.bars[key] })) }));

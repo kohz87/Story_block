@@ -8,20 +8,28 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 ## Files
 
 - `src/v2/lean-rpg/board/session.js`: opens, stages, discards and reconciles the metadata session, saves the last payload, keeps the Send copy (`markSend`, `readSend`, `clearSend`) and the `rpgFightLinks` message links.
-- `src/v2/lean-rpg/board/engine.js`: plays the setup and exchanges on a private state copy and checks their input witness.
-- `src/v2/lean-rpg/board/plan.js`: validates member actions and makes a Standard plan with foe actions and automatic defence.
+- `src/v2/lean-rpg/board/members.js`: splits a foe slot of 2–5 into numbered members and 6+ into even packs of at most 12 (bar, attacks, "about N left", area blocks), and collapses their final bars to ordinary count/hurt moves. A count of 1 is never split.
+- `src/v2/lean-rpg/standard-foes.js`: prepares Standard foe attacks and optional alternate member-fight defenders.
+- `src/v2/lean-rpg/standard/roster.js`: reads a Standard sheet into bars for characters, foe groups and skill resources.
+- `src/v2/lean-rpg/standard/prepare.js`: `prepareStandard` and its helpers (acts, foe sides, checks, refusals and the witness).
+- `src/v2/lean-rpg/standard/roll.js`: `rollStandard` (turn order, rounds, acts, area and outcomes) and its outcome helpers; `standard.js` re-exports them.
+- `src/v2/lean-rpg/board/member-rolls.js`: supplies new-board hooks for pack attacks and area damage, rotation among standing targets and defence paid once per exchange.
+- `src/v2/lean-rpg/board/order.js`: shared grouped turn-order labels for the board and the battle log (a split slot rolls once, so its members show together).
+- `src/v2/lean-rpg/board/engine.js`: plays the setup and exchanges on a private state copy and checks their input witness; in a new fight (`setup.members: 1`) it runs split groups as virtual foes and collapses them only when the fight ends.
+- `src/v2/lean-rpg/board/plan.js`: validates member actions and makes a Standard plan with foe actions and automatic defence (a new fight: one attack per member, pack attacks, an area scoped to one group, defence paid once per exchange).
 - `src/v2/lean-rpg/board/rules.js`: picks the attack stat and the best usable defence skill.
 - `src/v2/lean-rpg/board/flee.js`: rolls the AGI contest against the strongest standing foe group.
 - `src/v2/lean-rpg/board/dice.js`: derives the fight seed and each exchange's independent dice stream.
 - `src/v2/lean-rpg/board/flags.js`: infers skill flags from wording and keys explicit choices.
 - `src/v2/lean-rpg/board/overrides.js`: declares `rpg.boardSkill` and keeps reply-owned explicit flags.
-- `src/v2/lean-rpg/board/commit.js`: replays and guards the board prelude, claims once and writes hurts and wear.
+- `src/v2/lean-rpg/board/commit.js`: replays and guards the board prelude, claims once and writes member results, hurts and wear.
 - `src/v2/lean-rpg/board/note.js`: builds the settled account and word-based bar movements.
 - `src/v2/lean-rpg/board/awards.js`: selects the opening foe groups for one win award.
-- `src/v2/lean-rpg/board/view-data.js`: builds choices, target labels and pending awards.
-- `src/v2/lean-rpg/board/view.js`: renders the board, keyboard handling and in-page discard confirmation.
+- `src/v2/lean-rpg/board/view-data.js`: builds choices, member groups and target labels, pending awards and their compact phone wording.
+- `src/v2/lean-rpg/board/view.js`: renders the board, member and pack cards, measures phone card rows, choices and log content, marks finished fights, handles keys and confirms discards in-page. Down packs omit the thinning line.
 - `src/v2/lean-rpg/board/skill-editor.js`: draws the three checkboxes in the skill editor.
-- `src/v2/lean-rpg/board/board.css`: provides the touch layout and sizing.
+- `src/v2/lean-rpg/board/board.css`: provides the touch layout, phone log, card and choice scrolling, finished-fight page scrolling and bottom-bar clearance.
+- `src/v2/view/mounts/screen.js`, `view/widgets/hero.js` and `view/glass.css`: offer the game-view hero's More/Less control while a phone board is open, resetting it when the board is discarded; board CSS activates the compact presentation.
 - `src/v2/lean-rpg/board/offers.js`, `offer-line.js`, `start-view-data.js`: find the opening reply and draw its offer line (the Fight tab alert is the `badge` in `view/fight.js`).
 - `src/v2/lean-rpg/board/start-controller.js`, `pause.js`, `fight-start.css`: draw the waiting choice and resume the reply.
 - `src/v2/turn/fight-start.js`: binds a pending send to its anchor sid and message and detects possible new fights while planning.
@@ -89,6 +97,7 @@ the approach checks earn practice and a successful ambush applies to the first e
 
 ## Decisions
 
+- Foe members (owner 6 Nov, mockup 29BShyZ8z7niWqttc3kcCH): a new fight (`setup.members: 1`) gives 2–5 foes their own bars and attacks and fights 6+ as packs of at most 12 (bar = one foe's bar + count ÷ 3, at most 12; attacks = 1 + count ÷ 6, at most 3, thinning with the bar and capped at its turn; an area hit takes a third of a pack's bar). Each real slot keeps one initiative die. The automatic defence is paid once per exchange and covers every attack. An area skill hits one picked group. XP is unchanged and paid from the original counts on a win. Within one fight the exact bars carry across replies (`setup.carriedMembers`, restored on rewind); split groups are written to the Foes block only when the fight ends (count = foes standing, health = the healthiest). A later, separate fight rebuilds from the block. Setups without `members` and the planner path are unchanged (`standard/roll.js` hooks are no-ops for them).
 - Exchanges are final once rolled; Discard fight confirms before clearing the unsent fight and changes its
   next seed. A message sent mid-fight carries the exchanges already played and the fight stays open.
 - A changed sheet or gear holds a staged fight until restored or discarded. The board is offered only under
@@ -105,6 +114,7 @@ the approach checks earn practice and a successful ambush applies to the first e
 
 ## Test map
 
+- `members.test.js`, `members-fight.test.js`, and the member cases in `engine`, `plan`, `session`, `awards`, `view`, `view-data`, `standard`, `state-fuzz` and `delete-fuzz` tests: splitting, packs, carry and rewind, collapse, XP, pay-once defence, group area, pack attack cap, opening order and byte-identical old fights.
 - `awards.test.js` covers batched practice, the per-skill cap, swipe and Re-read, and XP across a split fight.
 - `commit.test.js` covers staged versus committed results, claims, gear wear, story lines during capture,
   reader edits in flight, and held-reply restore/discard after reload. `view.test.js` covers the hold notice.
@@ -115,9 +125,9 @@ the approach checks earn practice and a successful ambush applies to the first e
   flags on rename, replay, and deletion of either edit.
 - `flow.test.js` and `replay.test.js` cover continuation, swipe, regenerate, reload, rewind and middle deletion.
 - `action-gate.test.js`, `start-flow.test.js`, `start-ui.test.js` and `trim.test.js` cover the waiting choice, approach, branch, offer, settings and prompt.
-- `note.test.js` and `view.test.js` cover defence, bar words, wear, controls, pending awards and discard.
+- `note.test.js`, `view.test.js`, `view-data.test.js`, `phone-css.test.js` and `view/widgets/blocks.test.js` cover defence, bar words, wear, controls, downed packs, pending awards, the expandable hero and phone layout.
 - `touch.test.js` renders the board at 390×844 and 360×740 in the game view and the Story panel when
-  the optional browser is available; choices and end-card controls must clear each bottom bar.
+  the optional browser is available; it checks choice priority, content-sized logs, whole card rows, the narrator fold, finished-board scrolling and bottom-bar clearance.
 - `tests/v2/qa/state-fuzz.test.js` includes board fights; `delete-fuzz.test.js` creates winning board segments
   among deletable replies and checks deleted and replayed rounds, practice and XP.
 
@@ -153,7 +163,7 @@ the approach checks earn practice and a successful ambush applies to the first e
 - The pause edge (`board/start-view-data.js` `edgeText`) claims an ambush only when an ambush check succeeded and says "acts first (initiative)"
   for a turn-order lead; every approach check is listed with its real result. The Fight log's lead line (`strings.js` `quickStartLine`) says
   the same and is left out when the ambush worked (`view/battle-log.js`).
-- A board exchange records the quick-start lead but rolls no opening action (`standard.js` opening loop, `board` option); the reader's own
+- A board exchange records the quick-start lead but rolls no opening action (`standard/roll.js` opening loop, `board` option); the reader's own
   action is the first roll. "Narrate it instead" keeps the planner's plan and its opening action.
 - Tests: `tests/v2/lean-rpg/board/start-fixes.test.js`.
 

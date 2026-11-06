@@ -23,6 +23,32 @@ test('the settled note states the defender verdict and keeps each wear event in 
     assert.match(note, /Exchange 3: Rats attacks Astra: Astra's defence \(Dodge\): fail \| Astra's Coat condition: torn → broken/);
 });
 
+test('a fight without members keeps the settled note byte for byte', () => {
+    const line = { kind: 'act', pc: { who: 'Astra' }, foe: { name: 'Rats' }, skill: 'Cut', outcome: 'success',
+        damage: { id: 'f:1', name: 'Rats', from: 5, to: 4, size: 5 } };
+    assert.equal(settledNote({ stop: 'open', rounds: [{ n: 1, lines: [line] }] }),
+        'Tell the settled fight results in order; do not reroll them. | Write [battle] on its own line where the fight is told. | Code has already moved the bars for these results; never set those yourself. | Exchange 1: Astra attacks Rats (Cut): success; Rats health Unhurt → Scratched. | The fight is still open. | The fight is still in progress; do not tell a post-fight aftermath yet.');
+});
+
+test('new foes say whether they fight alone or as a pack', () => {
+    const note = settledNote({ stop: 'open', members: [{}], rounds: [] }, { opened: [
+        { name: 'Bristle-boar', count: 3, level: 1 }, { name: 'Cellar-rat', count: 12, level: 2 },
+    ] });
+    assert.match(note, /New foes: Bristle-boar ×3 \(Lv 1\), each fought on its own, Cellar-rat ×12 \(Lv 2\), fought as a pack\./);
+});
+
+test('member and pack damage use the line names and say how many of the pack are about left', () => {
+    const members = [{ slot: 12, group: 1, n: 2, name: 'Bristle-boar 2', value: 3, size: 4, pack: false, count: 1 },
+        { slot: 11, group: 1, n: 1, name: 'Cellar-rats', value: 5, size: 8, pack: true, count: 12 }];
+    const memberLine = { kind: 'act', pc: { who: 'Astra' }, foe: { name: 'Bristle-boar 2', member: true, group: 1 },
+        outcome: 'success', damage: { id: 'f:12', name: 'Bristle-boar', from: 4, to: 3, size: 4 } };
+    const packLine = { kind: 'act', pc: { who: 'Astra' }, foe: { name: 'Cellar-rats', slot: 11, group: 1 },
+        outcome: 'success', damage: { id: 'f:11', name: 'Cellar-rats', from: 8, to: 5, size: 8 } };
+    const note = settledNote({ stop: 'open', members, rounds: [{ n: 1, lines: [memberLine, packLine] }] });
+    assert.match(note, /Astra attacks Bristle-boar 2: success; Bristle-boar 2 health /);
+    assert.match(note, /Cellar-rats health .* \(about 8 of 12 left\)/);
+});
+
 test('the carried prompt includes recorded worn and broken gear at their exchange', async t => {
     const wear = { id: 'test-wear', name: 'Test wear', version: '0.0.1', capture: {
         kinds: { hit: { grammar: '~ hit <slot> <steps>' } },
@@ -49,7 +75,7 @@ test('the carried prompt includes recorded worn and broken gear at their exchang
     let found = false;
     for (let attempt = 0; attempt < 1000; attempt += 1) {
         openBoard(meta, state, { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 }, gear, weapons: { astra: slots.weapon } });
-        const staged = stageExchange(meta, state, [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, state, [{ who: 'Astra', kind: 'attack', target: 11 }]);
         const lines = staged.preview?.result?.rounds.flatMap(round => round.lines) ?? [];
         if (['act', 'foe'].every(kind => lines.some(line => line.kind === kind && line.outcome === 'fail' && line.decisive))) { found = true; break; }
         discardBoard(meta);

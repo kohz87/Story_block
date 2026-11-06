@@ -9,10 +9,15 @@ import { boardFlags } from './overrides.js';
 import { orderOf } from '../resolve.js';
 import { hashText } from '../../assist/common.js';
 import { readRecord } from '../../persist.js';
+import { carriedFrom } from './members.js';
 
 const KEY = 'rpgFightBoard', ATTEMPTS = 'rpgFightAttempts', LAST = 'rpgFightLast';
 const LINKS = 'rpgFightLinks', SEND = 'rpgFightSend';
+const START = 'rpgFightStart';
+const OPENING_KEYS = ['opening', 'approach', 'drop', 'opened'];
 const object = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const openingContext = setup => Object.fromEntries(OPENING_KEYS.filter(key => Object.hasOwn(setup ?? {}, key))
+    .map(key => [key, structuredClone(setup[key])]));
 
 export const boardSession = meta => (object(meta?.[KEY]) ? meta[KEY] : null);
 
@@ -23,8 +28,11 @@ export function openBoard(meta, state, { sid, rules, gear = null, weapons = {} }
     if (!sheet.characters.some(actor => actor.alive !== false && actor.health !== 0) || !groups.length) return { error: 'There is no fight to open.' };
     const attempt = Number.isSafeInteger(meta[ATTEMPTS]?.[sid]) ? meta[ATTEMPTS][sid] : 0;
     const seed = fightSeed(sid, attempt);
+    const pending = object(meta[START]) && meta[START].anchor === sid ? meta[START] : null;
+    const opened = Array.isArray(pending?.result?.opened) && pending.result.opened.length ? structuredClone(pending.result.opened) : null;
     const session = { id: `${sid}:${attempt}`, origin: sid, anchor: sid, groups,
-        setup: { seed, offset: 0, rules: structuredClone(rules), flags: boardFlags(state), weapons: structuredClone(weapons), ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
+        setup: { seed, offset: 0, rules: structuredClone(rules), members: 1, ...(opened ? { opened } : {}),
+            flags: boardFlags(state), weapons: structuredClone(weapons), ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
     const preview = playBoard(state, session.setup, []);
     if (preview.error) return preview;
     meta[KEY] = session;
@@ -94,22 +102,27 @@ export function receiveBoard(meta, payload, result, sid, receiptId = null, state
     meta[LAST] = structuredClone(payload);
     const board = payload.board;
     if (result.stop !== 'open') { delete meta[KEY]; return true; }
+    const carried = board.setup.members === 1 ? carriedFrom(result.members) : null;
     const current = boardSession(meta), nextOffset = board.setup.offset + board.exchanges.length;
     if (current?.id === board.id && current.setup?.seed === board.setup.seed && current.setup.offset === nextOffset
         && current.base?.offset === board.setup.offset && (!current.carriedKey || current.carriedKey === payload.key)
         && JSON.stringify(current.setup.order ?? []) === JSON.stringify(result.order ?? [])) {
         current.anchor = sid;
         delete current.setup.invalidated;
+        delete current.setup.opened;
+        if (carried) current.setup.carriedMembers = carried; else delete current.setup.carriedMembers;
         if (typeof receiptId === 'string') current.carried = receiptId;
         current.carriedKey = payload.key;
         return true;
     }
-    const base = { offset: board.setup.offset, order: structuredClone(board.setup.order ?? null) };
-    const setup = { ...structuredClone(board.setup), offset: nextOffset, order: structuredClone(result.order ?? []) };
+    const base = { offset: board.setup.offset, order: structuredClone(board.setup.order ?? null),
+        carriedMembers: structuredClone(board.setup.carriedMembers ?? null), ...openingContext(board.setup) };
+    const setup = { ...structuredClone(board.setup), offset: nextOffset, order: structuredClone(result.order ?? []), ...(carried ? { carriedMembers: carried } : {}) };
     delete setup.witness;
     delete setup.opening;
     delete setup.approach;
     delete setup.drop;
+    delete setup.opened;
     if (setup.gear && state) Object.assign(setup, equipmentForBoard(state, setup.gear, query));
     meta[KEY] = { id: board.id, origin: board.id.split(':')[0], anchor: sid, groups: structuredClone(board.groups),
         setup, exchanges: [], carriedKey: payload.key, ...(typeof receiptId === 'string' ? { carried: receiptId } : {}), base };
@@ -134,6 +147,12 @@ export function reconcileBoard(meta, hasReceipt) {
     const base = object(session.base) ? session.base : { offset: 0, order: null };
     session.setup = { ...session.setup, offset: Number.isSafeInteger(base.offset) ? base.offset : 0 };
     if (orderOf(base.order)) session.setup.order = structuredClone(base.order); else delete session.setup.order;
+    if (object(base.carriedMembers)) session.setup.carriedMembers = structuredClone(base.carriedMembers);
+    else delete session.setup.carriedMembers;
+    for (const key of OPENING_KEYS) {
+        if (Object.hasOwn(base, key)) session.setup[key] = structuredClone(base[key]);
+        else delete session.setup[key];
+    }
     delete session.setup.witness;
     // Choices staged after the take-back are kept; they now roll from the segment's first die.
     delete session.carried;

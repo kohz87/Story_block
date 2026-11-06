@@ -16,7 +16,7 @@ test('send, swipe and continue an open fight without planning it again', async (
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         const opened = openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
         assert.equal(opened.error, undefined);
-        const choices = [{ who: 'Astra', kind: 'attack', target: 1 }];
+        const choices = [{ who: 'Astra', kind: 'attack', target: 11 }];
         const staged = stageExchange(meta, host.head(), choices);
         assert.equal(staged.error, undefined);
         const first = await host.send('I press on.', 'The fight continues.');
@@ -49,7 +49,7 @@ test('send, swipe and continue an open fight without planning it again', async (
 // Round 17: path b (board opened on a standing fight): a regenerate-type send carries every staged exchange, not a stale cached payload.
 for (const count of [1, 2, 4]) test(`path b: ${count} staged exchange(s) are all carried when an older cached payload exists`, async () => {
     const restore = seedCrypto(81);
-    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 3, 1, 12]]) } };
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 12]]) } };
     const { host } = await setup({ blocks, board: true });
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());

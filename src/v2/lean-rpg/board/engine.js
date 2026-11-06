@@ -13,6 +13,8 @@ import { hasLevels, isStandard } from '../rules.js';
 import { prepareStandard, rollStandard, summaryStd } from '../standard.js';
 import { boardDice } from './dice.js';
 import { fleeRoll } from './flee.js';
+import { memberRolls } from './member-rolls.js';
+import { boardFoes, collapseFoes, memberSize, splitFoes } from './members.js';
 import { exchangePlan } from './plan.js';
 import { attackStat } from './rules.js';
 
@@ -79,11 +81,35 @@ function weaponSides(prepared, sheet, weapons) {
     }
 }
 
+function openingOrder(state, setup, fightSheet, rules) {
+    const plan = { formula: 'standard', pace: 'careful', acts: [], foes: [], checks: [] };
+    const prepared = prepareStandard(plan, fightSheet, rules, { maxOf: maxOf(state.domains.dataModules), lv: hasLevels(rules), fix: true, then: true });
+    return rollStandard(plan, prepared, boardDice(setup.seed, setup.offset + 1), rules,
+        { carried: setup.order, flow: 2, fix: true, then: true, board: true }).order;
+}
+
 export function applyHurts(domain, hurts) {
     for (const hurt of hurts) {
         const fields = domain?.instances?.[hurt.module]?.chat?.fields;
         if (fields && Object.hasOwn(fields, hurt.field)) fields[hurt.field] = hurt.to;
     }
+}
+
+const foeField = (prefix, slot) => `${prefix}${((slot - 1) % 4) + 1}`;
+
+// A member fight keeps its bars as virtual foes, so only the final ordinary count/hurt moves are written to the Foes block.
+function collapseMoves(realFoes, changes, maxOf) {
+    const bySlot = new Map(realFoes.map(foe => [foe.slot, foe])), out = [];
+    for (const change of changes) {
+        const real = bySlot.get(change.slot);
+        if (!real) continue;
+        const id = `f:${change.slot}`;
+        if (change.count.from !== change.count.to) out.push({ id, kind: 'foe', name: real.name, module: change.module,
+            field: foeField('count', change.slot), from: change.count.from, to: change.count.to });
+        if (change.hurt.from !== change.hurt.to) out.push({ id, kind: 'foe', name: real.name, module: change.module,
+            field: foeField('hurt', change.slot), from: change.hurt.from, to: change.hurt.to, size: memberSize(real, maxOf) });
+    }
+    return out;
 }
 
 /** Run the saved setup and choices; errors leave the caller's state untouched. */
@@ -93,24 +119,33 @@ export function playBoard(state, setup, exchanges) {
     if (setup.invalidated) return { error: 'The earlier fight was taken back. Restore that reply or discard this fight.' };
     if (setup.witness?.offset === setup.offset && setup.witness.hash !== boardWitness(state, setup))
         return { error: 'The sheet or gear changed after the fight was rolled. Restore it or discard the fight.' };
-    const copy = structuredClone(state), domain = copy.domains.dataModules, rules = setup.rules;
+    const copy = structuredClone(state), domain = copy.domains.dataModules, rules = setup.rules, limits = maxOf(domain);
+    const startSheet = readSheet(copy), members = setup.members === 1, realFoes = members ? startSheet.foes : null;
+    const boardFoeList = members ? splitFoes(realFoes, { carried: setup.carriedMembers, maxOf: limits }) : null;
+    const virtual = (boardFoeList ?? []).filter(foe => Number.isInteger(foe.group));
+    const virtualSlots = new Set(virtual.map(foe => foe.slot)), virtualGroups = new Set(virtual.map(foe => foe.group));
+    const values = members ? new Map(boardFoeList.map(foe => [foe.slot, foe.hurt])) : null;
     const rounds = [], opening = [], quickStart = [], idle = [], moved = new Map(), refused = [], wear = [];
     let order = setup.order ?? null, stop = 'open';
     for (const [at, choices] of exchanges.entries()) {
         if (stop !== 'open') return { error: 'The fight has already ended.' };
         const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
         const number = setup.offset + at + 1, sheet = applyGear(readSheet(copy), equipment.gear);
-        const built = exchangePlan(sheet, choices?.actions, setup.flags, number);
+        const fightSheet = members ? { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) } : sheet;
+        const built = exchangePlan(fightSheet, choices?.actions, setup.flags, number, { members });
         if (built.error) return { error: built.error };
-        const source = boardDice(setup.seed, number), flee = built.flee ? fleeRoll(built.flee, sheet.foes, rules, source('flee', 0)) : null;
+        const standingGroups = real => (boardFoeList ?? []).some(foe => (Number.isInteger(foe.group) ? foe.group : foe.slot) === real.slot && values.get(foe.slot) > 0);
+        const fleeFoes = members ? realFoes.filter(standingGroups) : sheet.foes;
+        const source = boardDice(setup.seed, number), flee = built.flee ? fleeRoll(built.flee, fleeFoes, rules, source('flee', 0)) : null;
         if (flee && flee.outcome !== 'fail') {
             rounds.push({ n: number, decisive: false, lines: [flee] });
             stop = 'fled';
             continue;
         }
-        const prepared = prepareStandard(built.plan, sheet, rules, { maxOf: maxOf(domain), lv: hasLevels(rules), fix: true, then: true });
-        weaponSides(prepared, sheet, equipment.weapons);
-        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
+        const hooks = members ? memberRolls(built.plan) : null;
+        const prepared = prepareStandard(built.plan, fightSheet, rules, { maxOf: limits, lv: hasLevels(rules), fix: true, then: true, memberRolls: hooks });
+        weaponSides(prepared, fightSheet, equipment.weapons);
+        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, memberRolls: hooks, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
         const lines = rolled.rounds[0]?.lines ?? [];
         if (equipment.gear) {
             noteGear([...rolled.opening, ...lines], equipment.gear);
@@ -122,14 +157,39 @@ export function playBoard(state, setup, exchanges) {
         idle.push(...rolled.idle);
         refused.push(...prepared.refused);
         order = rolled.order;
-        applyHurts(domain, rolled.hurts);
+        const virtualHurt = hurt => {
+            const foe = /^f:(\d+)$/u.exec(hurt.id);
+            return Boolean(foe && virtualSlots.has(Number(foe[1])));
+        };
+        applyHurts(domain, members ? rolled.hurts.filter(hurt => !virtualHurt(hurt)) : rolled.hurts);
         for (const hurt of rolled.hurts) {
             const previous = moved.get(hurt.id);
             moved.set(hurt.id, { ...hurt, from: previous?.from ?? hurt.from });
+            const member = /^f:(\d+)$/u.exec(hurt.id);
+            if (values && member && values.has(Number(member[1]))) values.set(Number(member[1]), hurt.to);
         }
         if (rolled.stop === 'won' || rolled.stop === 'lost') stop = rolled.stop;
     }
-    const hurts = [...moved.values()].filter(hurt => hurt.from !== hurt.to);
-    return { state: copy, result: { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
-        summary: summaryStd([], rounds, refused) } };
+    let hurts = [...moved.values()].filter(hurt => hurt.from !== hurt.to);
+    if (members) {
+        hurts = hurts.filter(hurt => {
+            const foe = /^f:(\d+)$/u.exec(hurt.id);
+            return !(foe && virtualSlots.has(Number(foe[1])));
+        });
+    }
+    if (members && stop !== 'open') {
+        const collapsed = collapseMoves(realFoes, collapseFoes(realFoes.filter(foe => virtualGroups.has(foe.slot)), values, { maxOf: limits }), limits);
+        hurts = [...hurts, ...collapsed];
+        applyHurts(domain, collapsed);
+    }
+    if (members && !exchanges.length) {
+        const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
+        const sheet = applyGear(readSheet(copy), equipment.gear);
+        const fightSheet = { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) };
+        order = openingOrder(copy, setup, fightSheet, rules);
+    }
+    const result = { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
+        summary: summaryStd([], rounds, refused) };
+    if (members) result.members = boardFoes(realFoes, values, { maxOf: limits, carried: setup.carriedMembers });
+    return { state: copy, result };
 }

@@ -7,12 +7,12 @@ import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { boardSession, openBoard, reconcileBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
-import { character, foeBlock, recordOf, rollReceipt, setup, skillBlock } from '../helpers.js';
+import { character, foeBlock, levelFoeBlock, recordOf, rollReceipt, setup, skillBlock } from '../helpers.js';
 
 const FIGHT = {
     hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, stamina: 4 }) },
     skills: { role: 'skills', fields: skillBlock('Astra', [['Cut', 3, 'str', 'stamina', 'strike one foe']]) },
-    foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 3]]) },
+    foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 3]]) },
 };
 const RULES = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const ACTION = [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 1 }];
@@ -65,7 +65,7 @@ test('deleting an earlier pair keeps replay lookup and a repeated message gets a
             await host.send('Older.', 'An older reply.');
             const meta = host.ctx.chatMetadata;
             open(host);
-            const action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+            const action = [{ who: 'Astra', kind: 'attack', target: 11 }];
             assert.equal(stageExchange(meta, host.head(), action).error, undefined);
             await host.send('Strike.', 'Fight.');
             const first = rollReceipt(host, 4), rounds = structuredClone(first.data.v2.result.rounds), key = first.replan.payload.key;
@@ -102,7 +102,7 @@ test('rewinding a later segment restores its saved initiative', async () => {
     const blocks = { hero: { role: 'character', fields: character('Astra', { str: 3, agi: 15, vit: 20, health: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 8, 8, 5]]) } };
     const { host } = await setup({ blocks, board: true });
     try {
-        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 11 }];
         open(host);
         assert.equal(stageExchange(meta, host.head(), action).error, undefined);
         await host.send('First.', 'Fight.');
@@ -126,7 +126,7 @@ test('a rewind cannot reroll an already staged continuation', async () => {
     const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
     const { host } = await setup({ blocks, board: true });
     try {
-        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 11 }];
         open(host);
         stageExchange(meta, host.head(), action);
         await host.send('First.', 'Fight.');
@@ -182,6 +182,47 @@ test('a middle delete and a rewind keep the fight and replay it again', async ()
         const live = JSON.stringify(host.head());
         host.store.rebuild();
         assert.equal(JSON.stringify(host.head()), live, 'the middle-deleted state is its own rebuild');
+        assert.equal(callModel.calls.length, 0);
+    } finally { host.close(); restore(); }
+});
+
+test('K2: an open member fight carries its exact bars through replies, swipe, Re-read and reload', async () => {
+    const restore = seedCrypto(81);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 5 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Boar', 3, 1, 4]]) } };
+    const { host, callModel } = await setup({ blocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex()), action = [{ who: 'Astra', kind: 'attack', target: 11 }];
+        let staged;
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+            const opened = openBoard(meta, host.head(), { sid, rules: RULES });
+            assert.equal(opened.error, undefined, opened.error);
+            staged = stageExchange(meta, host.head(), action);
+            const values = staged.preview?.result?.members?.map(member => member.value);
+            if (staged.preview?.result?.stop === 'open' && values?.[0] > 0 && values[0] < 4) break;
+            meta.rpgFightAttempts = { ...(meta.rpgFightAttempts ?? {}), [sid]: attempt + 1 };
+            delete meta.rpgFightBoard;
+        }
+        assert.deepEqual(staged.preview.result.members.map(member => member.value), [2, 4, 4]);
+        const bars = JSON.stringify(staged.preview.result.members);
+        await host.send('Strike.', 'The fight goes on.');
+        assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result.members), bars);
+        assert.deepEqual(Object.values(boardSession(meta).setup.carriedMembers.values), [2, 4, 4]);
+        assert.deepEqual(playBoard(host.head(), boardSession(meta).setup, []).result.members.map(member => member.value), [2, 4, 4]);
+
+        await host.swipe('Another telling.');
+        assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result.members), bars);
+        assert.deepEqual(playBoard(host.head(), boardSession(meta).setup, []).result.members.map(member => member.value), [2, 4, 4]);
+        assert.equal((await host.sdk.reread(2)).ok, true);
+        assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result.members), bars);
+
+        await host.store.flush();
+        const savedChat = structuredClone(host.st.saves.at(-1)), savedMeta = structuredClone(meta), live = JSON.stringify(host.head());
+        await host.st.loadChat(savedChat, 'members-continuation');
+        host.ctx.chatMetadata = savedMeta;
+        assert.equal(JSON.stringify(host.head()), live);
+        assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result.members), bars);
+        assert.deepEqual(playBoard(host.head(), boardSession(meta).setup, []).result.members.map(member => member.value), [2, 4, 4]);
         assert.equal(callModel.calls.length, 0);
     } finally { host.close(); restore(); }
 });

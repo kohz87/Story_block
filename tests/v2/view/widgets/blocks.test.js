@@ -92,6 +92,29 @@ test('heroLine, heroLevel and heroBars: the line under the name, the badge, at m
     assert.deepEqual(heroBars([null, 3, { label: 'a', value: 1, max: 2 }]).map(b => b.label), ['a']);
 });
 
+test('fight header More opens the full hero and resets when leaving the Fight screen', () => {
+    const m = mount(hero, { ...HERO, compact: true, boardExpandable: true });
+    const more = m.el.querySelector('.ss-hero-board-more');
+    assert.equal(more.hidden, false);
+    assert.equal(more.getAttribute('aria-expanded'), 'false');
+    assert.ok(m.root.classList.contains('ss-hero-compact'));
+    more.click();
+    assert.equal(more.getAttribute('aria-expanded'), 'true');
+    assert.equal(more.textContent, 'Less');
+    assert.ok(!m.root.classList.contains('ss-hero-compact'));
+    assert.ok(m.root.classList.contains('ss-hero-board-expanded'));
+    m.handle.update({ ...HERO, compact: true, boardExpandable: true });
+    assert.ok(!m.root.classList.contains('ss-hero-compact'), 'redraw keeps the full card open');
+    more.click();
+    assert.ok(m.root.classList.contains('ss-hero-compact'));
+    more.click();
+    m.handle.update({ ...HERO, compact: true });
+    assert.equal(more.hidden, true);
+    assert.equal(m.el.querySelector('.ss-hero-board-more'), null);
+    assert.equal(more.getAttribute('aria-expanded'), 'false');
+    assert.ok(m.root.classList.contains('ss-hero-compact'));
+});
+
 test('hero portrait: a safe picture, else the initial; a picture that fails to load goes back to the initial', () => {
     const m = mount(hero, { name: 'Ren Avel', portrait: 'https://example.com/ren.png' });
     const img = m.el.querySelector('.ss-hero-img');

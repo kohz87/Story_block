@@ -7,6 +7,11 @@ import { boardSession, markSend, openBoard, stageExchange } from '../../../../sr
 import { pendingStart } from '../../../../src/v2/turn/fight-start.js';
 import { dropOf } from '../../../../src/v2/lean-rpg/ambush.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
+import { cueOfResult } from '../../../../src/v2/lean-rpg/cue.js';
+import { fightHook, openedSlots } from '../../../../src/v2/lean-rpg/fight.js';
+import { createPromptBuild } from '../../../../src/v2/turn/prompt-build.js';
+import { hashText } from '../../../../src/v2/assist/common.js';
+import { readRecord } from '../../../../src/v2/persist.js';
 
 const rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const known = () => ({ hero: { role: 'character', fields: character('Astra') }, foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 5]]) } });
@@ -170,7 +175,7 @@ test('an opening and its exchange survive deleting an earlier message pair', asy
     } finally { host.close(); restore(); }
 });
 
-test('a newly opened board victory awards XP once through swipe and Re-read', async () => {
+test('a newly opened board victory awards XP once through swipe and Re-read', async t => {
     const restore = seedCrypto(508);
     const blocks = empty();
     Object.assign(blocks.hero.fields, { str: 20, dex: 20, agi: 20, vit: 20, soul: 1 });
@@ -194,6 +199,37 @@ test('a newly opened board victory awards XP once through swipe and Re-read', as
         const xp = () => host.head().domains.dataModules.instances['pack.chat/hero'].chat.fields.xp;
         assert.ok(xp() > 0);
         const once = xp();
+        await t.test('adding opened to a committed board receipt changes existing readers', async () => {
+            const receipt = boardReceipt(host, sent.index), opened = made.session.setup.opened;
+            assert.ok(receipt && opened?.length);
+            assert.equal(Object.hasOwn(receipt.data.v2.result, 'opened'), false);
+            assert.match(receipt.summary, /New foes: Rats/);
+            assert.match(tailOf(sent.request), /New foes: Rats/);
+            const withOpened = structuredClone(receipt);
+            withOpened.data.v2.result.opened = structuredClone(opened);
+            assert.deepEqual(openedSlots([receipt]), []);
+            assert.deepEqual(openedSlots([withOpened]), opened.map(foe => foe.slot));
+            assert.doesNotMatch(cueOfResult(receipt.data.v2.result), /New foes:/);
+            assert.match(cueOfResult(withOpened.data.v2.result), /New foes: Rats/);
+            const view = { state: host.head(), before: () => opening.state, feature: () => true };
+            const award = fightHook(view, { type: 'normal', receipts: [receipt] });
+            assert.ok(award?.commands?.length, 'the committed win schedules XP');
+            assert.deepEqual(fightHook(view, { type: 'normal', receipts: [withOpened] }), award);
+
+            // Exercise the prompt builder's fight-start branch with the same committed receipt.
+            const chat = [host.ctx.chat[sent.index], { is_user: true, mes: 'I attack.' }];
+            const anchor = readRecord(chat[0]).sid, message = hashText('I attack.');
+            const runStart = candidate => {
+                const metadata = {}, bus = { run: () => ({ ok: true, receipt: candidate }),
+                    command: async () => ({ ok: true, receipt: candidate }) };
+                const deps = { ctx: { chat }, metadata: () => metadata, bus, store: {}, view: () => ({}),
+                    registry: { hookEntries: () => [{ moduleId: 'test', fn: () => ({ fightStart: { anchor, message, opening: {}, original: {} } }) }] },
+                    hookTimeout: () => 1000, isPrelude: () => false, problem: error => assert.fail(JSON.stringify(error)) };
+                return createPromptBuild({ session: null }, deps).runCues();
+            };
+            assert.equal((await runStart(receipt)).blocked, undefined);
+            assert.equal((await runStart(withOpened)).blocked?.fightStart, true);
+        });
         assert.equal((await host.sdk.reread(sent.index)).ok, true);
         assert.equal(xp(), once);
         await host.swipe('A different telling.');

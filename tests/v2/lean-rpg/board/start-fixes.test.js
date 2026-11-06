@@ -146,7 +146,7 @@ test('F4: the board opening rolls only the approach; the first exchange is the r
         assert.equal(made.error, undefined);
         Object.assign(made.session.setup, { opening: structuredClone(pending.opening), approach: structuredClone(opening.result.checks), drop: dropOf(opening.result) });
         pending.choice = 'board';
-        const staged = stageExchange(meta, opening.state, [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, opening.state, [{ who: 'Astra', kind: 'attack', target: 11 }]);
         assert.equal(staged.error, undefined);
         assert.ok(staged.preview.result.quickStart.length > 0, 'the lead is recorded');
         assert.equal(staged.preview.result.opening.length, 0, 'no automatic opening action');
