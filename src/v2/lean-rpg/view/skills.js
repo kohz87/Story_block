@@ -84,8 +84,9 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
     function edit(slot) {
         const skill = skillAt(slot);
         if (!skill || run.busy || typeof api.command !== 'function') return;
-        const flags = board?.on?.() ? skillFlags(skill, board.flags?.()?.[skillKey(character.module, skill)]) : null;
-        Object.assign(run, { editing: slot, start: { name: skill.name, about: skill.about, ...(flags ? { flags: { ...flags } } : {}) }, draft: { name: skill.name, about: skill.about, ...(flags ? { flags: { ...flags } } : {}) }, message: '' });
+        const explicit = board?.on?.() ? board.flags?.()?.[skillKey(character.module, skill)] : null;
+        const flags = board?.on?.() ? skillFlags(skill, explicit) : null;
+        Object.assign(run, { editing: slot, start: { name: skill.name, about: skill.about, ...(flags ? { flags: { ...flags }, explicitFlags: Boolean(explicit) } : {}) }, draft: { name: skill.name, about: skill.about, ...(flags ? { flags: { ...flags } } : {}) }, message: '' });
         draw();
     }
     function cancel() {
@@ -113,7 +114,7 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
                 const result = await api.command('dm.set', { module: block.module, fields: { [`skill${slot}`]: name, [`about${slot}`]: about } });
                 if (!result?.ok) failure = result ?? { ok: false };
             }
-            if (!failure && flagsChanged) {
+            if (!failure && (flagsChanged || (name !== run.start.name && run.start.explicitFlags))) {
                 const result = await api.command('rpg.boardSkill', { module: character.module, slot, name, flags: run.draft.flags });
                 if (!result?.ok) failure = result ?? { ok: false };
             }

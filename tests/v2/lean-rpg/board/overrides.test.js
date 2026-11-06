@@ -4,8 +4,92 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { boardFlags } from '../../../../src/v2/lean-rpg/board/overrides.js';
-import { skillKey } from '../../../../src/v2/lean-rpg/board/flags.js';
+import { skillFlags, skillKey } from '../../../../src/v2/lean-rpg/board/flags.js';
+import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { page, begin, makeBlocks, party, settle } from '../view/page.js';
+
+test('renaming a skill carries explicit flags and deleting the rename restores the old skill', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    const blocks = await makeBlocks(host, { skills: { skill1: 'Shadow Step', about1: 'evasion', stat1: 'agi' } });
+    const flags = { target: true, area: false, defence: true };
+    assert.equal((await host.sdk.command('rpg.boardSkill', { module: blocks.character, slot: 1, name: 'Shadow Step', flags })).ok, true);
+    await host.send('Wait.', 'Another reply.');
+    ui.mounts.screen.open('story-block/party');
+    await settle();
+    party(doc).querySelector('.rpg-skills-open').click();
+    party(doc).querySelector('.rpg-skill-pencil').click();
+    const input = party(doc).querySelector('[data-skill-field="name"]');
+    input.value = 'Shadow Evasion'; input.dispatch('input');
+    party(doc).querySelector('.rpg-skill-save').click();
+    await settle();
+    const skill = () => readSheet(host.head()).characters.find(actor => actor.module === blocks.character).skills.find(entry => entry.slot === 1);
+    assert.equal(skill().name, 'Shadow Evasion');
+    assert.deepEqual(boardFlags(host.head())[skillKey(blocks.character, skill())], flags);
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    assert.equal(skill().name, 'Shadow Step');
+    assert.deepEqual(boardFlags(host.head())[skillKey(blocks.character, skill())], flags);
+    const afterDelete = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), afterDelete);
+    assert.deepEqual(host.store.problems(), []);
+});
+
+test('a renamed skill keeps its copied flags when the earlier flag edit is deleted', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    const blocks = await makeBlocks(host, { skills: { skill1: 'Shadow Step', about1: 'evasion', stat1: 'agi' } });
+    host.settings.set('story-block', 'rpgRolls', 'off');
+    await host.send('Wait.', 'Original choice.');
+    const flags = { target: true, area: false, defence: true };
+    assert.equal((await host.sdk.command('rpg.boardSkill', { module: blocks.character, slot: 1, name: 'Shadow Step', flags })).ok, true);
+    await host.send('Again.', 'Rename.');
+    ui.mounts.screen.open('story-block/party');
+    await settle();
+    party(doc).querySelector('.rpg-skills-open').click();
+    party(doc).querySelector('.rpg-skill-pencil').click();
+    const name = party(doc).querySelector('[data-skill-field="name"]');
+    name.value = 'Shadow Evasion'; name.dispatch('input');
+    party(doc).querySelector('.rpg-skill-save').click();
+    await settle();
+    await host.st.deleteMessage(4);
+    await host.st.deleteMessage(3);
+    const skill = readSheet(host.head()).characters.find(actor => actor.module === blocks.character).skills.find(entry => entry.slot === 1);
+    assert.equal(skill.name, 'Shadow Evasion');
+    assert.deepEqual(boardFlags(host.head())[skillKey(blocks.character, skill)], flags);
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
+    assert.deepEqual(host.store.problems(), []);
+});
+
+test('renaming a skill with inferred flags keeps the new wording inferred', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    const blocks = await makeBlocks(host, { skills: { skill1: 'Sweep', about1: 'strike every foe', stat1: 'agi' } });
+    ui.mounts.screen.open('story-block/party');
+    await settle();
+    party(doc).querySelector('.rpg-skills-open').click();
+    party(doc).querySelector('.rpg-skill-pencil').click();
+    const name = party(doc).querySelector('[data-skill-field="name"]');
+    const about = party(doc).querySelector('[data-skill-field="about"]');
+    name.value = 'Dodge'; name.dispatch('input');
+    about.value = 'evasion'; about.dispatch('input');
+    party(doc).querySelector('.rpg-skill-save').click();
+    await settle();
+    const skill = readSheet(host.head()).characters.find(actor => actor.module === blocks.character).skills.find(entry => entry.slot === 1);
+    const saved = boardFlags(host.head())[skillKey(blocks.character, skill)];
+    assert.equal(skill.name, 'Dodge');
+    assert.equal(saved, undefined, 'renaming did not freeze inferred defaults');
+    assert.deepEqual(skillFlags(skill, saved), { target: false, area: false, defence: true });
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
+});
 
 test('the skill editor saves flags and a middle deletion keeps the later choice', async t => {
     const { doc, host, ui } = await page(t, { formula: 'standard' });
