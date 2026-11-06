@@ -1,4 +1,4 @@
-// The timeline coordinator's blocked-selection half (docs/v2/TIMELINE.md): what the coordinator does when a participant cannot bring its
+// The timeline coordinator's blocked-participant half (docs/v2/TIMELINE.md): what the coordinator does when a participant cannot bring its
 // native state to the checkpoint the selected head names. The answer is classified: a PERMANENT one (SNAPSHOT_UNAVAILABLE: the file is
 // missing; CONFLICT: the checkpoint belongs to another story line; anything else the participant cannot cure by waiting) is a Problem at
 // once; a TRANSIENT one (FAILED: "tried again in a moment"; STALE: still busy; a timeout, which is reported as STALE) is asked again on a
@@ -17,14 +17,17 @@ export function createBlock(s, deps) {
     const { archive, registry, problem, raise, again } = deps;
 
     const nameOf = module => (module ? (registry.module?.(module)?.name ?? module) : 'A part of the story');
+    // A reader waiting on the head must stop waiting once the retry budget is spent. Keep the original
+    // failure as `code`, but make the blocking dependency's unavailable state explicit in `blockedBy`.
+    const blockedBy = block => ({ module: block.module, code: block.gaveUp ? 'DEPENDENCY_UNAVAILABLE' : block.code });
 
     // The plain sentence the reader sees (the barrier's reason, the toast of a send, the Problem).
     function reasonOf(block) {
         const name = nameOf(block.module);
         const cause = trim(block.message);
         if (!block.permanent) return `${name} could not load its saved records for this point yet (${cause}). It is being tried again; wait a moment, or reload the page.`;
-        if (block.gaveUp) return `${name} still could not load its saved records for this point after trying again (${cause}). Reload the page to try once more, or delete the changed reply so the story ends where its records exist.`;
-        return `${name} cannot restore its saved records for this point (${cause}). Reloading will not bring them back; delete the changed reply so the story ends where its records exist.`;
+        if (block.gaveUp) return `${name} still could not load its saved records for this point after trying again (${cause}). Reload the page to try once more, or open the original chat while this is blocked.`;
+        return `${name} cannot restore its saved records for this point (${cause}). Restore the missing records from a backup and reload, or open the original chat.`;
     }
 
     function announce(block) {
@@ -59,14 +62,18 @@ export function createBlock(s, deps) {
         /** A participant (or the plan itself: `module` null) could not bring the story to the selected head. → the failure, with `blockedBy`, `reason`. */
         note(module, failure) {
             const holder = archive.holder();
-            const same = s.block && s.block.holder === holder && s.block.module === module && s.block.code === failure.code ? s.block : null;
+            // A timeout can turn into STALE while the old call remains in flight, or a retry can alternate
+            // FAILED and STALE. Keep the same retry budget across those transient answers.
+            const same = s.block && s.block.holder === holder && s.block.module === module
+                && (s.block.code === failure.code || (transientCode(s.block.code) && transientCode(failure.code))) ? s.block : null;
             if (!same && s.block) this.clear();
             const block = same ?? (s.block = { holder, module, code: failure.code, message: failure.message, permanent: !transientCode(failure.code), gaveUp: false, tries: 0, reported: false });
+            block.code = failure.code;
             block.message = failure.message;
             const reason = reasonOf(block);
             raise(reason);
             if (block.permanent) announce(block); else arm();
-            return { ...failure, reason, blockedBy: { module, code: failure.code } };
+            return { ...failure, reason, blockedBy: blockedBy(block) };
         },
         /** The selection went through, or the barrier came down: nothing blocks, and no try is waiting. */
         clear() {
@@ -77,7 +84,7 @@ export function createBlock(s, deps) {
         current() {
             const block = s.block;
             if (!block || block.holder !== archive.holder()) return null;
-            return { reason: reasonOf(block), code: block.code, blockedBy: { module: block.module, code: block.code } };
+            return { reason: reasonOf(block), code: block.code, blockedBy: blockedBy(block) };
         },
     };
 }
