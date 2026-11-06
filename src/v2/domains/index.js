@@ -300,6 +300,7 @@ export function mergeParts(parts) {
                 const lines = [];
                 const commands = [];
                 const problems = [];
+                let fightStart = null;
                 // Each part has its own time limit (turn.js hookTimeout): a part that fails or is too slow is reported, and the
                 // answers of the parts that did answer are kept.
                 for (const fn of fns) {
@@ -317,9 +318,10 @@ export function mergeParts(parts) {
                     else {
                         lines.push(...(Array.isArray(answer?.lines) ? answer.lines : []));
                         commands.push(...(Array.isArray(answer?.commands) ? answer.commands : []));
+                        if (answer?.fightStart) fightStart = answer.fightStart;
                     }
                 }
-                return { lines, commands, ...(problems.length ? { problems } : {}) };
+                return { lines, commands, ...(fightStart ? { fightStart } : {}), ...(problems.length ? { problems } : {}) };
             }, 'timeoutMs', { enumerable: true, get: () => fns.reduce((sum, fn) => sum + hookTimeout(fn), 500) })
             // afterCapture: every part's steps are run, in part order (the data blocks' timers and reply-end steps, then the RPG's fight XP).
             : name === 'afterCapture' ? (...args) => {

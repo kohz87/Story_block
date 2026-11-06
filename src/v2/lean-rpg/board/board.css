@@ -21,6 +21,7 @@
 .rpg-board-choice:disabled { opacity: .55; cursor: not-allowed; }
 .rpg-board-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .rpg-board-actions button, .rpg-board-controls > button { min-height: 44px; touch-action: manipulation; }
+.rpg-board-send { width: 100%; }
 .rpg-board-note { margin-top: 4px; font-size: 13px; }
 .rpg-board-note p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .rpg-board-error { color: var(--ss-warn); }
@@ -54,4 +55,5 @@
    length before the zoom is 48 / --ss-zoomed. The heavier selector wins over the host's 44px touch rule. */
 @media (max-width: 759.98px), (pointer: coarse) {
     :is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-choices > button.rpg-board-choice { min-height: calc(48px / var(--ss-zoomed, 1)) !important; }
+    :is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-controls > button.rpg-board-send { min-height: calc(48px / var(--ss-zoomed, 1)) !important; }
 }

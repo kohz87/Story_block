@@ -11,6 +11,10 @@ import { cutAt } from '../../text.js';
 import { CORE_FEATURE } from '../features.js';
 import { RESOLVE as RPG_RESOLVE } from '../lean-rpg/names.js';
 import { NO_ROLLS_LINE, receiptCue } from '../lean-rpg/cue.js';
+import { holdStart } from './fight-start.js';
+import { readRecord } from '../persist.js';
+import { hashText } from '../assist/common.js';
+import { boardStartState } from './held-board.js';
 import { TIMED_OUT, defuseMacros, firstLine, mapContent, stripBattleMarker, substituteNames, within } from './text.js';
 
 // The most a module's hook may keep whole in the tail (`{ text, keep: true }` lines): two meeting cues and a rumor fit; more is droppable.
@@ -18,7 +22,7 @@ export const KEPT_LINES_MAX = 4;
 export const KEPT_CHARS_MAX = 4000;
 
 export function createPromptBuild(s, deps) {
-    const { ctx, store, bus, registry, settings, events, onBlocked, notify, initial, prepare, hostSettings, viewReader, view, contextNow, hasCarrier, lastCarrier, isPrelude, markBusy, markIdle, setPrompts, clearPrompts, problem, trySave, claimQuiet, FOREGROUND, HOOK_TIMEOUT_MS, ASSIST_WAIT_MS, RPG_LOAD_WAIT_MS, OWN_PROMPT_PARTS, OWN_PROMPT_CHARS, STRIP_CACHE, HAS_BLOCK, HAS_LEGACY, hookTimeout, normalizeType } = deps;
+    const { ctx, metadata, store, bus, registry, settings, events, onBlocked, notify, initial, prepare, hostSettings, viewReader, view, contextNow, hasCarrier, lastCarrier, isPrelude, markBusy, markIdle, setPrompts, clearPrompts, problem, trySave, claimQuiet, FOREGROUND, HOOK_TIMEOUT_MS, ASSIST_WAIT_MS, RPG_LOAD_WAIT_MS, OWN_PROMPT_PARTS, OWN_PROMPT_CHARS, STRIP_CACHE, HAS_BLOCK, HAS_LEGACY, hookTimeout, normalizeType } = deps;
 
     // beforeGenerate (§4.1 step 3): each hook may return lines for the tail, or commands to
     // commit now as `system` receipts: string[] | { lines?: string[], commands?: [{ type, payload }] }.
@@ -46,6 +50,21 @@ export function createPromptBuild(s, deps) {
                 problem({ module: moduleId, code: 'TIMEOUT', message: `beforeGenerate did not answer within ${limit / 1000} s; the reply went on without its notes.` });
                 continue;
             }
+            if (out?.fightStart?.opening && out.fightStart.original) {
+                const chat = ctx?.chat ?? [], last = chat.at(-1);
+                if (!last?.is_user || readRecord(chat.at(-2))?.sid !== out.fightStart.anchor
+                    || hashText(String(last.mes ?? '').trim()) !== out.fightStart.message) {
+                    return { blocked: { moduleId, reason: 'The chat changed while the fight was being prepared.' } };
+                }
+                const result = bus.run(RPG_RESOLVE, out.fightStart.opening, { cause: 'system' });
+                if (result?.ok && result.receipt?.data?.v2?.result?.opened?.length) {
+                    const pending = holdStart(metadata(), ctx?.chat, { mode: 'new', original: out.fightStart.original,
+                        opening: { payload: out.fightStart.opening, seed: result.receipt.seed }, result: result.receipt.data.v2.result });
+                    if (pending) return { blocked: { moduleId, reason: 'Choose how to play the waiting fight.', fightStart: true } };
+                }
+                // If the opening cannot be prepared, the ordinary planner remains available.
+                out = { ...out, commands: [...(out.commands ?? []), { type: RPG_RESOLVE, payload: out.fightStart.original }] };
+            }
             // A merged hook (domains/index.js mergeParts) keeps the answers of the parts that did answer and reports the others.
             for (const entry of Array.isArray(out?.problems) ? out.problems : []) problem({ module: moduleId, code: entry.code, message: entry.message });
             const lines = Array.isArray(out) ? out : Array.isArray(out?.lines) ? out.lines : [];
@@ -68,7 +87,7 @@ export function createPromptBuild(s, deps) {
                 // A prelude (Assist's roll, the RPG's rolls) is previewed for the prompt, without writing on the
                 // previous reply. Completion runs the same seed on the generated reply; only that transaction is stored.
                 if (isPrelude(command?.type)) {
-                    requested.push({ moduleId, type: command.type, payload: command.payload ?? {} });
+                    requested.push({ moduleId, type: command.type, payload: command.payload ?? {}, seed: command.seed });
                     continue;
                 }
                 const result = await bus.command(command?.type, command?.payload ?? {}, { cause: 'system' });
@@ -80,9 +99,13 @@ export function createPromptBuild(s, deps) {
         }
         // Other cues may settle a fight or change a modifier. Preview on the state they leave,
         // which is also the state the generated reply's prelude will start from.
-        for (const { moduleId, type: preludeType, payload } of requested) {
+        for (const { moduleId, type: preludeType, payload, seed } of requested) {
+            if (preludeType === RPG_RESOLVE && payload?.board?.setup?.opening) {
+                const checked = boardStartState(bus, store.head(), payload.board);
+                if (checked.error) return { blocked: { moduleId, reason: checked.error } };
+            }
             const prior = s.session?.prechecks?.find(step => step.type === preludeType && JSON.stringify(step.payload) === JSON.stringify(payload));
-            const result = bus.run(preludeType, payload, { cause: 'system', ...(prior ? { seed: prior.seed } : {}) });
+            const result = bus.run(preludeType, payload, { cause: 'system', ...(previewState ? { state: previewState } : {}), ...(prior || seed !== undefined ? { seed: prior?.seed ?? seed } : {}) });
             if (result?.ok) {
                 // The RPG's rolls move bars (hits, heals, skill costs): the tail's block lines are read from the state they leave, so they say what the cue says.
                 if (preludeType === RPG_RESOLVE && result.state) previewState = result.state;
@@ -155,7 +178,7 @@ export function createPromptBuild(s, deps) {
     // list of those that hold back, nothing logged (it is asked again on each redraw).
     // A module that is dormant, or held by a restore barrier, is not asked at all (registry.hookEntries leaves
     // it out): its veto is suppressed, never answered false, since one refusal stops the whole story.
-    async function askCanGenerate({ all = false } = {}) {
+    async function askCanGenerate({ all = false, type = 'normal' } = {}) {
         const found = [];
         // A restore barrier (registry.setRestore) holds the story back for everyone until every part agrees;
         // the hooks of the modules it holds are not asked (registry.hookEntries leaves them out).
@@ -167,7 +190,7 @@ export function createPromptBuild(s, deps) {
         }
         for (const { moduleId, fn } of registry.hookEntries('canGenerate')) {
             let answer;
-            try { answer = await within(fn(view()), HOOK_TIMEOUT_MS); } catch (error) {
+            try { answer = await within(fn(view(), { type, commit: !all }), HOOK_TIMEOUT_MS); } catch (error) {
                 if (!all) problem({ module: moduleId, code: 'FAILED', message: `canGenerate failed: ${error?.message ?? error}` });
                 continue;
             }
@@ -178,7 +201,7 @@ export function createPromptBuild(s, deps) {
             if (answer === false || (answer && typeof answer === 'object' && answer.ok === false)) {
                 const name = registry.module(moduleId)?.name ?? moduleId;
                 const reason = typeof answer?.reason === 'string' && answer.reason.trim() ? answer.reason.trim() : `${name} is not ready for the story to go on yet.`;
-                const entry = { moduleId, reason };
+                const entry = { moduleId, reason, ...(answer?.fightStart === true ? { fightStart: true } : {}) };
                 if (all) {
                     // The button's words (a module's `action`, flattened, ≤ 40 code points), or false for none.
                     const action = answer?.action === false ? false
@@ -192,7 +215,7 @@ export function createPromptBuild(s, deps) {
         }
         return all ? found : null;
     }
-    const blockedBy = () => askCanGenerate();
+    const blockedBy = type => askCanGenerate({ type });
 
     // A module's own onBlocked hook (what it does when it held the story back: an example module opens the
     // character wizard). → true when it ran without throwing.
@@ -210,11 +233,17 @@ export function createPromptBuild(s, deps) {
         }
     }
 
-    function block({ moduleId, reason }, abort) {
+    function block({ moduleId, reason, fightStart = false }, abort) {
         s.session = null;
         markIdle();
         clearPrompts();
         try { abort?.(true); } catch (error) { console.warn('[Story Suite] the generation could not be stopped', error); }
+        if (fightStart) {
+            try { Promise.resolve(ctx?.saveChat?.()).catch(() => {}); } catch { /* the next chat write saves it */ }
+            try { (ctx?.saveMetadata ?? ctx?.saveMetadataDebounced)?.call(ctx); } catch { /* the next chat write saves it */ }
+            events?.emit('head', { index: store.headIndex(), reason: 'fight-start' });
+            return;
+        }
         try { notify?.(reason, moduleId); } catch { /* a missing toastr is not an error */ }
         runOnBlocked(moduleId, reason);
         if (typeof onBlocked === 'function') {
@@ -279,7 +308,7 @@ export function createPromptBuild(s, deps) {
                 s.session = held;
                 return;
             }
-            const blocked = await blockedBy();
+            const blocked = await blockedBy(kind);
             if (blocked) {
                 block(blocked, abort);
                 return;

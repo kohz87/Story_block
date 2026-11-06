@@ -128,7 +128,7 @@ export function createLazyRpgPart(deps = {}) {
             ...rosterQueries({ persona: deps?.persona, on: deps?.rosterOn }),
         },
         hooks: {
-            canGenerate: Object.assign(view => part()?.hooks.canGenerate(view), { feature: LEAN_RPG_FEATURE }),
+            canGenerate: Object.assign((view, info) => part()?.hooks.canGenerate(view, info), { feature: LEAN_RPG_FEATURE }),
             beforeGenerate: Object.defineProperty((view, info) => part()?.hooks.beforeGenerate(view, info), 'timeoutMs', { enumerable: true, get: () => plannerLimitMs(plannerValues(), timeoutMs) + HOOK_MARGIN_MS }),
             afterCapture: (view, info) => part()?.hooks.afterCapture(view, info),
             afterReceive: (view, info) => { part()?.hooks.afterReceive(view, info); },

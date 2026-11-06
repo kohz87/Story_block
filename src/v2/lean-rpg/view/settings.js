@@ -82,6 +82,7 @@ const CARD_WORDS = Object.freeze({
     planner: words(S.planner, S.plannerHelp, S.plannerShow, S.plannerFixed),
     join: words(S.join, S.joinHelp, S.joinAsk, S.joinAuto, S.joinOff),
     gear: words(S.gear, S.gearHelp, S.gearOn, S.off),
+    board: 'fight board choose exchanges on off',
 });
 
 /**
@@ -91,7 +92,7 @@ const CARD_WORDS = Object.freeze({
  * host's commands: the Combat rules text is saved with `dm.redefine`, and added with `dm.define`).
  * → { el, filter(text) → count, refresh(), refreshSize(), destroy() }, as a settings page body expects.
  */
-export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null, pack = () => null, gear = null, gearOf = () => null } = {}) {
+export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null, pack = () => null, gear = null, boardFeature = null, gearOf = () => null } = {}) {
     const root = h(doc, 'div', 'rpg-set');
     parent.appendChild(root);
     const values = () => settings(SETTINGS_MODULE) ?? {};
@@ -244,6 +245,12 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         const box = card('gear', S.gear);
         chips(box, S.gear, [['on', S.gearOn], ['off', S.off]], gear.on() ? 'on' : 'off', value => { gear.set(value === 'on'); onChange(); });
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.gearHelp));
+    }
+
+    function drawBoard() {
+        if (!boardFeature) return;
+        const box = card('board', 'Fight board', 'Choose each exchange on the board under Standard rules.');
+        chips(box, 'Fight board', [['on', 'On'], ['off', 'Off']], boardFeature.on() ? 'on' : 'off', value => { boardFeature.set(value === 'on'); onChange(); });
     }
 
     // ---- Difficulty and the odds
@@ -454,6 +461,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         drawFormula();
         drawLevels();
         drawGear();
+        drawBoard();
         drawRolls();
         drawDifficulty();
         drawCombat();

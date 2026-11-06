@@ -115,7 +115,7 @@ export function playBoard(state, setup, exchanges) {
         }
         const prepared = prepareStandard(built.plan, sheet, rules, { maxOf: maxOf(domain), lv: hasLevels(rules), fix: true, then: true });
         weaponSides(prepared, sheet, equipment.weapons);
-        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true });
+        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
         const lines = rolled.rounds[0]?.lines ?? [];
         if (setup.wearVersion === 1 && equipment.gear) {
             noteGear([...rolled.opening, ...lines], equipment.gear);
@@ -135,6 +135,6 @@ export function playBoard(state, setup, exchanges) {
         if (rolled.stop === 'won' || rolled.stop === 'lost') stop = rolled.stop;
     }
     const hurts = [...moved.values()].filter(hurt => hurt.from !== hurt.to);
-    return { state: copy, result: { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(wear.length ? { wear } : {}),
+    return { state: copy, result: { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
         summary: summaryStd([], rounds, refused) } };
 }

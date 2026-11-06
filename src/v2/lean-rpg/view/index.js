@@ -9,10 +9,10 @@
 // `destroy()` takes all of it away again (the feature was switched off).
 
 import { createBattleLog } from './battle-log.js';
-import { FIGHT_WIDGET, createFightScreen, createFightWidget } from './fight.js';
+import { FIGHT_SCREEN_ID, FIGHT_WIDGET, createFightScreen, createFightWidget } from './fight.js';
 import { rpgReplyLines } from './changes-lines.js';
 import { PARTY_WIDGET, createPartyScreen, createPartyWidget } from './party.js';
-import { levelCapFor, packInForce, packRulesOf, rulesFromSettings } from '../rules.js';
+import { isStandard, levelCapFor, packInForce, packRulesOf, rulesFromSettings } from '../rules.js';
 import { rpgSection } from './settings.js';
 import { heroLead } from './hero-data.js';
 import { HOLD_WIDGET, createStart } from './start.js';
@@ -25,6 +25,9 @@ import { readSheet } from '../read.js';
 import { readRecord } from '../../persist.js';
 import { createBoardView } from '../board/view.js';
 import { boardFlags } from '../board/overrides.js';
+import { createOfferLineView } from '../board/offer-line.js';
+import { createFightOffers } from '../board/offers.js';
+import { createStartController } from '../board/start-controller.js';
 
 export { PARTY_SCREEN_ID, PARTY_WIDGET } from './party.js';
 export { WIZARD_SCREEN_ID, WIZARD_WIDGET } from './wizard.js';
@@ -63,12 +66,16 @@ function addStyle(doc) {
  * commands (the settings page saves the Combat rules text through `dm.redefine`); `closeView()` closes the game view
  * ("See it in the story" on the Fight tab); `refresh()` redraws the tabs.
  */
-export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, boardOn = () => false, gear = null, openDialog = null, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null }) {
+export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, boardOn = () => false, boardFeature = null, gear = null, openDialog = null, openScreen = () => false, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null, previewStart = () => null, generateHeld = () => {} }) {
     const link = addStyle(doc);
     const boardLink = doc.createElement('link');
     boardLink.setAttribute('rel', 'stylesheet');
     boardLink.setAttribute('href', new URL('../board/board.css', import.meta.url).href);
     (doc.head ?? doc.body).appendChild(boardLink);
+    const startLink = doc.createElement('link');
+    startLink.setAttribute('rel', 'stylesheet');
+    startLink.setAttribute('href', new URL('../board/fight-start.css', import.meta.url).href);
+    (doc.head ?? doc.body).appendChild(startLink);
     // The numbers a roll would be made with now (Settings → RPG): the roll line on a skill and a class-up note state them.
     // What the story's pack asks for (its formula and numbers), with the pack's name: the default of a reader who has chosen nothing.
     const pack = () => {
@@ -99,10 +106,23 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
     widgets[WIZARD_WIDGET] = wizard.widget;
     widgets[EXPORT_WIDGET] = exporter.widget;
     widgets[HOLD_WIDGET] = start.holdWidget;
-    const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf, levels });
-    const board = createBoardView({ doc, headState, meta, save, store, rules, query, readerName, roleOf, levels, on: boardOn });
-    widgets[FIGHT_WIDGET] = createFightWidget({ headState, readerName, roleOf, battleLog, closeView, levels, board });
-    screens.setPack(PACK, [createPartyScreen(), createFightScreen({ roleOf }), wizard.screen, exporter.screen, start.holdScreen]);
+    let board;
+    const fightStart = createStartController({ doc, chat: () => ctx?.chat ?? [], meta, state: headState, preview: previewStart,
+        board: () => board, on: () => featureOn() && boardOn(), save, refresh, generate: generateHeld, show: () => openScreen(FIGHT_SCREEN_ID) });
+    board = createBoardView({ doc, headState: () => fightStart.state(), meta, save, store, rules, query, readerName, roleOf, levels, on: boardOn, start: fightStart });
+    let offers;
+    const offerView = createOfferLineView({ doc, onFight: data => offers.choose(data, true), onNarrate: data => offers.choose(data, false) });
+    offers = createFightOffers({ ctx, doc, store, meta, on: () => featureOn() && boardOn() && isStandard(rules()), view: offerView,
+        open: () => { if (!board.open()) return false; openScreen(FIGHT_SCREEN_ID); return true; }, save, refresh });
+    const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf, levels, offer: offers });
+    widgets[FIGHT_WIDGET] = createFightWidget({ headState, readerName, roleOf, battleLog, closeView, levels, board, start: fightStart });
+    screens.setPack(PACK, [createPartyScreen(), createFightScreen({ roleOf, offer: () => Boolean(offers.find()), waiting: () => Boolean(fightStart.current()) }), wizard.screen, exporter.screen, start.holdScreen]);
+    const offFightStart = events?.on?.('head', info => {
+        if (info?.reason === 'fight-start' || info?.reason === 'fight-start-done') {
+            fightStart.changed();
+            if (info.reason === 'fight-start') openScreen(FIGHT_SCREEN_ID);
+        }
+    });
     start.attach();
     battleLog.refreshAll();
     refresh();
@@ -112,10 +132,13 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         exporter,
         start,
         cardLines: info => { try { return rpgReplyLines({ ...info, roleOf, rules: rules() }); } catch { return []; } },
-        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack, gear, gearOf: () => { try { return planGear(readSheet(headState()), (name, args) => query?.(name, args), readerName()); } catch { return null; } } })],
+        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack, gear, boardFeature, gearOf: () => { try { return planGear(readSheet(headState()), (name, args) => query?.(name, args), readerName()); } catch { return null; } } })],
         heroLead: state => { try { return heroLead(state, { own: readerName(), roleOf, ...levels() }); } catch { return null; } },
         destroy() {
             battleLog.destroy();
+            offerView.destroy();
+            offFightStart?.();
+            fightStart.destroy();
             start.detach();
             wizard.destroy();
             exporter.destroy();
@@ -127,6 +150,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
             delete widgets[FIGHT_WIDGET];
             link?.remove();
             boardLink.remove();
+            startLink.remove();
             refresh();
         },
     };

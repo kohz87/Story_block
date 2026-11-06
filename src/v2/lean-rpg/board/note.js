@@ -21,7 +21,7 @@ function lineNote(line) {
 
 /** A compact but complete list of settled outcomes and changes, followed by the fight's status. */
 export function settledNote(result) {
-    const lines = ['Tell these settled fight results before the reader’s action; do not reroll them.'];
+    const lines = [result.fromApproach ? 'Tell the approach, then these settled fight results in order; do not reroll them.' : 'Tell these settled fight results before the reader’s action; do not reroll them.'];
     for (const line of result.opening ?? []) lines.push(`Opening: ${lineNote(line)}.`);
     const wear = Array.isArray(result.wear) ? result.wear : [], included = new Set();
     const wearNote = event => `${clean(event.who)}'s ${clean(event.item)} condition: ${clean(event.from)} → ${clean(event.to)}`;

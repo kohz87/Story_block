@@ -11,6 +11,7 @@ import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg
 import { moduleGrammar } from '../../../src/v2/data-modules/grammar.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { hashJson } from '../../../src/v2/replay.js';
+import { CORE_FEATURE } from '../../../src/v2/features.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -36,6 +37,7 @@ async function world(t, { answers = [], templates = STANDARD_TEMPLATES, settings
     const host = await createHost({ callModel: model, ...(settings ? { settings } : {}) });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, rpg);
+    host.features.set(CORE_FEATURE.fightBoard, false);
     await host.send('Begin.', 'Opening.');
     for (const entry of templates) success(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Wessel', level: 15 } }));

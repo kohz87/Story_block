@@ -38,7 +38,7 @@ export function targetLabel(foe) {
 /** Awards for the unsent segment; earlier segments have already paid their own practice. */
 export function pendingAwards(state, session, result, settings = {}) {
     const sheet = readSheet(state), fight = fightOf(sheet, session.groups ?? []);
-    const rate = xpRateFrom(settings), perUse = practiceOf(settings[PRACTICE_SETTING]) ?? PRACTICE.perUse;
+    const rate = xpRateFrom(settings), perUse = practiceOf(session.setup?.opening?.payload?.practice) ?? practiceOf(settings[PRACTICE_SETTING]) ?? PRACTICE.perUse;
     const xp = result.stop === 'won' && fight.won ? sheet.characters.filter(actor => actor.alive !== false && Number.isSafeInteger(actor.xp))
         .map(actor => ({ who: actor.who, amount: scaleXp(memberXp(fight.groups, memberLevel(actor)), rate) })) : [];
     const practice = usesOf(result).filter(use => {

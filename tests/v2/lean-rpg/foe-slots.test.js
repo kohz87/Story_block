@@ -22,6 +22,7 @@ async function world(t) {
     const host = await createHost({ callModel: model, settings: { modules: { 'story-block': { rpgFormula: 'standard' } } } });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
+    host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
     for (const entry of STANDARD_TEMPLATES) ok(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
     ok(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 30, str: 20, agi: 20, dex: 20, vit: 20, int: 20, luk: 20 } }));

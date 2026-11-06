@@ -50,7 +50,7 @@ export function resolveBoard(ctx, payload) {
     if (!ctx.claim(claimId)) ctx.fail('CLAIMED', 'This message has already been rolled for.');
     const base = played.result, practice = practiceOf(payload.practice) ?? PRACTICE.perUse;
     const result = { v: 1, key, pace: 'careful', rules, flow: 2, fix: 3, practice, ...(hasLevels(rules) ? { lv: LV_VERSION } : {}),
-        ...(gear ? { gear } : {}), checks: [], ...base, board: { id: board.id, seed: board.setup.seed, offset: board.setup.offset, groups: board.groups } };
+        ...(gear ? { gear } : {}), checks: structuredClone(board.setup.approach ?? []), ...base, board: { id: board.id, seed: board.setup.seed, offset: board.setup.offset, groups: board.groups } };
     const lines = [...result.opening, ...result.rounds.flatMap(round => round.lines)];
     if (gear) {
         if (board.setup.wearVersion !== 1) noteGear(lines, gear);

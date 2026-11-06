@@ -38,7 +38,7 @@ test('the page is its own rail entry after Features, with seven cards in order a
     const { doc, root, card } = await open(t);
     assert.deepEqual(rail(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
     assert.equal(root.querySelector('.ss-settings-page-sub').textContent, 'How the dice work, and what the narrator and the roll planner are told.');
-    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Gear in fights', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
+    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Gear in fights', 'Fight board', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
     assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: before each reply a short AI call plans the actions and code rolls the dice\. Off: no dice; the story decides\./);
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);
@@ -57,6 +57,16 @@ test('Rolls: Automatic or Off, through the existing setting', async t => {
     assert.equal(root.querySelector('[data-card="rolls"] [aria-pressed="true"]').textContent, 'Off');
     root.querySelector('[data-card="rolls"] .rpg-chip[data-value="automatic"]').click();
     assert.equal(stored().rpgRolls, 'automatic');
+});
+
+test('Fight board uses the same feature switch as Features', async t => {
+    const { host, card, root } = await open(t);
+    assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), true);
+    card('board').querySelector('[data-value="off"]').click();
+    assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), false);
+    assert.equal(root.querySelector('[data-card="board"] [aria-pressed="true"]').textContent, 'Off');
+    root.querySelector('[data-card="board"] [data-value="on"]').click();
+    assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), true);
 });
 
 test('Companions who join: Ask by default, then Automatically or Off, through the rpgJoin setting', async t => {
@@ -149,6 +159,7 @@ test('the odds are for the persona\'s own character, else the first Character bl
 
 test('Combat: the chat\'s Combat rules text is edited here and saved as an edit of that block; it reaches the narrator and survives a rebuild and a reload', async t => {
     const { host, root, card, win } = await open(t, { rules: true });
+    host.features.set(CORE_FEATURE.fightBoard, false);
     const area = card('combat').querySelector('textarea');
     assert.equal(area.value, COMBAT_DEFAULT, 'the block\'s own text');
     assert.equal(card('combat').querySelector('.rpg-set-count').textContent, `${[...COMBAT_DEFAULT].length} / 1200`);

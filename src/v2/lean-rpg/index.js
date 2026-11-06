@@ -42,6 +42,8 @@ export { grownSkills } from './templates.js';
 export { setStartNotes, skipOf, startNotes } from './start.js';
 export { PRECALL_HEAD, claimed, createPrecall, precallPrompt, sheetText } from './precall.js';
 export { boardInputError } from './board/commit.js';
+export { dropOf } from './ambush.js';
+export { narratedFoeGrammar } from './board/narrated-grammar.js';
 export { DICE_VERSION, FLOW_VERSION, RESULT_VERSION, claimKey, leanRpgGuard, outcomeOf, positionalDice, prepare, resolve, rollPrepared, rollsOf } from './resolve.js';
 
 // How much longer the hook may take than the planner's call, for the work around it.
@@ -71,8 +73,8 @@ export const ROLLS_QUERY = 'rpg.rolls';
  * → { commands, queries, hooks, settings: { defaults }, guard }; `guard` is the replay guard for `rpg.resolve` blocks
  * (domains/index.js routes the guards of that predicate to it).
  */
-export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chatId = stChatId, metadata = () => null, problem = null, moduleId = 'story-block', timeoutMs, timer, persona = () => '', rosterOn, plannerValues = () => ({}) } = {}) {
-    const precall = createPrecall({ callModel, chat, chatId, metadata, hold: createPlanHold({ metadata }), problem, moduleId, timeoutMs, timer, skip: skipOf(metadata) });
+export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chatId = stChatId, metadata = () => null, problem = null, moduleId = 'story-block', timeoutMs, timer, persona = () => '', rosterOn, plannerValues = () => ({}), onPlanning = () => {} } = {}) {
+    const precall = createPrecall({ callModel, chat, chatId, metadata, hold: createPlanHold({ metadata }), problem, moduleId, timeoutMs, timer, onPlanning, skip: skipOf(metadata) });
     const board = createBoardPart();
     return {
         // A prelude: previewed before the reply and stored on it before its story lines (turn.js). Not tied to the
@@ -106,7 +108,7 @@ export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chat
         // The planner's model call has its own limit (the setting Planner time limit, 45 s by default, read at each call; `timeoutMs` fixes it); the hook is
         // given a little longer, so its own skip path (quiet ROLLS_SKIPPED, the no-rolls cue and note) runs on a slow answer and the turn's generic limit never cuts in.
         hooks: {
-            canGenerate: Object.assign(view => precall.canGenerate(view), { feature: LEAN_RPG_FEATURE }),
+            canGenerate: Object.assign((view, info) => precall.canGenerate(view, info), { feature: LEAN_RPG_FEATURE }),
             beforeGenerate: Object.defineProperty((view, info) => precall.beforeGenerate(view, info), 'timeoutMs', { enumerable: true, get: () => plannerLimitMs(safeValues(plannerValues), timeoutMs) + HOOK_MARGIN_MS }),
             afterCapture: (view, info) => {
                 precall.afterCapture(view);

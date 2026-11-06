@@ -22,11 +22,20 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/view.js`: renders the board, keyboard handling and in-page discard confirmation.
 - `src/v2/lean-rpg/board/skill-editor.js`: draws the three checkboxes in the skill editor.
 - `src/v2/lean-rpg/board/board.css`: provides the touch layout and sizing.
+- `src/v2/lean-rpg/board/offers.js`, `offer-line.js`, `start-view-data.js`: find the opening reply and draw its offer and tab alert.
+- `src/v2/lean-rpg/board/start-controller.js`, `pause.js`, `fight-start.css`: draw the waiting choice and resume the reply.
+- `src/v2/turn/fight-start.js`: binds a pending send to its anchor sid and message and detects fight actions.
+- `src/v2/lean-rpg/board/narrated-grammar.js`: supplies manual foe changes per reply under Classic or Rolls off.
 - `src/v2/lean-rpg/precall.js`: selects a board segment or the planner and checks whether generation may proceed.
 - `src/v2/turn/prompt-build.js`, `capture-flow.js`, `events.js`, `held-board.js` and `src/v2/commands.js`: preview, protect, capture and recover the prelude.
 - `src/v2/lean-rpg/practice.js` and `fight.js`: award practice and win XP from recorded results.
 
 ## Data flow
+
+Before step 1, a known fight action holds the send without a planner call. With no foes, a planner opening is previewed with a
+saved seed; its foes and checks are shown on the pause. **Narrate it instead** reuses that plan and seed. **Fight it on the board**
+opens on the private post-approach sheet. The saved opening prelude runs before the board prelude on the single narrated reply;
+the approach checks earn practice and a successful ambush applies to the first exchange. Both previews and capture verify the inputs.
 
 1. `openBoard` uses the opening carrier's `sid`, discard count, current Standard rules, gear and weapons. The
    seed is `fightSeed(sid, attempt)`, fixed before a reply exists.
@@ -54,8 +63,12 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 
 - `chatMetadata.rpgFightBoard`: `{ id, origin, anchor, groups, setup, exchanges, carried?, carriedKey?, base? }`.
   Setup includes `seed`, `offset`, `rules`, `flags`, `weapons`, optional `gear`, `order`, `witness` and wear version.
+  A new fight's first segment also holds `opening` (payload and seed), its `approach` checks and any ambush `drop`.
 - `chatMetadata.rpgFightAttempts`: `{ [originSid]: discardCount }`, used to give the next opening a new seed.
 - `chatMetadata.rpgFightLast`: the last `{ key, board, practice }`, used for regenerate.
+- `chatMetadata.rpgFightStart`: the anchor sid, user-message hash, choice and, for a new fight, the original plan,
+  seeded opening and result. It is cleared after the reply and ignored when its anchor or message is absent.
+- `chatMetadata.rpgFightOffers`: hidden offer choices keyed by the reply that started each fight.
 - Reader message `extra.rpgFightLinks`: add-only board-key links to the cached segment for regenerate.
 - `chatMetadata.rpgFightHeld`: add-only `{ [replySid]: { current, staged } }`; `current` holds the
   prechecks, generation type, base text and receipt IDs needed to finish the reply. An empty reply gets a
@@ -66,7 +79,8 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
   A skill key includes its block, slot and folded name; the latest revision wins.
 - Board receipts keep each segment's seed, actions, opening reply identity and input witness; each new-style
   claim is keyed by the carrier reply `sid`. The receipt's `replan.payload` keeps `{ key, board, practice }`;
-  `result.board` keeps `{ id, seed, offset, groups }`, alongside rounds, order, hurts, wear and stop.
+  `result.board` keeps `{ id, seed, offset, groups }`, alongside rounds, order, hurts, wear and stop. The opening
+  prelude has a separate claim keyed by its starting anchor and the narrated reply's sid.
 
 ## Decisions
 
@@ -79,8 +93,10 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - A plain attack uses the best eligible weapon stat. Flee uses AGI against the strongest standing group.
   Foes choose a standing member in stable order; defence is automatic.
 - The end card shows XP for the original foe groups on a win and practice for the unsent segment; the folded
-  narrator note includes defence outcomes and recorded gear wear by exchange. The note is a pinned tail cue;
-  the board adds no static prompt text.
+  narrator note includes defence outcomes and recorded gear wear by exchange. A waiting reply gets a send button.
+- The Feature trims stock Foes hurt/clear lines, the fixed roll rule and fight XP instruction from the static prompt;
+  it keeps the opening line and combat flavour. The static text does not follow the current fight while the board is on.
+  Classic and Rolls off get manual foe grammar per reply. With the board off, the existing prompt is unchanged.
 
 ## Test map
 
@@ -93,6 +109,7 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `flags.test.js` covers wording defaults and keyed identity. `overrides.test.js` covers explicit and inferred
   flags on rename, replay, and deletion of either edit.
 - `flow.test.js` and `replay.test.js` cover continuation, swipe, regenerate, reload, rewind and middle deletion.
+- `start-flow.test.js`, `start-ui.test.js` and `trim.test.js` cover the waiting choice, approach, branch, offer, settings and prompt.
 - `note.test.js` and `view.test.js` cover defence, bar words, wear, controls, pending awards and discard.
 - `touch.test.js` renders the board at 390×844 and 360×740 in the game view and the Story panel when
   the optional browser is available; choices and end-card controls must clear each bottom bar.

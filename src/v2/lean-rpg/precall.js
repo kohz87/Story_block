@@ -25,6 +25,7 @@ import { SOUL_LABEL, soulShortOf } from './soul.js';
 import { readRecord } from '../persist.js';
 import { boardKey, boardPayload, boardSession, lastBoard, linkBoard, priorBoard, receiveBoard, reconcileBoard } from './board/session.js';
 import { boardInputError } from './board/commit.js';
+import { clearStart, fightsInMessage, holdStart, pendingStart } from '../turn/fight-start.js';
 
 // The query that names a level's rank (LV-C: `rpg.rank { level }` → `{ name } | null`); without it a level has no rank.
 const RANK_QUERY = 'rpg.rank';
@@ -186,7 +187,7 @@ export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === 
  * chatId() → the open chat's id, hold (plan.js createPlanHold), problem(entry) (the turn's Problems list), moduleId,
  * timeoutMs (the planner's limit in ms; none: the setting Settings → RPG → Rolls → Planner time limit, read at each call), timer, skip { peek() → whether the next reply is to go out with no dice, clear() } (start.js: "Send without the RPG for now") }. Returns { beforeGenerate(view, info) → { commands, lines? } | { lines } | null, afterCapture(view) }.
  */
-export function createPrecall({ callModel, chat, chatId, metadata = () => null, hold, problem = null, moduleId = 'story-block', timeoutMs, timer, skip: noDice = { peek: () => false, clear: () => {} } }) {
+export function createPrecall({ callModel, chat, chatId, metadata = () => null, hold, problem = null, moduleId = 'story-block', timeoutMs, timer, onPlanning = () => {}, skip: noDice = { peek: () => false, clear: () => {} } }) {
     // The planner's limit in ms: the one the part was given (tests), else the setting of this moment.
     const limitOf = values => plannerLimitMs(values, timeoutMs);
     const currentRules = view => {
@@ -194,7 +195,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         try { pack = packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { /* no pack rules */ }
         return rulesFromSettings(readSettings(view, moduleId), pack);
     };
-    const skip = (sheet, failure, key) => {
+    const skip = (sheet, failure, key, board = false) => {
         try { problem?.({ module: moduleId, code: 'ROLLS_SKIPPED', quiet: true, message: `Rolls skipped for this reply: ${failure.failed} Swipe to try again.` }); } catch { /* the Problems list is optional */ }
         // While a fight is on the narrator is told to keep it undecided (outside one there is nothing to hold back), and the reply keeps a record of
         // it (noroll.js) for the note where the battle log would stand: the same fact, shown to the reader, never told to the narrator.
@@ -202,11 +203,12 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             const seconds = Math.max(1, Math.round(failure.limit / 1000));
             return { lines: [NO_ROLLS_LINE], commands: [{ type: NOROLL, payload: { key, reason: failure.reason, ...(failure.reason === 'timeout' ? { limit: seconds } : {}) } }] };
         }
-        return noFight(sheet);
+        return noFight(sheet, board);
     };
     // No foe is filled in and nothing was rolled: if a fight starts in this reply, the narrator sets the Foes line and stops at the first clash.
     // (a block of Down groups only is a won fight: no fight is on)
-    const noFight = sheet => (sheet.foes.length && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) ? { lines: [OPEN_FIGHT_LINE] } : null);
+    const noFight = (sheet, board = false) => (sheet.foes.length && !sheet.foes.some(foe => foe.filled && foe.hurt > 0)
+        ? { lines: [board ? { text: 'No foes are set. If a fight begins, set the Foes line and tell the approach only. The fight has not started: end at the moment of engagement.', keep: true } : OPEN_FIGHT_LINE] } : null);
 
     async function plan(view, sheet, message, excerpt, rules) {
         const values = readSettings(view, moduleId);
@@ -246,24 +248,37 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         return { plan: open.length ? { ...parsed.plan, open } : parsed.plan, tokens: estimateTokens(prompt) };
     }
 
-    function canGenerate(view) {
+    function canGenerate(view, info = {}) {
         if (view?.feature?.(LEAN_RPG_FEATURE) !== true) return null;
         let meta;
         try { meta = metadata(); } catch { return null; }
-        const messages = chat() ?? [], last = messages.at(-1), session = boardSession(meta);
+        const messages = chat() ?? [], last = messages.at(-1), session = boardSession(meta), pending = pendingStart(meta, messages);
         let board = null;
         if (last?.is_user) {
             const anchor = readRecord(messages.at(-2))?.sid;
+            if (info.commit === true && view?.feature?.('story-block.fight-board') === true && pending?.choice === 'board' && session?.anchor === anchor && !session.exchanges?.length)
+                return { ok: false, reason: 'Play the waiting fight on the board.', action: false, fightStart: true };
             if (session?.exchanges?.length && !isStandard(currentRules(view))) return { ok: false, reason: 'The fight board needs Standard rules. Switch back to Standard or discard the staged fight before using Classic.', action: false };
             const legacyKey = `${messages.length - 1}-${hashText(String(last.mes ?? '').trim())}`;
             const remembered = lastBoard(meta, anchor, legacyKey, last);
-            board = session?.anchor === anchor ? boardPayload(session) : remembered?.board;
+            board = session?.anchor === anchor && (view?.feature?.('story-block.fight-board') === true || session.exchanges?.length) ? boardPayload(session) : remembered?.board;
             if (!board && session?.exchanges?.length) return { ok: false, reason: 'The fight no longer matches this reply. Restore the reply or discard the fight.', action: false };
             if (session?.anchor === anchor && session.exchanges?.length && !session.setup?.witness) return { ok: false, reason: 'This older fight cannot be checked. Discard it and start the fight again.', action: false };
         } else if (last && !last.is_user && !String(last.mes ?? '')) board = priorBoard(last)?.board;
-        if (!board) return null;
+        if (!board) {
+            if (info.commit !== true || !['normal', 'regenerate'].includes(normalizeType(info.type)) || !last?.is_user
+                || view?.feature?.('story-block.fight-board') !== true || !isStandard(currentRules(view))) return null;
+            if (!pending && normalizeType(info.type) !== 'normal') return null;
+            if (pending?.choice === 'narrate') return null;
+            const sheet = readSheet(view.state);
+            if (pending || (sheet.characters.length && sheet.foes.some(foe => foe.filled && foe.hurt > 0) && fightsInMessage(last.mes, sheet))) {
+                if (!pending && !holdStart(meta, messages, { mode: 'known' })) return null;
+                return { ok: false, reason: 'Choose how to play the waiting fight.', action: false, fightStart: true };
+            }
+            return null;
+        }
         if (view?.feature?.('story-block.fight-board') !== true) return { ok: false, reason: 'Turn on the fight board or discard the fight before sending.', action: false };
-        const error = boardInputError(view.state, board);
+        const error = board.setup?.opening ? null : boardInputError(view.state, board);
         return error ? { ok: false, reason: error, action: false } : null;
     }
 
@@ -282,24 +297,31 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         const text = String(last.mes ?? '').trim();
         if (!text) return null;
         const key = `${index}-${hashText(text)}`;
+        const startAnchor = readRecord(messages[index - 1])?.sid;
+        let meta = null;
+        try { meta = metadata(); } catch { /* no board without chat metadata */ }
+        const pending = pendingStart(meta, messages);
         // Replayed receipts keep their recorded rules; a new session is offered only under current Standard rules.
         const rules = currentRules(view);
         if (view?.feature?.('story-block.fight-board') === true) {
-            let meta = null;
-            try { meta = metadata(); } catch { /* no board without chat metadata */ }
             const anchorRecord = readRecord(messages[index - 1]);
             const type = normalizeType(info?.type), previous = type === 'swipe' ? priorBoard(messages[index + 1]) : null;
             const remembered = type === 'regenerate' ? lastBoard(meta, anchorRecord?.sid, key, last) : null;
             let session = boardSession(meta);
             if (session?.anchor === anchorRecord?.sid) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
-            const board = previous?.board ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid ? boardPayload(session) : null);
+            const board = previous?.board ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' ? boardPayload(session) : null);
             if (board) {
                 const anchored = board.anchor ? board : { ...board, anchor: anchorRecord?.sid ?? board.id };
                 const fightKey = previous?.key?.startsWith('b:') ? previous.key : remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
                 linkBoard(last, fightKey);
-                return { commands: [{ type: RESOLVE, payload: { key: fightKey, board: anchored, practice: previous?.practice ?? remembered?.practice ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } }] };
+                const opening = anchored.setup?.opening;
+                return { commands: [
+                    ...(opening ? [{ type: RESOLVE, payload: opening.payload, seed: opening.seed }] : []),
+                    { type: RESOLVE, payload: { key: fightKey, board: anchored, practice: previous?.practice ?? remembered?.practice ?? practiceOf(opening?.payload?.practice) ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } },
+                ] };
             }
         }
+        if (pending?.choice === 'narrate' && pending.original) return { commands: [{ type: RESOLVE, payload: pending.original, seed: pending.opening?.seed }] };
         if (claimed(view.state, key)) return null;
         if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
         if (!sheet.characters.length) return null;
@@ -322,8 +344,16 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             hold.clear();
             const before = messages[index - 1];
             const excerpt = before && !before.is_user ? stripBlock(String(before.mes ?? '')) : '';
+            const working = !pending && normalizeType(info?.type) === 'normal' && view?.feature?.('story-block.fight-board') === true && isStandard(rules)
+                && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) && fightsInMessage(text, sheet)
+                ? holdStart(meta, messages, { mode: 'working' }) : null;
+            if (working) { try { onPlanning(true); } catch { /* the planner still runs */ } }
             planned = await plan(view, sheet, text, excerpt, rules);
-            if (planned.failed) return skip(sheet, planned, key);
+            if (working && metadata() === meta && pendingStart(meta, chat()) === working) {
+                clearStart(meta);
+                try { onPlanning(false); } catch { /* the screen redraws on the next event */ }
+            }
+            if (planned.failed) return skip(sheet, planned, key, view?.feature?.('story-block.fight-board') === true);
             hold.put(where, key, planned.plan);
         }
         // A Standard fight keeps its turn order across replies: the nearest earlier reply's order goes on in the payload (resolve.js), so a swipe of
@@ -333,7 +363,15 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         // from the state before the roll, so a change before it (a reply deleted or edited) changes its gear.
         const drop = planned.plan ? carriedDrop(view, index) : null;
         const gear = planned.plan && gearIsOn(sheet, (name, args) => view.query?.(name, args)) ? gearMarkOf({ v: GEAR_VERSION, lead: String(last.name ?? '') }) : null;
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, fix: FIX_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) } }] } : noFight(sheet);
+        if (!planned.plan) return noFight(sheet, view?.feature?.('story-block.fight-board') === true);
+        const payload = { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, fix: FIX_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) };
+        if (!pending && normalizeType(info?.type) === 'normal' && view?.feature?.('story-block.fight-board') === true && isStandard(rules)
+            && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) && planned.plan.open?.length
+            && (planned.plan.acts?.length || planned.plan.foes?.some(foe => !foe.hold))) {
+            const opening = { ...payload, start: startAnchor, plan: { ...payload.plan, acts: [], foes: [] } };
+            return { fightStart: { opening, original: payload, anchor: startAnchor, message: hashText(text) } };
+        }
+        return { commands: [{ type: RESOLVE, payload }] };
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether
@@ -345,6 +383,9 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
     }
 
     function afterReceive(info = {}, state = null, query = null) {
+        let current = null;
+        try { current = metadata(); } catch { /* no saved start */ }
+        clearStart(current);
         const record = readRecord((chat() ?? [])[info.index]);
         const receipt = record?.receipts?.findLast(item => item?.type === RESOLVE && item.replan?.payload?.board);
         if (!receipt) return;

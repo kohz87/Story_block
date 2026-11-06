@@ -12,7 +12,7 @@ import { editableLayout } from './editable-layout.js';
 import { STRINGS, fill } from '../strings.js';
 import { blockTabScreen } from './block-screen.js';
 import { roleTail } from '../lean-rpg/tail.js';
-import { LEAN_RPG_FEATURE, practiceFromRollsOnly } from '../lean-rpg/names.js';
+import { LEAN_RPG_FEATURE, ROLLS_SETTING, practiceFromRollsOnly } from '../lean-rpg/names.js';
 import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blocks.js';
 import { fold, readSheet } from '../lean-rpg/read.js';
 // (foes.js and levels.js are small and need nothing of the RPG's library: they stay static, like read.js)
@@ -136,7 +136,7 @@ export function pinnedPresentation(state, kind = 'screens', noTab = []) {
  * The static lines for the pinned modules (empty without a pin); they change only when a pin does, and (the RPG on) with a quiet reply
  * (`quiet`, the RPG's QUIET_GRAMMAR table, lean-rpg/quiet.js: no combat text and only the opening Foes line). A long list of values (the health words) is told once.
  */
-export function grammarFor(state, quiet = null, { rolled = false } = {}) {
+export function grammarFor(state, quiet = null, { rolled = false, board = false } = {}) {
     // `rolled` (the RPG on, Rolls automatic): skill practice comes only from rolled uses, so the narrator is not offered `practice-N` and the texts
     // that told it to practise a skill say nothing of it (the Combat rules' XP guide line, the Skills block's description).
     const noPractice = text => String(text ?? '').replace(/\s*Practice a skill 5 to 20 per use\./u, '').replace(/\s+and adds practice/u, '');
@@ -144,13 +144,25 @@ export function grammarFor(state, quiet = null, { rolled = false } = {}) {
     const seen = new Map();
     const lines = active.map(id => {
         const definition = activeDefinition(state, id);
-        const only = quiet && definition?.role ? quiet[definition.role] : null;
+        const only = board && definition?.role === 'foes' ? { only: /^set-slot-\d+$/u }
+            : quiet && definition?.role ? quiet[definition.role] : null;
         if (definition && only?.skip) {
             // (A skipped block may keep one line of its text: the XP guide stays on a quiet reply, whatever words the pinned block holds it in.)
             const kept = only.keep ? new RegExp(only.keep.source, 'u').exec(String(definition.prompt ?? ''))?.[0] : '';
             return kept ? oneLine(rolled ? noPractice(kept) : kept) : '';
         }
-        const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
+        let shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
+        if (board && shown?.role === 'rules') {
+            // Only remove the stock instructions. A pack's own combat text remains intact.
+            const prompt = String(shown.prompt ?? '')
+                .replace(/Rolls: tell the rolled result as given; code moves the bars for hits, heals, skill costs: never set those\.\s*/u, '')
+                .replace(/XP guide: code gives XP for a won fight(?: and practises rolled skills)?; write none for (?:them|it)\.\s*/u, 'XP guide: ');
+            shown = { ...shown, prompt };
+        }
+        if (board && shown?.role === 'foes') {
+            const prompt = String(shown.prompt ?? '').replace(/The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or (?:has )?yielded\./u, 'The narrator sets a slot when a group arrives.');
+            shown = { ...shown, prompt };
+        }
         return shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
@@ -389,7 +401,7 @@ export function blockCards(state) {
 }
 const blockCardSlots = Object.fromEntries(Array.from({ length: CARD_SLOTS }, (_, at) => [`block-card-${at + 1}`, { for: state => blockCards(state)[at]?.card ?? null }]));
 
-export function createDataModulesPart({ packs, state: head = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }), settings = () => ({}), persona = () => '' } = {}) {
+export function createDataModulesPart({ packs, state: head = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }), settings = () => ({}), persona = () => '', boardOn = () => false } = {}) {
     // The runtime's late-bound readers may not exist yet while the definition registers: read as "no state" until they do.
     const state = () => { try { return head(); } catch { return null; } };
     // Whether a name is the reader's own (the persona's): the Party tab shows that character as You.
@@ -1278,8 +1290,22 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         hooks: { afterCapture: afterCapture, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
         cards: blockCardSlots,
         context: {
-            static: hint => grammarFor(state(), rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null, { rolled: practiceFromRollsOnly(hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()) }),
-            tail: view => ({ lines: tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true), optional: [] }),
+            static: hint => {
+                const board = boardOn() === true;
+                return grammarFor(state(), !board && rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null,
+                    { rolled: practiceFromRollsOnly(board || hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()), board });
+            },
+            tail: view => {
+                const lines = tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true);
+                if (boardOn()) {
+                    const lib = rpgLib();
+                    let pack = null;
+                    try { pack = lib?.packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { /* no pack rules */ }
+                    const manual = settings()?.[ROLLS_SETTING] === 'off' || (lib && !lib.isStandard(lib.rulesFromSettings(settings(), pack)));
+                    if (manual) lines.push(...(lib?.narratedFoeGrammar(view.state) ?? []));
+                }
+                return { lines, optional: [] };
+            },
             // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
             extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id), true, instanceOf(state(), id)?.fields), 0),
         },

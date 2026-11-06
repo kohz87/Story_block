@@ -416,6 +416,8 @@ export function resolve(ctx, payload = {}) {
     if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'Rolls are made by Story Block before a reply, not by an action.');
     const key = String(payload?.key ?? '');
     if (!KEY.test(key)) ctx.fail('INVALID', 'A roll needs the key of the message it was made for.');
+    const start = payload.start;
+    if (start !== undefined && (typeof start !== 'string' || !start || start.length > 120)) ctx.fail('INVALID', 'The fight opening is damaged.');
     const checked = validatePlan(payload?.plan);
     if (!checked.ok) ctx.fail('INVALID', `That is not a plan: ${checked.errors[0]}`);
     const plan = payload.plan;
@@ -449,8 +451,9 @@ export function resolve(ctx, payload = {}) {
     const sheet = applyGear(standing, gear);
     const prepared = prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow, lv: Boolean(lv), fix: fix >= 2, then: fix >= 3 });
     if (opening) prepared.witness = { ...prepared.witness, opened };
-    if (!prepared.acts.length && !prepared.foes.length && !prepared.checks.length) ctx.fail('NO_LONGER_DONE', 'Nothing is left to roll on this sheet.');
-    if (!ctx.claim(claimKey(key))) ctx.fail('CLAIMED', 'This message has already been rolled for.');
+    if (!opening && !prepared.acts.length && !prepared.foes.length && !prepared.checks.length) ctx.fail('NO_LONGER_DONE', 'Nothing is left to roll on this sheet.');
+    const claim = start ? `${claimKey(`start:${encodeURIComponent(start)}`)}:reply:${ctx.reply?.sid ?? ''}` : claimKey(key);
+    if (!ctx.claim(claim)) ctx.fail('CLAIMED', 'This message has already been rolled for.');
     // A roll that asks for the dice version draws one number from the seed, and each action's dice come from that and its place in
     // the plan; one made before has no version and draws its dice in one sequence, as it did.
     const source = positional ? positionalDice(base) : () => ctx.roll(`d${FORMULA.die}`).total;
@@ -464,8 +467,8 @@ export function resolve(ctx, payload = {}) {
         wear = wearGear(ctx, gear, { opening: dice.opening ?? [], rounds: dice.rounds, rules, condWord });
         legend = earnedLegend(dice, sheet, lv === LV_VERSION);
     }
-    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(drop ? { ambush: ctx.hash(drop) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: ctx.hash(levelsOf(settled)) } : {}), ...(gear ? { gear: ctx.hash(gear) } : {}) };
-    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
+    const predicate = { kind: RESOLVE, key, ...(start ? { start } : {}), plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(drop ? { ambush: ctx.hash(drop) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: ctx.hash(levelsOf(settled)) } : {}), ...(gear ? { gear: ctx.hash(gear) } : {}) };
+    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, ...(start ? { start } : {}), plan, rules, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(settled ? { levels: levelsOf(settled) } : {}), ...(gear ? { gear } : {}) });
     const result = {
         v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(fix ? { fix } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), ...(gear ? { gear } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
         refused: prepared.refused, summary: dice.summary, ...(dice.ambush ? { ambush: dice.ambush } : {}), ...(opening ? { opened } : {}), ...(wear.length ? { wear } : {}), ...(legend ? { legend: 1 } : {}),
@@ -478,7 +481,7 @@ export function resolve(ctx, payload = {}) {
     if (gear) dice.text = cueOfResult(result, dice.shape);
     const text = cueOfResult(result, dice.shape) === dice.text ? '' : dice.text;
     // (the shape the cue was fitted to is kept beside the record, not in it: a roll made before it is replanned without its record changing)
-    return { summary: text, narrate: true, replan: true, data: { v2: { key: claimKey(key), result, ...(dice.shape ? { shape: dice.shape } : {}) } } };
+    return { summary: text, narrate: true, replan: true, data: { v2: { key: claim, result, ...(dice.shape ? { shape: dice.shape } : {}) } } };
 }
 
 /**
@@ -494,6 +497,7 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         const predicate = guard?.predicate;
         if (guard?.version !== 2 || guard.rulesHash !== null || !isObject(predicate) || predicate.kind !== RESOLVE) return bad('Malformed roll guard.');
         if (!isObject(recorded) || !validatePlan(recorded.plan).ok || hash(recorded.plan) !== predicate.plan || recorded.key !== predicate.key) return bad('The roll\'s plan was damaged.');
+        if (recorded.start !== predicate.start || (recorded.start !== undefined && (typeof recorded.start !== 'string' || !recorded.start || recorded.start.length > 120))) return bad('The fight opening was damaged.');
         // The numbers are the ones recorded with the roll, not today's settings; damaged numbers are not guessed at.
         // A roll recorded before the numbers were kept has none: it was made with Standard's.
         const rules = rulesOfPayload(recorded.rules);

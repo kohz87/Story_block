@@ -517,6 +517,7 @@ test('a roll in a story whose pack asks for Classic is rolled on Classic with th
         const callModel = async () => 'act Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats';
         const host = await createHost({ callModel, settings: { modules: { 'story-block': settings } } });
         host.features.set('story-block.rpg', true);
+        host.features.set('story-block.fight-board', false);
         assert.equal((await host.packs.packs.install(packOf({ formula: 'classic', numbers: { foeBase: 8 } }))).ok, true);
         await host.send('Begin.', 'Opening.');
         const { LEAN_RPG_TEMPLATES } = await import('../../../src/v2/lean-rpg/templates.js');

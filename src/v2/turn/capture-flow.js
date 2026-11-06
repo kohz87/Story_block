@@ -18,6 +18,7 @@ import { occurrenceOf, operationKey } from '../evidence.js';
 import { hash, readRecord } from '../persist.js';
 import { LEAN_RPG_FEATURE, practiceFromRollsOnly } from '../lean-rpg/names.js';
 import { rpgLib } from '../rpg-lazy.js';
+import { boardStartState } from './held-board.js';
 
 export function createCaptureFlow(s, deps) {
     const { ctx, store, bus, registry, settings, events, hostSettings, view, viewReader, lateReader, problem, isCarrier, PRACTICE_LINE, HOOK_TIMEOUT_MS } = deps;
@@ -120,8 +121,9 @@ export function createCaptureFlow(s, deps) {
     async function captureLines(index, all, before = null, type = 'normal', { late = [], assist = [], used = 0, prechecks = [] } = {}) {
         const board = prechecks.find(step => step?.type === 'rpg.resolve' && step.payload?.board)?.payload.board;
         if (board) {
+            const start = boardStartState(bus, store.head(), board);
             const check = rpgLib()?.boardInputError;
-            const error = typeof check === 'function' ? check(store.head(), board) : 'The fight could not be checked.';
+            const error = start.error ?? (typeof check === 'function' ? check(start.state, board) : 'The fight could not be checked.');
             if (error) throw holdBoard(error);
         }
         const receipts = [];

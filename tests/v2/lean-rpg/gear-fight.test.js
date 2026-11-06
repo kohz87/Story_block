@@ -268,6 +268,7 @@ async function world(t, { gear = true, standard = false, fields = { level: 5 }, 
     const host = await createHost({ callModel: createFakeModel(Array(40).fill(plan)), settings: { features: gear ? { 'story-block.gear': true } : {}, modules: { 'story-block': { rpgFormula: standard ? 'standard' : 'classic' } } } });
     t.after(() => host.close());
     host.features.set('story-block.rpg', true);
+    host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
     for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(templates.find(entry => entry.name === name).definition) }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', ...fields } }));

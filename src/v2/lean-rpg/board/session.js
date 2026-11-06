@@ -106,6 +106,9 @@ export function receiveBoard(meta, payload, result, sid, receiptId = null, state
     const base = { offset: board.setup.offset, order: structuredClone(board.setup.order ?? null) };
     const setup = { ...structuredClone(board.setup), offset: nextOffset, order: structuredClone(result.order ?? []) };
     delete setup.witness;
+    delete setup.opening;
+    delete setup.approach;
+    delete setup.drop;
     if (setup.wearVersion === 1 && setup.gear && state) Object.assign(setup, equipmentForBoard(state, setup.gear, query));
     meta[KEY] = { id: board.id, origin: board.id.split(':')[0], anchor: sid, groups: structuredClone(board.groups),
         setup, exchanges: [], carriedKey: payload.key, ...(typeof receiptId === 'string' ? { carried: receiptId } : {}), base };
