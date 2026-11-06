@@ -34,6 +34,7 @@ import { validateInventory } from '../../../../src/v2/domains/inventory.js';
 import { aliasKey, resolveDef } from '../../../../src/v2/domains/names.js';
 import { validateScene } from '../../../../src/v2/domains/scene.js';
 import { probeModule } from './probe-module.js';
+import { replayFailure } from './replay-diagnostics.js';
 
 const isCarrier = message => Boolean(message) && typeof message === 'object' && !message.is_user;
 
@@ -313,13 +314,20 @@ const plain = value => (value === null || value === undefined ? value : JSON.par
  *   store's untold list is exactly the ones nobody told;
  * - no receipt id appears twice on the line.
  */
-export function checkInvariants(host, label) {
+export function checkInvariants(host, label, { trace = [], dumpDir } = {}) {
     const chat = host.ctx.chat;
     const store = host.store;
     const indexes = carriers(chat);
     for (const index of indexes) {
-        const expected = rebuildAt(chat, index).state;
-        assert.deepEqual(plain(store.at(index)), plain(expected), `${label}: state at carrier ${index} equals a rebuild from scratch`);
+        const { state, skipped } = rebuildAt(chat, index);
+        const live = plain(store.at(index));
+        const rebuilt = plain(state);
+        try {
+            assert.deepEqual(live, rebuilt);
+        } catch (error) {
+            error.message = replayFailure({ label, index, live, rebuilt, chat: plain(chat), skipped, trace, dumpDir });
+            throw error;
+        }
     }
     const headIndex = indexes.at(-1) ?? -1;
     assert.equal(store.headIndex(), headIndex, `${label}: head index`);
