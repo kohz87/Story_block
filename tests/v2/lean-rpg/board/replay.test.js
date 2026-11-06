@@ -4,7 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
-import { boardSession, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { boardSession, openBoard, reconcileBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, foeBlock, recordOf, rollReceipt, setup, skillBlock } from '../helpers.js';
 
@@ -52,6 +53,92 @@ test('a narrated swipe, Re-read and reload keep the same open board fight', asyn
         assert.deepEqual(roundsAt(host, 2), before, 'the reload keeps the rounds');
         assert.deepEqual(boardSession(meta), savedMeta.rpgFightBoard, 'the unsent fight came back with the chat');
         assert.equal(callModel.calls.length, 0);
+    } finally { host.close(); restore(); }
+});
+
+test('deleting an earlier pair keeps replay lookup and a repeated message gets a distinct claim', async () => {
+    for (const mode of ['swipe', 'regenerate', 'repeat']) {
+        const restore = seedCrypto(91);
+        const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
+        const { host, callModel } = await setup({ blocks, board: true });
+        try {
+            await host.send('Older.', 'An older reply.');
+            const meta = host.ctx.chatMetadata;
+            open(host);
+            const action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+            assert.equal(stageExchange(meta, host.head(), action).error, undefined);
+            await host.send('Strike.', 'Fight.');
+            const first = rollReceipt(host, 4), rounds = structuredClone(first.data.v2.result.rounds), key = first.replan.payload.key;
+            assert.equal(host.head().meta.claims[`rpg:resolve:${key}:reply:${recordOf(host, 4).sid}`], true);
+            await host.st.deleteMessage(2);
+            await host.st.deleteMessage(1);
+            const calls = callModel.calls.length;
+            if (mode === 'swipe') {
+                await host.swipe('Another telling.');
+                assert.deepEqual(roundsAt(host, 2), rounds);
+                assert.equal(rollReceipt(host, 2).replan.payload.key, key);
+            } else if (mode === 'regenerate') {
+                await host.store.flush();
+                const savedChat = structuredClone(host.st.saves.at(-1)), savedMeta = structuredClone(meta);
+                await host.st.loadChat(savedChat, 'board-after-delete');
+                host.ctx.chatMetadata = savedMeta;
+                await host.regenerate('The fight again.');
+                assert.deepEqual(roundsAt(host, 2), rounds);
+                assert.equal(rollReceipt(host, 2).replan.payload.key, key);
+            } else {
+                const staged = stageExchange(meta, host.head(), action);
+                assert.equal(staged.error, undefined);
+                await host.send('Strike.', 'Continue fight.');
+                assert.deepEqual(roundsAt(host, 4), staged.preview.result.rounds);
+                assert.notEqual(rollReceipt(host, 4).replan.payload.key, key);
+            }
+            assert.equal(callModel.calls.length, calls);
+        } finally { host.close(); restore(); }
+    }
+});
+
+test('rewinding a later segment restores its saved initiative', async () => {
+    const restore = seedCrypto(81);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 3, agi: 15, vit: 20, health: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 8, 8, 5]]) } };
+    const { host } = await setup({ blocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+        open(host);
+        assert.equal(stageExchange(meta, host.head(), action).error, undefined);
+        await host.send('First.', 'Fight.');
+        assert.equal(stageExchange(meta, host.head(), action).error, undefined);
+        await host.send('Second.', 'Fight again.');
+        const session = boardSession(meta), saved = structuredClone(session.base), receipt = rollReceipt(host, 4);
+        assert.ok(saved.order?.length);
+        assert.equal((await host.sdk.rewind({ index: 4, beforeRev: receipt.rev })).ok, true);
+        const expected = playBoard(host.head(), { ...session.setup, offset: saved.offset, order: saved.order, witness: undefined }, [{ actions: action }]);
+        reconcileBoard(meta, id => host.store.receipts().some(entry => entry.receipt.id === id));
+        assert.deepEqual(session.setup.order, saved.order);
+        const actual = stageExchange(meta, host.head(), action);
+        assert.equal(actual.error, undefined);
+        assert.deepEqual(actual.preview.result.rounds, expected.result.rounds);
+        assert.deepEqual(actual.preview.result.order, expected.result.order);
+    } finally { host.close(); restore(); }
+});
+
+test('a rewind cannot reroll an already staged continuation', async () => {
+    const restore = seedCrypto(81);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
+    const { host } = await setup({ blocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+        open(host);
+        stageExchange(meta, host.head(), action);
+        await host.send('First.', 'Fight.');
+        const receipt = rollReceipt(host, 2), staged = stageExchange(meta, host.head(), action);
+        assert.equal(staged.error, undefined);
+        const choices = structuredClone(boardSession(meta).exchanges), offset = boardSession(meta).setup.offset;
+        assert.equal((await host.sdk.rewind({ index: 2, beforeRev: receipt.rev })).ok, true);
+        reconcileBoard(meta, id => host.store.receipts().some(entry => entry.receipt.id === id));
+        assert.deepEqual(boardSession(meta).exchanges, choices);
+        assert.equal(boardSession(meta).setup.offset, offset);
+        assert.match(stageExchange(meta, host.head(), action).error, /restore|discard/i);
+        assert.equal((await host.send('Second.', 'Should not be sent.')).aborted, true);
     } finally { host.close(); restore(); }
 });
 

@@ -26,6 +26,9 @@ test('send, swipe and continue an open fight without planning it again', async (
         assert.ok(tailOf(first.request).includes(receipt.summary));
         assert.equal(callModel.calls.length, 0);
         const beforeSwipe = receipt.data.v2.result;
+        const unsent = stageExchange(meta, host.head(), choices);
+        assert.equal(unsent.error, undefined);
+        const unsentRounds = structuredClone(unsent.preview.result.rounds);
         await host.swipe('Another telling.');
         assert.deepEqual(rollReceipt(host, 2).data.v2.result.rounds, beforeSwipe.rounds);
         assert.equal(rollReceipt(host, 2).replan.payload.board.setup.seed, opened.session.setup.seed);
@@ -33,10 +36,9 @@ test('send, swipe and continue an open fight without planning it again', async (
         const session = boardSession(meta);
         assert.ok(session, 'this seed leaves the fight open');
         assert.equal(session.setup.offset, 1);
-        const second = stageExchange(meta, host.head(), choices);
-        assert.equal(second.error, undefined);
+        assert.equal(session.exchanges.length, 1, 'the unsent exchange survives the new telling');
         await host.send('I keep going.', 'The fight goes on.');
-        assert.deepEqual(rollReceipt(host, 4).data.v2.result.rounds, second.preview.result.rounds);
+        assert.deepEqual(rollReceipt(host, 4).data.v2.result.rounds, unsentRounds);
         assert.equal(callModel.calls.length, 0);
         const live = JSON.stringify(host.head());
         host.store.rebuild();

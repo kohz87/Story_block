@@ -5,12 +5,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
+import * as sessionApi from '../../../../src/v2/lean-rpg/board/session.js';
 import { character, foeBlock, setup, skillBlock } from '../helpers.js';
 
 const rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const choice = { actions: [{ who: 'Astra', kind: 'attack', target: 1 }] };
 
-test('staged exchanges are deterministic, reversible and can continue from the same bars', async () => {
+test('a rolled exchange has no undo operation', () => {
+    assert.equal(typeof sessionApi.undoExchange, 'undefined');
+});
+
+test('staged exchanges are deterministic and can continue from the same bars', async () => {
     const blocks = {
         hero: { role: 'character', fields: character('Astra', { str: 5, health: 5 }) },
         skills: { role: 'skills', fields: skillBlock('Astra', [['Dodge', 1, 'agi', 'stamina', 'evasion']]) },
@@ -22,7 +27,7 @@ test('staged exchanges are deterministic, reversible and can continue from the s
         const first = playBoard(before, config, [choice]);
         assert.equal(first.error, undefined);
         assert.equal(JSON.stringify(before), saved, 'staging never changes the live sheet');
-        assert.deepEqual(playBoard(before, config, [choice]), first, 'undo and replay use the same dice');
+        assert.deepEqual(playBoard(before, config, [choice]), first, 'replay uses the same dice');
         assert.equal(first.result.stop, 'open', 'the selected seed leaves the fight open');
         const next = playBoard(first.state, { ...config, offset: 1, order: first.result.order }, [choice]);
         const together = playBoard(before, config, [choice, choice]);

@@ -23,7 +23,8 @@ import { readSheet } from './read.js';
 import { plannerWanted } from './gate.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
 import { readRecord } from '../persist.js';
-import { boardPayload, boardSession, lastBoard, priorBoard, receiveBoard, reconcileBoard } from './board/session.js';
+import { boardKey, boardPayload, boardSession, lastBoard, linkBoard, priorBoard, receiveBoard, reconcileBoard } from './board/session.js';
+import { boardInputError } from './board/commit.js';
 
 // The query that names a level's rank (LV-C: `rpg.rank { level }` → `{ name } | null`); without it a level has no rank.
 const RANK_QUERY = 'rpg.rank';
@@ -240,14 +241,32 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         return { plan: open.length ? { ...parsed.plan, open } : parsed.plan, tokens: estimateTokens(prompt) };
     }
 
+    function canGenerate(view) {
+        if (view?.feature?.(LEAN_RPG_FEATURE) !== true) return null;
+        let meta;
+        try { meta = metadata(); } catch { return null; }
+        const messages = chat() ?? [], last = messages.at(-1), session = boardSession(meta);
+        let board = null;
+        if (last?.is_user) {
+            const anchor = readRecord(messages.at(-2))?.sid;
+            const legacyKey = `${messages.length - 1}-${hashText(String(last.mes ?? '').trim())}`;
+            const remembered = lastBoard(meta, anchor, legacyKey, last);
+            board = session?.anchor === anchor ? boardPayload(session) : remembered?.board;
+            if (!board && session?.exchanges?.length) return { ok: false, reason: 'The fight no longer matches this reply. Restore the reply or discard the fight.', action: false };
+            if (session?.anchor === anchor && session.exchanges?.length && !session.setup?.witness) return { ok: false, reason: 'This older fight cannot be checked. Discard it and start the fight again.', action: false };
+        } else if (last && !last.is_user && !String(last.mes ?? '')) board = priorBoard(last)?.board;
+        if (!board) return null;
+        if (view?.feature?.('story-block.fight-board') !== true) return { ok: false, reason: 'Turn on the fight board or discard the fight before sending.', action: false };
+        const error = boardInputError(view.state, board);
+        return error ? { ok: false, reason: error, action: false } : null;
+    }
+
     async function beforeGenerate(view, info = {}) {
         if (view?.feature?.(LEAN_RPG_FEATURE) !== true) return null;
         if (info?.commit === false) return null;
         if (!['normal', 'regenerate', 'swipe'].includes(normalizeType(info?.type))) return null;
         // The reader chose to send the first message without the RPG: that reply has no dice (the flag goes when the reply is captured).
-        if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
         const sheet = readSheet(view.state);
-        if (!sheet.characters.length) return null;
         // The reader's message: the last one for a send or a regenerate, the one before the reply for a swipe.
         const messages = chat() ?? [];
         if (!messages.some(message => message && !message.is_user)) return null;
@@ -257,18 +276,25 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         const text = String(last.mes ?? '').trim();
         if (!text) return null;
         const key = `${index}-${hashText(text)}`;
-        if (claimed(view.state, key)) return null;
         if (view?.feature?.('story-block.fight-board') === true) {
             let meta = null;
             try { meta = metadata(); } catch { /* no board without chat metadata */ }
-            const type = normalizeType(info?.type), previous = type === 'swipe' ? priorBoard(messages[index + 1], key) : null;
-            const remembered = type === 'regenerate' ? lastBoard(meta, key) : null;
             const anchorRecord = readRecord(messages[index - 1]);
+            const type = normalizeType(info?.type), previous = type === 'swipe' ? priorBoard(messages[index + 1]) : null;
+            const remembered = type === 'regenerate' ? lastBoard(meta, anchorRecord?.sid, key, last) : null;
             let session = boardSession(meta);
             if (session?.anchor === anchorRecord?.sid) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
             const board = previous?.board ?? remembered?.board ?? (session?.anchor === anchorRecord?.sid ? boardPayload(session) : null);
-            if (board) return { commands: [{ type: RESOLVE, payload: { key, board, practice: previous?.practice ?? remembered?.practice ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } }] };
+            if (board) {
+                const anchored = board.anchor ? board : { ...board, anchor: anchorRecord?.sid ?? board.id };
+                const fightKey = previous?.key?.startsWith('b:') ? previous.key : remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
+                linkBoard(last, fightKey);
+                return { commands: [{ type: RESOLVE, payload: { key: fightKey, board: anchored, practice: previous?.practice ?? remembered?.practice ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } }] };
+            }
         }
+        if (claimed(view.state, key)) return null;
+        if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
+        if (!sheet.characters.length) return null;
         if (readSettings(view, moduleId)[ROLLS_SETTING] === 'off') return null;
         const where = String(chatId() ?? '');
         // The numbers the dice are rolled with are fixed here, from the settings of this moment, and travel in the payload: the roll
@@ -313,14 +339,14 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         noDice.clear();
     }
 
-    function afterReceive(info = {}) {
+    function afterReceive(info = {}, state = null, query = null) {
         const record = readRecord((chat() ?? [])[info.index]);
         const receipt = record?.receipts?.findLast(item => item?.type === RESOLVE && item.replan?.payload?.board);
         if (!receipt) return;
         let meta = null;
         try { meta = metadata(); } catch { return; }
-        receiveBoard(meta, receipt.replan.payload, receipt.data?.v2?.result, record.sid, receipt.id);
+        receiveBoard(meta, receipt.replan.payload, receipt.data?.v2?.result, record.sid, receipt.id, state, query);
     }
 
-    return { beforeGenerate, afterCapture, afterReceive };
+    return { canGenerate, beforeGenerate, afterCapture, afterReceive };
 }

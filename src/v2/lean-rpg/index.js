@@ -105,6 +105,7 @@ export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chat
         // The planner's model call has its own limit (the setting Planner time limit, 45 s by default, read at each call; `timeoutMs` fixes it); the hook is
         // given a little longer, so its own skip path (quiet ROLLS_SKIPPED, the no-rolls cue and note) runs on a slow answer and the turn's generic limit never cuts in.
         hooks: {
+            canGenerate: Object.assign(view => precall.canGenerate(view), { feature: LEAN_RPG_FEATURE }),
             beforeGenerate: Object.defineProperty((view, info) => precall.beforeGenerate(view, info), 'timeoutMs', { enumerable: true, get: () => plannerLimitMs(safeValues(plannerValues), timeoutMs) + HOOK_MARGIN_MS }),
             afterCapture: (view, info) => {
                 precall.afterCapture(view);
@@ -113,7 +114,7 @@ export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chat
                 return commands.length ? { commands } : undefined;
             },
             // Every reply, whatever else answers afterCapture and with or without change lines: the plan it used is let go.
-            afterReceive: (view, info) => { precall.afterCapture(view); precall.afterReceive(info); },
+            afterReceive: (view, info) => { precall.afterCapture(view); precall.afterReceive(info, view.state, (name, args) => view.query(name, { ...args, recorded: true })); },
         },
         settings: { defaults: { ...DEFAULT_SETTINGS }, schema: SETTINGS_SCHEMA },
         guard: leanRpgGuard,
