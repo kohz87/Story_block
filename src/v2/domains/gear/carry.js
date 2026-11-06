@@ -1,5 +1,5 @@
 // Gear's carry rules: mount capacity, a member's capacity, the whole carry picture and the carry query's answer
-// (moved out of domains/gear.js unchanged; gear.js re-exports every public name). Pure.
+// (moved out of domains/gear.js unchanged; gear.js re-exports every public name). The picture uses the supplied carry reader.
 
 import { isPlainObject } from '../common.js';
 import { readSheet } from '../../lean-rpg/read.js';

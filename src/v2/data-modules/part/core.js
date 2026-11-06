@@ -1,4 +1,4 @@
-// The data-module part's shared lifecycle helpers (moved out of data-modules/part.js unchanged):
+// The data-module part's shared lifecycle helpers (extracted from data-modules/part.js):
 // installed offers, dependency checks, reader actions, replay guards, action receipts and refusals.
 import { DM_LIMITS as L } from '../schema.js';
 import { dataModuleHash, dataModulesPackHash } from '../check.js';

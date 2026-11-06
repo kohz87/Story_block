@@ -105,7 +105,7 @@ Last checked: 2026-11-07.
 ## Pointer to add
 - `docs/dev/codemap.md`: map of `src/` files not already covered by the existing docs.
 
-## Split files (7 Nov: files over 450 lines split into small parts; each original keeps its path and re-exports its public names)
+## Split files (7 Nov: files over 450 lines split into small parts; each original keeps its path and public exports)
 - `src/v2/data-modules/part.js` → `data-modules/part/`: `factory.js` wires the data-module part; `core.js` shared lifecycle helpers; `shared.js` state access, caches and checked definitions; `views.js` read-only views; `blocks.js` Setup actions; `fields.js` field and host-step actions; `act.js` story and reader actions; `skills.js` the Skills block's slot rules; `party.js` companions; `prompt.js` prompt tail and reply cards; `timing.js` timer and reply-end costs.
 - `src/v2/domains/gear.js` → `domains/gear/`: `stats.js` slots, rarity, stat budgets and story-made definitions; `conditions.js` condition words and prices; `carry.js` carry rules and the carry query; `views.js` query answers and the screen picture.
 - `src/v2/events/condition.js` → `events/condition-tokenizer.js` the tokenizer; `condition-parser.js` the parser (a frozen AST); `condition-errors.js` size limits and error values.

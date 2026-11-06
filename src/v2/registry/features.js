@@ -1,5 +1,5 @@
 // The registry's feature lookups (features.js): declarations as registered, the on/off and needs
-// checks, hypothetical reads and the feature-off predicate, moved out of registry.js unchanged.
+// checks, hypothetical reads and the feature-off predicate, extracted from registry.js.
 // `createFeatureLookups` is given the registry's maps and the lifecycle lookups it calls.
 
 import { NEEDS_HINT, featureOf } from '../features.js';

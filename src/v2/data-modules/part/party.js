@@ -1,4 +1,4 @@
-// The data modules' companions (moved out of data-modules/part.js unchanged): joining, leaving and
+// The data modules' companions (extracted from data-modules/part.js): joining, leaving and
 // returning, their signature skills and gear, and the Ask card's reader action.
 import { DM_LIMITS as L, dmObject } from '../schema.js';
 import { validateDataModules } from '../check.js';

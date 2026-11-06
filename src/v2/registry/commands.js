@@ -1,5 +1,5 @@
-// The registry's command, capture, context and initial-state lookups, moved out of registry.js
-// unchanged: which module answers a command or kind, the feature and lifecycle it is under, the
+// The registry's command, capture, context and initial-state lookups, extracted from registry.js:
+// which module answers a command or kind, the feature and lifecycle it is under, the
 // refusal for a held-back module's action, a domain's initial slice and the state a chat starts with.
 
 import { featureOf } from '../features.js';

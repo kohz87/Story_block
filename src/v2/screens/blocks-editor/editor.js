@@ -1,4 +1,4 @@
-// The block editor's form state and controls (moved out of screens/blocks-editor.js unchanged; blocks-editor.js
+// The block editor's form state and controls (extracted from screens/blocks-editor.js; blocks-editor.js
 // re-exports renderBlockEditor): the draft's fields, starters, effects, save and error placement. The drawing of
 // the layout/preview and the form's sections live in layout.js and draw.js.
 

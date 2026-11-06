@@ -1,5 +1,5 @@
 // The block editor's sections: name and Show as, starters, fields and entries, functions and effects, and the
-// footer (moved out of screens/blocks-editor.js unchanged; editor.js calls this part).
+// footer (extracted from screens/blocks-editor.js; editor.js calls this part).
 
 import { iconNode } from '../../view/widgets/dom.js';
 import { blockKindCount, buildBlock, namesText } from '../../data-modules/block-builder.js';

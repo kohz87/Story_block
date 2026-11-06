@@ -1,5 +1,5 @@
 // Binding path syntax and reads: parse `name.key[0]['key']`, resolve it in a scope, turn it into a State JSON
-// Pointer, and read or copy-write values by key. Own properties only, never the forbidden object keys.
+// Pointer, and read or copy-write values by key. Reads use own properties and reject forbidden keys; writes reject them too.
 
 import { escapeKey } from '../../ops.js';
 

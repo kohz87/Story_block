@@ -1,4 +1,4 @@
-// The registry's registration checks and ownership claims, moved out of registry.js unchanged: a
+// The registry's registration checks and ownership claims, extracted from registry.js: a
 // refused definition is noted and throws, and a registered one reserves its names and frozen features.
 
 import { affectsStatic, presetsOf } from '../features.js';

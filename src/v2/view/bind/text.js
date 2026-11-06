@@ -1,4 +1,4 @@
-// Binding text: value-to-text, {{ }} interpolation, `name: expr` pair lists and loop-name checks. Pure.
+// Binding text: value-to-text, {{ }} interpolation, `name: expr` pair lists and loop-name checks.
 
 import { compileExpr, evalExpr } from './expressions.js';
 import { IDENT, RESERVED } from './paths.js';

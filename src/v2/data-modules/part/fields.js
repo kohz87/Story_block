@@ -1,4 +1,4 @@
-// The data modules' field and host-step actions (moved out of data-modules/part.js unchanged):
+// The data modules' field and host-step actions (extracted from data-modules/part.js):
 // `dm.set`, timers, reply-end settling, and the afterCapture/beforeGenerate steps they plan.
 import { DM_LIMITS as L, dmOwn, dmObject } from '../schema.js';
 import { copy, refuse, createEvaluation, cleanList, atPath, scalarHolds } from '../interpreter.js';

@@ -1,5 +1,5 @@
 // Binding expressions: compile text once, fast-read paths/literals/simple helper calls, otherwise pass it to
-// the events condition language. Errors become warnings and undefined; nothing here throws to a renderer.
+// the events condition language. Evaluation can report expression errors as warnings and undefined.
 
 import { parsePath, readPath, resolvePath, skipSpace } from './paths.js';
 

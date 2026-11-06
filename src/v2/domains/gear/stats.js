@@ -1,5 +1,5 @@
 // Gear's slots, rarity, stat budgets and story-made definitions (moved out of domains/gear.js unchanged;
-// gear.js re-exports every public name). Everything a worn piece is worth in numbers is derived here. Pure.
+// gear.js re-exports every public name). gearDefine updates the supplied item definition in place.
 
 import { isPlainObject } from '../common.js';
 

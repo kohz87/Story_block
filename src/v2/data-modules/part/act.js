@@ -1,4 +1,4 @@
-// The data modules' story and reader actions (moved out of data-modules/part.js unchanged): guessing
+// The data modules' story and reader actions (extracted from data-modules/part.js): guessing
 // a missing kind, foe levels, skill lines and the guarded `dm.act` evaluation.
 import { dmOwn, dmKindWritesHidden } from '../schema.js';
 import { dataModuleHash } from '../check.js';
@@ -17,7 +17,7 @@ import { namedChanges } from './prompt.js';
 const PRACTICE_KIND = new RegExp(`^practice-[1-${SKILL_SLOTS_MAX}]$`, 'u');
 
 export function createAct(deps) {
-    const { dependency, guard, finish, growSkills, skillRoute, skillRoom, skillWant } = deps;
+    const { dependency, guard, finish, growSkills, skillRoute, skillRoom, skillWant, settings } = deps;
     // A story line with no `kind:` (a model often leaves it out, or puts a label like `letter: F` where `kind: promote` belongs): when exactly
     // one kind of this module, written with the line's op, accepts the line's labels as they are, that is its kind; with none or several
     // the line is refused as before (kind must be …), never guessed. → the line's labels, with `kind` added when it was found.
@@ -93,7 +93,7 @@ export function createAct(deps) {
         // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.
         let xpRate = XP_RATE.default;
         if (ctx.cause === 'story' && definition.role === 'character' && ctx.feature?.(LEAN_RPG_FEATURE) === true) {
-            try { xpRate = xpRateFrom(deps.settings()); } catch { xpRate = XP_RATE.default; }
+            try { xpRate = xpRateFrom(settings()); } catch { xpRate = XP_RATE.default; }
             if (xpRate !== XP_RATE.default) for (const effect of kind.effects ?? []) {
                 if (effect?.op === 'add' && Array.isArray(effect.path) && effect.path[0] === 'xp' && Array.isArray(effect.value) && effect.value[0] === 'arg' && Number.isSafeInteger(args[effect.value[1]])) args[effect.value[1]] = scaleXp(args[effect.value[1]], xpRate);
             }

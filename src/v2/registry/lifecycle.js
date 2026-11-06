@@ -1,5 +1,5 @@
 // The registry's lifecycle (docs/v2/LIFECYCLE.md): peer readiness, cycles, the restore barrier and
-// held-back modules, moved out of registry.js unchanged. It owns the peer and switch state and returns
+// held-back modules, extracted from registry.js. It owns the peer and switch state and returns
 // the lookup and host-control methods registry.js exposes.
 
 import { satisfies } from '../packs/version.js';
@@ -87,14 +87,14 @@ export function createLifecycle({ defs }) {
      * Host-internal: switch module `id` off (dormant, with `reason`) or on again. Story Block's own
      * module cannot be switched off. → whether anything changed.
      */
-    function setEnabled(id, on, reason = 'Turned off.') {
+    const setEnabled = (id, on, reason = 'Turned off.') => {
         if (!defs.has(id) || id === HOST_MODULE) return false;
         const was = switchedOff.has(id);
         if (on === false) switchedOff.set(id, String(reason || 'Turned off.'));
         else switchedOff.delete(id);
         lifeCache = null;
         return was !== switchedOff.has(id);
-    }
+    };
     /** The restore barrier: `{ state: 'idle'|'pending'|'failed', reason }`. */
     const restore = () => ({ ...barrier });
     /** Changes when a new restore barrier is raised, not when its reason changes. */
@@ -104,11 +104,11 @@ export function createLifecycle({ defs }) {
      * While 'pending', no module but Story Block's own is ready (see held). 'failed' is only reported
      * (sdk.preflight): it holds nothing.
      */
-    function setRestore(state, reason = '', { temporary = false } = {}) {
+    const setRestore = (state, reason = '', { temporary = false } = {}) => {
         if (!RESTORE_STATES.includes(state)) throw new Error(`Story Suite: a restore is ${RESTORE_STATES.join(', ')}, not "${state}".`);
         if (!temporary && state === 'pending' && barrier.state !== 'pending') barrierEpoch += 1;
         barrier = { state, reason: state === 'idle' ? '' : String(reason ?? '') };
-    }
+    };
     /** [{ module, range }] the peers module `id` named when it registered. */
     const peers = id => (peerNeeds.get(id) ?? []).map(({ peer, range }) => ({ module: peer, range }));
     function setPeers(id, list) {

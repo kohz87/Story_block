@@ -1,5 +1,5 @@
 // The block editor's layout chips, card-role controls, status colours and preview (moved out of
-// screens/blocks-editor.js unchanged; editor.js calls this part).
+// screens/blocks-editor.js; editor.js calls this part).
 
 import { LAYOUTS, TONES, exampleValues, statusTones } from '../../data-modules/block-layout.js';
 import { buildBlock, defaultTone } from '../../data-modules/block-builder.js';

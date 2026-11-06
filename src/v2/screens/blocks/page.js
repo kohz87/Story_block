@@ -1,5 +1,5 @@
-// Settings -> Blocks: the page's list, Show as controls, row menu and template chooser (moved out of
-// screens/blocks.js unchanged; createBlockWidgets returns this page). The card view and editor stay shared.
+// Settings -> Blocks: the page's list, Show as controls, row menu and template chooser (extracted from
+// screens/blocks.js; createBlockWidgets returns this page). The card view and editor stay shared.
 
 import { h } from '../../view/widgets/dom.js';
 import { selectField } from '../../view/form/fields.js';

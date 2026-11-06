@@ -1,5 +1,5 @@
 // Gear's query answers and screen picture (moved out of domains/gear.js unchanged; gear.js re-exports every public
-// name): what a wearer has on, the stats it gives, the carry card and the four gear queries. Pure.
+// name): what a wearer has on, the stats it gives, the carry card and the four gear queries, using supplied readers.
 
 import { isPlainObject } from '../common.js';
 import { readSheet } from '../../lean-rpg/read.js';

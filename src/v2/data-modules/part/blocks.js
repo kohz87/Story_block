@@ -1,4 +1,4 @@
-// The data modules' Setup actions (moved out of data-modules/part.js unchanged): pinning,
+// The data modules' Setup actions (extracted from data-modules/part.js): pinning,
 // migrating and attaching a module, and creating, editing or removing a chat block.
 import { DM_LIMITS as L } from '../schema.js';
 import { validateDataModules, validateDataMigration, dataModuleDefaults, dataModuleHash } from '../check.js';
@@ -10,7 +10,7 @@ import { actorIdOf } from '../../lean-rpg/roster.js';
 import { E, B, J, stateOf, draftOf, activeCount, blockCount, instancePath, checkedTarget, newInstance } from './shared.js';
 
 export function createBlocks(deps) {
-    const { reader, offers, dependency, guard, finish, defaultSeeds, seededData } = deps;
+    const { reader, offers, dependency, guard, finish, defaultSeeds, seededData, restore } = deps;
     function target(ctx, payload, migrate = false, call = {}) {
         reader(ctx);
         const offer = offers().find(entry => entry.module === payload.module);
@@ -47,7 +47,7 @@ export function createBlocks(deps) {
     }
     function changeBlock(ctx, payload, action, call = {}) {
         if (ctx.cause !== 'ui' || ctx.caller !== null) refuse('REFUSED', '', B.reader);
-        if (deps.restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
+        if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
         const module = action === 'define' ? `pack.chat/${payload.definition?.slug ?? ''}` : deps.resolveModule(prefix, payload.module);
         const old = domain?.active?.[module], previous = activeDefinition(prefix, module);

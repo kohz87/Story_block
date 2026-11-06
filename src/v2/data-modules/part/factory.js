@@ -1,4 +1,4 @@
-// The Story Block data-module part (moved out of data-modules/part.js unchanged): it wires the
+// The Story Block data-module part (extracted from data-modules/part.js): it wires the
 // domain, `dm.*` commands, party kind, queries, cards, hooks and prompt context from the part files.
 import { DM_LIMITS as L } from '../schema.js';
 import { validateDataMigration, dataModuleDefaults } from '../check.js';

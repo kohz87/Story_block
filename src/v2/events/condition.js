@@ -20,7 +20,7 @@
 // Errors are values. Nothing here throws at the caller: `parse` and `evaluate` return
 // `{ ok: false, error: { code, message, at } }`, and `evaluateCondition` reports a condition that
 // errors as not met, with the reason, so the Events debug section can say why an event waits.
-// The errors, tokenizer and parser live in condition/; this file keeps the evaluator and entry points.
+// The errors, tokenizer and parser live in the adjacent condition-* files; this file keeps the evaluator and entry points.
 
 import { CALLS, runCall } from './calls.js';
 import { LIMITS, FORBIDDEN, fail, errorValue } from './condition-errors.js';
