@@ -12,18 +12,19 @@ import { actionSkills } from './plan.js';
 import { attackStat, bestDefence } from './rules.js';
 import { skillKey } from './flags.js';
 
-export function boardChoices(state, setup, chosen = []) {
+export function boardChoices(state, setup, chosen = [], memberGroupList = null) {
     const sheet = applyGear(readSheet(state), setup?.gear), actors = sheet.characters.filter(actor => actor.alive !== false && actor.health !== 0);
     const actor = actors.find(entry => !chosen.some(action => action.who === entry.who));
     const foes = sheet.foes.filter(foe => foe.filled && foe.hurt > 0);
     if (!actor) return { sheet, actors, foes, actor: null, choices: [] };
     const weapon = setup?.weapons?.[actor.key], stat = attackStat(actor, weapon).toUpperCase();
     const choices = [{ label: `Attack${weapon?.name ? ` with ${weapon.name}` : ''} (${stat})`, action: { who: actor.who, kind: 'attack' } }];
+    const areaLabel = Array.isArray(memberGroupList) && memberGroupList.length > 1 ? ' — one group' : ' — every foe';
     for (const { skill, target, area, reason } of actionSkills(actor, setup?.flags)) {
         const detail = [skill.stat?.toUpperCase(), skill.uses === 'mana' ? 'Mana' : 'Stamina'].filter(Boolean).join(', ');
         const base = `${skill.name}${skill.about ? `: ${skill.about}` : ''} (${detail})`;
         if (target) choices.push({ label: `${base}${area ? ' — one foe' : ''}`, reason, action: { who: actor.who, kind: 'skill', skill: skill.name } });
-        if (area) choices.push({ label: `${base} — every foe`, reason, action: { who: actor.who, kind: 'skill', skill: skill.name, area: true } });
+        if (area) choices.push({ label: `${base}${areaLabel}`, reason, action: { who: actor.who, kind: 'skill', skill: skill.name, area: true } });
     }
     choices.push({ label: 'Flee', action: { who: actor.who, kind: 'flee' } });
     const defence = bestDefence(actor, skill => setup?.flags?.[skillKey(actor.module, skill)]);
@@ -33,6 +34,72 @@ export function boardChoices(state, setup, chosen = []) {
 export function targetLabel(foe) {
     const size = foe.size ?? 5, health = stageWord(STAGES.health, foe.hurt, size);
     return `${foe.name} (Lv ${foe.level}, ${health})`;
+}
+
+const memberValue = member => {
+    const value = Number(member?.value ?? member?.hurt);
+    return Number.isFinite(value) ? Math.trunc(value) : 0;
+};
+
+/** The members still standing, in board order. */
+export const standingMembers = members => (Array.isArray(members) ? members : [])
+    .filter(member => member?.standing !== false && memberValue(member) > 0);
+
+/** A member's or pack's health word over its own bar ("Unhurt", "Hurt", "Down"). */
+export function memberHealthWord(member) {
+    const size = Math.max(1, Math.trunc(Number(member?.size) || 1));
+    return stageWord(STAGES.health, memberValue(member), size);
+}
+
+/** A numbered target line in the board's own wording: "1. Bristle-boar 1  Unhurt". */
+export const memberTargetLine = (member, number) => `${number}. ${member?.name ?? ''}  ${memberHealthWord(member)}`;
+
+/** A pack's thinning line: "About 8 left · 2 attacks each exchange". */
+export function memberPackLine(member) {
+    const left = Math.max(0, Math.trunc(Number(member?.left) || 0));
+    const attacks = Math.max(0, Math.trunc(Number(member?.attacks) || 0));
+    return `About ${left} left · ${attacks} ${attacks === 1 ? 'attack' : 'attacks'} each exchange`;
+}
+
+const memberBaseName = (member, realFoe) => String(realFoe?.name ?? member?.name ?? '')
+    .replace(/ pack \d+$/u, '').replace(/ \d+$/u, '');
+const pluralName = name => (!name ? '' : /s$/iu.test(name) ? name : `${name}s`);
+
+/** The standing real-slot groups, each with the display name an area asks for. */
+export function memberGroups(members, realFoes = []) {
+    const list = standingMembers(members), out = [], seen = new Set();
+    for (const member of list) {
+        const group = Number(member?.group);
+        if (!Number.isFinite(group) || seen.has(group)) continue;
+        seen.add(group);
+        const real = (Array.isArray(realFoes) ? realFoes : []).find(foe => Number(foe?.slot) === group);
+        out.push({ group, label: pluralName(memberBaseName(member, real)), members: list.filter(item => Number(item?.group) === group) });
+    }
+    return out;
+}
+
+/**
+ * The member fight's turn-order sentence: one entry per real group (its standing numbers in brackets), then the attacks
+ * the reader faces each exchange. Party entries keep their turn-order places.
+ */
+export function memberOrderLine(order, members, realFoes = []) {
+    const list = standingMembers(members), groups = memberGroups(list, realFoes), groupOf = new Map(groups.map(group => [group.group, group]));
+    const seen = new Set(), parts = [];
+    for (const item of (Array.isArray(order) ? order : [])) {
+        if (item?.party) { parts.push(item.name); continue; }
+        const slot = Number(item?.slot ?? String(item?.id ?? '').replace(/^f:/u, ''));
+        const member = list.find(entry => Number(entry?.slot) === slot);
+        const groupNumber = Number(member?.group);
+        if (!Number.isFinite(groupNumber) || seen.has(groupNumber)) continue;
+        const group = groupOf.get(groupNumber);
+        if (!group) continue;
+        seen.add(groupNumber);
+        const numbers = group.members.map(entry => Number(entry?.n)).filter(Number.isFinite);
+        parts.push(group.members.some(entry => entry?.pack) || !numbers.length ? group.label : `${group.label} (${numbers.join(', ')})`);
+    }
+    const attacks = list.reduce((sum, member) => sum + Math.max(0, Math.trunc(Number(member?.attacks) || 0)), 0);
+    if (attacks) parts.push(`${attacks} ${attacks === 1 ? 'attack' : 'attacks'} on you each exchange`);
+    return parts.length ? `Order: ${parts.join(' · ')}` : '';
 }
 
 /** Awards for the unsent segment; earlier segments have already paid their own practice. */

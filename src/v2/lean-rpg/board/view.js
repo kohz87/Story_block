@@ -6,12 +6,12 @@ import { button, h } from '../../view/widgets/dom.js';
 import { discardHeld, heldForSid } from '../../turn/held-board.js';
 import { meter } from '../../view/widgets/meter.js';
 import { drawStageBars } from '../view/bars.js';
-import { readFoes, readParty } from '../view/party-data.js';
+import { readFoes, readParty, stageTone } from '../view/party-data.js';
 import { readSheet } from '../read.js';
 import { planGear } from '../gear.js';
 import { isStandard } from '../rules.js';
 import { boardFlags } from './overrides.js';
-import { boardChoices, pendingAwards, targetLabel } from './view-data.js';
+import { boardChoices, memberGroups as groupsOfMembers, memberHealthWord, memberOrderLine, memberPackLine, memberTargetLine, pendingAwards, standingMembers, targetLabel } from './view-data.js';
 import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
 import { equipmentForBoard, playBoard } from './engine.js';
 import { barMovement, settledNote } from './note.js';
@@ -37,6 +37,30 @@ const labelLine = line => {
     const verdict = `${line.kind === 'foe' ? `${pc.who}'s defence${skill}: ` : ''}${String(line.outcome).toUpperCase()}`;
     return `${who}${line.kind === 'foe' ? '' : skill}: d20 ${pc.die} ${signed(bonus)} = ${pc.total} vs ${foe.total ?? line.dc} — ${verdict}${line.decisive ? ', DECISIVE' : ''}${changes.length ? ` · ${changes.join(' · ')}` : ''}`;
 };
+
+// A read-only member card in the Fight tab's own foe-card shape: name and level pills, then the existing segmented meter.
+function drawMemberCard(doc, parent, member, realFoes, handles) {
+    const real = (Array.isArray(realFoes) ? realFoes : []).find(foe => Number(foe.slot) === Number(member.group));
+    const value = Math.max(0, Math.trunc(Number(member?.value ?? member?.hurt) || 0));
+    const max = Math.max(1, Math.trunc(Number(member?.size) || 1)), shown = Math.min(value, max);
+    const down = member?.standing === false || value <= 0;
+    const node = h(doc, 'article', `rpg-foe ss-glass${down ? ' rpg-down' : ''}${member?.pack ? ' rpg-foe-pack' : ''}`);
+    node.setAttribute('data-foe', member?.name ?? '');
+    parent.appendChild(node);
+    const top = h(doc, 'div', 'rpg-foe-top');
+    top.appendChild(h(doc, 'p', 'rpg-name', member?.name ?? ''));
+    const side = h(doc, 'span', 'rpg-foe-side');
+    if (real?.levelText) side.appendChild(h(doc, 'span', 'ss-pill rpg-level-pill', real.levelText));
+    if (member?.pack) side.appendChild(h(doc, 'span', 'ss-pill rpg-pack-pill', 'pack'));
+    top.appendChild(side);
+    node.appendChild(top);
+    const bar = h(doc, 'div', 'rpg-foe-bar rpg-bar'), slot = h(doc, 'div', 'rpg-bar-meter');
+    bar.setAttribute('data-foe-health', String(member?.slot ?? ''));
+    bar.appendChild(slot);
+    node.appendChild(bar);
+    handles.push(meter.render(slot, { label: 'Health', value: shown, max, tone: stageTone(shown, max), text: memberHealthWord(member), segments: max, icon: 'fa-heart' }, {}));
+    if (member?.pack) node.appendChild(h(doc, 'p', 'rpg-pack-line', memberPackLine(member)));
+}
 
 export function createBoardView({ doc, headState, meta, save, store, rules, query, readerName, roleOf, levels, on = () => false, start = null } = {}) {
     let notice = '', chosen = [], targeting = null, confirm = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
@@ -134,15 +158,21 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             return;
         }
         const state = played.state, { ranks, playerRank } = levels(), party = readParty(state, { own: readerName(), roleOf, ranks, playerRank }), foes = readFoes(state, { roleOf, ranks });
+        const members = Array.isArray(played.result.members) ? played.result.members : null;
+        root.classList.toggle('rpg-board-members', members !== null);
         const status = h(doc, 'div', 'rpg-board-status');
         status.appendChild(h(doc, 'h3', '', 'Fight'));
         const cards = h(doc, 'div', 'rpg-board-cards');
-        for (const foe of foes) {
-            const card = h(doc, 'article', 'rpg-foe ss-glass');
-            card.appendChild(h(doc, 'p', 'rpg-name', `${foe.name} · ${foe.levelText}`));
-            const slot = h(doc, 'div', 'rpg-bar-meter'); card.appendChild(slot);
-            handles.push(meter.render(slot, { label: 'Health', value: foe.hurt, max: foe.max ?? 5, tone: foe.hurt ? 'warn' : 'bad', text: foe.word, segments: foe.max ?? 5 }, {}));
-            cards.appendChild(card);
+        if (members) {
+            for (const member of members) drawMemberCard(doc, cards, member, foes, handles);
+        } else {
+            for (const foe of foes) {
+                const card = h(doc, 'article', 'rpg-foe ss-glass');
+                card.appendChild(h(doc, 'p', 'rpg-name', `${foe.name} · ${foe.levelText}`));
+                const slot = h(doc, 'div', 'rpg-bar-meter'); card.appendChild(slot);
+                handles.push(meter.render(slot, { label: 'Health', value: foe.hurt, max: foe.max ?? 5, tone: foe.hurt ? 'warn' : 'bad', text: foe.word, segments: foe.max ?? 5 }, {}));
+                cards.appendChild(card);
+            }
         }
         for (const character of party) {
             const card = h(doc, 'article', 'rpg-pc ss-glass');
@@ -152,7 +182,10 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             cards.appendChild(card);
         }
         status.appendChild(cards);
-        if (played.result.order.length) status.appendChild(h(doc, 'p', 'rpg-board-order', `Order: ${played.result.order.map(item => item.name).join(' · ')}`));
+        if (played.result.order.length) {
+            const line = members ? memberOrderLine(played.result.order, members, foes) : `Order: ${played.result.order.map(item => item.name).join(' · ')}`;
+            if (line) status.appendChild(h(doc, 'p', 'rpg-board-order', line));
+        }
         root.appendChild(status);
         const log = h(doc, 'div', 'rpg-board-log rpg-battle');
         log.setAttribute('aria-live', 'polite');
@@ -168,7 +201,9 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         root.appendChild(log);
         const panel = h(doc, 'div', 'rpg-board-controls');
         const gear = session.setup.gear ? equipmentForBoard(state, session.setup.gear) : {};
-        const data = boardChoices(state, { ...session.setup, ...gear }, chosen), ended = played.result.stop !== 'open', sending = ended && Boolean(start?.sending?.());
+        const memberGroupList = members ? groupsOfMembers(members, foes) : null;
+        const data = boardChoices(state, { ...session.setup, ...gear }, chosen, memberGroupList), ended = played.result.stop !== 'open', sending = ended && Boolean(start?.sending?.());
+        const standing = members ? standingMembers(members) : data.foes;
         if (confirm) confirmDiscard(panel);
         else if (ended) {
             panel.appendChild(h(doc, 'h4', 'rpg-board-end', `Fight ${played.result.stop}`));
@@ -182,17 +217,30 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                 start.send(); redraw();
             }));
         } else {
-            panel.appendChild(h(doc, 'p', 'rpg-board-prompt', targeting ? 'Choose a target' : `${data.actor?.who ?? 'Party'}: choose an action`));
+            panel.appendChild(h(doc, 'p', 'rpg-board-prompt', targeting ? (targeting.groupMode ? 'Choose a group' : 'Choose a target') : `${data.actor?.who ?? 'Party'}: choose an action`));
             if (!targeting) panel.appendChild(h(doc, 'p', 'rpg-board-defence', `Defence: ${data.defence ?? 'plain defence'}, automatic`));
             const list = h(doc, 'div', 'rpg-board-choices');
-            const options = targeting ? data.foes.map(foe => ({ label: targetLabel(foe), target: foe.slot })) : data.choices;
+            const options = targeting ? (targeting.groupMode
+                ? memberGroupList.map((group, at) => ({ label: `${at + 1}. ${group.label}`, group: group.group, literal: true }))
+                : standing.map((foe, at) => members
+                    ? { label: memberTargetLine(foe, at + 1), target: foe.slot, literal: true }
+                    : { label: targetLabel(foe), target: foe.slot }))
+                : data.choices;
             const take = item => {
                 if (busy || thisGeneration !== generation || item.reason) return;
                 notice = '';
-                if (targeting) { chosen.push({ ...targeting, target: item.target }); targeting = null; }
+                if (targeting) {
+                    if (targeting.groupMode) chosen.push({ ...targeting.action, group: item.group });
+                    else chosen.push({ ...targeting, target: item.target });
+                    targeting = null;
+                }
                 else if (item.action.kind === 'flee') chosen = [item.action];
-                else if (!item.action.area && data.foes.length > 1) targeting = item.action;
-                else chosen.push({ ...item.action, ...(!item.action.area ? { target: data.foes[0]?.slot } : {}) });
+                else if (item.action.area && members) {
+                    if (memberGroupList.length > 1) targeting = { groupMode: true, action: item.action };
+                    else chosen.push({ ...item.action, ...(memberGroupList[0] ? { group: memberGroupList[0].group } : {}) });
+                }
+                else if (!item.action.area && standing.length > 1) targeting = item.action;
+                else chosen.push({ ...item.action, ...(!item.action.area ? { target: standing[0]?.slot } : {}) });
                 let rolled = false;
                 if (!targeting && (chosen[0]?.kind === 'flee' || chosen.length === data.actors.length)) {
                     const result = stageExchange(meta(), headState(), chosen);
@@ -204,7 +252,8 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                 if (rolled) releaseAfterResult();
             };
             options.forEach((item, at) => {
-                const line = button(doc, `${at + 1}  ${item.label}${item.reason ? ` — ${item.reason}` : ''}`, 'rpg-board-choice', () => take(item));
+                const text = item.literal ? item.label : `${at + 1}  ${item.label}${item.reason ? ` — ${item.reason}` : ''}`;
+                const line = button(doc, text, 'rpg-board-choice', () => take(item));
                 line.disabled = Boolean(item.reason) || busy;
                 if (busy && !item.reason) lockedChoices.push(line);
                 line.setAttribute('data-choice', String(at + 1)); list.appendChild(line);
