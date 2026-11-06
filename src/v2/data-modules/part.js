@@ -22,6 +22,7 @@ import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { SKILL_SLOTS_BASE, SKILL_SLOTS_EVERY, SKILL_SLOTS_MAX, signatureAt, skillSlots } from '../skill-slots.js';
 // The companions who join, the rules they are made with and their words are the RPG's library, loaded only when it is needed (rpg-lazy.js).
 import { rpgLib } from '../rpg-lazy.js';
+import { boardGrammar, boardXpGuide } from './board-static.js';
 import { castGearOf, gearLine } from '../packs/cast-gear.js';
 import { castSkillsOf } from '../packs/cast-skills.js';
 import { gearOn } from '../domains/inventory.js';
@@ -141,18 +142,16 @@ export function grammarFor(state, quiet = null, { rolled = false, board = false 
     // that told it to practise a skill say nothing of it (the Combat rules' XP guide line, the Skills block's description).
     const noPractice = text => String(text ?? '').replace(/\s*Practice a skill 5 to 20 per use\./u, '').replace(/\s+and adds practice/u, '');
     const active = Object.keys(state?.domains?.dataModules?.active ?? {});
-    const seen = new Map(), boardLib = board ? rpgLib() : null;
+    const seen = new Map();
     const lines = active.map(id => {
         const definition = activeDefinition(state, id);
-        // Features can be previewed before the lazy RPG library has loaded.
-        const fallback = board && definition?.role === 'rules' ? { skip: true, keep: /XP guide:.*$/u }
-            : board && definition?.role === 'foes' ? { prompt: false, only: /^set-slot-\d+$/u } : null;
-        const only = (board && (boardLib?.boardGrammar?.(definition?.role) ?? fallback)) || (quiet && definition?.role ? quiet[definition.role] : null);
+        // (The board's pieces come from a static file, so a preview before the lazy RPG library has loaded words them the same.)
+        const only = (board && boardGrammar(definition?.role)) || (quiet && definition?.role ? quiet[definition.role] : null);
         if (definition && only?.skip) {
             // (A skipped block may keep one line of its text: the XP guide stays on a quiet reply, whatever words the pinned block holds it in.)
             const kept = only.keep ? new RegExp(only.keep.source, 'u').exec(String(definition.prompt ?? ''))?.[0] : '';
             const value = rolled ? noPractice(kept) : kept;
-            return kept ? oneLine(board ? (boardLib?.boardXpGuide?.(value) ?? value.replace(/XP guide: code gives XP for a won fight(?: and practises rolled skills)?; write none for (?:them|it)\.\s*/u, 'XP guide: ')) : value) : '';
+            return kept ? oneLine(board ? boardXpGuide(value) : value) : '';
         }
         const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
         return shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';

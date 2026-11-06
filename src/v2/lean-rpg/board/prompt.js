@@ -5,11 +5,7 @@ import { moduleGrammar, referenceOf } from '../../data-modules/grammar.js';
 import { oneLine } from '../../../text.js';
 import { narratedFoeGrammar } from './narrated-grammar.js';
 
-const RULES = Object.freeze({ skip: true, keep: /XP guide:.*$/u });
-const FOES = Object.freeze({ prompt: false, only: /^set-slot-\d+$/u });
-export const boardGrammar = role => role === 'rules' ? RULES : role === 'foes' ? FOES : null;
-export const boardXpGuide = text => String(text ?? '')
-    .replace(/XP guide: code gives XP for a won fight(?: and practises rolled skills)?; write none for (?:them|it)\.\s*/u, 'XP guide: ');
+export { boardGrammar, boardXpGuide } from '../../data-modules/board-static.js';
 
 export function boardReplyGrammar(state, { fight = false, manual = false, practice = false } = {}) {
     const ids = Object.keys(state?.domains?.dataModules?.active ?? {});

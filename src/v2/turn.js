@@ -35,7 +35,7 @@ import { createReread } from './turn/reread.js';
 import { createPromptBuild } from './turn/prompt-build.js';
 import { createPromptHooks } from './turn/prompt-hooks.js';
 import { createEvents } from './turn/events.js';
-import { boardStartState } from './turn/held-board.js';
+import { boardStartState, boardStep, restoreHint } from './turn/held-board.js';
 import { pendingStart } from './turn/fight-start.js';
 export { QUIET_MARK_MIN, QUIET_WAIT_MS, MAX_NAME, stripBattleMarker, contextRoom, defuseMacros, flatName, substituteNames, quietMark, restoreMissing } from './turn/text.js';
 
@@ -152,7 +152,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // Keep the witnessed inputs against reader edits while the reply is in flight. Capture runs its own changes in order.
     bus.setCommitGuard?.((next, receipt) => {
         if (receipt?.cause !== 'ui') return null;
-        const board = s.replyBusy && s.session?.prechecks?.find(step => step.type === 'rpg.resolve' && step.payload?.board)?.payload.board;
+        const board = s.replyBusy && boardStep(s.session)?.payload.board;
         if (!board) return null;
         return boardError(next(), board) ? 'Wait for the reply to finish before changing the fight sheet or gear.' : null;
     });
@@ -173,18 +173,18 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // Session housekeeping and Re-read (turn/session.js, turn/reread.js): wired here, after every const they are given.
     const { markBusy, markIdle, setPrompt, setPrompts, clearPrompts, problem, trySave, ensureInitial, repairActions, repair, startOver, rebuild, planAgain, reconcileNow } = createSession(s, { ctx, store, bus, events, notify, initial, position, roles, hasCarrier, refusal, STATIC_KEY, TAIL_KEY, REPLY_BUSY_MAX_MS, MAX_PROBLEMS, ROLE_SYSTEM });
     const stopChangedBoard = () => {
-        const current = s.session, board = s.replyBusy && current?.prechecks?.find(step => step.type === 'rpg.resolve' && step.payload?.board)?.payload.board;
+        const current = s.session, board = s.replyBusy && boardStep(current)?.payload.board;
         if (!board || current.boardInvalid) return;
         const error = boardError(store.head(), board);
         if (!error) return;
         current.boardInvalid = true;
-        const reason = /discard/i.test(error) ? error : `${error} Restore the sheet or gear, or discard the fight before retrying.`;
+        const reason = `${error}${restoreHint(error, ' before retrying.')}`;
         problem({ module: 'story-block', code: 'BOARD_CHANGED', message: reason });
         try { s.abortBoard?.(true); } catch { /* the reason is still shown */ }
         try { notify?.(reason, 'story-block'); } catch { /* the problem remains visible */ }
     };
     // The capture flow (turn/capture-flow.js): wired here, after the session's `problem` it is given and before the Re-read that calls it.
-    const { changeHeads, readBlock, strayProblems, legacyProblem, capped, assistRoom, lateLines, nowLines, captureLines, afterCapture, stepSeeds, captureEach, storySeeds, heldInReply, withCaps, LATE, NOW } = createCaptureFlow(s, { ctx, store, bus, registry, settings, events, hostSettings, view, viewReader, lateReader, problem, isCarrier, PRACTICE_LINE, HOOK_TIMEOUT_MS });
+    const { changeHeads, readBlock, strayProblems, legacyProblem, capped, assistRoom, lateLines, nowLines, captureLines, afterCapture, stepSeeds, captureEach, storySeeds, heldInReply, withCaps, LATE, NOW } = createCaptureFlow(s, { ctx, store, bus, registry, settings, events, hostSettings, view, viewReader, lateReader, problem, isCarrier, boardError, PRACTICE_LINE, HOOK_TIMEOUT_MS });
     const { reread, saveText, redraw } = createReread(s, { ctx, metadata, store, events, timeline, refusal, changeHeads, readBlock, strayProblems, capped, lateLines, assistRoom, nowLines, heldInReply, legacyProblem, storySeeds, afterCapture, captureEach, stepSeeds, withCaps, isPrelude, LATE, NOW, planAgain, problem, trySave });
 
     // The prompt side of a turn (turn/prompt-build.js, turn/prompt-hooks.js): wired here, after every const they are given. The interceptor asks for claimQuiet only when it runs.

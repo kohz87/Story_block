@@ -6,7 +6,16 @@ import { readRecord } from '../persist.js';
 import { rpgLib } from '../rpg-lazy.js';
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
-const boardStep = current => current?.prechecks?.find(step => step?.type === 'rpg.resolve' && step.payload?.board);
+export const boardStep = current => current?.prechecks?.find(step => step?.type === 'rpg.resolve' && step.payload?.board);
+
+/** The "restore or discard" advice that ends a fight failure (none when the message already says discard). */
+export const restoreHint = (detail, tail = '.') => (/discard/i.test(detail) ? '' : ` Restore the sheet or gear, or discard the fight${tail}`);
+
+/** "<lead> <reason>. Restore the sheet or gear, or discard the fight." for a fight that could not be saved or prepared. */
+export function boardFailure(lead, message) {
+    const detail = String(message ?? 'unknown error').trim().replace(/[.\s]+$/u, '');
+    return `${lead} ${detail}.${restoreHint(detail)}`;
+}
 
 export function heldForSid(meta, sid, receipts = []) {
     const held = typeof sid === 'string' ? meta?.rpgFightHeld?.[sid] : null;

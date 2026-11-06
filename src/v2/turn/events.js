@@ -12,7 +12,7 @@ import { notWritten } from '../assist/extractor.js';
 import { refusedWhy } from '../assist/safety.js';
 import { within } from './text.js';
 import { ensureModules } from '../sdk.js';
-import { heldForMessage, rememberHeld, pruneMissingBoard } from './held-board.js';
+import { boardStep, heldForMessage, rememberHeld, pruneMissingBoard } from './held-board.js';
 import { clearStart, pendingStart } from './fight-start.js';
 
 export function createEvents(s, deps) {
@@ -29,7 +29,7 @@ export function createEvents(s, deps) {
         clearPrompts();
         const message = ctx?.chat?.[id];
         if (!isCarrier(message)) return null;
-        s.boardCapture = current.prechecks?.find(step => step.type === 'rpg.resolve' && step.payload?.board)?.payload.board ?? null;
+        s.boardCapture = boardStep(current)?.payload.board ?? null;
         // The turn's save window opens now, so the capture's lines are not saved one by one (400 ms each).
         const idle = store.saveIdle?.() === true;
         try {
@@ -151,7 +151,7 @@ export function createEvents(s, deps) {
             const message = chat[index], saved = heldForMessage(metadata(), message);
             if (!saved) continue;
             const current = { ...structuredClone(saved.current), index };
-            const board = current.prechecks.find(step => step.type === 'rpg.resolve' && step.payload?.board).payload.board;
+            const board = boardStep(current).payload.board;
             s.session = current;
             s.heldBoard = { index, message, current, board, staged: saved.staged === true };
             problem({ index, code: 'BOARD_HELD', message: 'The fight reply is still waiting. Restore the sheet or gear, or discard the fight and regenerate the reply.' });
