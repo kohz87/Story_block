@@ -104,3 +104,19 @@ Last checked: 2026-11-07.
 
 ## Pointer to add
 - `docs/dev/codemap.md`: map of `src/` files not already covered by the existing docs.
+
+## Split files (7 Nov: files over 450 lines split into small parts; each original keeps its path and public exports)
+- `src/v2/data-modules/part.js` → `data-modules/part/`: `factory.js` wires the data-module part; `core.js` shared lifecycle helpers; `shared.js` state access, caches and checked definitions; `views.js` read-only views; `blocks.js` Setup actions; `fields.js` field and host-step actions; `act.js` story and reader actions; `skills.js` the Skills block's slot rules; `party.js` companions; `prompt.js` prompt tail and reply cards; `timing.js` timer and reply-end costs.
+- `src/v2/domains/gear.js` → `domains/gear/`: `stats.js` slots, rarity, stat budgets and story-made definitions; `conditions.js` condition words and prices; `carry.js` carry rules and the carry query; `views.js` query answers and the screen picture.
+- `src/v2/events/condition.js` → `events/condition-tokenizer.js` the tokenizer; `condition-parser.js` the parser (a frozen AST); `condition-errors.js` size limits and error values.
+- `src/v2/lean-rpg/resolve.js` → `lean-rpg/resolve/classic.js`: Classic sheet preparation and the roll primitives shared with Standard.
+- `src/v2/lean-rpg/strings.js` → `lean-rpg/strings/`: `character.js` sheets, party, gear, skills and the wizard; `story.js` saved characters, companions, first send, bars and the sheet; `fight.js` fights, change lines and RPG settings.
+- `src/v2/lean-rpg/view/wizard.js` → `wizard/`: `who.js` the Who step and import; `stats.js` the Stats step; `skills.js` the Skills step; `review.js` Review and Create.
+- `src/v2/registry.js` → `registry/`: `registration.js` registration checks and ownership; `commands.js` command, capture, context and initial-state lookups; `features.js` feature lookups; `lifecycle.js` peers, cycles and the restore barrier.
+- `src/v2/runtime.js` → `runtime/start.js` start helpers; `runtime/saving.js` saving helpers.
+- `src/v2/screens/blocks-editor.js` → `blocks-editor/`: `constants.js` labels and types; `editor.js` form state and controls; `draw.js` the sections; `layout.js` layout chips, card roles, colours and preview.
+- `src/v2/screens/blocks.js` → `screens/blocks/page.js` the page's list, Show as, row menu and template chooser; `screens/blocks/shared.js` words and format helpers.
+- `src/v2/strings.js` → `strings/messages.js` inline edits and refusals; `strings/page.js` bar, panel, drawer, menu, features and reply cards; `strings/screens.js` Story Block's own screens.
+- `src/v2/view/bind.js` → `view/bind/`: `paths.js` path syntax and reads; `scope.js` scopes; `expressions.js` compiled expressions; `helpers.js` helpers and formatters; `text.js` text and interpolation; `changes.js` change checks.
+- `src/v2/view/css.js` → `view/css/`: `parse.js` limits and tokenizing; `names.js` scope names; `selectors.js` selector scoping; `values.js` value filtering and theme properties; `scoping.js` the scoper.
+- `src/v2/view/widgets/map.js` → `view/widgets/map/data.js`: map data cleaning and layer visibility.

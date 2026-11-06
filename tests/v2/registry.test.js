@@ -29,6 +29,17 @@ const director = () => ({
     hooks: { beforeGenerate: () => [] },
 });
 
+test('lifecycle controls cannot be constructed or change state through construction', () => {
+    const registry = createRegistry();
+    registry.register(director());
+
+    assert.throws(() => new registry.setEnabled('story-director', false), TypeError);
+    assert.equal(registry.lifecycle('story-director').status, 'ready');
+    assert.throws(() => new registry.setRestore('pending'), TypeError);
+    assert.equal(registry.restore().state, 'idle');
+    assert.equal(registry.restoreEpoch(), 0);
+});
+
 test('a module registers and every lookup finds it', () => {
     const registry = createRegistry();
     registry.register(party());
