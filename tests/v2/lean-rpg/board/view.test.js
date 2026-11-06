@@ -122,8 +122,10 @@ test('the board ends on a won card', async t => {
     const fight = doc.querySelector('[data-ss-screen="story-block/fight"]');
     assert.equal(result.stop, 'won');
     assert.match(fight.querySelector('.rpg-board-end').textContent, /Fight won/);
+    assert.ok(fight.querySelector('.rpg-board-active').classList.contains('rpg-board-finished'), 'an ended board unlocks its phone layout');
     assert.match(fight.textContent, /Your next message carries this fight/);
     assert.match(fight.querySelector('.rpg-board-awards').textContent, /Pending XP: Wessel \+\d+ XP\. Pending practice: none/);
+    assert.match(fight.querySelector('.rpg-board-awards-phone').textContent, /^Pending: Wessel \+\d+ XP$/);
     assert.ok(fight.querySelector('.rpg-board-note'));
 });
 
@@ -452,6 +454,47 @@ test('a pack card wears the pack pill, its thinning line, and stays a single tar
     assert.equal(card.querySelector('.rpg-pack-line').textContent, 'About 8 left · 2 attacks each exchange');
     assert.equal(root.querySelector('.rpg-board-order').textContent, 'Order: Wessel · Cellar-rats · 2 attacks on you each exchange');
     assert.match(BOARD_CSS, /\.rpg-board-cards \.rpg-foe-pack \{ grid-column: 1 \/ -1; \}/u);
+});
+
+test('a Down pack keeps its health and pack pill but drops its thinning line', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    await defineFoes(host, [['Cellar-rats', 12, 1, 5]]);
+    const pack = { slot: 11, group: 1, n: 1, name: 'Cellar-rats', value: 0, size: 8, pack: true, count: 12, left: 0, attacks: 0, standing: false };
+    const root = renderMembers(t, { doc, host, members: [pack], order: [] });
+    const card = root.querySelector('.rpg-foe-pack');
+    assert.ok(card.classList.contains('rpg-down'));
+    assert.ok(card.querySelector('.rpg-pack-pill'));
+    assert.ok(card.querySelector('.rpg-foe-bar'));
+    assert.equal(card.querySelector('.rpg-pack-line'), null);
+    assert.equal(root.classList.contains('rpg-board-finished'), false);
+});
+
+test('the first card row tracks its real height and releases its observer on redraw', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    await defineFoes(host, [['Cellar-rats', 12, 1, 5]]);
+    const observers = [];
+    doc.defaultView.ResizeObserver = class {
+        constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this); }
+        observe(node) { this.node = node; }
+        disconnect() { this.disconnected = true; }
+    };
+    const pack = { slot: 11, group: 1, n: 1, name: 'Cellar-rats', value: 5, size: 8, pack: true, count: 12, left: 8, attacks: 2, standing: true };
+    const root = renderMembers(t, { doc, host, members: [pack], order: [] });
+    const cards = root.querySelector('.rpg-board-cards'), first = cards.firstElementChild;
+    assert.equal(observers[0].node, first);
+    first.offsetHeight = 173;
+    observers[0].callback();
+    assert.equal(cards.style.getPropertyValue('--rpg-first-row-height'), '173px');
+    first.offsetHeight = 192;
+    observers[0].callback();
+    assert.equal(cards.style.getPropertyValue('--rpg-first-row-height'), '192px');
+    root.querySelector('[data-choice="1"]').click();
+    assert.equal(observers[0].disconnected, true);
+    assert.equal(observers.length, 2, 'the redrawn row receives its own observer');
 });
 
 test('an area skill asks for a standing group only when more than one group stands', async t => {

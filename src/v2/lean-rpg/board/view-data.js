@@ -99,3 +99,15 @@ export function pendingAwards(state, session, result, settings = {}) {
     }).map(use => ({ who: use.who, skill: use.skill, amount: Math.min(PRACTICE.max, use.n * perUse) }));
     return { xp, practice };
 }
+
+/** Compact phone wording; keep the owner on practice when it could otherwise be ambiguous. */
+export function pendingAwardsLine({ xp = [], practice = [] } = {}) {
+    const earned = xp.filter(item => item.amount > 0);
+    const owners = new Set(earned.map(item => item.who));
+    const oneOwner = owners.size === 1 && practice.every(item => owners.has(item.who));
+    const parts = [
+        ...earned.map(item => `${item.who} +${item.amount} XP`),
+        ...practice.map(item => `${oneOwner ? '' : `${item.who}: `}${item.skill} +${item.amount}`),
+    ];
+    return `Pending: ${parts.join(' · ') || 'none'}`;
+}

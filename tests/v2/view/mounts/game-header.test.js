@@ -8,10 +8,20 @@ import { fakeRenderer, setupDom, stateWith } from './helpers.js';
 
 const screen = (id, title) => ({ id, title, icon: 'fa-star', mounts: ['screen'], template: `<p>${title}</p>` });
 
-function setup({ heroOf, head }) {
+function setup({ heroOf, head, fight = false, phone = false }) {
     const doc = setupDom();
+    let boardObserver;
+    if (phone) doc.defaultView = {
+        matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
+        MutationObserver: class {
+            constructor(callback) { this.callback = callback; boardObserver = this; }
+            observe(target, options) { this.target = target; this.options = options; }
+            disconnect() { this.disconnected = true; }
+        },
+    };
     const screens = createScreens({ reader: () => ({}), saveReader: () => {} });
     screens.addModule('test', [screen('test/one', 'One'), screen('test/two', 'Two')]);
+    if (fight) screens.addModule('story-block', [screen('story-block/fight', 'Fight')]);
     const render = fakeRenderer();
     let current = head;
     const mount = createScreenMount({
@@ -24,7 +34,7 @@ function setup({ heroOf, head }) {
         document: doc,
         container: () => doc.body,
     });
-    return { doc, mount, render, setHead: state => { current = state; }, close: () => mount.close() };
+    return { doc, mount, render, observer: () => boardObserver, setHead: state => { current = state; }, close: () => mount.close() };
 }
 
 const LEAD = { name: 'Ren', className: '', level: 'Lv 4', title: 'ranger', bars: [{ kind: 'hp', label: 'HP', value: 20, max: 82, text: '20 / 82' }], place: 'Bluewatch Village', time: 'Day 1', weather: 'Drizzle', statuses: [], portrait: '' };
@@ -69,6 +79,41 @@ test('the header follows the head on a redraw, and a screen change keeps it', ()
     assert.equal(env.doc.querySelector('.ss-gameview-hero .ss-hero-name').textContent, 'Ren 4');
     assert.equal(env.doc.querySelector('.ss-gameview-title').textContent, 'Two');
     env.close();
+});
+
+test('the phone hero offers More only while the board is present and resets after discard or navigation', () => {
+    const env = setup({ heroOf: () => LEAD, head: stateWith(3), fight: true, phone: true });
+    env.mount.open('test/one');
+    const hero = () => env.doc.querySelector('.ss-gameview-hero .ss-hero');
+    const more = () => env.doc.querySelector('.ss-hero-board-more');
+    assert.ok(hero().classList.contains('ss-hero-compact'));
+    assert.equal(more(), null);
+    env.mount.open('story-block/fight');
+    assert.equal(more(), null, 'the Fight screen alone does not open a board');
+    const board = env.doc.querySelector('.ss-gameview-body .drawn');
+    board.classList.add('rpg-board-active');
+    env.observer().callback();
+    assert.equal(more().hidden, false);
+    more().click();
+    assert.ok(!hero().classList.contains('ss-hero-compact'));
+    board.classList.remove('rpg-board-active');
+    board.classList.add('rpg-board-active');
+    env.observer().callback();
+    assert.ok(!hero().classList.contains('ss-hero-compact'), 'a board redraw preserves the open card');
+    board.classList.remove('rpg-board-active');
+    env.observer().callback();
+    assert.equal(more(), null, 'discarding removes the control');
+    assert.ok(hero().classList.contains('ss-hero-compact'), 'discarding restores the usual phone header');
+    board.classList.add('rpg-board-active');
+    env.observer().callback();
+    assert.equal(more().getAttribute('aria-expanded'), 'false');
+    more().click();
+    env.mount.open('test/two');
+    assert.equal(more(), null);
+    assert.ok(hero().classList.contains('ss-hero-compact'));
+    const observer = env.observer();
+    env.close();
+    assert.equal(observer.disconnected, true);
 });
 
 test('a header that stops (no chat) goes away on the next draw, and close removes the widget', () => {

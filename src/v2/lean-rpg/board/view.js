@@ -11,7 +11,7 @@ import { readSheet } from '../read.js';
 import { planGear } from '../gear.js';
 import { isStandard } from '../rules.js';
 import { boardFlags } from './overrides.js';
-import { boardChoices, memberGroups as groupsOfMembers, memberHealthWord, memberOrderLine, memberPackLine, memberTargetLine, pendingAwards, standingMembers, targetLabel } from './view-data.js';
+import { boardChoices, memberGroups as groupsOfMembers, memberHealthWord, memberOrderLine, memberPackLine, memberTargetLine, pendingAwards, pendingAwardsLine, standingMembers, targetLabel } from './view-data.js';
 import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
 import { equipmentForBoard, playBoard } from './engine.js';
 import { barMovement, settledNote } from './note.js';
@@ -59,7 +59,7 @@ function drawMemberCard(doc, parent, member, realFoes, handles) {
     bar.appendChild(slot);
     node.appendChild(bar);
     handles.push(meter.render(slot, { label: 'Health', value: shown, max, tone: stageTone(shown, max), text: memberHealthWord(member), segments: max, icon: 'fa-heart' }, {}));
-    if (member?.pack) node.appendChild(h(doc, 'p', 'rpg-pack-line', memberPackLine(member)));
+    if (member?.pack && !down) node.appendChild(h(doc, 'p', 'rpg-pack-line', memberPackLine(member)));
 }
 
 export function createBoardView({ doc, headState, meta, save, store, rules, query, readerName, roleOf, levels, on = () => false, start = null } = {}) {
@@ -150,6 +150,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         if (!listening) { doc.addEventListener?.('keydown', keydown, true); listening = true; }
         keyRoot = root;
         root.classList.add('rpg-board-active');
+        root.classList.toggle('rpg-board-finished', !played.error && played.result.stop !== 'open');
         if (played.error) {
             root.appendChild(h(doc, 'p', 'rpg-board-error', played.error));
             const panel = h(doc, 'div', 'rpg-board-controls');
@@ -182,6 +183,17 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             cards.appendChild(card);
         }
         status.appendChild(cards);
+        // Keep the first grid row whole even if its cards wrap or grow; later rows scroll inside the cards area.
+        const firstCard = cards.firstElementChild;
+        const Observer = doc.defaultView?.ResizeObserver;
+        if (firstCard && Observer) {
+            const observer = new Observer(() => {
+                const height = firstCard.offsetHeight;
+                if (height > 0) cards.style.setProperty('--rpg-first-row-height', `${height}px`);
+            });
+            observer.observe(firstCard);
+            handles.push({ destroy: () => observer.disconnect() });
+        }
         if (played.result.order.length) {
             const line = members ? memberOrderLine(played.result.order, members, foes) : `Order: ${played.result.order.map(item => item.name).join(' · ')}`;
             if (line) status.appendChild(h(doc, 'p', 'rpg-board-order', line));
@@ -207,11 +219,12 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         if (confirm) confirmDiscard(panel);
         else if (ended) {
             panel.appendChild(h(doc, 'h4', 'rpg-board-end', `Fight ${played.result.stop}`));
-            panel.appendChild(h(doc, 'p', '', start?.waiting?.() ? 'Your waiting message carries the approach and this fight in one reply.' : 'Your next message carries this fight; the narrator tells it first.'));
+            panel.appendChild(h(doc, 'p', 'rpg-board-end-description', start?.waiting?.() ? 'Your waiting message carries the approach and this fight in one reply.' : 'Your next message carries this fight; the narrator tells it first.'));
             const awards = pendingAwards(state, session, played.result, settings);
             const xp = awards.xp.filter(item => item.amount > 0).map(item => `${item.who} +${item.amount} XP`).join(', ');
             const practice = awards.practice.map(item => `${item.who}: ${item.skill} +${item.amount}`).join(', ');
             panel.appendChild(h(doc, 'p', 'rpg-board-awards', `Pending XP: ${xp || 'none'}. Pending practice: ${practice || 'none'}.`));
+            panel.appendChild(h(doc, 'p', 'rpg-board-awards-phone', pendingAwardsLine(awards)));
             if (sending) panel.appendChild(h(doc, 'p', 'rpg-board-sending', 'Sending… the narrator is writing the reply.'));
             else if (start?.waiting?.()) panel.appendChild(pressButton(doc, 'Send with this fight', 'ss-button ss-button-primary rpg-board-send', () => {
                 start.send(); redraw();

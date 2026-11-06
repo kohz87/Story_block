@@ -25,10 +25,11 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/commit.js`: replays and guards the board prelude, claims once and writes member results, hurts and wear.
 - `src/v2/lean-rpg/board/note.js`: builds the settled account and word-based bar movements.
 - `src/v2/lean-rpg/board/awards.js`: selects the opening foe groups for one win award.
-- `src/v2/lean-rpg/board/view-data.js`: builds choices, member groups and target labels, and pending awards.
-- `src/v2/lean-rpg/board/view.js`: renders the board, member and pack cards, keyboard handling and in-page discard confirmation.
+- `src/v2/lean-rpg/board/view-data.js`: builds choices, member groups and target labels, pending awards and their compact phone wording.
+- `src/v2/lean-rpg/board/view.js`: renders the board, member and pack cards, measures the first card row, marks finished fights, handles keys and confirms discards in-page. Down packs omit the thinning line.
 - `src/v2/lean-rpg/board/skill-editor.js`: draws the three checkboxes in the skill editor.
-- `src/v2/lean-rpg/board/board.css`: provides the touch layout and sizing.
+- `src/v2/lean-rpg/board/board.css`: provides the touch layout, phone log, card and choice scrolling, finished-fight page scrolling and bottom-bar clearance.
+- `src/v2/view/mounts/screen.js`, `view/widgets/hero.js` and `view/glass.css`: offer the game-view hero's More/Less control while a phone board is open, resetting it when the board is discarded; board CSS activates the compact presentation.
 - `src/v2/lean-rpg/board/offers.js`, `offer-line.js`, `start-view-data.js`: find the opening reply and draw its offer line (the Fight tab alert is the `badge` in `view/fight.js`).
 - `src/v2/lean-rpg/board/start-controller.js`, `pause.js`, `fight-start.css`: draw the waiting choice and resume the reply.
 - `src/v2/turn/fight-start.js`: binds a pending send to its anchor sid and message and detects possible new fights while planning.
@@ -124,9 +125,9 @@ the approach checks earn practice and a successful ambush applies to the first e
   flags on rename, replay, and deletion of either edit.
 - `flow.test.js` and `replay.test.js` cover continuation, swipe, regenerate, reload, rewind and middle deletion.
 - `action-gate.test.js`, `start-flow.test.js`, `start-ui.test.js` and `trim.test.js` cover the waiting choice, approach, branch, offer, settings and prompt.
-- `note.test.js` and `view.test.js` cover defence, bar words, wear, controls, pending awards and discard.
+- `note.test.js`, `view.test.js`, `view-data.test.js`, `phone-css.test.js` and `view/widgets/blocks.test.js` cover defence, bar words, wear, controls, downed packs, pending awards, the expandable hero and phone layout.
 - `touch.test.js` renders the board at 390×844 and 360×740 in the game view and the Story panel when
-  the optional browser is available; choices and end-card controls must clear each bottom bar.
+  the optional browser is available; it checks the compact hero, card and log sizing, finished-board scrolling and bottom-bar clearance.
 - `tests/v2/qa/state-fuzz.test.js` includes board fights; `delete-fuzz.test.js` creates winning board segments
   among deletable replies and checks deleted and replayed rounds, practice and XP.
 

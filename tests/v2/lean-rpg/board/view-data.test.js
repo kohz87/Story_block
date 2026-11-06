@@ -2,11 +2,22 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardChoices, memberGroups, memberOrderLine, memberPackLine, memberTargetLine } from '../../../../src/v2/lean-rpg/board/view-data.js';
+import { boardChoices, memberGroups, memberOrderLine, memberPackLine, memberTargetLine, pendingAwardsLine } from '../../../../src/v2/lean-rpg/board/view-data.js';
 import { character, levelFoeBlock, sheetDomain, skillBlock } from '../helpers.js';
 
 const member = (slot, n, value, over = {}) => ({ slot, group: 1, n, name: `Bristle-boar ${n}`, value, size: 4, pack: false, count: 1,
     left: value > 0 ? 1 : 0, attacks: value > 0 ? 1 : 0, standing: value > 0, ...over });
+
+test('phone pending awards combine XP and practice without losing distinct owners', () => {
+    assert.equal(pendingAwardsLine({ xp: [{ who: 'Astra', amount: 24 }], practice: [
+        { who: 'Astra', skill: 'Iaijutsu', amount: 3 }, { who: 'Astra', skill: 'Shadow Step', amount: 15 },
+    ] }), 'Pending: Astra +24 XP · Iaijutsu +3 · Shadow Step +15');
+    assert.equal(pendingAwardsLine({ xp: [{ who: 'Astra', amount: 24 }, { who: 'Ren', amount: 8 }], practice: [
+        { who: 'Ren', skill: 'Cut', amount: 3 },
+    ] }), 'Pending: Astra +24 XP · Ren +8 XP · Ren: Cut +3');
+    assert.equal(pendingAwardsLine({ xp: [{ who: 'Astra', amount: 0 }], practice: [{ who: 'Ren', skill: 'Cut', amount: 3 }] }), 'Pending: Ren: Cut +3');
+    assert.equal(pendingAwardsLine(), 'Pending: none');
+});
 
 test('member target and pack lines use the board words, not a level parenthetical', () => {
     assert.equal(memberTargetLine(member(11, 1, 4), 1), '1. Bristle-boar 1  Unhurt');
