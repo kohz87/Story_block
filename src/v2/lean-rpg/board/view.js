@@ -23,6 +23,17 @@ const button = (doc, text, cls, click) => {
     node.addEventListener('click', click);
     return node;
 };
+// Send acts on the press itself: the board may redraw between press and release (a save, a head event), which would
+// lose the click on a replaced button and make the reader press twice. Fires once; a keyboard click still works.
+export const pressButton = (doc, text, cls, act) => {
+    const node = h(doc, 'button', cls, text);
+    node.setAttribute('type', 'button');
+    let fired = false;
+    const fire = event => { if (fired || node.disabled) return; fired = true; event?.preventDefault?.(); act(); };
+    node.addEventListener('pointerdown', event => { if (event.button === 0 || event.pointerType === 'touch') fire(event); });
+    node.addEventListener('click', fire);
+    return node;
+};
 const signed = n => n >= 0 ? `+${n}` : String(n);
 const labelLine = line => {
     const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
@@ -34,7 +45,7 @@ const labelLine = line => {
 };
 
 export function createBoardView({ doc, headState, meta, save, store, rules, query, readerName, roleOf, levels, on = () => false, start = null } = {}) {
-    let chosen = [], targeting = null, confirm = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
+    let chosen = [], targeting = null, confirm = false, sending = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
     const releaseAfterResult = () => {
         const wait = () => setTimeout(() => {
             busy = false;
@@ -46,7 +57,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
     };
     const persist = () => { try { save?.(); } catch { /* staging still works in this page */ } };
     const current = () => boardSession(meta());
-    const reset = () => { chosen = []; targeting = null; confirm = false; };
+    const reset = () => { chosen = []; targeting = null; confirm = false; sending = false; };
     const equipment = state => {
         const sheet = readSheet(state), gear = planGear(sheet, (name, args) => query?.(name, args), readerName());
         const weapons = {};
@@ -173,7 +184,11 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             const xp = awards.xp.filter(item => item.amount > 0).map(item => `${item.who} +${item.amount} XP`).join(', ');
             const practice = awards.practice.map(item => `${item.who}: ${item.skill} +${item.amount}`).join(', ');
             panel.appendChild(h(doc, 'p', 'rpg-board-awards', `Pending XP: ${xp || 'none'}. Pending practice: ${practice || 'none'}.`));
-            if (start?.waiting?.()) panel.appendChild(button(doc, 'Send with this fight', 'ss-button ss-button-primary rpg-board-send', () => start.send()));
+            sending = Boolean(start?.sending?.());
+            if (sending) panel.appendChild(h(doc, 'p', 'rpg-board-sending', 'Sending… the narrator is writing the reply.'));
+            else if (start?.waiting?.()) panel.appendChild(pressButton(doc, 'Send with this fight', 'ss-button ss-button-primary rpg-board-send', () => {
+                start.send(); redraw();
+            }));
         } else {
             panel.appendChild(h(doc, 'p', 'rpg-board-prompt', targeting ? 'Choose a target' : `${data.actor?.who ?? 'Party'}: choose an action`));
             if (!targeting) panel.appendChild(h(doc, 'p', 'rpg-board-defence', `Defence: ${data.defence ?? 'plain defence'}, automatic`));
@@ -204,9 +219,12 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             panel.appendChild(list);
             if (targeting) panel.appendChild(button(doc, 'Back', 'ss-button rpg-board-back', () => { targeting = null; redraw(); }));
         }
-        const tools = h(doc, 'div', 'rpg-board-actions');
-        tools.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
-        panel.appendChild(tools);
+        if (ended) panel.classList.add('rpg-board-ended');
+        if (!(ended && sending)) {
+            const tools = h(doc, 'div', 'rpg-board-actions');
+            tools.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
+            panel.appendChild(tools);
+        }
         const details = h(doc, 'details', 'rpg-board-note');
         details.appendChild(h(doc, 'summary', '', 'What the narrator will be told'));
         details.appendChild(h(doc, 'p', '', settledNote(played.result)));

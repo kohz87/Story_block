@@ -129,3 +129,14 @@ the approach checks earn practice and a successful ambush applies to the first e
 - A choice or flag is wrong: `flags.js`, `plan.js`, `overrides.js` and `view-data.js`.
 - A phone tap or layout is wrong: `board.css`, `view.js` and `touch.test.js`; `host.css` and
   `mounts.css` expose the bar height, offset and safe-area clearance to the board.
+
+### End card (6 Nov fixes)
+- `board/view.js` `pressButton`: "Send with this fight" acts on the press itself (pointerdown, primary button or touch; a click
+  still works for keyboards) and fires once, so a redraw between press and release cannot eat it. While the controller is
+  sending (`start-controller.js` `sending()`), the card shows "Sending… the narrator is writing the reply." and the panel
+  closes (`close` → `closeView`); if the reply does not start, the button comes back.
+- End-card buttons are full width and stacked with an 8 px gap (`board.css`, `.rpg-board-ended`).
+- `board/note.js` `barMovement`: a bar that moved within one word ("Tired → Tired") is left out of the note and the log.
+- Tests: `tests/v2/lean-rpg/board/end-card.test.js`.
+- Where to look when "Send needs two presses" again: anything that redraws the Fight widget on a head/save event
+  (`view/index.js` `fightStart.changed()`), and `pressButton`.

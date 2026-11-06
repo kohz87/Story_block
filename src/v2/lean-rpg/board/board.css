@@ -57,3 +57,8 @@
     :is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-choices > button.rpg-board-choice { min-height: calc(48px / var(--ss-zoomed, 1)) !important; }
     :is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-controls > button.rpg-board-send { min-height: calc(48px / var(--ss-zoomed, 1)) !important; }
 }
+/* The end card: Send and Discard full width, stacked with a gap (approved mockup, frame 4). */
+.rpg-board-ended .rpg-board-send { display: block; width: 100%; min-height: 44px; }
+.rpg-board-ended .rpg-board-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.rpg-board-ended .rpg-board-actions button { width: 100%; }
+.rpg-board-sending { margin: 8px 0 0; font-weight: 700; }

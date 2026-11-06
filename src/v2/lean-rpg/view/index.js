@@ -108,7 +108,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
     widgets[HOLD_WIDGET] = start.holdWidget;
     let board;
     const fightStart = createStartController({ doc, chat: () => ctx?.chat ?? [], meta, state: headState, preview: previewStart,
-        board: () => board, on: () => featureOn() && boardOn(), save, refresh, generate: generateHeld, show: () => openScreen(FIGHT_SCREEN_ID) });
+        board: () => board, on: () => featureOn() && boardOn(), save, refresh, generate: generateHeld, show: () => openScreen(FIGHT_SCREEN_ID), close: () => closeView?.() });
     board = createBoardView({ doc, headState: () => fightStart.state(), meta, save, store, rules, query, readerName, roleOf, levels, on: boardOn, start: fightStart });
     let offers;
     const offerView = createOfferLineView({ doc, onFight: data => offers.choose(data, true), onNarrate: data => offers.choose(data, false) });

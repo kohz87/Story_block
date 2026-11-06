@@ -5,9 +5,11 @@
 import { BATTLE_MARKER, STAGES, stageWord } from '../names.js';
 
 const clean = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
+// A bar that moved within one word ("Tired → Tired") is left out: the board and the narrator speak in words only.
 export const barMovement = (damage, resource = false) => {
     const kind = resource ? (/:(mana|stamina)$/u.exec(damage.id)?.[1] ?? 'stamina') : 'health';
-    return `${clean(damage.name)} ${kind} ${stageWord(STAGES[kind], damage.from, damage.size)} → ${stageWord(STAGES[kind], damage.to, damage.size)}`;
+    const from = stageWord(STAGES[kind], damage.from, damage.size), to = stageWord(STAGES[kind], damage.to, damage.size);
+    return from === to ? '' : `${clean(damage.name)} ${kind} ${from} → ${to}`;
 };
 
 function lineNote(line) {

@@ -7,7 +7,7 @@ import { pendingStart } from '../../turn/fight-start.js';
 import { readSheet } from '../read.js';
 import { boardSession } from './session.js';
 
-export function createStartController({ doc, chat, meta, state, preview, board, on, save, refresh, generate, show = () => {} } = {}) {
+export function createStartController({ doc, chat, meta, state, preview, board, on, save, refresh, generate, show = () => {}, close = () => {} } = {}) {
     const listeners = new Set();
     let sending = false, error = '';
     const current = () => on() ? pendingStart(meta(), chat()) : null;
@@ -32,8 +32,11 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
         const pending = current();
         if (!pending || sending) return;
         sending = true;
+        tell();
         try {
             const running = generate?.();
+            // The reply has started: close the panel so the reader sees it being written.
+            try { close(); } catch { /* the panel stays open */ }
             Promise.resolve(running).finally(() => { sending = false; tell(); }).catch(() => {});
         } catch { sending = false; tell(); }
     };
@@ -73,7 +76,7 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
         return true;
     };
     return {
-        current, draw, state: sheetState, send, changed: tell,
+        current, draw, state: sheetState, send, changed: tell, sending: () => sending,
         waiting: () => current()?.choice === 'board',
         discard() { const pending = current(); if (pending?.choice === 'board') { pending.choice = null; error = ''; persist(); } },
         listen(fn) { listeners.add(fn); return () => listeners.delete(fn); },
