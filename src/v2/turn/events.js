@@ -14,18 +14,20 @@ import { within } from './text.js';
 import { ensureModules } from '../sdk.js';
 
 export function createEvents(s, deps) {
-    const { markIdle, clearPrompts, ctx, isCarrier, store, ensureInitial, problem, changeHeads, readBlock, strayProblems, legacyProblem, lateLines, captureLines, withCaps, timeline, trySave, saveText, redraw, events, registry, view, prepare, RPG_LOAD_WAIT_MS, rebuild, bus, hasCarrier, reconcileNow, REBUILD_REASONS, INTERCEPTOR_NAME, V1_KEYS, setPrompt, interceptor, onGenerationStarted, onPromptReady, onTextPromptReady, getApi } = deps;
+    const { markIdle, clearPrompts, ctx, isCarrier, store, ensureInitial, problem, notify, stopChangedBoard, boardError, changeHeads, readBlock, strayProblems, legacyProblem, lateLines, captureLines, withCaps, timeline, trySave, saveText, redraw, events, registry, view, prepare, RPG_LOAD_WAIT_MS, rebuild, bus, hasCarrier, reconcileNow, REBUILD_REASONS, INTERCEPTOR_NAME, V1_KEYS, setPrompt, interceptor, onGenerationStarted, onPromptReady, onTextPromptReady, getApi } = deps;
 
     /** MESSAGE_RECEIVED: (messageId, type). */
     async function onMessageReceived(messageId) {
         const id = Number(messageId);
         const current = s.session;
         if (!current || !Number.isInteger(id) || id !== current.index) return null;
+        s.heldBoard = null;
         s.session = null;
         markIdle();
         clearPrompts();
         const message = ctx?.chat?.[id];
         if (!isCarrier(message)) return null;
+        s.boardCapture = current.prechecks?.find(step => step.type === 'rpg.resolve' && step.payload?.board)?.payload.board ?? null;
         // The turn's save window opens now, so the capture's lines are not saved one by one (400 ms each).
         const idle = store.saveIdle?.() === true;
         try {
@@ -100,8 +102,30 @@ export function createEvents(s, deps) {
             return turn;
         } catch (error) {
             problem({ index: id, code: 'FAILED', message: `The reply's changes could not be kept: ${error?.message ?? error}` });
+            if (error?.code === 'BOARD_PRELUDE') {
+                s.session = current;
+                s.heldBoard = { index: id, message, current, board: s.boardCapture, staged: ctx?.chatMetadata?.rpgFightBoard?.id === s.boardCapture?.id };
+                try { notify?.(error.message, 'story-block'); } catch { /* the problem remains visible */ }
+            }
             return null;
+        } finally {
+            s.boardCapture = null;
         }
+    }
+
+    // If an input changed after the prompt left, keep the reply uncaptured until the reader restores it.
+    function resumeHeldBoard() {
+        const held = s.heldBoard;
+        if (!held) return;
+        if (ctx?.chat?.[held.index] !== held.message) {
+            s.heldBoard = null;
+            if (s.session === held.current) s.session = null;
+            return;
+        }
+        if (!held.board || boardError(store.head(), held.board)) return;
+        if (held.staged && ctx?.chatMetadata?.rpgFightBoard?.id !== held.board.id) return;
+        s.heldBoard = null;
+        Promise.resolve().then(() => onMessageReceived(held.index));
     }
 
     // afterReply (the assist extractor): a reply that came without change lines may get them from a
@@ -214,6 +238,8 @@ export function createEvents(s, deps) {
     async function onChatChanged() {
         // The old chat's session and prompts go at once, before anything is awaited: a generation started while the RPG's code loads is the new chat's.
         s.session = null;
+        s.boardCapture = null;
+        s.heldBoard = null;
         s.quiets = [];
         markIdle();
         clearPrompts();
@@ -320,6 +346,8 @@ export function createEvents(s, deps) {
         s.offModules = events?.on?.('modules', () => {
             if (store.lifecycleChanged?.()) events?.emit('head', { index: store.headIndex(), reason: 'module' });
         }) ?? null;
+        for (const off of s.offBoard) off();
+        s.offBoard = ['committed', 'head'].flatMap(name => [events?.on?.(name, stopChangedBoard), events?.on?.(name, resumeHeldBoard)]).filter(Boolean);
         const source = ctx?.eventSource;
         const names = ctx?.eventTypes ?? ctx?.event_types ?? {};
         const on = (event, fn) => {
@@ -345,6 +373,8 @@ export function createEvents(s, deps) {
     function uninstall({ globalName = INTERCEPTOR_NAME } = {}) {
         s.offModules?.();
         s.offModules = null;
+        for (const off of s.offBoard) off();
+        s.offBoard = [];
         const source = ctx?.eventSource;
         for (const [event, fn] of s.listeners) (source?.removeListener ?? source?.off)?.call(source, event, fn);
         s.listeners = [];

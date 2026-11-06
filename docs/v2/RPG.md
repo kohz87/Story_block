@@ -42,15 +42,21 @@ reply that was rolled. **See it in the story** closes the game view and scrolls 
 
 ### The fight board
 
-The board is on by default; turn **Fight board** off under **Settings → Features** to use the planner as before. When a foe
-is standing, the Fight tab offers **Fight on the board**. Choose one numbered line for each standing party member: Attack with
+The board is on by default and is offered under Standard rules; Classic keeps the usual planner. Turn **Fight board** off under
+**Settings → Features** to use the planner when no fight is staged. When a foe is standing, the Fight tab offers **Fight on the board**. Choose one numbered line for each standing party member: Attack with
 the equipped weapon, a skill with one target or every foe in reach, or Flee. Tap a line or press its number; when there is
 more than one foe group, choose the target next, or press Esc to go back. A line that cannot be used stays visible with its
 reason. Defence is automatic: the best usable defence skill, else the plain defence roll. Foes act by code.
 
-The bars stay above a scrolling battle log, and the next choices stay at the bottom on a phone. **Undo last exchange** takes
-back only choices not yet sent. **Discard fight** asks first and gives the next opening a new seed. The end card says won,
-lost or fled and explains that the next message carries the fight. The folded note shows what the narrator will be told.
+The bars stay above a scrolling battle log, and the next choices stay at the bottom on a phone. Each rolled exchange is final.
+**Discard fight** asks first and gives the next opening a new seed. A changed sheet or equipment holds a staged board fight until
+the original inputs are restored or the fight is discarded. If you switch to Classic with a staged fight, switch back to Standard
+or discard it before continuing. While the reply is being written, wait until it finishes before changing that fight's sheet or gear.
+If a reply is held after its inputs change, restore them while the page is open to finish it, or discard the fight and regenerate it;
+the hold does not survive a reload.
+The log shows bar changes as words with the dice and totals. The board labels defence results as the defender's and sends each
+recorded gear condition change to the narrator at its exchange. The end card says won, lost or fled, shows pending XP and practice,
+and explains that the next message carries the fight. The folded note shows what the narrator will be told.
 
 When you send while exchanges are played, they become that reply's settled rolls: the narrator tells them first, then your
 own action, and an unfinished fight stays open with its current bars. The planner is not called while a board fight is open.
@@ -246,7 +252,8 @@ Empty slots show a dashed line and are filled when the story has the character l
 The pencil on a skill fixes its name or what it does, and, while the fight board is on, its three optional board choices:
 **One foe**, **Every foe in reach** and **Automatic defence**. The defaults come from the skill's words (for example, a
 description saying "every foe" sets area); the choices are stored on the reply that saved them, so a swipe or delete takes
-the edit back. Rank and practice only move through play, and a skill's stat and resource are fixed by its Skills block.
+the edit back. While the Fight board is on, renaming a skill keeps its saved board choices; without saved choices, the flags
+continue to follow the skill's wording. Rank and practice only move through play, and a skill's stat and resource are fixed by its Skills block.
 
 ## Stage bars
 

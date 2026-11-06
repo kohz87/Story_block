@@ -66,7 +66,9 @@ The story decides how much money and how many items a reply gives; there is no p
 
 The optional RPG adds a party sheet, automatic dice for fights and checks, and levels and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
 
-With the RPG on, the Fight tab can also offer a **fight board**: choose each character's action for an exchange, tap or number-key it, and the code rolls the result at once. Undo an exchange until you send; sending tells the played fight and leaves an unfinished one open. The board is the **Fight board** switch under **Settings → Features**. Off, the ordinary planner path is exactly as before.
+With the RPG on, the Fight tab can also offer a **fight board** under Standard rules; Classic keeps the usual fight planner. Choose each character's action, tap or number-key it, and the code rolls the exchange at once. Each rolled exchange is final; use **Discard fight** to start again after confirming. If the sheet or gear changes before sending, restore it or discard the fight. If you switch to Classic with a staged fight, switch back to Standard or discard it before continuing.
+
+The board shows bar changes as words and keeps the dice and totals in the log. After a fight, it shows the XP and practice waiting for your next message. Sending tells the played fight and leaves an unfinished one open. If a reply is held after its fight inputs change, restore them while the page is open to finish the reply, or discard the fight and regenerate it. The board is the **Fight board** switch under **Settings → Features**. With no staged fight, turning it off keeps the ordinary planner path.
 
 ## Removing Story Block from a chat
 

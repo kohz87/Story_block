@@ -13,6 +13,8 @@ import { createBoardView } from '../../../../src/v2/lean-rpg/board/view.js';
 import { boardSession, discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { character, levelFoeBlock, setup, sheetDomain, skillBlock } from '../helpers.js';
 import { page, begin, makeBlocks, settle } from '../view/page.js';
+import { planGear } from '../../../../src/v2/lean-rpg/gear.js';
+import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 
 async function defineFoes(host, entries) {
     const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
@@ -242,10 +244,73 @@ test('the board checks current and saved rules, including a stale offer', async 
     assert.equal(openBoard(meta, host.head(), { sid: host.store.carrierSid(host.store.headIndex()), rules: standard }).error, undefined);
     assert.ok(board.snapshot(host.head()));
     current = classic;
-    assert.equal(board.snapshot(host.head()), null, 'Classic hides a Standard session');
+    assert.match(board.snapshot(host.head()).played.error, /Standard.*discard/i, 'a staged fight remains accessible under Classic');
     current = standard;
     boardSession(meta).setup.rules = classic;
-    assert.equal(board.snapshot(host.head()), null, 'a saved Classic session is not rendered');
+    assert.match(board.snapshot(host.head()).played.error, /setup is damaged/i, 'an unsupported saved session can be discarded');
+});
+
+test('a staged fight remains discardable when its opening reply no longer matches', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    await defineFoes(host, [['Rats', 3, 3, 5]]);
+    const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+    openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+    stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 1 }]);
+    boardSession(meta).anchor = 'missing-reply';
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    const fight = () => doc.querySelector('[data-ss-screen="story-block/fight"]');
+    assert.match(fight().textContent, /no longer matches.*restore.*discard/i);
+    fight().querySelector('.rpg-board-discard').click();
+    fight().querySelector('.rpg-board-confirm').click();
+    assert.equal(boardSession(meta), null);
+});
+
+test('a changed sheet leaves discard and its confirmation on the board', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    const blocks = await makeBlocks(host, { character: { str: 10 } });
+    await defineFoes(host, [['Rats', 3, 3, 5]]);
+    const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+    openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+    assert.equal(stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 1 }]).error, undefined);
+    assert.equal((await host.sdk.command('dm.set', { module: blocks.character, field: 'str', value: 12 })).ok, true);
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    const fight = () => doc.querySelector('[data-ss-screen="story-block/fight"]');
+    assert.match(fight().textContent, /sheet or gear changed.*restore.*discard/i);
+    fight().querySelector('.rpg-board-discard').click();
+    assert.match(fight().textContent, /Discard this fight/);
+    fight().querySelector('.rpg-board-confirm').click();
+    assert.equal(boardSession(meta), null);
+});
+
+test('the next attack choice loses a weapon that broke in the staged exchange', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    host.features.set('story-block.gear', true);
+    await begin(host);
+    await makeBlocks(host, { character: { str: 3, dex: 12, agi: 10, vit: 20 } });
+    await defineFoes(host, [['Rats', 6, 60, 5]]);
+    await host.send('Equip.', 'Ready.\n<Changes>\n+ item Cane Sword | kind: weapon | rarity: rare | DEX: +2 | equipped: weapon\n</Changes>');
+    assert.equal(host.bus.command('gear.wear', { owner: 'party', slot: 'weapon', steps: 2 }, { cause: 'system' }).ok, true);
+    const meta = host.ctx.chatMetadata, state = host.head(), sid = host.store.carrierSid(host.store.headIndex());
+    const query = (name, args) => host.sdk.query(name, args);
+    const gear = planGear(readSheet(state), query), weapon = query('inventory.gear', { owner: 'party' }).slots.weapon;
+    let result = null;
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+        openBoard(meta, state, { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 }, gear, weapons: { wessel: weapon } });
+        const staged = stageExchange(meta, state, [{ who: 'Wessel', kind: 'attack', target: 1 }]);
+        if (staged.preview?.result.stop === 'open' && staged.preview.result.wear?.some(event => event.to === 'broken')) { result = staged; break; }
+        discardBoard(meta);
+    }
+    assert.ok(result, 'found a staged weapon break');
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    const choice = doc.querySelector('[data-ss-screen="story-block/fight"]').querySelector('[data-choice="1"]');
+    assert.match(choice.textContent, /Attack \(STR\)/);
+    assert.doesNotMatch(choice.textContent, /Cane Sword/);
 });
 
 test('pending awards use opening groups, settings and the per-reply practice cap', () => {

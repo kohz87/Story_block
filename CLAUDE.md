@@ -105,6 +105,9 @@ Full suite: about 2,100 tests, 1.5–3 minutes. Skills in `.claude/skills/`: `ru
 Area notes in `docs/dev/`: `capture-and-reread.md`, `saves-and-persist.md`, `prompt-and-context.md`,
 `ui-and-screens.md`, `packs.md`, `fight-board.md`.
 
+A board segment carries a witness of the sheet and equipped gear it used; generation must stop if that witness no longer
+matches. Board touch coverage uses a rendered browser at 390×844 and 360×740 when the optional browser is available.
+
 ## Known traps
 
 - Suite tests (`tests/v2/break/helpers/suite.js`, `suite-final.js`, `packs/terms.test.js`,

@@ -91,6 +91,11 @@ export function createPromptBuild(s, deps) {
                 if (result.receipt.narrate === false) continue;
                 const told = `[Happened]\n${receiptCue(result.receipt)}`;
                 cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true } : told];
+            } else if (preludeType === RPG_RESOLVE && payload?.board) {
+                const detail = String(result?.message ?? 'unknown error').trim().replace(/[.\s]+$/u, '');
+                const reason = `The fight could not be prepared: ${detail}.${/discard/i.test(detail) ? '' : ' Restore the sheet or gear, or discard the fight.'}`;
+                problem({ module: moduleId, code: result?.code ?? 'FAILED', message: reason });
+                return { blocked: { moduleId, reason } };
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
         }
         // Saved with the reply (MESSAGE_RECEIVED), not now: each save writes the whole chat file, and the
@@ -268,12 +273,19 @@ export function createPromptBuild(s, deps) {
             if (store.headIndex() !== lastCarrier()) store.rebuild();
             if (hasCarrier()) store.ensureInitial(initial());
             await ensureModules({ store, bus, registry, events });
+            if (s.heldBoard) {
+                const held = s.session;
+                block({ moduleId: 'story-block', reason: 'Restore the fight sheet or gear, or discard the fight and regenerate the held reply.' }, abort);
+                s.session = held;
+                return;
+            }
             const blocked = await blockedBy();
             if (blocked) {
                 block(blocked, abort);
                 return;
             }
-            const { cues, prechecks, previewState } = await runCues(kind);
+            const { cues, prechecks, previewState, blocked: cueBlocked } = await runCues(kind);
+            if (cueBlocked) { block(cueBlocked, abort); return; }
             const built = build(cues, previewState);
             tellTooSmall(built.fit);
             const chat = ctx.chat;
@@ -294,6 +306,7 @@ export function createPromptBuild(s, deps) {
                 background: 0,
                 restored: '',
             };
+            s.abortBoard = abort;
             setPrompts(s.session.staticText, s.session.tailText);
         } catch (error) {
             s.session = null;

@@ -112,7 +112,7 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         settings: { defaults: { ...part.settings.defaults } },
     };
     // (The stat formula is Classic here unless a test asks otherwise: these tests pin Classic's numbers.)
-    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { rpgFormula: 'classic', ...settings } } } });
+    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { rpgFormula: board ? 'standard' : 'classic', ...settings } } } });
     host.features.set(LEAN_RPG_FEATURE, feature);
     host.features.set(CORE_FEATURE.fightBoard, board);
     return { host, callModel, problems, part };

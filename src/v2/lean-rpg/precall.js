@@ -189,6 +189,11 @@ export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === 
 export function createPrecall({ callModel, chat, chatId, metadata = () => null, hold, problem = null, moduleId = 'story-block', timeoutMs, timer, skip: noDice = { peek: () => false, clear: () => {} } }) {
     // The planner's limit in ms: the one the part was given (tests), else the setting of this moment.
     const limitOf = values => plannerLimitMs(values, timeoutMs);
+    const currentRules = view => {
+        let pack = null;
+        try { pack = packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { /* no pack rules */ }
+        return rulesFromSettings(readSettings(view, moduleId), pack);
+    };
     const skip = (sheet, failure, key) => {
         try { problem?.({ module: moduleId, code: 'ROLLS_SKIPPED', quiet: true, message: `Rolls skipped for this reply: ${failure.failed} Swipe to try again.` }); } catch { /* the Problems list is optional */ }
         // While a fight is on the narrator is told to keep it undecided (outside one there is nothing to hold back), and the reply keeps a record of
@@ -249,6 +254,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         let board = null;
         if (last?.is_user) {
             const anchor = readRecord(messages.at(-2))?.sid;
+            if (session?.exchanges?.length && !isStandard(currentRules(view))) return { ok: false, reason: 'The fight board needs Standard rules. Switch back to Standard or discard the staged fight before using Classic.', action: false };
             const legacyKey = `${messages.length - 1}-${hashText(String(last.mes ?? '').trim())}`;
             const remembered = lastBoard(meta, anchor, legacyKey, last);
             board = session?.anchor === anchor ? boardPayload(session) : remembered?.board;
@@ -276,6 +282,8 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         const text = String(last.mes ?? '').trim();
         if (!text) return null;
         const key = `${index}-${hashText(text)}`;
+        // Replayed receipts keep their recorded rules; a new session is offered only under current Standard rules.
+        const rules = currentRules(view);
         if (view?.feature?.('story-block.fight-board') === true) {
             let meta = null;
             try { meta = metadata(); } catch { /* no board without chat metadata */ }
@@ -284,7 +292,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             const remembered = type === 'regenerate' ? lastBoard(meta, anchorRecord?.sid, key, last) : null;
             let session = boardSession(meta);
             if (session?.anchor === anchorRecord?.sid) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
-            const board = previous?.board ?? remembered?.board ?? (session?.anchor === anchorRecord?.sid ? boardPayload(session) : null);
+            const board = previous?.board ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid ? boardPayload(session) : null);
             if (board) {
                 const anchored = board.anchor ? board : { ...board, anchor: anchorRecord?.sid ?? board.id };
                 const fightKey = previous?.key?.startsWith('b:') ? previous.key : remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
@@ -300,9 +308,6 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         // The numbers the dice are rolled with are fixed here, from the settings of this moment, and travel in the payload: the roll
         // (and every Re-read of it) uses these, whatever the settings say later (rules.js).
         // (A pack may say which formula its story plays on and its numbers; the reader's own settings win over it.)
-        let pack = null;
-        try { pack = packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { pack = null; }
-        const rules = rulesFromSettings(readSettings(view, moduleId), pack);
         // A retried interceptor (the same generation, never captured) keeps its plan; any new generation plans anew.
         const held = info?.again === true ? hold.peek(where, key) : null;
         let planned;

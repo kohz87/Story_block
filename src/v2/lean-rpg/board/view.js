@@ -12,7 +12,7 @@ import { isStandard } from '../rules.js';
 import { boardFlags } from './overrides.js';
 import { boardChoices, pendingAwards, targetLabel } from './view-data.js';
 import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
-import { playBoard } from './engine.js';
+import { equipmentForBoard, playBoard } from './engine.js';
 import { barMovement, settledNote } from './note.js';
 
 const button = (doc, text, cls, click) => {
@@ -63,13 +63,18 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         if (gear) session.setup.gear = gear; else delete session.setup.gear;
     };
     const snapshot = state => {
-        if (!on() || !isStandard(rules())) return null;
+        if (!on()) return null;
         reconcileBoard(meta(), id => (store?.receipts?.() ?? []).some(entry => entry?.receipt?.id === id));
         const session = current();
-        if (!session || !isStandard(session.setup?.rules) || session.anchor !== store?.carrierSid?.(store.headIndex?.())) return null;
+        if (!session) return null;
+        const matched = session.anchor === store?.carrierSid?.(store.headIndex?.());
+        if (!matched && !session.exchanges.length) return null;
         if (session.id !== activeId) { activeId = session.id; reset(); }
         fresh(session, state);
-        return { session, played: playBoard(state, session.setup, session.exchanges) };
+        const played = !matched ? { error: 'The fight no longer matches this reply. Restore the reply or discard the fight.' }
+            : !isStandard(rules()) ? { error: 'The fight board needs Standard rules. Switch back to Standard or discard this fight.' }
+            : playBoard(state, session.setup, session.exchanges);
+        return { session, played };
     };
     const offer = (root, redraw) => {
         if (!on() || !isStandard(rules())) return;
@@ -91,7 +96,17 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         if (!listening) { doc.addEventListener?.('keydown', keydown, true); listening = true; }
         keyRoot = root;
         root.classList.add('rpg-board-active');
-        if (played.error) { root.appendChild(h(doc, 'p', 'rpg-board-error', played.error)); return; }
+        if (played.error) {
+            root.appendChild(h(doc, 'p', 'rpg-board-error', played.error));
+            const panel = h(doc, 'div', 'rpg-board-controls');
+            if (confirm) {
+                panel.appendChild(h(doc, 'p', '', 'Discard this fight and its unsent exchanges?'));
+                panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-confirm', () => { discardBoard(meta()); persist(); reset(); redraw(); }));
+                panel.appendChild(button(doc, 'Cancel', 'ss-button', () => { confirm = false; redraw(); }));
+            } else panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
+            root.appendChild(panel);
+            return;
+        }
         const state = played.state, { ranks, playerRank } = levels(), party = readParty(state, { own: readerName(), roleOf, ranks, playerRank }), foes = readFoes(state, { roleOf, ranks });
         const status = h(doc, 'div', 'rpg-board-status');
         status.appendChild(h(doc, 'h3', '', 'Fight'));
@@ -126,7 +141,8 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         if (!log.childNodes.length) log.appendChild(h(doc, 'p', '', 'Choose an action to begin.'));
         root.appendChild(log);
         const panel = h(doc, 'div', 'rpg-board-controls');
-        const data = boardChoices(state, session.setup, chosen), ended = played.result.stop !== 'open';
+        const gear = session.setup.gear ? equipmentForBoard(state, session.setup.gear) : {};
+        const data = boardChoices(state, { ...session.setup, ...gear }, chosen), ended = played.result.stop !== 'open';
         if (confirm) {
             panel.appendChild(h(doc, 'p', '', 'Discard this fight and its unsent exchanges?'));
             panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-confirm', () => { discardBoard(meta()); persist(); reset(); redraw(); }));
