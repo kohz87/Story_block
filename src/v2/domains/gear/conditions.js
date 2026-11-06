@@ -35,4 +35,3 @@ export const condMark = cond => (condWord(cond) === 'good' ? '' : condWord(cond)
 
 /** What a piece of condition `cond` is worth: `value` × the condition's factor (Good 100%, Worn 75%, Torn 50%, Broken 20%), whole. */
 export const valueByCond = (value, cond) => Math.round(value * CONDITION[condWord(cond)].factor);
-

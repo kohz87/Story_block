@@ -7,4 +7,3 @@ export { slotWordOf, placeOf, gearSlotOf, gearRarityOf, statsOf, withinBudget, d
 export { KIND_CARRY, OTHER_CARRY, kindCarry, itemCarryOf, travelsWith, capacityFor, carryPicture, carryAnswer, atLimit, loadLevel } from './gear/carry.js';
 export { statBonus, gearAnswer, bonusText, gearView, createGearQueries } from './gear/views.js';
 export { CONDITION, condWord, stepDown, stepUp, condMark, valueByCond } from './gear/conditions.js';
-

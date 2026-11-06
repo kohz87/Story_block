@@ -251,4 +251,3 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         reset() { shared.mode = 'list'; shared.draft = null; shared.module = null; shared.note = ''; tell(); },
     };
 }
-

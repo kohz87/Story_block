@@ -125,4 +125,3 @@ export function createLayoutPart({ node, button, control, collect, refresh, draw
     }
     return { paintLayout, paintPreview: () => paintPreview() };
 }
-

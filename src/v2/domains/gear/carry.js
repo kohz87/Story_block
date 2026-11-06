@@ -129,4 +129,3 @@ export function loadLevel(load, capacity) {
     if (atLimit(load, capacity)) return 'over';
     return capacity > 0 && load * 5 >= capacity * 4 ? 'heavy' : 'normal';
 }
-

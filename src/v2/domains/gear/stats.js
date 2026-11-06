@@ -198,4 +198,3 @@ export function statsFor(def) {
 }
 
 const baseOf = key => (typeof key === 'string' ? key.trim().replace(/-\d+$/, '') : null);
-

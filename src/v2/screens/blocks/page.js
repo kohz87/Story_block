@@ -206,4 +206,3 @@ export function createBlocksPage({ shared, tell, templates, rpgState, loadRpg, o
 
     return page;
 }
-

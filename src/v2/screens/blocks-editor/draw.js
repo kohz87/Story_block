@@ -188,4 +188,3 @@ export function createDrawPart({ doc, node, button, control, collect, refresh, d
     }
     return { draw };
 }
-

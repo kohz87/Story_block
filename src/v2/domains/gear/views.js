@@ -141,4 +141,3 @@ export function createGearQueries({ on, kit = () => false, empty = () => false, 
         'gear.carry': gate((state, args, tools) => carryAnswer(state, args, { carryOf, mounts: mountsOf(tools) })),
     };
 }
-

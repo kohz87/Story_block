@@ -2,4 +2,3 @@
 // its public export; the editor is split into editor.js, draw.js, layout.js and constants.js in blocks-editor/.
 
 export { renderBlockEditor } from './blocks-editor/editor.js';
-

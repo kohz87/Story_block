@@ -20,4 +20,3 @@ export function metaOf(definition, managed, rpgOn = true) {
     return [plural(Object.keys(definition.state ?? {}).length, P.fields), buttons ? plural(buttons, P.buttons) : '', rules ? plural(rules, P.rules) : '',
         timers ? plural(timers, P.timers) : '', shown.join(', ') || P.whereHidden].filter(Boolean).join(' · ');
 }
-

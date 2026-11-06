@@ -215,4 +215,3 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
     draw();
     return { collect, destroy() { alive = false; for (const entry of state.controls) entry.handle.destroy(); state.controls = []; } };
 }
-
