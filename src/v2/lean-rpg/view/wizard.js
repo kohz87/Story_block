@@ -194,7 +194,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 moneyText, button, body, field, input, CREATION, drawSummary, LEVEL, levelCap, bandRank, levels, fold });
             const statsStep = createStatsStep({ snap, pointsLeft, STATS, draftCreation, growthText, growthOf, RPG_STRINGS, fill, W, drawSummary, h,
                 doc, stepper, put, draft, radar, button, redraw, startStats, statBounds, LEVEL_WORD, safe, packNote, body });
-            const skillsStep = createSkillsStep({ snap, skillSetsOf, safe, api, current, draft, h, doc, W, fill, draftSlots, button, put, drawSummary,
+            const skillsStep = createSkillsStep({ snap, skillSetsOf, safe, api, current, draft, h, doc, W, fill, draftSlots, draftCreation, button, put, drawSummary,
                 redraw, body, withSet, setLine, input, CREATION, select, STATS, USES, RANK_NAMES, START_RANKS, mayStartAdept, withSkillPatch, withoutSkill, withSkill });
             const reviewStep = createReviewStep({ DM_LIMITS, W, fill, current, snap, world, problemsOf, blockNames, kindWord, h, doc, body, RANK_NAMES,
                 rankOf, pointsLeft, statsLine, extraName, button, safe, api, refusalText, ownerFor: whoStep.ownerFor, importedAdds: whoStep.importedAdds,

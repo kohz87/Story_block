@@ -1,6 +1,6 @@
 // The New character wizard's Skills step: starting sets and the editable skill rows.
 export function createSkillsStep(ctx) {
-    const { snap, skillSetsOf, safe, api, current, draft, h, doc, W, fill, draftSlots, button, put, drawSummary, redraw, body, withSet,
+    const { snap, skillSetsOf, safe, api, current, draft, h, doc, W, fill, draftSlots, draftCreation, button, put, drawSummary, redraw, body, withSet,
         setLine, input, CREATION, select, STATS, USES, RANK_NAMES, START_RANKS, mayStartAdept, withSkillPatch, withoutSkill, withSkill } = ctx;
     // ---- Skills ----
     function drawSkills() {
