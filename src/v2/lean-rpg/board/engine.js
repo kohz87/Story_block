@@ -2,7 +2,7 @@
 // The UI and the reply's resolver call this same function with the fixed setup and choices.
 // It reads the existing Standard rules and writes only the returned copy and result.
 
-import { applyGear, noteGear, wearGear } from '../gear.js';
+import { applyGear, dressOf, noteGear, wearGear } from '../gear.js';
 import { condWord, gearAnswer, stepDown } from '../../domains/gear.js';
 import { condOf, defCarry, ENCUMBERED_PENALTY } from '../../domains/inventory.js';
 import { mountRows } from '../../domains/mounts.js';
@@ -16,6 +16,7 @@ import { fleeRoll } from './flee.js';
 import { exchangePlan } from './plan.js';
 import { attackStat } from './rules.js';
 
+const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const gearQuery = state => (_name, args) => gearAnswer(state, args, { condOf, carryOf: defCarry, penalty: ENCUMBERED_PENALTY, mounts: mountRows(state) });
 
 /** A segment's sheet and equipped pieces must still be the ones used to roll it. */
@@ -26,29 +27,23 @@ export function boardWitness(state, setup) {
         const owners = [...new Set(['party', ...Object.values(setup.gear.who ?? {}).flatMap(entry => entry.own ?? [])])].sort();
         input.gear = owners.map(owner => ({ owner, answer: query('inventory.gear', { owner }) }));
         input.equipped = Object.values(inventory?.stacks ?? {}).filter(stack => owners.includes(stack.owner) && stack.equipped)
-            .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).map(stack => ({ id: stack.id, def: stack.def, owner: stack.owner, equipped: stack.equipped, cond: condOf(stack, inventory) }));
+            .sort(byId).map(stack => ({ id: stack.id, def: stack.def, owner: stack.owner, equipped: stack.equipped, cond: condOf(stack, inventory) }));
     }
     return hashJson(input);
 }
 
 /** Rebuild the recorded owners' bonuses and weapons from the private, worn-down inventory. */
 export function equipmentForBoard(state, recorded, liveQuery = null) {
-    const query = liveQuery ?? gearQuery(state), party = query('inventory.gear', { owner: 'party' }), who = {}, weapons = {};
+    const query = liveQuery ?? gearQuery(state), party = query('inventory.gear', { owner: 'party' }) ?? {}, who = {}, weapons = {};
+    const answerOf = owner => query('inventory.gear', { owner });
     for (const [key, entry] of Object.entries(recorded.who)) {
-        const add = {}, items = [], answers = entry.own.map(owner => query('inventory.gear', { owner }));
         // Wear changes condition and stat bonuses, but not the recorded carry penalty. A new
         // segment may refresh it from the live, feature-aware inventory query.
-        let enc = liveQuery ? (party?.carry?.encumbered ? (party.carry.penalty || -2) : 0) : entry.enc ?? 0;
-        for (const answer of answers) {
-            for (const [stat, n] of Object.entries(answer.statBonus ?? {})) if (n) add[stat.toLowerCase()] = (add[stat.toLowerCase()] ?? 0) + n;
-            for (const piece of Object.values(answer.slots ?? {})) {
-                const stats = Object.fromEntries(Object.entries(piece?.stats ?? {}).filter(([, n]) => n).map(([stat, n]) => [stat.toLowerCase(), n]));
-                if (piece && !piece.broken && Object.keys(stats).length) items.push({ name: piece.name.replace(/\s+/g, ' ').trim().slice(0, 80), stats });
-            }
-            if (liveQuery && !enc && answer.carry?.encumbered) enc = answer.carry.penalty || -2;
+        const dress = dressOf(entry.own, party, answerOf), enc = liveQuery ? dress.enc : entry.enc;
+        for (const answer of entry.own.map(answerOf)) {
             if (!weapons[key] && answer.slots?.weapon && !answer.slots.weapon.broken) weapons[key] = answer.slots.weapon;
         }
-        who[key] = { own: structuredClone(entry.own), ...(Object.keys(add).length ? { add } : {}), ...(enc ? { enc } : {}), ...(items.length ? { items: items.slice(0, 8) } : {}) };
+        who[key] = { own: structuredClone(entry.own), ...(dress.add ? { add: dress.add } : {}), ...(enc ? { enc } : {}), ...(dress.items ? { items: dress.items } : {}) };
     }
     return { gear: { v: recorded.v, who }, weapons };
 }
@@ -58,7 +53,7 @@ function stagingWear(state, gear, options) {
     const query = gearQuery(state), inventory = state.domains.inventory;
     const ctx = { query, call(_type, { owner, slot, steps }) {
         const stacks = Object.values(inventory?.stacks ?? {}).filter(stack => stack.owner === owner);
-        const at = place => stacks.filter(stack => stack.equipped === place).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)[0];
+        const at = place => stacks.filter(stack => stack.equipped === place).sort(byId)[0];
         const stack = at(slot === 'defence' ? (at('body') ? 'body' : 'off-hand') : slot);
         const before = condOf(stack, inventory), now = stepDown(before, steps);
         stack.cond = now;
@@ -84,7 +79,7 @@ function weaponSides(prepared, sheet, weapons) {
     }
 }
 
-function applyHurts(domain, hurts) {
+export function applyHurts(domain, hurts) {
     for (const hurt of hurts) {
         const fields = domain?.instances?.[hurt.module]?.chat?.fields;
         if (fields && Object.hasOwn(fields, hurt.field)) fields[hurt.field] = hurt.to;
@@ -103,7 +98,7 @@ export function playBoard(state, setup, exchanges) {
     let order = setup.order ?? null, stop = 'open';
     for (const [at, choices] of exchanges.entries()) {
         if (stop !== 'open') return { error: 'The fight has already ended.' };
-        const equipment = setup.wearVersion === 1 && setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
+        const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
         const number = setup.offset + at + 1, sheet = applyGear(readSheet(copy), equipment.gear);
         const built = exchangePlan(sheet, choices?.actions, setup.flags, number);
         if (built.error) return { error: built.error };
@@ -117,7 +112,7 @@ export function playBoard(state, setup, exchanges) {
         weaponSides(prepared, sheet, equipment.weapons);
         const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
         const lines = rolled.rounds[0]?.lines ?? [];
-        if (setup.wearVersion === 1 && equipment.gear) {
+        if (equipment.gear) {
             noteGear([...rolled.opening, ...lines], equipment.gear);
             wear.push(...stagingWear(copy, equipment.gear, { opening: rolled.opening, rounds: [{ n: number, lines }], rules }));
         }

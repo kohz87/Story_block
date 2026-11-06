@@ -4,11 +4,11 @@
 
 import { condWord } from '../../domains/gear.js';
 import { hashJson } from '../../replay.js';
-import { applyGear, earnedLegend, gearMatches, gearValid, noteGear, wearGear } from '../gear.js';
+import { applyGear, earnedLegend, gearMatches, gearValid, wearGear } from '../gear.js';
 import { LV_VERSION, PRACTICE, RESOLVE, practiceOf } from '../names.js';
 import { readSheet } from '../read.js';
 import { hasLevels, normalizeRules } from '../rules.js';
-import { boardWitness, playBoard } from './engine.js';
+import { applyHurts, boardWitness, playBoard } from './engine.js';
 import { settledNote } from './note.js';
 
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -18,8 +18,7 @@ const shape = board => isObject(board) && isObject(board.setup) && Array.isArray
     && typeof board.id === 'string' && board.id.length > 0 && board.id.length <= 120
     && Array.isArray(board.groups) && board.groups.length > 0 && board.groups.length <= 64
     && board.groups.every(slot => Number.isInteger(slot) && slot >= 1 && slot <= 64)
-    && (board.setup.wearVersion === undefined || board.setup.wearVersion === 1)
-    && (board.setup.witness === undefined ? board.setup.wearVersion !== 1 || board.exchanges.length === 0
+    && (board.setup.witness === undefined ? board.exchanges.length === 0
         : isObject(board.setup.witness) && board.setup.witness.offset === board.setup.offset && /^[0-9a-f]{64}$/u.test(board.setup.witness.hash));
 const witness = state => ({ dataModules: state?.domains?.dataModules ?? null });
 const startState = ctx => ({ domains: { dataModules: ctx.read('dataModules'), inventory: ctx.read('inventory'), scene: ctx.read('scene') } });
@@ -51,24 +50,16 @@ export function resolveBoard(ctx, payload) {
     const base = played.result, practice = practiceOf(payload.practice) ?? PRACTICE.perUse;
     const result = { v: 1, key, pace: 'careful', rules, flow: 2, fix: 3, practice, ...(hasLevels(rules) ? { lv: LV_VERSION } : {}),
         ...(gear ? { gear } : {}), checks: structuredClone(board.setup.approach ?? []), ...base, board: { id: board.id, seed: board.setup.seed, offset: board.setup.offset, groups: board.groups } };
-    const lines = [...result.opening, ...result.rounds.flatMap(round => round.lines)];
     if (gear) {
-        if (board.setup.wearVersion !== 1) noteGear(lines, gear);
         const wear = wearGear(ctx, gear, { opening: result.opening, rounds: result.rounds, rules, condWord });
-        if (board.setup.wearVersion === 1 && ctx.hash(wear) !== ctx.hash(result.wear ?? [])) ctx.fail('NO_LONGER_DONE', 'The gear wear changed. Restore the gear or discard the fight.');
+        if (ctx.hash(wear) !== ctx.hash(result.wear ?? [])) ctx.fail('NO_LONGER_DONE', 'The gear wear changed. Restore the gear or discard the fight.');
         if (wear.length) result.wear = wear;
         if (earnedLegend(result, applyGear(readSheet(state), gear), hasLevels(rules))) result.legend = 1;
     }
     const predicate = { kind: RESOLVE, board: 1, key, setup: ctx.hash(board), rules: ctx.hash(rules), practice };
     ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate,
         inputHash: ctx.hash({ source: ctx.source, predicate, witness: witness(state) }) }, { key, board, practice });
-    if (result.hurts.length) {
-        const instances = ctx.draft('dataModules')?.instances;
-        for (const hurt of result.hurts) {
-            const fields = instances?.[hurt.module]?.chat?.fields;
-            if (fields && Object.hasOwn(fields, hurt.field)) fields[hurt.field] = hurt.to;
-        }
-    }
+    if (result.hurts.length) applyHurts(ctx.draft('dataModules'), result.hurts);
     return { summary: settledNote(result), narrate: true, replan: true, data: { v2: { key: claimId, result } } };
 }
 

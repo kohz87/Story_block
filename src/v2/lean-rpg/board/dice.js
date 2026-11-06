@@ -11,7 +11,7 @@ export function fightSeed(sid, attempt = 0) {
 }
 
 /** Each exchange has its own independent uint32 base. */
-export function exchangeSeed(seed, number) {
+function exchangeSeed(seed, number) {
     return Number.parseInt(hash(`exchange:${seed >>> 0}:${number}`), 16) >>> 0;
 }
 

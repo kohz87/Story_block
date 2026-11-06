@@ -3,7 +3,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { equipmentForBoard, playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
+import { boardWitness, equipmentForBoard, playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { settledNote } from '../../../../src/v2/lean-rpg/board/note.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { character, foeBlock, setup } from '../helpers.js';
@@ -23,6 +23,7 @@ test('the reply resolver commits exactly the staged exchange and refuses a dupli
     const { host } = await setup({ blocks });
     try {
         const setup = { seed: 24, offset: 0, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } };
+        setup.witness = { offset: 0, hash: boardWitness(host.head(), setup) };
         const exchanges = [{ actions: [{ who: 'Astra', kind: 'attack', target: 1 }] }];
         const staged = playBoard(host.head(), setup, exchanges);
         assert.equal(staged.error, undefined);
@@ -34,7 +35,11 @@ test('the reply resolver commits exactly the staged exchange and refuses a dupli
         assert.deepEqual(recorded.hurts, staged.result.hurts);
         assert.equal(result.receipt.summary, settledNote(recorded));
         for (const hurt of staged.result.hurts) assert.equal(result.state.domains.dataModules.instances[hurt.module].chat.fields[hurt.field], hurt.to);
-        const twice = host.bus.run('rpg.resolve', payload, { cause: 'system', state: result.state });
+        // A committed fight moves the sheet, so its witness refuses a replay; the claim itself is checked on a fight with no staged rolls.
+        const bare = { key: '2-abc', board: { id: 'fight-two', groups: [1], setup: { seed: 24, offset: 0, rules: setup.rules }, exchanges: [] } };
+        const first = host.bus.run('rpg.resolve', bare, { cause: 'system' });
+        assert.equal(first.ok, true, first.message);
+        const twice = host.bus.run('rpg.resolve', bare, { cause: 'system', state: first.state });
         assert.equal(twice.ok, false);
         assert.equal(twice.code, 'CLAIMED');
     } finally { host.close(); }

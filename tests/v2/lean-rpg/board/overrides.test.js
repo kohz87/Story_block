@@ -141,3 +141,9 @@ test('deleting the newer flag edit brings back the earlier keyed choice', async 
     assert.equal(JSON.stringify(host.head()), live, 'a rebuild restores the same earlier choice');
     assert.deepEqual(host.store.problems(), []);
 });
+
+test('damaged flag entries are skipped instead of throwing', () => {
+    const flags = { target: true, area: false, defence: true };
+    const state = { domains: { dataModules: { boardFlags: { a: { x: null, y: 'bad', z: { id: 'z', key: 'k', flags, rev: 1 } }, b: 7 } } } };
+    assert.deepEqual(boardFlags(state), { k: flags });
+});

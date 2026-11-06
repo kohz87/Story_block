@@ -12,9 +12,10 @@ const flagsValid = value => object(value) && Object.keys(value).length === 3 && 
 
 /** Latest explicit choices for each skill, derived from the entries that survived replay. */
 export function boardFlags(state) {
-    const entries = Object.values(state?.domains?.dataModules?.boardFlags ?? {}).flatMap(group => Object.values(object(group) ? group : {}));
+    const entries = Object.values(state?.domains?.dataModules?.boardFlags ?? {}).flatMap(group => Object.values(object(group) ? group : {}))
+        .filter(entry => object(entry) && typeof entry.key === 'string' && flagsValid(entry.flags));
     entries.sort((a, b) => a.rev - b.rev || String(a.id).localeCompare(String(b.id)));
-    return Object.fromEntries(entries.filter(entry => object(entry) && typeof entry.key === 'string' && flagsValid(entry.flags)).map(entry => [entry.key, entry.flags]));
+    return Object.fromEntries(entries.map(entry => [entry.key, entry.flags]));
 }
 
 export function createBoardPart() {

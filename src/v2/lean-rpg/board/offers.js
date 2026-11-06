@@ -9,7 +9,7 @@ import { offerLineData } from './start-view-data.js';
 const standing = state => state ? readSheet(state).foes.filter(foe => foe.filled && foe.hurt > 0) : [];
 const identity = foe => `${foe.slot}:${fold(foe.name)}`;
 
-export function findFightOffer(chat, store, meta, enabled = true) {
+function findFightOffer(chat, store, meta, enabled = true) {
     if (!enabled || boardSession(meta)) return null;
     let current;
     try { current = standing(store.head()); } catch { return null; }
@@ -35,7 +35,7 @@ export function findFightOffer(chat, store, meta, enabled = true) {
     return null;
 }
 
-export function hideFightOffer(meta, sid) {
+function hideFightOffer(meta, sid) {
     if (!meta || typeof meta !== 'object' || typeof sid !== 'string' || !sid) return false;
     if (!meta.rpgFightOffers || typeof meta.rpgFightOffers !== 'object') meta.rpgFightOffers = {};
     meta.rpgFightOffers[sid] = true;

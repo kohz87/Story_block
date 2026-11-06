@@ -24,7 +24,7 @@ export function openBoard(meta, state, { sid, rules, gear = null, weapons = {} }
     const attempt = Number.isSafeInteger(meta[ATTEMPTS]?.[sid]) ? meta[ATTEMPTS][sid] : 0;
     const seed = fightSeed(sid, attempt);
     const session = { id: `${sid}:${attempt}`, origin: sid, anchor: sid, groups,
-        setup: { seed, offset: 0, rules: structuredClone(rules), flags: boardFlags(state), weapons: structuredClone(weapons), wearVersion: 1, ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
+        setup: { seed, offset: 0, rules: structuredClone(rules), flags: boardFlags(state), weapons: structuredClone(weapons), ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
     const preview = playBoard(state, session.setup, []);
     if (preview.error) return preview;
     meta[KEY] = session;
@@ -35,7 +35,7 @@ export function openBoard(meta, state, { sid, rules, gear = null, weapons = {} }
 export function stageExchange(meta, state, actions) {
     const session = boardSession(meta);
     if (!session) return { error: 'Open a fight first.' };
-    if (session.exchanges.length && (!session.setup.witness || session.setup.witness.offset !== session.setup.offset)) return { error: 'This older fight cannot be checked. Discard it and start the fight again.' };
+    if (session.exchanges.length && session.setup.witness?.offset !== session.setup.offset) return { error: 'This fight cannot be checked. Discard it and start the fight again.' };
     const exchanges = [...session.exchanges, { actions: structuredClone(actions) }];
     const setup = { ...session.setup, witness: session.setup.witness ?? { offset: session.setup.offset, hash: boardWitness(state, session.setup) } };
     const preview = playBoard(state, setup, exchanges);
@@ -44,7 +44,6 @@ export function stageExchange(meta, state, actions) {
     session.exchanges = exchanges;
     return { session, preview };
 }
-
 
 /** Discard changes the next opening's seed; no staged rolls were written to the sheet. */
 export function discardBoard(meta) {
@@ -111,7 +110,7 @@ export function receiveBoard(meta, payload, result, sid, receiptId = null, state
     delete setup.opening;
     delete setup.approach;
     delete setup.drop;
-    if (setup.wearVersion === 1 && setup.gear && state) Object.assign(setup, equipmentForBoard(state, setup.gear, query));
+    if (setup.gear && state) Object.assign(setup, equipmentForBoard(state, setup.gear, query));
     meta[KEY] = { id: board.id, origin: board.id.split(':')[0], anchor: sid, groups: structuredClone(board.groups),
         setup, exchanges: [], carriedKey: payload.key, ...(typeof receiptId === 'string' ? { carried: receiptId } : {}), base };
     return true;
@@ -136,7 +135,7 @@ export function reconcileBoard(meta, hasReceipt) {
     session.setup = { ...session.setup, offset: Number.isSafeInteger(base.offset) ? base.offset : 0 };
     if (orderOf(base.order)) session.setup.order = structuredClone(base.order); else delete session.setup.order;
     delete session.setup.witness;
-    // (Reader choices staged after the take-back are kept: they now roll from the segment's first die.)
+    // Choices staged after the take-back are kept; they now roll from the segment's first die.
     delete session.carried;
     delete session.carriedKey;
     delete session.base;
