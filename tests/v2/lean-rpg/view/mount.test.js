@@ -61,7 +61,7 @@ test('turning the feature on mounts it once; turning it off takes it all away; o
     await settle();
     assert.equal(loads.length, 1);
     assert.ok(ui.screens.resolve(PARTY));
-    assert.equal(hasLink(doc), 1, 'the stylesheet is added');
+    assert.equal(hasLink(doc), 3, 'the three stylesheets are added');
     host.features.set(CORE_FEATURE.leanRpg, true);
     await settle();
     assert.equal(loads.length, 1, 'already mounted: not loaded twice');

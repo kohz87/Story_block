@@ -39,13 +39,16 @@ export { heroLead } from './hero-data.js';
 export const PACK = 'rpg';
 const STYLE_ATTR = 'data-ss-rpg';
 
-function addStyle(doc) {
+const STYLE_FILES = ['./lean-rpg.css', '../board/board.css', '../board/fight-start.css'];
+
+function addStyle(doc, file) {
     try {
-        if (doc.querySelector?.(`link[${STYLE_ATTR}]`)) return null;
+        const href = new URL(file, import.meta.url).href;
+        if ([...(doc.querySelectorAll?.(`link[${STYLE_ATTR}]`) ?? [])].some(link => link.getAttribute('href') === href)) return null;
         const link = doc.createElement('link');
         link.setAttribute('rel', 'stylesheet');
         link.setAttribute(STYLE_ATTR, '');
-        link.setAttribute('href', new URL('./lean-rpg.css', import.meta.url).href);
+        link.setAttribute('href', href);
         (doc.head ?? doc.body).appendChild(link);
         return link;
     } catch {
@@ -67,15 +70,7 @@ function addStyle(doc) {
  * ("See it in the story" on the Fight tab); `refresh()` redraws the tabs.
  */
 export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, boardOn = () => false, boardFeature = null, gear = null, openDialog = null, openScreen = () => false, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null, previewStart = () => null, generateHeld = () => {} }) {
-    const link = addStyle(doc);
-    const boardLink = doc.createElement('link');
-    boardLink.setAttribute('rel', 'stylesheet');
-    boardLink.setAttribute('href', new URL('../board/board.css', import.meta.url).href);
-    (doc.head ?? doc.body).appendChild(boardLink);
-    const startLink = doc.createElement('link');
-    startLink.setAttribute('rel', 'stylesheet');
-    startLink.setAttribute('href', new URL('../board/fight-start.css', import.meta.url).href);
-    (doc.head ?? doc.body).appendChild(startLink);
+    const links = STYLE_FILES.map(file => addStyle(doc, file)).filter(Boolean);
     // The numbers a roll would be made with now (Settings → RPG): the roll line on a skill and a class-up note state them.
     // What the story's pack asks for (its formula and numbers), with the pack's name: the default of a reader who has chosen nothing.
     const pack = () => {
@@ -151,9 +146,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
             delete widgets[EXPORT_WIDGET];
             delete widgets[HOLD_WIDGET];
             delete widgets[FIGHT_WIDGET];
-            link?.remove();
-            boardLink.remove();
-            startLink.remove();
+            for (const link of links) link.remove();
             refresh();
         },
     };

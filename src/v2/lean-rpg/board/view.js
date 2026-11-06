@@ -2,7 +2,7 @@
 // It reads the staged session and calls its pure rules; only metadata holds unsent choices.
 // Text is placed in DOM nodes, never interpreted as markup.
 
-import { h } from '../../view/widgets/dom.js';
+import { button, h } from '../../view/widgets/dom.js';
 import { discardHeld, heldForSid } from '../../turn/held-board.js';
 import { meter } from '../../view/widgets/meter.js';
 import { drawStageBars } from '../view/bars.js';
@@ -17,19 +17,13 @@ import { equipmentForBoard, playBoard } from './engine.js';
 import { barMovement, settledNote } from './note.js';
 import { dropOf } from '../ambush.js';
 
-const button = (doc, text, cls, click) => {
-    const node = h(doc, 'button', cls, text);
-    node.setAttribute('type', 'button');
-    node.addEventListener('click', click);
-    return node;
-};
 // Send acts on the press itself: the board may redraw between press and release (a save, a head event), which would
 // lose the click on a replaced button and make the reader press twice. Fires once; a keyboard click still works.
 export const pressButton = (doc, text, cls, act) => {
     const node = h(doc, 'button', cls, text);
     node.setAttribute('type', 'button');
     let fired = false;
-    const fire = event => { if (fired || node.disabled) return; fired = true; event?.preventDefault?.(); act(); };
+    const fire = event => { if (fired || node.disabled) return; fired = true; event.preventDefault(); act(); };
     node.addEventListener('pointerdown', event => { if (event.button === 0 || event.pointerType === 'touch') fire(event); });
     node.addEventListener('click', fire);
     return node;
@@ -45,7 +39,7 @@ const labelLine = line => {
 };
 
 export function createBoardView({ doc, headState, meta, save, store, rules, query, readerName, roleOf, levels, on = () => false, start = null } = {}) {
-    let chosen = [], targeting = null, confirm = false, sending = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
+    let notice = '', chosen = [], targeting = null, confirm = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
     const releaseAfterResult = () => {
         const wait = () => setTimeout(() => {
             busy = false;
@@ -57,7 +51,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
     };
     const persist = () => { try { save?.(); } catch { /* staging still works in this page */ } };
     const current = () => boardSession(meta());
-    const reset = () => { chosen = []; targeting = null; confirm = false; sending = false; };
+    const reset = () => { chosen = []; targeting = null; confirm = false; notice = ''; };
     const equipment = state => {
         const sheet = readSheet(state), gear = planGear(sheet, (name, args) => query?.(name, args), readerName());
         const weapons = {};
@@ -123,17 +117,19 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
     const render = (root, snapshot, redraw, handles, settings = {}) => {
         const { session, played, heldSid } = snapshot, thisGeneration = ++generation;
         const discard = () => { discardBoard(meta()); if (heldSid) discardHeld(meta(), heldSid); start?.discard?.(); persist(); reset(); redraw(); };
+        const confirmDiscard = panel => {
+            panel.appendChild(h(doc, 'p', '', 'Discard this fight and its unsent exchanges?'));
+            panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-confirm', discard));
+            panel.appendChild(button(doc, 'Cancel', 'ss-button', () => { confirm = false; redraw(); }));
+        };
+        if (notice) root.appendChild(h(doc, 'p', 'rpg-board-error', notice));
         if (!listening) { doc.addEventListener?.('keydown', keydown, true); listening = true; }
         keyRoot = root;
         root.classList.add('rpg-board-active');
         if (played.error) {
             root.appendChild(h(doc, 'p', 'rpg-board-error', played.error));
             const panel = h(doc, 'div', 'rpg-board-controls');
-            if (confirm) {
-                panel.appendChild(h(doc, 'p', '', 'Discard this fight and its unsent exchanges?'));
-                panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-confirm', discard));
-                panel.appendChild(button(doc, 'Cancel', 'ss-button', () => { confirm = false; redraw(); }));
-            } else panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
+            if (confirm) confirmDiscard(panel); else panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
             root.appendChild(panel);
             return;
         }
@@ -172,19 +168,15 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         root.appendChild(log);
         const panel = h(doc, 'div', 'rpg-board-controls');
         const gear = session.setup.gear ? equipmentForBoard(state, session.setup.gear) : {};
-        const data = boardChoices(state, { ...session.setup, ...gear }, chosen), ended = played.result.stop !== 'open';
-        if (confirm) {
-            panel.appendChild(h(doc, 'p', '', 'Discard this fight and its unsent exchanges?'));
-            panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-confirm', discard));
-            panel.appendChild(button(doc, 'Cancel', 'ss-button', () => { confirm = false; redraw(); }));
-        } else if (ended) {
+        const data = boardChoices(state, { ...session.setup, ...gear }, chosen), ended = played.result.stop !== 'open', sending = ended && Boolean(start?.sending?.());
+        if (confirm) confirmDiscard(panel);
+        else if (ended) {
             panel.appendChild(h(doc, 'h4', 'rpg-board-end', `Fight ${played.result.stop}`));
             panel.appendChild(h(doc, 'p', '', start?.waiting?.() ? 'Your waiting message carries the approach and this fight in one reply.' : 'Your next message carries this fight; the narrator tells it first.'));
             const awards = pendingAwards(state, session, played.result, settings);
             const xp = awards.xp.filter(item => item.amount > 0).map(item => `${item.who} +${item.amount} XP`).join(', ');
             const practice = awards.practice.map(item => `${item.who}: ${item.skill} +${item.amount}`).join(', ');
             panel.appendChild(h(doc, 'p', 'rpg-board-awards', `Pending XP: ${xp || 'none'}. Pending practice: ${practice || 'none'}.`));
-            sending = Boolean(start?.sending?.());
             if (sending) panel.appendChild(h(doc, 'p', 'rpg-board-sending', 'Sending… the narrator is writing the reply.'));
             else if (start?.waiting?.()) panel.appendChild(pressButton(doc, 'Send with this fight', 'ss-button ss-button-primary rpg-board-send', () => {
                 start.send(); redraw();
@@ -196,6 +188,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             const options = targeting ? data.foes.map(foe => ({ label: targetLabel(foe), target: foe.slot })) : data.choices;
             const take = item => {
                 if (busy || thisGeneration !== generation || item.reason) return;
+                notice = '';
                 if (targeting) { chosen.push({ ...targeting, target: item.target }); targeting = null; }
                 else if (item.action.kind === 'flee') chosen = [item.action];
                 else if (!item.action.area && data.foes.length > 1) targeting = item.action;
@@ -204,7 +197,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                 if (!targeting && (chosen[0]?.kind === 'flee' || chosen.length === data.actors.length)) {
                     const result = stageExchange(meta(), headState(), chosen);
                     reset();
-                    if (result.error) panel.appendChild(h(doc, 'p', 'rpg-board-error', result.error));
+                    if (result.error) notice = result.error;
                     else { persist(); busy = true; rolled = true; }
                 }
                 redraw();
@@ -220,7 +213,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             if (targeting) panel.appendChild(button(doc, 'Back', 'ss-button rpg-board-back', () => { targeting = null; redraw(); }));
         }
         if (ended) panel.classList.add('rpg-board-ended');
-        if (!(ended && sending)) {
+        if (!sending) {
             const tools = h(doc, 'div', 'rpg-board-actions');
             tools.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
             panel.appendChild(tools);

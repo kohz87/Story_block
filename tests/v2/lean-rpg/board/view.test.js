@@ -207,6 +207,31 @@ test('a replacement choice stays locked after a roll, then accepts a later actio
     assert.equal(boardSession(meta).exchanges.length, 2);
 });
 
+test('a refused exchange keeps its reason on the board after the redraw', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host, { character: { vit: 20 } });
+    await defineFoes(host, [['Rats', 12, 3, 5]]);
+    const meta = host.ctx.chatMetadata, state = host.head(), sid = host.store.carrierSid(host.store.headIndex());
+    const action = [{ who: 'Wessel', kind: 'attack', target: 1 }];
+    let found = false;
+    for (let n = 0; n < 100; n += 1) {
+        openBoard(meta, state, { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        const played = playBoard(state, boardSession(meta).setup, [{ actions: action }, { actions: action }]);
+        if (!played.error && played.result.stop === 'open') { found = true; break; }
+        discardBoard(meta);
+    }
+    assert.ok(found);
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    const fight = () => doc.querySelector('[data-ss-screen="story-block/fight"]');
+    fight().querySelector('[data-choice="1"]').click();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    boardSession(meta).setup.witness.offset += 1;
+    fight().querySelector('[data-choice="1"]').click();
+    assert.match(fight().querySelector('.rpg-board-error')?.textContent ?? '', /cannot be checked/, 'the reason survives the redraw');
+});
+
 test('Classic offers no board and the normal planner still runs', async t => {
     const { doc, host, ui } = await page(t, { formula: 'classic' });
     await begin(host);
