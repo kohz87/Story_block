@@ -3,6 +3,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { STAGES, stageWord } from '../../../../src/v2/lean-rpg/names.js';
@@ -17,6 +18,8 @@ import { planGear } from '../../../../src/v2/lean-rpg/gear.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { aiMessage } from '../../../../testkit/fake-st.js';
 
+const BOARD_CSS = readFileSync(new URL('../../../../src/v2/lean-rpg/board/board.css', import.meta.url), 'utf8');
+
 async function defineFoes(host, entries) {
     const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
     entries.forEach(([name, count, level, hurt], at) => {
@@ -27,6 +30,28 @@ async function defineFoes(host, entries) {
     });
     const defined = await host.sdk.command('dm.define', { definition: foes });
     assert.equal(defined.ok, true, defined.message);
+}
+
+function renderMembers(t, { doc, host, members, order }) {
+    const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+    assert.equal(openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } }).error, undefined);
+    const board = createBoardView({ doc, headState: () => host.head(), meta: () => meta, store: host.store,
+        rules: () => ({ ...STANDARD_FORMULA, levelDivisor: 5 }), query: (name, args) => host.sdk.query(name, args),
+        readerName: () => 'Wessel', levels: () => ({ ranks: [], playerRank: null }), on: () => true });
+    const root = doc.createElement('div');
+    let handles = [];
+    doc.body.appendChild(root);
+    const snapshot = { session: boardSession(meta), played: { state: host.head(), result: { members, order, rounds: [], opening: [], quickStart: [],
+        idle: [], hurts: [], refused: [], stop: 'open' } }, heldSid: null };
+    const draw = () => {
+        for (const handle of handles) handle.destroy?.();
+        handles = [];
+        root.replaceChildren();
+        board.render(root, snapshot, draw, handles, {});
+    };
+    draw();
+    t.after(() => { for (const handle of handles) handle.destroy?.(); board.destroy(); });
+    return root;
 }
 
 async function showStop(t, { character = {}, skills = {}, settings = {}, foes, action, stop }) {
@@ -370,6 +395,69 @@ test('the next attack choice loses a weapon that broke in the staged exchange', 
     const choice = doc.querySelector('[data-ss-screen="story-block/fight"]').querySelector('[data-choice="1"]');
     assert.match(choice.textContent, /Attack \(STR\)/);
     assert.doesNotMatch(choice.textContent, /Cane Sword/);
+});
+
+test('member cards, target lines and the grouped order line come from the staged members', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    await defineFoes(host, [['Bristle-boar', 3, 1, 5]]);
+    const members = [
+        { slot: 11, group: 1, n: 1, name: 'Bristle-boar 1', value: 4, size: 4, pack: false, count: 1, left: 1, attacks: 1, standing: true },
+        { slot: 12, group: 1, n: 2, name: 'Bristle-boar 2', value: 0, size: 4, pack: false, count: 1, left: 0, attacks: 0, standing: false },
+        { slot: 13, group: 1, n: 3, name: 'Bristle-boar 3', value: 4, size: 4, pack: false, count: 1, left: 1, attacks: 1, standing: true },
+    ];
+    const root = renderMembers(t, { doc, host, members, order: [{ id: 'c:wessel', name: 'Wessel', party: true },
+        { id: 'f:11', name: 'Bristle-boar 1', party: false }, { id: 'f:12', name: 'Bristle-boar 2', party: false },
+        { id: 'f:13', name: 'Bristle-boar 3', party: false }] });
+    const cards = [...root.querySelectorAll('.rpg-board-cards .rpg-foe')];
+    assert.deepEqual(cards.map(card => card.querySelector('.rpg-foe-top .rpg-name').textContent), ['Bristle-boar 1', 'Bristle-boar 2', 'Bristle-boar 3']);
+    assert.equal(cards[1].classList.contains('rpg-down'), true, 'the Down member is greyed with the existing class');
+    assert.ok(cards.every(card => card.querySelector('.rpg-foe-side .rpg-level-pill')));
+    assert.ok(cards.every(card => card.querySelector('.rpg-foe-bar .ss-w-meter')), 'the Fight tab foe-card meter is reused');
+    assert.equal(root.querySelector('.rpg-board-order').textContent, 'Order: Wessel · Bristle-boars (1, 3) · 2 attacks on you each exchange');
+    root.querySelector('[data-choice="1"]').click();
+    assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Choose a target');
+    assert.deepEqual([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].map(node => node.textContent),
+        ['1. Bristle-boar 1  Unhurt', '2. Bristle-boar 3  Unhurt'], 'Down members are not targetable');
+});
+
+test('a pack card wears the pack pill, its thinning line, and stays a single target', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    await defineFoes(host, [['Cellar-rats', 12, 1, 5]]);
+    const pack = { slot: 11, group: 1, n: 1, name: 'Cellar-rats', value: 5, size: 8, pack: true, count: 12, left: 8, attacks: 2, standing: true };
+    const root = renderMembers(t, { doc, host, members: [pack], order: [{ id: 'c:wessel', name: 'Wessel', party: true }, { id: 'f:11', name: 'Cellar-rats', party: false }] });
+    const card = root.querySelector('.rpg-foe[data-foe="Cellar-rats"]');
+    assert.ok(card.classList.contains('rpg-foe-pack'));
+    assert.equal(card.querySelector('.rpg-pack-pill').textContent, 'pack');
+    assert.equal(card.querySelector('.rpg-pack-line').textContent, 'About 8 left · 2 attacks each exchange');
+    assert.equal(root.querySelector('.rpg-board-order').textContent, 'Order: Wessel · Cellar-rats · 2 attacks on you each exchange');
+    assert.match(BOARD_CSS, /\.rpg-board-cards \.rpg-foe-pack \{ grid-column: 1 \/ -1; \}/u);
+});
+
+test('an area skill asks for a standing group only when more than one group stands', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host, { skills: { skill1: 'Shadow Cut', about1: 'sweep every foe', uses1: 'mana' } });
+    await defineFoes(host, [['Bristle-boar', 3, 1, 5], ['Spiders', 2, 1, 5], ['Worms', 2, 1, 5]]);
+    const members = [
+        { slot: 11, group: 1, n: 1, name: 'Bristle-boar 1', value: 4, size: 4, pack: false, count: 1, left: 1, attacks: 1, standing: true },
+        { slot: 12, group: 1, n: 2, name: 'Bristle-boar 2', value: 4, size: 4, pack: false, count: 1, left: 1, attacks: 1, standing: true },
+        { slot: 13, group: 1, n: 3, name: 'Bristle-boar 3', value: 0, size: 4, pack: false, count: 1, left: 0, attacks: 0, standing: false },
+        { slot: 21, group: 2, n: 1, name: 'Spiders', value: 4, size: 4, pack: false, count: 1, left: 1, attacks: 1, standing: true },
+        { slot: 31, group: 3, n: 1, name: 'Worms', value: 0, size: 4, pack: false, count: 1, left: 0, attacks: 0, standing: false },
+    ];
+    const root = renderMembers(t, { doc, host, members, order: [{ id: 'c:wessel', name: 'Wessel', party: true },
+        { id: 'f:11', party: false }, { id: 'f:12', party: false }, { id: 'f:21', party: false }] });
+    const area = [...root.querySelectorAll('.rpg-board-choice')].find(node => node.textContent.includes('Shadow Cut'));
+    assert.match(area.textContent, /— one group$/u);
+    area.click();
+    assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Choose a group');
+    assert.deepEqual([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].map(node => node.textContent), ['1. Bristle-boars', '2. Spiders']);
+    assert.ok([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].every(node => node.classList.contains('rpg-board-choice')), 'groups use the 48px choice buttons');
+    assert.match(BOARD_CSS, /\.rpg-board-members \.rpg-board-controls button \{ min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important; \}/u);
 });
 
 test('pending awards use opening groups, settings and the per-reply practice cap', () => {
