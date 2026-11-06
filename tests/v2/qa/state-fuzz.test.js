@@ -187,7 +187,7 @@ async function fuzz(t, seed, steps) {
         Object.assign(hero.state.agi, { default: 20 }); Object.assign(hero.state.health, { default: 5 });
         Object.assign(hero.state.level, { default: 1 });
         foes.slug = 'fuzz-foes'; foes.name = 'Fuzz Foes';
-        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 99 });
+        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 1 });
         Object.assign(foes.state.level1, { default: 99 }); Object.assign(foes.state.hurt1, { default: 5 });
         for (const definition of definitions) {
             const made = await host.sdk.command('dm.define', { definition });

@@ -48,7 +48,7 @@ let ready = false;
 for (let n = 0; n < 100; n += 1) {
     const opened = openBoard(meta, state, { sid:'reply', rules:{ ...STANDARD_FORMULA, levelDivisor:5 } });
     if (opened.error) throw new Error(opened.error);
-    const action = [{ who:'Astra', kind:'attack', target:1 }];
+    const action = [{ who:'Astra', kind:'attack', target:11 }];
     const played = playBoard(state, boardSession(meta).setup, [{ actions:action }, { actions:action }]);
     if (!played.error && played.result.stop === 'open') { ready = true; break; }
     discardBoard(meta);

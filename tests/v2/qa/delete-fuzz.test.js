@@ -165,7 +165,7 @@ for (const seed of SEEDS) {
         Object.assign(skills.state.about1, { default: 'strike one foe' }); Object.assign(skills.state.stat1, { default: 'str' });
         Object.assign(skills.state.uses1, { default: 'stamina' });
         foes.slug = 'delete-fuzz-foes'; foes.name = 'Delete Fuzz Foes';
-        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 99 });
+        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 1 });
         Object.assign(foes.state.level1, { default: 1 }); Object.assign(foes.state.hurt1, { default: 1 });
         for (const definition of definitions) {
             const made = await host.sdk.command('dm.define', { definition });
@@ -212,7 +212,7 @@ for (const seed of SEEDS) {
                 const uses = usesOf(roll.data.v2.result).find(entry => entry.who === 'Astra' && entry.skill === 'Cut');
                 assert.ok(uses, `seed ${seed} step ${step}: Cut was used`);
                 assert.equal(practice.find(entry => entry.who === 'Astra' && entry.skill === 'Cut')?.amount, Math.min(20, uses.n * 3));
-                assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, memberXp([{ count: 99, level: 1 }], 1));
+                assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, memberXp([{ count: 1, level: 1 }], 1));
                 made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards };
                 boardFights += 1;
             }
