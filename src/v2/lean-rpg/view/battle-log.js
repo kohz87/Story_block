@@ -8,7 +8,7 @@
 // Nothing the panel shows is stored in the chat text: it is read from the record and the state each time, so a swipe,
 // a delete, a Re-read and a reload agree. Every node is built with createElement and textContent.
 //
-// The Standard formula's record (lean-rpg/standard.js) adds, all optional (a record without them draws exactly as before):
+// The Standard formula's record (lean-rpg/standard/roll.js, re-exported by standard.js) adds, all optional (a record without them draws exactly as before):
 //   result.order       [{ id, name, total, die, bonus, agi, party, fresh }] the turn order rolled at the start of the fight, highest first
 //   result.quickStart  [{ who, against }] a character 10 or more ahead of a foe: one opening action against it before the first round
 //   result.opening     [Line] those opening actions

@@ -471,15 +471,23 @@ test('a Down pack keeps its health and pack pill but drops its thinning line', a
     assert.equal(root.classList.contains('rpg-board-finished'), false);
 });
 
-test('card rows track the tallest card, shrink again, and release their observer on redraw', async t => {
+test('phone measurements follow the viewport, track content, and release their observer on redraw', async t => {
     const { doc, host } = await page(t, { formula: 'standard' });
     await begin(host);
     await makeBlocks(host);
     await defineFoes(host, [['Cellar-rats', 12, 1, 5]]);
     const observers = [];
+    const widthListeners = new Set();
+    const phone = {
+        matches: false,
+        addEventListener(type, listener) { if (type === 'change') widthListeners.add(listener); },
+        removeEventListener(type, listener) { if (type === 'change') widthListeners.delete(listener); },
+    };
+    doc.defaultView.matchMedia = () => phone;
     doc.defaultView.ResizeObserver = class {
         constructor(callback) { this.callback = callback; this.disconnected = false; this.nodes = []; observers.push(this); }
         observe(node) { this.nodes.push(node); }
+        unobserve(node) { this.nodes = this.nodes.filter(item => item !== node); }
         disconnect() { this.disconnected = true; }
     };
     doc.defaultView.getComputedStyle = () => ({ rowGap: '4px', paddingTop: '8px', paddingBottom: '8px', borderTopWidth: '1px', borderBottomWidth: '1px' });
@@ -491,7 +499,10 @@ test('card rows track the tallest card, shrink again, and release their observer
     const log = root.querySelector('.rpg-board-log'), content = root.querySelector('.rpg-board-log-content');
     const list = root.querySelector('.rpg-board-choices'), choices = [...list.children];
     assert.ok(observers[0].nodes.includes(log));
-    assert.ok(observers[0].nodes.includes(content));
+    assert.ok(!observers[0].nodes.includes(content), 'the desktop display: contents wrapper is not observed');
+    phone.matches = true;
+    for (const listener of widthListeners) listener({ matches: true });
+    assert.ok(observers[0].nodes.includes(content), 'the phone wrapper is observed after resizing');
     assert.ok(choices.length >= 2 && choices.every(choice => observers[0].nodes.includes(choice)));
     choices.forEach(choice => { choice.offsetHeight = 60; });
     content.offsetHeight = 50;
@@ -508,9 +519,18 @@ test('card rows track the tallest card, shrink again, and release their observer
     observers[0].callback();
     assert.equal(cards.style.getPropertyValue('--rpg-card-row-height'), '192px');
     assert.equal(log.style.getPropertyValue('--rpg-log-content-height'), '38px');
+    phone.matches = false;
+    for (const listener of widthListeners) listener({ matches: false });
+    assert.ok(!observers[0].nodes.includes(content), 'the wrapper is unobserved when leaving phone width');
+    assert.ok(observers[0].nodes.includes(log), 'desktop log scrolling still follows its resize');
+    phone.matches = true;
+    for (const listener of widthListeners) listener({ matches: true });
+    assert.ok(observers[0].nodes.includes(content));
     root.querySelector('[data-choice="1"]').click();
     assert.equal(observers[0].disconnected, true);
     assert.equal(observers.length, 2, 'the redrawn row receives its own observer');
+    assert.ok(observers[1].nodes.includes(root.querySelector('.rpg-board-log-content')), 'a board drawn at phone width observes the wrapper immediately');
+    assert.equal(widthListeners.size, 1, 'redraw removes the old width listener');
 });
 
 test('an area skill asks for a standing group only when more than one group stands', async t => {
