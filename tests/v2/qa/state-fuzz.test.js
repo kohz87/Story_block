@@ -173,6 +173,7 @@ async function fuzz(t, seed, steps) {
     const statics = new Set();
     let other = null;                   // the second chat for chat switches
     const log = [];
+    const trace = [];                   // action and command order, included in replay failures
     let boardFights = 0;
 
     // A board fight from the first reply on: it stays open for the whole run, so the fuzz's sends carry
@@ -202,7 +203,7 @@ async function fuzz(t, seed, steps) {
         const receipt = readRecord(ctx.chat[result.index])?.receipts?.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
         assert.ok(receipt, 'the first reply is a board fight');
         assert.equal(receipt.data?.v2?.result?.stop, 'open', 'the seeded foe group leaves the fight open for the rest of the run');
-        checkInvariants(host, 'board fight opens');
+        checkInvariants(host, 'board fight opens', { trace });
     }
 
     // A deleted opening reply takes its board anchor with it. A later send opens a new segment on the
@@ -218,8 +219,9 @@ async function fuzz(t, seed, steps) {
 
     const lastIsCarrier = () => ctx.chat.length > 1 && !ctx.chat.at(-1).is_user;
 
-    async function generation(kind, step) {
+    async function generation(kind, step, stepTrace) {
         const reply = replyText(r, step);
+        stepTrace.reply = reply;
         const dirtyBefore = store.dirty();
         const idle = store.idleSaves();
         const flushAt = flushes.length;
@@ -232,10 +234,14 @@ async function fuzz(t, seed, steps) {
         if (kind === 'send') result = await host.send(`Message of step ${step}.`, reply);
         else if (kind === 'swipe') result = await host.swipe(reply);
         else if (kind === 'regenerate') result = await host.regenerate(reply);
-        else result = await host.cont(r.chance(0.5) ? `\nand then\n<Changes>\n${changeLine(r)}\n</Changes>` : ' and then.');
+        else {
+            stepTrace.reply = r.chance(0.5) ? `\nand then\n<Changes>\n${changeLine(r)}\n</Changes>` : ' and then.';
+            result = await host.cont(stepTrace.reply);
+        }
         assert.ok(result.request, `${log.at(-1)}: the generation was not stopped`);
         statics.add(result.request.chat[0].content);
         const index = result.index;
+        stepTrace.index = index;
         // The carrier before a new reply is final from now on (a cue may have landed on it just before
         // the request, so it is read after the reply, and checked against the oracle like every state).
         if (appends && previous >= 0) finals.set(ctx.chat[previous], { swipe: ctx.chat[previous].swipe_id ?? 0, state: plain(store.at(previous)) });
@@ -248,7 +254,7 @@ async function fuzz(t, seed, steps) {
             }
         }
         if (kind !== 'continue') {
-            const { owner } = checkInvariants(host, `${log.at(-1)} (told check)`);
+            const { owner } = checkInvariants(host, `${log.at(-1)} (told check)`, { trace });
             const lines = record.narrated.map(id => owner.get(id)?.receipt).filter(receipt => receipt && receipt.summary.trim())
                 // (a receipt's own `data.told` note, such as a reader's correction, follows its line in parentheses: prompt.js)
                 .map(receipt => `${receipt.summary.trim().replace(/\s*\n\s*/g, ' ')}${typeof receipt.data?.told === 'string' && receipt.data.told.trim() ? ` (${receipt.data.told.trim()})` : ''}`);
@@ -286,7 +292,11 @@ async function fuzz(t, seed, steps) {
             const paidBefore = bonusPaidOnLine(host);
             const claimed = Object.hasOwn(head?.meta?.claims ?? {}, BONUS_CLAIM);
             const saves = st.saves.length;
+            const entry = { label, type, payload, status: 'started' };
+            trace.push(entry);
             const result = await host.sdk.command(type, payload);
+            entry.status = 'finished';
+            entry.result = { ok: result.ok, code: result.code, message: result.message };
             if (type === 'probe.broken') assert.equal(result.ok, false, `${label}: probe.broken always refuses`);
             // A skipped block can leave the head's inventory pointing at an item whose creation was
             // skipped (its reply deleted); the inventory's validator then refuses any change to it
@@ -347,16 +357,20 @@ async function fuzz(t, seed, steps) {
         if (action === 'regenerate' && ctx.chat.length < 2) action = 'send';
         log.push(`seed ${seed} step ${step} ${action}`);
         const label = log.at(-1);
+        const stepTrace = { label, chatLength: ctx.chat.length, status: 'started' };
+        trace.push(stepTrace);
 
         switch (action) {
             case 'send': case 'swipe': case 'regenerate': case 'continue':
-                await generation(action, step);
+                await generation(action, step, stepTrace);
                 break;
             case 'deleteLast':
-                await st.deleteMessage(ctx.chat.length - 1);
+                stepTrace.index = ctx.chat.length - 1;
+                await st.deleteMessage(stepTrace.index);
                 break;
             case 'deleteMiddle': {
                 const at = r.int(1, ctx.chat.length - 2);
+                stepTrace.index = at;
                 for (const message of ctx.chat.slice(at)) finals.delete(message);
                 await st.deleteMessage(at);
                 // A later reply's change that no longer applies is skipped alone on replay; what was
@@ -371,6 +385,7 @@ async function fuzz(t, seed, steps) {
             case 'edit': {
                 const indexes = carriers(ctx.chat);
                 const at = r.pick(indexes);
+                stepTrace.index = at;
                 const head = plain(store.head());
                 await st.editMessage(at, `${ctx.chat[at].mes}\n(edited)\n<Changes>\n+ item Edited Thing | qty: 5\n</Changes>`);
                 assert.deepEqual(plain(store.head()), head, `${label}: editing a reply's text does not re-capture`);
@@ -381,7 +396,7 @@ async function fuzz(t, seed, steps) {
                 const head = plain(store.head());
                 other ??= [aiMessage('Another story.', { name: 'Narrator' })];
                 await st.loadChat(other, 'chat-2');
-                checkInvariants(host, `${label} (in the other chat)`);
+                checkInvariants(host, `${label} (in the other chat)`, { trace });
                 await host.sdk.command('probe.tick', {});
                 other = structuredClone(ctx.chat);
                 await st.loadChat(mine, 'chat-1');
@@ -395,7 +410,9 @@ async function fuzz(t, seed, steps) {
                 const last = ctx.chat.length - 1;
                 const message = ctx.chat[last];
                 const choices = message.swipes.map((_, i) => i).filter(i => i !== message.swipe_id);
-                await st.swipeTo(last, r.pick(choices));
+                stepTrace.index = last;
+                stepTrace.swipe = r.pick(choices);
+                await st.swipeTo(last, stepTrace.swipe);
                 break;
             }
             case 'deleteSwipe': {
@@ -403,6 +420,8 @@ async function fuzz(t, seed, steps) {
                 const last = ctx.chat.length - 1;
                 const message = ctx.chat[last];
                 const gone = message.swipe_id;
+                stepTrace.index = last;
+                stepTrace.swipe = gone;
                 message.swipes.splice(gone, 1);
                 message.swipe_info.splice(gone, 1);
                 message.swipe_id = Math.max(0, gone - 1);
@@ -416,7 +435,8 @@ async function fuzz(t, seed, steps) {
             default: throw new Error(action);
         }
 
-        checkInvariants(host, label);
+        stepTrace.status = 'finished';
+        checkInvariants(host, label, { trace });
         assert.ok(bonusPaidOnLine(host) <= 1, `${label}: the bonus is paid at most once on this line`);
         for (const [message, final] of finals) {
             const index = ctx.chat.indexOf(message);
