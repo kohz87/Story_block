@@ -47,11 +47,12 @@
     }
     :is(.story-suite-sheet-body, .ss-gameview-body) .rpg-board-active:not(.rpg-board-finished) { flex: 1 1 auto; height: auto; min-height: 0; }
     .ss-gameview-single .ss-gameview-body:has(.rpg-board-active:not(.rpg-board-finished)) { padding-bottom: 12px; }
-    .rpg-board-active:not(.rpg-board-finished) .rpg-board-status { display: flex; flex-direction: column; flex: 0 1 auto; min-height: min-content; max-height: 42%; overflow: visible; }
+    .rpg-board-active:not(.rpg-board-finished) .rpg-board-status { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; max-height: 42%; overflow: visible; }
     .rpg-board-active:not(.rpg-board-finished) .rpg-board-cards { flex: 0 1 auto; min-height: var(--rpg-first-row-height, 120px); overflow-y: auto; }
-    /* Let the choices scroll first when a short screen cannot fit every button alongside the log. */
-    .rpg-board-active:not(.rpg-board-finished) .rpg-board-controls { display: flex; flex-direction: column; flex: 0 1 auto; min-height: min-content; }
-    .rpg-board-active:not(.rpg-board-finished) .rpg-board-choices { flex: 0 1 auto; min-height: calc(48px / var(--ss-zoomed, 1)); }
+    /* Size the list from one full choice, then give it spare room. Its intrinsic minimum no longer
+       includes every row, so the controls keep their prompt and actions while the list scrolls. */
+    .rpg-board-active:not(.rpg-board-finished) .rpg-board-controls { display: flex; flex-direction: column; flex: 1 1 auto; min-height: min-content; }
+    .rpg-board-active:not(.rpg-board-finished) .rpg-board-choices { flex: 1 1 auto; contain: size; height: calc(48px / var(--ss-zoomed, 1)); min-height: calc(48px / var(--ss-zoomed, 1)); }
     .rpg-board-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: max-content; }
     .rpg-board-cards .rpg-foe-pack { grid-column: 1 / -1; }
     .rpg-board-log.rpg-battle { min-height: calc(140px / var(--ss-zoomed, 1)); max-height: none; font-family: inherit; font-size: calc(13px / var(--ss-zoomed, 1)); }
@@ -90,6 +91,10 @@
 /* A shorter phone: the choices scroll rather than squeeze the bars away entirely. */
 @media (max-width: 759.98px) and (max-height: 800px) {
     .rpg-board-choices { max-height: 26dvh; }
+}
+/* The short bottom sheet has less room than the game view; only its live log may shrink further. */
+@media (max-width: 759.98px) and (max-height: 760px) {
+    .story-suite-sheet .rpg-board-active:not(.rpg-board-finished) .rpg-board-log.rpg-battle { min-height: calc(80px / var(--ss-zoomed, 1)); }
 }
 /* A choice line is 48px on the screen; the sheet is drawn at 88% on a phone (view/size.css), so the
    length before the zoom is 48 / --ss-zoomed. The heavier selector wins over the host's 44px touch rule. */

@@ -32,12 +32,36 @@ test('phone log uses the body font and a 140px on-screen minimum', () => {
 });
 
 test('phone cards scroll after at least the measured first row', () => {
+    const status = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-status');
+    assert.match(status, /min-height: 0(?:;|\s*})/);
+    assert.doesNotMatch(status, /min-height:\s*min-content/);
+    assert.match(status, /max-height: 42%/);
     const cards = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-cards');
     assert.match(cards, /min-height: var\(--rpg-first-row-height, 120px\)/);
     assert.match(cards, /overflow-y: auto/);
     assert.match(rule(phone, '.rpg-board-cards'), /grid-auto-rows: max-content/);
-    assert.match(rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-choices'), /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
-    assert.match(rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-controls'), /flex: 0 1 auto/);
+});
+
+test('phone controls let the choice list shrink and scroll while keeping a full touch target', () => {
+    const controls = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-controls');
+    const choices = rule(phone, '.rpg-board-active:not(.rpg-board-finished) .rpg-board-choices');
+    assert.match(controls, /flex: 1 1 auto/);
+    assert.match(controls, /min-height: min-content/);
+    assert.match(choices, /flex: 1 1 auto/);
+    assert.match(choices, /contain: size/);
+    assert.match(choices, /(?:^|;)\s*height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
+    assert.match(choices, /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
+    assert.match(rule(css, '.rpg-board-choices'), /overflow-y: auto/);
+    assert.match(rule(css, ':is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-choices > button.rpg-board-choice'), /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important/);
+});
+
+test('only a very short phone panel can shrink its active log below 140px', () => {
+    const start = css.indexOf('@media (max-width: 759.98px) and (max-height: 760px) {');
+    const end = css.indexOf('@media (max-width: 759.98px), (pointer: coarse)', start);
+    assert.ok(start >= 0 && end > start);
+    const shortPanel = css.slice(start, end);
+    assert.match(rule(shortPanel, '.story-suite-sheet .rpg-board-active:not(.rpg-board-finished) .rpg-board-log.rpg-battle'), /min-height: calc\(80px \/ var\(--ss-zoomed, 1\)\)/);
+    assert.doesNotMatch(shortPanel, /\.ss-gameview/);
 });
 
 test('phone end card replaces its long copy and keeps full-width 48px buttons', () => {

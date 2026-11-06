@@ -148,10 +148,12 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
             const choice = document.querySelector('.rpg-board-choice'), list = document.querySelector('.rpg-board-choices');
             const log = document.querySelector('.rpg-board-log'), status = document.querySelector('.rpg-board-status');
             const controls = document.querySelector('.rpg-board-controls'), discard = document.querySelector('.rpg-board-discard');
+            const note = controls.querySelector('.rpg-board-note summary');
             const box = element => { const r = element.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, width:r.width, height:r.height }; };
             const zoom = choice.getBoundingClientRect().width / choice.offsetWidth;
             const cards = document.querySelector('.rpg-board-cards');
-            return { choice:box(choice), choices:[...list.querySelectorAll('button')].map(box), list:box(list), log:box(log), status:box(status), controls:box(controls), discard:box(discard),
+            return { choice:box(choice), choices:[...list.querySelectorAll('button')].map(box), list:box(list), log:box(log), status:box(status), controls:box(controls), discard:box(discard), note:box(note),
+                listScroll:list.scrollHeight > list.clientHeight,
                 cards:box(cards), firstCard:box(cards.firstElementChild), cardsScroll:cards.scrollHeight > cards.clientHeight,
                 logFamily:getComputedStyle(log).fontFamily, lineFamily:getComputedStyle(log.querySelector('p')).fontFamily, bodyFamily:getComputedStyle(controls).fontFamily,
                 choiceFont:parseFloat(getComputedStyle(choice).fontSize)*zoom, logFont:parseFloat(getComputedStyle(log).fontSize)*zoom,
@@ -164,7 +166,8 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         assert.ok(metrics.choices.every(choice => choice.height >= 47.5 && Math.abs(choice.width - metrics.list.width) < 2));
         assert.ok(metrics.discard.height >= 47.5 && metrics.discard.width >= 47.5);
         assert.ok(metrics.choiceFont >= 14.8 && metrics.logFont >= 12.8);
-        assert.ok(metrics.log.height >= 139.5, 'the live log keeps 140 screen pixels');
+        const minLog = frame === 'panel' && viewport.height <= 760 ? 79.5 : 139.5;
+        assert.ok(metrics.log.height >= minLog, 'the live log keeps its screen-pixel minimum');
         assert.match(metrics.logFamily, /Arial/i);
         assert.equal(metrics.lineFamily, metrics.logFamily);
         assert.equal(metrics.logFamily, metrics.bodyFamily);
@@ -174,15 +177,34 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         assert.ok(metrics.status.bottom <= metrics.log.top && metrics.log.bottom <= metrics.controls.top);
         assert.ok(metrics.controls.bottom <= viewport.height && metrics.controls.bottom > viewport.height / 2);
         assert.ok(metrics.controls.bottom <= metrics.bar.top + 1, 'choices and actions stay above the bottom bar');
+        assert.ok(metrics.choice.top >= metrics.list.top - 1 && metrics.choice.bottom <= metrics.list.bottom + 1, 'the first choice fits in its scroller');
+        assert.ok(metrics.list.bottom <= metrics.controls.bottom + 1 && metrics.discard.bottom <= metrics.controls.bottom + 1 && metrics.note.bottom <= metrics.controls.bottom + 1, 'the choice list, action and note fit inside the controls');
+        if (frame === 'panel' && viewport.height <= 760) assert.ok(metrics.listScroll, 'the short panel scrolls its choices');
         assert.ok(metrics.padding + 0.5 >= metrics.safe);
         assert.ok(metrics.scroll && metrics.newest);
         assert.equal(metrics.overflow, false);
+        if (metrics.listScroll) {
+            const scrolled = await page.locator('.rpg-board-choices').evaluate(list => {
+                list.scrollTop = list.scrollHeight;
+                const last = list.lastElementChild.getBoundingClientRect(), box = list.getBoundingClientRect();
+                const visible = last.top >= box.top - 1 && last.bottom <= box.bottom + 1;
+                list.scrollTop = 0;
+                return visible;
+            });
+            assert.ok(scrolled, 'the last choice is reachable by scrolling');
+        }
         await page.locator('.rpg-board-log').evaluate(log => { log.scrollTop = 0; });
         assert.equal(await page.locator('.rpg-board-log').evaluate(log => log.scrollTop), 0);
         await page.locator('[data-choice="1"]').tap();
         assert.match(await page.locator('.rpg-board-prompt').innerText(), /Choose a target/);
         const back = page.locator('.rpg-board-back'), backBox = await back.boundingBox();
         assert.ok(backBox.width >= 47.5 && backBox.height >= 47.5);
+        const targetControls = await page.evaluate(() => {
+            const controls = document.querySelector('.rpg-board-controls').getBoundingClientRect();
+            return { bottom:controls.bottom, children:['.rpg-board-choices', '.rpg-board-back', '.rpg-board-discard', '.rpg-board-note summary']
+                .map(selector => document.querySelector(selector).getBoundingClientRect().bottom) };
+        });
+        assert.ok(targetControls.bottom <= metrics.bar.top + 1 && targetControls.children.every(bottom => bottom <= targetControls.bottom + 1), 'targeting choices and actions stay above the bottom bar');
         await back.tap();
         await page.locator('[data-choice="1"]').tap();
         const target = await page.locator('[data-choice="1"]').boundingBox();
