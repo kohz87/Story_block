@@ -37,7 +37,9 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
   now and swaps the carrier's `story` receipts (`store.replaceStory`). The reader's `ui` receipts and `system`
   steps stay after them (a step marked `replan` runs again). Seeds of matching lines are reused
   (`storySeeds`), so a roll does not change. Later replies are re-checked on top; if one no longer fits,
-  nothing changes. `ctx.standing` is the reply's state before the Re-read.
+  nothing changes. `ctx.standing` is the reply's state before the Re-read. When place or presence is involved,
+  a console diagnostic compares the stored and newly read scene receipt order and whether presence changed;
+  it includes no names or reply text (`turn/reread-scene.js`).
 - Editing a reply's text never re-captures by itself; Re-read is the edit path.
 - Markup never comes from text: names flattened (`flatName`), lines cut by code points (`cutLine`,
   `MAX_LINE` 2000), the hidden marker defanged in story text (`defangMarker`).
@@ -53,7 +55,8 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
   `stray.js` (`strayLines`, `inOrder`, `dropLines`). Import order is one way: lines, blocks, echo, legacy / stray.
 - `src/v2/turn/events.js`: `onMessageReceived`, `captureLate`, `captureAssist` (and the other events, `install` / `uninstall`) (`createEvents`); `src/v2/turn/capture-flow.js`: `captureLines`,
   `captureEach`, `afterCapture`, `readBlock`, `strayProblems`, `capped`, `storySeeds`, `stepSeeds` (`createCaptureFlow`);
-  `src/v2/turn/reread.js`: `reread`, `saveText`, `redraw` (`createReread`);
+  `src/v2/turn/reread.js`: `reread`, `saveText`, `redraw` (`createReread`); `src/v2/turn/reread-scene.js`:
+  the text-free scene diagnostic around a Re-read;
   `src/v2/turn/session.js`: `problem`, `trySave`, `rebuild`, `planAgain`, `reconcileNow`, `repair` (`createSession`).
 - `src/v2/store.js`: `replaceStory(index, { ops, receipts })`, `append`, `setNarrated`.
 - `src/v2/extras.js`: `readDisplayLine`, `displayLines`, `readChoice`, `readChatter`.
