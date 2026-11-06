@@ -7,7 +7,7 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 
 ## Files
 
-- `src/v2/lean-rpg/board/session.js`: opens, stages, discards and reconciles the metadata session and saves the last payload.
+- `src/v2/lean-rpg/board/session.js`: opens, stages, discards and reconciles the metadata session, saves the last payload, keeps the Send copy (`markSend`, `readSend`, `clearSend`) and the `rpgFightLinks` message links.
 - `src/v2/lean-rpg/board/engine.js`: plays the setup and exchanges on a private state copy and checks their input witness.
 - `src/v2/lean-rpg/board/plan.js`: validates member actions and makes a Standard plan with foe actions and automatic defence.
 - `src/v2/lean-rpg/board/rules.js`: picks the attack stat and the best usable defence skill.
@@ -22,10 +22,11 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/view.js`: renders the board, keyboard handling and in-page discard confirmation.
 - `src/v2/lean-rpg/board/skill-editor.js`: draws the three checkboxes in the skill editor.
 - `src/v2/lean-rpg/board/board.css`: provides the touch layout and sizing.
-- `src/v2/lean-rpg/board/offers.js`, `offer-line.js`, `start-view-data.js`: find the opening reply and draw its offer and tab alert.
+- `src/v2/lean-rpg/board/offers.js`, `offer-line.js`, `start-view-data.js`: find the opening reply and draw its offer line (the Fight tab alert is the `badge` in `view/fight.js`).
 - `src/v2/lean-rpg/board/start-controller.js`, `pause.js`, `fight-start.css`: draw the waiting choice and resume the reply.
 - `src/v2/turn/fight-start.js`: binds a pending send to its anchor sid and message and detects possible new fights while planning.
 - `src/v2/lean-rpg/board/prompt.js`: keeps fixed grammar quiet-sized and supplies fight flavour and manual grammar in the reply tail.
+- `src/v2/data-modules/board-static.js`: the board's fixed grammar and XP-guide text, shared by `board/prompt.js` and `data-modules/part.js` (outside lean-rpg/ so the page-start closure stays lean).
 - `src/v2/lean-rpg/board/action-gate.js`: holds only explicit attacks on a standing known foe.
 - `src/v2/lean-rpg/board/settings.js`: draws the shared switch inside the Rolls card.
 - `src/v2/lean-rpg/board/narrated-grammar.js`: supplies manual foe changes to the reply grammar.
@@ -69,6 +70,7 @@ the approach checks earn practice and a successful ambush applies to the first e
   A new fight's first segment also holds `opening` (payload and seed), its `approach` checks and any ambush `drop`.
 - `chatMetadata.rpgFightAttempts`: `{ [originSid]: discardCount }`, used to give the next opening a new seed.
 - `chatMetadata.rpgFightLast`: the last `{ key, board, practice }`, used for regenerate.
+- `chatMetadata.rpgFightSend`: the copy of the staged session made when "Send with this fight" is pressed; it releases the held reply.
 - `chatMetadata.rpgFightStart`: the anchor sid, user-message hash, choice and, for a new fight, the original plan,
   seeded opening and result. It is cleared after the reply and ignored when its anchor or message is absent.
 - `chatMetadata.rpgFightOffers`: hidden offer choices keyed by the reply that started each fight.
