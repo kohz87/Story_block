@@ -115,8 +115,15 @@ test('new member fights rotate among standing targets, replay and continue witho
     assert.equal(Object.hasOwn(meta.rpgFightBoard.setup, 'standingTargets'), false, 'the next segment needs no rule flag');
 });
 
-test('the shared Standard roll engine stays within its 480-line budget', () => {
-    const source = readFileSync(new URL('../../../../src/v2/lean-rpg/standard.js', import.meta.url), 'utf8');
-    const lines = source.split('\n').length - (source.endsWith('\n') ? 1 : 0);
-    assert.ok(lines <= 480, `standard.js has ${lines} lines`);
+test('the shared Standard roll engine stays split into small files', () => {
+    const lines = name => {
+        const source = readFileSync(new URL(`../../../../src/v2/lean-rpg/${name}`, import.meta.url), 'utf8');
+        return source.split('\n').length - (source.endsWith('\n') ? 1 : 0);
+    };
+    const standard = lines('standard.js');
+    assert.ok(standard <= 60, `standard.js has ${standard} lines`);
+    for (const name of ['standard/roster.js', 'standard/prepare.js', 'standard/roll.js']) {
+        const count = lines(name);
+        assert.ok(count <= 300, `${name} has ${count} lines`);
+    }
 });
