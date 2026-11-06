@@ -225,14 +225,15 @@ export function assemble({ registry, view, untold = [], settings = {}, cues = {}
 
     const sections = [];
     for (const context of tailOrder(registry.contexts())) {
-        // A cue may be `{ text, keep: true }`: kept whole, whatever the budget says (the rolls the narrator must tell).
+        // A cue may be `{ text, keep: true }`: kept whole, whatever the budget says (the rolls the narrator must tell). One marked `board: true`
+        // (the fight board's own [Happened] note) also joins the leading note; the RPG's ordinary roll cues stay in their section.
         const given = Array.isArray(cues?.[context.moduleId]) ? cues[context.moduleId] : [];
         const ordinary = [];
         const pinned = new Set();
         for (const cue of given) {
             const text = typeof cue?.text === 'string' ? cue.text : typeof cue === 'string' ? cue : '';
             if (!text.trim()) continue;
-            const body = cue?.keep === true ? happenedCue(text) : null;
+            const body = cue?.keep === true && cue.board === true ? happenedCue(text) : null;
             if (body !== null) {
                 cueHappened.push(fill(body));
                 continue;
@@ -249,9 +250,9 @@ export function assemble({ registry, view, untold = [], settings = {}, cues = {}
         sections.push(section);
     }
 
-    const told = happened.length ? happenedLines(happened, Math.floor(total / 2)) : [];
-    const head = told.length || cueHappened.length
-        ? { module: 'story-suite', label: 'Happened', text: [...(told.length ? told : [HAPPENED]), ...cueHappened].join('\n') }
+    const told = happened.length ? happenedLines(happened, Math.floor(total / 2)) : cueHappened.length ? [HAPPENED] : [];
+    const head = told.length
+        ? { module: 'story-suite', label: 'Happened', text: [...told, ...cueHappened].join('\n') }
         : null;
 
     // The host's total: what the sections may spend after [Happened] (and the line breaks).

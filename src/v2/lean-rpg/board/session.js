@@ -75,10 +75,10 @@ export function priorBoard(message) {
 }
 
 /** The cache also covers a regenerate that removed its old reply before generation began. */
-export const lastBoard = (meta, anchor, legacyKey, message = null) => {
+export const lastBoard = (meta, anchor, message = null) => {
     const saved = meta?.[LAST];
     const linked = object(message?.extra?.[LINKS]) && message.extra[LINKS][saved?.key] === true;
-    return saved?.board && (linked || saved.board.anchor === anchor || (!saved.board.anchor && saved.key === legacyKey)) ? structuredClone(saved) : null;
+    return saved?.board && (linked || saved.board.anchor === anchor) ? structuredClone(saved) : null;
 };
 
 /** Link the user's message to its reply's board key for regenerate after a middle delete. */

@@ -14,7 +14,7 @@ import { NO_ROLLS_LINE, receiptCue } from '../lean-rpg/cue.js';
 import { holdStart } from './fight-start.js';
 import { readRecord } from '../persist.js';
 import { hashText } from '../assist/common.js';
-import { boardStartState } from './held-board.js';
+import { boardFailure, boardStartState } from './held-board.js';
 import { TIMED_OUT, defuseMacros, firstLine, mapContent, stripBattleMarker, substituteNames, within } from './text.js';
 
 // The most a module's hook may keep whole in the tail (`{ text, keep: true }` lines): two meeting cues and a rumor fit; more is droppable.
@@ -113,10 +113,9 @@ export function createPromptBuild(s, deps) {
                 // A prelude that says it is not for the narrator (`narrate: false`, the RPG's no-rolls note) is stored with the reply and told to no one.
                 if (result.receipt.narrate === false) continue;
                 const told = `[Happened]\n${receiptCue(result.receipt)}`;
-                cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true } : told];
+                cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true, ...(payload?.board ? { board: true } : {}) } : told];
             } else if (preludeType === RPG_RESOLVE && payload?.board) {
-                const detail = String(result?.message ?? 'unknown error').trim().replace(/[.\s]+$/u, '');
-                const reason = `The fight could not be prepared: ${detail}.${/discard/i.test(detail) ? '' : ' Restore the sheet or gear, or discard the fight.'}`;
+                const reason = boardFailure('The fight could not be prepared:', result?.message);
                 problem({ module: moduleId, code: result?.code ?? 'FAILED', message: reason });
                 return { blocked: { moduleId, reason } };
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
@@ -233,7 +232,9 @@ export function createPromptBuild(s, deps) {
         }
     }
 
-    function block({ moduleId, reason, fightStart = false }, abort) {
+    // `keepSession`: the held fight reply's session is put back once the block is told (it is still captured).
+    function block({ moduleId, reason, fightStart = false, keepSession = false }, abort) {
+        const held = keepSession ? s.session : null;
         s.session = null;
         markIdle();
         clearPrompts();
@@ -252,6 +253,7 @@ export function createPromptBuild(s, deps) {
             }
         }
         s.blocks.push({ moduleId, reason });
+        if (keepSession) s.session = held;
     }
 
     // The static part alone is over Story Suite's share of the context: told once per chat (a toast and the
@@ -303,9 +305,7 @@ export function createPromptBuild(s, deps) {
             if (hasCarrier()) store.ensureInitial(initial());
             await ensureModules({ store, bus, registry, events });
             if (s.heldBoard) {
-                const held = s.session;
-                block({ moduleId: 'story-block', reason: 'Restore the fight sheet or gear, or discard the fight and regenerate the held reply.' }, abort);
-                s.session = held;
+                block({ moduleId: 'story-block', reason: 'Restore the fight sheet or gear, or discard the fight and regenerate the held reply.', keepSession: true }, abort);
                 return;
             }
             const blocked = await blockedBy(kind);

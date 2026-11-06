@@ -17,15 +17,11 @@ import { within, TIMED_OUT } from './text.js';
 import { occurrenceOf, operationKey } from '../evidence.js';
 import { hash, readRecord } from '../persist.js';
 import { LEAN_RPG_FEATURE, practiceFromRollsOnly } from '../lean-rpg/names.js';
-import { rpgLib } from '../rpg-lazy.js';
-import { boardStartState } from './held-board.js';
+import { boardFailure, boardStep } from './held-board.js';
 
 export function createCaptureFlow(s, deps) {
-    const { ctx, store, bus, registry, settings, events, hostSettings, view, viewReader, lateReader, problem, isCarrier, PRACTICE_LINE, HOOK_TIMEOUT_MS } = deps;
-    const holdBoard = message => {
-        const detail = String(message ?? 'unknown error').trim().replace(/[.\s]+$/u, '');
-        return Object.assign(new Error(`The fight could not be saved: ${detail}.${/discard/i.test(detail) ? '' : ' Restore the sheet or gear, or discard the fight.'} Once restored, this reply can finish; after discarding, regenerate it.`), { code: 'BOARD_PRELUDE' });
-    };
+    const { ctx, store, bus, registry, settings, events, hostSettings, view, viewReader, lateReader, problem, isCarrier, boardError, PRACTICE_LINE, HOOK_TIMEOUT_MS } = deps;
+    const holdBoard = message => Object.assign(new Error(`${boardFailure('The fight could not be saved:', message)} Once restored, this reply can finish; after discarding, regenerate it.`), { code: 'BOARD_PRELUDE' });
 
     // Runs the reply's change lines; returns { receipts, problems }.
     // Each line runs on the state the lines before it left (bus.run's `state`), as its owner's
@@ -119,11 +115,9 @@ export function createCaptureFlow(s, deps) {
     // lines marked as its (late: read from the reply before, after the reader had sent), within the same
     // cap per reply (`used`: lines the reply already read in an earlier call).
     async function captureLines(index, all, before = null, type = 'normal', { late = [], assist = [], used = 0, prechecks = [] } = {}) {
-        const board = prechecks.find(step => step?.type === 'rpg.resolve' && step.payload?.board)?.payload.board;
+        const board = boardStep({ prechecks })?.payload.board;
         if (board) {
-            const start = boardStartState(bus, store.head(), board);
-            const check = rpgLib()?.boardInputError;
-            const error = start.error ?? (typeof check === 'function' ? check(start.state, board) : 'The fight could not be checked.');
+            const error = boardError(store.head(), board);
             if (error) throw holdBoard(error);
         }
         const receipts = [];

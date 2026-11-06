@@ -26,10 +26,15 @@ import { SOUL_LABEL, soulShortOf } from './soul.js';
 import { readRecord } from '../persist.js';
 import { boardKey, boardPayload, boardSession, clearSend, lastBoard, linkBoard, priorBoard, readSend, receiveBoard, reconcileBoard } from './board/session.js';
 import { boardInputError } from './board/commit.js';
+import { CORE_FEATURE } from '../features.js';
 import { clearStart, engagesFight, fightsInMessage, holdStart, pendingStart } from '../turn/fight-start.js';
 
 // The query that names a level's rank (LV-C: `rpg.rank { level }` → `{ name } | null`); without it a level has no rank.
 const RANK_QUERY = 'rpg.rank';
+// Whether the fight board is on (one literal id, read once per call).
+const boardOn = view => view?.feature?.(CORE_FEATURE.fightBoard) === true;
+// The fight copied at "Send with this fight" (a clone, or null): canGenerate and beforeGenerate read it the same way.
+const sentBoard = (meta, messages) => structuredClone(readSend(meta, messages)?.board ?? null);
 const averageOf = sheet => averageLevel(partyLevels(sheet));
 
 // (The query the roll record is read through: index.js ROLLS_QUERY, named here too so this file need not import its parent.)
@@ -254,28 +259,30 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         let meta;
         try { meta = metadata(); } catch { return null; }
         const messages = chat() ?? [], last = messages.at(-1), session = boardSession(meta), pending = pendingStart(meta, messages);
+        const on = boardOn(view), live = Boolean(session?.exchanges?.length);
+        // (With the board off and no staged exchanges the feature is out of the way: a regenerate is allowed exactly as before it existed.)
         let board = null;
         if (last?.is_user) {
             const anchor = readRecord(messages.at(-2))?.sid;
             // The waiting reply is released only by "Send with this fight" (markSend copies the staged fight, exchanges and all): until then every
             // generation attempt stays held, whatever the board holds. A copy older than the board (more exchanges staged since) does not release it.
-            if (info.commit === true && view?.feature?.('story-block.fight-board') === true && pending?.choice === 'board' && session?.anchor === anchor) {
+            if (info.commit === true && on && pending?.choice === 'board' && session?.anchor === anchor) {
                 const sent = readSend(meta, messages)?.board;
-                if (!session.exchanges?.length || !sent || (sent.exchanges?.length ?? 0) !== session.exchanges.length)
+                if (!live || !sent || (sent.exchanges?.length ?? 0) !== session.exchanges.length)
                     return { ok: false, reason: 'Play the waiting fight on the board.', action: false, fightStart: true };
             }
-            if (session?.exchanges?.length && !isStandard(currentRules(view))) return { ok: false, reason: 'The fight board needs Standard rules. Switch back to Standard or discard the staged fight before using Classic.', action: false };
-            const legacyKey = `${messages.length - 1}-${hashText(String(last.mes ?? '').trim())}`;
-            const remembered = lastBoard(meta, anchor, legacyKey, last);
-            board = session?.anchor === anchor && (view?.feature?.('story-block.fight-board') === true || session.exchanges?.length) ? boardPayload(session) : remembered?.board;
-            // (the copy made at "Send with this fight" stands in when the session itself is gone)
-            if (!board && pending?.choice !== 'narrate') board = readSend(meta, messages)?.board ? structuredClone(readSend(meta, messages).board) : null;
-            if (!board && session?.exchanges?.length) return { ok: false, reason: 'The fight no longer matches this reply. Restore the reply or discard the fight.', action: false };
-            if (session?.anchor === anchor && session.exchanges?.length && !session.setup?.witness) return { ok: false, reason: 'This older fight cannot be checked. Discard it and start the fight again.', action: false };
-        } else if (last && !last.is_user && !String(last.mes ?? '')) board = priorBoard(last)?.board;
+            if (live && !isStandard(currentRules(view))) return { ok: false, reason: 'The fight board needs Standard rules. Switch back to Standard or discard the staged fight before using Classic.', action: false };
+            if (on || live) {
+                board = session?.anchor === anchor ? boardPayload(session) : lastBoard(meta, anchor, last)?.board;
+                // (the copy made at "Send with this fight" stands in when the session itself is gone)
+                if (!board && pending?.choice !== 'narrate') board = sentBoard(meta, messages);
+            }
+            if (!board && live) return { ok: false, reason: 'The fight no longer matches this reply. Restore the reply or discard the fight.', action: false };
+            if (session?.anchor === anchor && live && !session.setup?.witness) return { ok: false, reason: 'This older fight cannot be checked. Discard it and start the fight again.', action: false };
+        } else if ((on || live) && last && !last.is_user && !String(last.mes ?? '')) board = priorBoard(last)?.board;
         if (!board) {
             if (info.commit !== true || !['normal', 'regenerate'].includes(normalizeType(info.type)) || !last?.is_user
-                || view?.feature?.('story-block.fight-board') !== true || !isStandard(currentRules(view))) return null;
+                || !on || !isStandard(currentRules(view))) return null;
             if (!pending && normalizeType(info.type) !== 'normal') return null;
             if (pending?.choice === 'narrate') return null;
             const sheet = readSheet(view.state);
@@ -285,7 +292,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             }
             return null;
         }
-        if (view?.feature?.('story-block.fight-board') !== true) return { ok: false, reason: 'Turn on the fight board or discard the fight before sending.', action: false };
+        if (!on) return { ok: false, reason: 'Turn on the fight board or discard the fight before sending.', action: false };
         const error = board.setup?.opening ? null : boardInputError(view.state, board);
         return error ? { ok: false, reason: error, action: false } : null;
     }
@@ -306,25 +313,28 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         if (!text) return null;
         const key = `${index}-${hashText(text)}`;
         const startAnchor = readRecord(messages[index - 1])?.sid;
+        const on = boardOn(view);
         let meta = null;
         try { meta = metadata(); } catch { /* no board without chat metadata */ }
         const pending = pendingStart(meta, messages);
         // Replayed receipts keep their recorded rules; a new session is offered only under current Standard rules.
         const rules = currentRules(view);
-        if (view?.feature?.('story-block.fight-board') === true) {
+        if (on) {
             const anchorRecord = readRecord(messages[index - 1]);
             const type = normalizeType(info?.type), previous = type === 'swipe' ? priorBoard(messages[index + 1]) : null;
-            const remembered = type === 'regenerate' ? lastBoard(meta, anchorRecord?.sid, key, last) : null;
+            const remembered = type === 'regenerate' ? lastBoard(meta, startAnchor, last) : null;
             let session = boardSession(meta);
-            if (session?.anchor === anchorRecord?.sid) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
+            if (session?.anchor === startAnchor) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
+            // (a live fight: this reply's own anchor holds the session, Standard rules, and the reader did not choose to narrate)
+            const live = isStandard(rules) && session?.anchor === startAnchor && pending?.choice !== 'narrate';
             // A fight the reader staged on this very anchor is what this send carries: "Send with this fight" is a 'regenerate', and the
             // cached payload of an earlier send (rpgFightLast, same anchor) must never stand in for it (it kept only the first exchange).
-            const staged = isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' && session.exchanges?.length ? boardPayload(session) : null;
-            const copied = isStandard(rules) && type !== 'swipe' && pending?.choice !== 'narrate' ? structuredClone(readSend(meta, messages)?.board ?? null) : null;
+            const staged = live && session.exchanges?.length ? boardPayload(session) : null;
+            const copied = isStandard(rules) && type !== 'swipe' && pending?.choice !== 'narrate' ? sentBoard(meta, messages) : null;
             const fresh = previous ? null : staged ?? copied;
-            const board = previous?.board ?? fresh ?? remembered?.board ?? (isStandard(rules) && session?.anchor === anchorRecord?.sid && pending?.choice !== 'narrate' ? boardPayload(session) : null);
+            const board = previous?.board ?? fresh ?? remembered?.board ?? (live ? boardPayload(session) : null);
             if (board) {
-                const anchored = board.anchor ? board : { ...board, anchor: anchorRecord?.sid ?? board.id };
+                const anchored = board.anchor ? board : { ...board, anchor: startAnchor ?? board.id };
                 const fightKey = previous?.key?.startsWith('b:') ? previous.key : !fresh && remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
                 linkBoard(last, fightKey);
                 const opening = anchored.setup?.opening;
@@ -357,7 +367,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             hold.clear();
             const before = messages[index - 1];
             const excerpt = before && !before.is_user ? stripBlock(String(before.mes ?? '')) : '';
-            const working = !pending && normalizeType(info?.type) === 'normal' && view?.feature?.('story-block.fight-board') === true && isStandard(rules)
+            const working = !pending && normalizeType(info?.type) === 'normal' && on && isStandard(rules)
                 && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) && fightsInMessage(text, sheet)
                 ? holdStart(meta, messages, { mode: 'working' }) : null;
             if (working) { try { onPlanning(true); } catch { /* the planner still runs */ } }
@@ -367,7 +377,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
                 clearStart(meta);
                 try { onPlanning(false); } catch { /* the screen redraws on the next event */ }
             }
-            if (planned.failed) return skip(sheet, planned, key, view?.feature?.('story-block.fight-board') === true);
+            if (planned.failed) return skip(sheet, planned, key, on);
             hold.put(where, key, planned.plan);
         }
         // A Standard fight keeps its turn order across replies: the nearest earlier reply's order goes on in the payload (resolve.js), so a swipe of
@@ -377,9 +387,9 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         // from the state before the roll, so a change before it (a reply deleted or edited) changes its gear.
         const drop = planned.plan ? carriedDrop(view, index) : null;
         const gear = planned.plan && gearIsOn(sheet, (name, args) => view.query?.(name, args)) ? gearMarkOf({ v: GEAR_VERSION, lead: String(last.name ?? '') }) : null;
-        if (!planned.plan) return noFight(sheet, view?.feature?.('story-block.fight-board') === true);
+        if (!planned.plan) return noFight(sheet, on);
         const payload = { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, fix: FIX_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) };
-        if (!pending && !narrateWhilePlanning && normalizeType(info?.type) === 'normal' && view?.feature?.('story-block.fight-board') === true && isStandard(rules)
+        if (!pending && !narrateWhilePlanning && normalizeType(info?.type) === 'normal' && on && isStandard(rules)
             && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) && planned.plan.open?.length
             && (planned.plan.acts?.length || planned.plan.foes?.some(foe => !foe.hold)
                 // (a message that engages, with approach checks and new foes but no act of its own: "hide … as I engage them")
