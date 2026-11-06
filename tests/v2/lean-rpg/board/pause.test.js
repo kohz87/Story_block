@@ -37,14 +37,14 @@ test('known foes render with the two actions and both callback payloads', () => 
     view.destroy();
 });
 
-test('the working state is a live status with the exact text and no actions', () => {
+test('the working state offers narration while the planner runs', () => {
     const doc = setupDom(), view = createPauseView({ doc }), host = doc.createElement('div');
     const node = view.render(host, { mode: 'working', status: 'Working out the fight…', foes: [], checks: [], actions: [] });
     assert.match(node.className, /rpg-fight-pause-working/);
     const status = node.querySelector('[role="status"]');
     assert.equal(status.getAttribute('aria-live'), 'polite');
     assert.match(status.textContent, /Working out the fight…/);
-    assert.equal(node.querySelectorAll('button').length, 0);
+    assert.deepEqual(node.querySelectorAll('button').map(button => button.textContent), ['Narrate it instead']);
     view.update(refreshed);
     assert.match(host.textContent, /New foes/);
     assert.equal(host.querySelectorAll('button').length, 2);

@@ -42,7 +42,8 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
         if (!pending || pending.choice) return;
         if (boardSession(meta())?.exchanges?.length === 0) delete meta().rpgFightBoard;
         pending.choice = 'narrate';
-        persist(); tell(); send();
+        persist(); tell();
+        if (pending.mode !== 'working') send();
     };
     const pause = createPauseView({ doc, onBoard: begin, onNarrate: narrate });
     // The original message is already in the chat. A second Send must not append another one while it waits.

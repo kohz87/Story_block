@@ -12,6 +12,7 @@
 // nothing on this page can change a roll already made. Every node is built with createElement and textContent.
 
 import { h } from '../../view/widgets/dom.js';
+import { boardSetting } from '../board/settings.js';
 import { refusalText } from '../../strings.js';
 import { LEAN_RPG_TEMPLATES } from '../templates.js';
 import { LEVEL, LEVEL_CAP_SETTING, levelCapOf, JOIN_SETTING, PLANNER_LIMIT, PLANNER_LIMIT_SETTING, PRACTICE, PRACTICE_SETTING, ROLLS_SETTING, plannerSecondsFrom, practiceOf } from '../names.js';
@@ -76,13 +77,12 @@ const words = (...parts) => parts.join(' ').toLowerCase();
 const CARD_WORDS = Object.freeze({
     formula: words(S.formula, S.formulaStandard, S.formulaClassic, S.formulaStandardHelp, S.formulaClassicHelp, S.formulaNote, S.formulaRows.map(row => `${row.type} ${row.what}`).join(' '), Object.values(S.formulaNums).join(' '), S.formulaFootStandard),
     levels: words(S.levels, S.levelCap, S.levelCapHelp, S.practice, S.practiceHelp, S.xpRate, S.xpRateHelp),
-    rolls: words(S.rolls, S.rollsHelp, S.automatic, S.off),
+    rolls: words(S.rolls, S.rollsHelp, S.automatic, S.off, 'fight board choose exchanges'),
     difficulty: words(S.difficulty, S.gentle, S.standard, S.harsh, S.custom, [...NUMBER_FIELDS, ...STANDARD_FIELDS].map(field => `${fill(field.label, { label: SOUL_LABEL })} ${field.help}`).join(' '), S.replayNote),
     combat: words(S.combat, S.combatHelp, S.combatLabel, S.combatReset),
     planner: words(S.planner, S.plannerHelp, S.plannerShow, S.plannerFixed),
     join: words(S.join, S.joinHelp, S.joinAsk, S.joinAuto, S.joinOff),
     gear: words(S.gear, S.gearHelp, S.gearOn, S.off),
-    board: 'fight board choose exchanges on off',
 });
 
 /**
@@ -190,6 +190,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         numberRow(grid, { label: S.plannerLimit, help: S.plannerLimitHelp, setting: PLANNER_LIMIT_SETTING, min: PLANNER_LIMIT.min, max: PLANNER_LIMIT.max, step: PLANNER_LIMIT.step, unit: S.plannerLimitUnit, current: () => plannerSecondsFrom(values()),
             clean: typed => Math.min(PLANNER_LIMIT.max, Math.max(PLANNER_LIMIT.min, PLANNER_LIMIT.min + Math.round((typed - PLANNER_LIMIT.min) / PLANNER_LIMIT.step) * PLANNER_LIMIT.step)) });
         box.appendChild(grid);
+        if (boardFeature) box.appendChild(boardSetting(doc, boardFeature, onChange));
     }
 
     // ---- Levels and practice: the level cap, the practice a skill use gives, the XP rate
@@ -245,12 +246,6 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         const box = card('gear', S.gear);
         chips(box, S.gear, [['on', S.gearOn], ['off', S.off]], gear.on() ? 'on' : 'off', value => { gear.set(value === 'on'); onChange(); });
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.gearHelp));
-    }
-
-    function drawBoard() {
-        if (!boardFeature) return;
-        const box = card('board', 'Fight board', 'Choose each exchange on the board under Standard rules.');
-        chips(box, 'Fight board', [['on', 'On'], ['off', 'Off']], boardFeature.on() ? 'on' : 'off', value => { boardFeature.set(value === 'on'); onChange(); });
     }
 
     // ---- Difficulty and the odds
@@ -461,7 +456,6 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         drawFormula();
         drawLevels();
         drawGear();
-        drawBoard();
         drawRolls();
         drawDifficulty();
         drawCombat();

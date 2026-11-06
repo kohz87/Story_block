@@ -38,7 +38,7 @@ test('the page is its own rail entry after Features, with seven cards in order a
     const { doc, root, card } = await open(t);
     assert.deepEqual(rail(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
     assert.equal(root.querySelector('.ss-settings-page-sub').textContent, 'How the dice work, and what the narrator and the roll planner are told.');
-    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Gear in fights', 'Fight board', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
+    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Gear in fights', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
     assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: before each reply a short AI call plans the actions and code rolls the dice\. Off: no dice; the story decides\./);
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);
@@ -62,10 +62,11 @@ test('Rolls: Automatic or Off, through the existing setting', async t => {
 test('Fight board uses the same feature switch as Features', async t => {
     const { host, card, root } = await open(t);
     assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), true);
-    card('board').querySelector('[data-value="off"]').click();
+    assert.ok(card('rolls').querySelector('[data-card="board"]'), 'the switch is beside Rolls and its planner limit');
+    card('board').querySelector('[role="switch"]').click();
     assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), false);
-    assert.equal(root.querySelector('[data-card="board"] [aria-pressed="true"]').textContent, 'Off');
-    root.querySelector('[data-card="board"] [data-value="on"]').click();
+    assert.equal(root.querySelector('[data-card="board"] [role="switch"]').getAttribute('aria-checked'), 'false');
+    root.querySelector('[data-card="board"] [role="switch"]').click();
     assert.equal(host.registry.featureOn(CORE_FEATURE.fightBoard), true);
 });
 

@@ -71,6 +71,6 @@ test('the waiting pause is the exact planner text and the helpers do not change 
     assert.equal(data.mode, 'working');
     assert.equal(data.status, WORKING_TEXT);
     assert.equal(data.status, 'Working out the fight…');
-    assert.deepEqual(data.actions, []);
+    assert.deepEqual(data.actions.map(action => action.label), ['Narrate it instead']);
     assert.equal(pauseViewData({}), null);
 });

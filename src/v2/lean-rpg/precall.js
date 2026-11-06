@@ -21,6 +21,7 @@ import { DICE_VERSION, FLOW_VERSION, claimKey, prepare } from './resolve.js';
 import { dropOf } from './ambush.js';
 import { readSheet } from './read.js';
 import { plannerWanted } from './gate.js';
+import { knownFoeAction } from './board/action-gate.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
 import { readRecord } from '../persist.js';
 import { boardKey, boardPayload, boardSession, lastBoard, linkBoard, priorBoard, receiveBoard, reconcileBoard } from './board/session.js';
@@ -271,7 +272,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             if (!pending && normalizeType(info.type) !== 'normal') return null;
             if (pending?.choice === 'narrate') return null;
             const sheet = readSheet(view.state);
-            if (pending || (sheet.characters.length && sheet.foes.some(foe => foe.filled && foe.hurt > 0) && fightsInMessage(last.mes, sheet))) {
+            if (pending || (sheet.characters.length && sheet.foes.some(foe => foe.filled && foe.hurt > 0) && knownFoeAction(last.mes, sheet))) {
                 if (!pending && !holdStart(meta, messages, { mode: 'known' })) return null;
                 return { ok: false, reason: 'Choose how to play the waiting fight.', action: false, fightStart: true };
             }
@@ -332,7 +333,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         // (A pack may say which formula its story plays on and its numbers; the reader's own settings win over it.)
         // A retried interceptor (the same generation, never captured) keeps its plan; any new generation plans anew.
         const held = info?.again === true ? hold.peek(where, key) : null;
-        let planned;
+        let planned, narrateWhilePlanning = false;
         if (held) planned = { plan: held.plan };
         else if (!plannerWanted(sheet, text, messages[index - 1] && !messages[index - 1].is_user ? stripBlock(String(messages[index - 1].mes ?? '')) : '')) {
             // (The planner gate, gate.js: a quiet message with no fight open asks nothing. The decision depends only on the sheet and the message, so a
@@ -350,6 +351,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
             if (working) { try { onPlanning(true); } catch { /* the planner still runs */ } }
             planned = await plan(view, sheet, text, excerpt, rules);
             if (working && metadata() === meta && pendingStart(meta, chat()) === working) {
+                narrateWhilePlanning = working.choice === 'narrate';
                 clearStart(meta);
                 try { onPlanning(false); } catch { /* the screen redraws on the next event */ }
             }
@@ -365,7 +367,7 @@ export function createPrecall({ callModel, chat, chatId, metadata = () => null, 
         const gear = planned.plan && gearIsOn(sheet, (name, args) => view.query?.(name, args)) ? gearMarkOf({ v: GEAR_VERSION, lead: String(last.name ?? '') }) : null;
         if (!planned.plan) return noFight(sheet, view?.feature?.('story-block.fight-board') === true);
         const payload = { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, fix: FIX_VERSION, lv: LV_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}), ...(drop ? { ambush: drop } : {}), ...(gear ? { gear } : {}) };
-        if (!pending && normalizeType(info?.type) === 'normal' && view?.feature?.('story-block.fight-board') === true && isStandard(rules)
+        if (!pending && !narrateWhilePlanning && normalizeType(info?.type) === 'normal' && view?.feature?.('story-block.fight-board') === true && isStandard(rules)
             && !sheet.foes.some(foe => foe.filled && foe.hurt > 0) && planned.plan.open?.length
             && (planned.plan.acts?.length || planned.plan.foes?.some(foe => !foe.hold))) {
             const opening = { ...payload, start: startAnchor, plan: { ...payload.plan, acts: [], foes: [] } };

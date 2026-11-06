@@ -21,7 +21,7 @@ const outcomeName = value => (value === 'success' || value === 'cost' || value =
 /**
  * createPauseView({ doc, onBoard, onNarrate })
  * → { render(container, data), update(data), clear(), destroy(), element }.
- * The waiting state has no buttons; known and new states have the two choices.
+ * Narration is available even while the opening is being planned.
  */
 export function createPauseView({ doc = globalThis.document, onBoard = () => {}, onNarrate = () => {} } = {}) {
     let host = null, root = null, shown = null;
@@ -49,6 +49,9 @@ export function createPauseView({ doc = globalThis.document, onBoard = () => {},
             status.appendChild(h(doc, 'span', 'rpg-fight-pause-spinner'));
             status.appendChild(h(doc, 'span', '', text(shown.status) || 'Working out the fight…'));
             root.appendChild(status);
+            const actions = h(doc, 'div', 'rpg-fight-pause-actions');
+            actions.appendChild(button(doc, text(shown.narrateLabel) || 'Narrate it instead', 'ss-button rpg-fight-pause-narrate', () => onNarrate?.(shown)));
+            root.appendChild(actions);
         } else {
             if (text(shown.title, 100)) root.appendChild(h(doc, 'h3', 'rpg-fight-pause-title', text(shown.title, 100)));
             if (text(shown.note, 180)) root.appendChild(h(doc, 'p', 'rpg-fight-pause-note', text(shown.note, 180)));

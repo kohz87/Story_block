@@ -44,6 +44,7 @@ export { PRECALL_HEAD, claimed, createPrecall, precallPrompt, sheetText } from '
 export { boardInputError } from './board/commit.js';
 export { dropOf } from './ambush.js';
 export { narratedFoeGrammar } from './board/narrated-grammar.js';
+export { boardGrammar, boardReplyGrammar, boardXpGuide } from './board/prompt.js';
 export { DICE_VERSION, FLOW_VERSION, RESULT_VERSION, claimKey, leanRpgGuard, outcomeOf, positionalDice, prepare, resolve, rollPrepared, rollsOf } from './resolve.js';
 
 // How much longer the hook may take than the planner's call, for the work around it.

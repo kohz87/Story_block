@@ -24,17 +24,20 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/board.css`: provides the touch layout and sizing.
 - `src/v2/lean-rpg/board/offers.js`, `offer-line.js`, `start-view-data.js`: find the opening reply and draw its offer and tab alert.
 - `src/v2/lean-rpg/board/start-controller.js`, `pause.js`, `fight-start.css`: draw the waiting choice and resume the reply.
-- `src/v2/turn/fight-start.js`: binds a pending send to its anchor sid and message and detects fight actions.
-- `src/v2/lean-rpg/board/narrated-grammar.js`: supplies manual foe changes per reply under Classic or Rolls off.
+- `src/v2/turn/fight-start.js`: binds a pending send to its anchor sid and message and detects possible new fights while planning.
+- `src/v2/lean-rpg/board/prompt.js`: keeps fixed grammar quiet-sized and supplies fight flavour and manual grammar in the reply tail.
+- `src/v2/lean-rpg/board/action-gate.js`: holds only explicit attacks on a standing known foe.
+- `src/v2/lean-rpg/board/settings.js`: draws the shared switch inside the Rolls card.
+- `src/v2/lean-rpg/board/narrated-grammar.js`: supplies manual foe changes to the reply grammar.
 - `src/v2/lean-rpg/precall.js`: selects a board segment or the planner and checks whether generation may proceed.
 - `src/v2/turn/prompt-build.js`, `capture-flow.js`, `events.js`, `held-board.js` and `src/v2/commands.js`: preview, protect, capture and recover the prelude.
 - `src/v2/lean-rpg/practice.js` and `fight.js`: award practice and win XP from recorded results.
 
 ## Data flow
 
-Before step 1, a known fight action holds the send without a planner call. With no foes, a planner opening is previewed with a
+Before step 1, an explicit attack against a known standing foe holds the send without a planner call; ambiguous actions continue normally. With no foes, a planner opening is previewed with a
 saved seed; its foes and checks are shown on the pause. **Narrate it instead** reuses that plan and seed. **Fight it on the board**
-opens on the private post-approach sheet. The saved opening prelude runs before the board prelude on the single narrated reply;
+opens on the private post-approach sheet. Narration remains selectable while the planner is working, without starting another call. The saved opening prelude runs before the board prelude on the single narrated reply;
 the approach checks earn practice and a successful ambush applies to the first exchange. Both previews and capture verify the inputs.
 
 1. `openBoard` uses the opening carrier's `sid`, discard count, current Standard rules, gear and weapons. The
@@ -93,10 +96,10 @@ the approach checks earn practice and a successful ambush applies to the first e
 - A plain attack uses the best eligible weapon stat. Flee uses AGI against the strongest standing group.
   Foes choose a standing member in stable order; defence is automatic.
 - The end card shows XP for the original foe groups on a win and practice for the unsent segment; the folded
-  narrator note includes defence outcomes and recorded gear wear by exchange. A waiting reply gets a send button.
-- The Feature trims stock Foes hurt/clear lines, the fixed roll rule and fight XP instruction from the static prompt;
-  it keeps the opening line and combat flavour. The static text does not follow the current fight while the board is on.
-  Classic and Rolls off get manual foe grammar per reply. With the board off, the existing prompt is unchanged.
+  narrator note includes defence outcomes, recorded gear wear and the battle marker; the aftermath follows the real outcome. A waiting reply gets a send button.
+- The Feature keeps the static prompt at or below the quiet board-off size: it retains the opening foe line and trimmed XP guide.
+  Combat flavour, the foe description and manual foe grammar go into the tail when a fight is relevant; Rolls off gets manual practice there.
+  The fixed text does not follow fight state or Rolls. With the board off, the existing prompt is unchanged.
 
 ## Test map
 
@@ -109,7 +112,7 @@ the approach checks earn practice and a successful ambush applies to the first e
 - `flags.test.js` covers wording defaults and keyed identity. `overrides.test.js` covers explicit and inferred
   flags on rename, replay, and deletion of either edit.
 - `flow.test.js` and `replay.test.js` cover continuation, swipe, regenerate, reload, rewind and middle deletion.
-- `start-flow.test.js`, `start-ui.test.js` and `trim.test.js` cover the waiting choice, approach, branch, offer, settings and prompt.
+- `action-gate.test.js`, `start-flow.test.js`, `start-ui.test.js` and `trim.test.js` cover the waiting choice, approach, branch, offer, settings and prompt.
 - `note.test.js` and `view.test.js` cover defence, bar words, wear, controls, pending awards and discard.
 - `touch.test.js` renders the board at 390×844 and 360×740 in the game view and the Story panel when
   the optional browser is available; choices and end-card controls must clear each bottom bar.

@@ -5,6 +5,7 @@ import { CORE_FEATURE } from '../../../../src/v2/features.js';
 import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { boardSession, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { begin, makeBlocks, page, settle } from '../view/page.js';
+import { seedCrypto } from '../../qa/helpers/seeded.js';
 
 async function world(t) {
     const app = await page(t, { formula: 'standard' });
@@ -107,4 +108,82 @@ test('a planner opening shows the working screen and then the rolled approach', 
     await settle();
     assert.ok(doc.querySelector('.rpg-board-choice'));
     assert.equal(boardSession(host.ctx.chatMetadata).setup.approach.length, 1);
+});
+
+test('choosing narration during planning resumes the same send without a second planner call', async t => {
+    let finish, calls = 0;
+    const callModel = () => { calls += 1; return new Promise(resolve => { finish = resolve; }); };
+    const { doc, host } = await page(t, { formula: 'standard', callModel });
+    await begin(host);
+    await makeBlocks(host, { character: { agi: 20 }, skills: { skill1: 'Sneak', stat1: 'agi', about1: 'hide before a fight' } });
+    const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
+    const sending = host.send('I sneak up and attack the rats.', 'The fight is narrated.');
+    await settle();
+    const button = doc.querySelector('.rpg-fight-pause-narrate');
+    assert.ok(button);
+    button.click();
+    finish('foe Rats | new | count: 1 | level: 2\ncheck Wessel | skill: Sneak | type: check | difficulty: normal | ambush\nact Wessel | target: Rats | type: physical');
+    const sent = await sending;
+    assert.equal(sent.aborted, undefined);
+    assert.equal(calls, 1);
+    assert.equal(host.ctx.chat.at(-1).mes, 'The fight is narrated.');
+    assert.equal(host.ctx.chatMetadata.rpgFightStart, undefined);
+});
+
+for (const outcome of ['won', 'fled']) test(`one reply tells the approach, ${outcome} fight and outcome-aware aftermath`, async t => {
+    const restore = seedCrypto(outcome === 'won' ? 730 : 731);
+    t.after(restore);
+    let calls = 0;
+    const callModel = async () => {
+        calls += 1;
+        return 'foe Rats | new | count: 1 | level: 1\ncheck Wessel | skill: Obscure | type: check | difficulty: normal | ambush\nact Wessel | target: Rats | type: physical\nfoe Rats | target: Wessel';
+    };
+    const { doc, host } = await page(t, { formula: 'standard', callModel });
+    await begin(host);
+    await makeBlocks(host, { character: { str: 20, agi: 20, dex: 20, vit: 20 },
+        skills: { skill1: 'Obscure', stat1: 'dex', about1: 'hide before a fight' } });
+    const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
+    const before = host.ctx.chat.filter(message => !message.is_user).length;
+    const original = 'I hide with Obscure, ambush the rats, then loot the nest and walk back to Surna.';
+    assert.equal((await host.send(original, 'Not yet.')).aborted, true);
+    await settle();
+    assert.match(doc.querySelector('.rpg-fight-pause').textContent, /Obscure/);
+    assert.ok(doc.querySelector('.rpg-fight-pause-narrate'));
+    const opening = host.turn.fightStartPreview();
+    doc.querySelector('.rpg-fight-pause-board').click();
+    await settle();
+    assert.ok(doc.querySelector('.rpg-board-choice'));
+    const meta = host.ctx.chatMetadata;
+    let staged;
+    for (let n = 0; n < 30; n += 1) {
+        staged = stageExchange(meta, opening.state, outcome === 'won'
+            ? [{ who: 'Wessel', kind: 'attack', target: 1 }] : [{ who: 'Wessel', kind: 'flee' }]);
+        assert.equal(staged.error, undefined);
+        if (staged.preview.result.stop !== 'open') break;
+    }
+    assert.equal(staged.preview.result.stop, outcome);
+    let generation;
+    host.ctx.generate = type => { generation = host.st.generate(type, { reply: 'The approach, fight and aftermath.' }); return generation; };
+    host.events.emit('head', { index: host.store.headIndex() });
+    await settle();
+    const button = doc.querySelector('.rpg-board-send');
+    assert.ok(button);
+    assert.equal(button.textContent, 'Send with this fight');
+    button.click();
+    const sent = await generation;
+    assert.equal(sent.aborted, undefined);
+    assert.equal(host.ctx.chat.filter(message => !message.is_user).length, before + 1);
+    assert.equal(host.ctx.chat.filter(message => message.is_user && message.mes === original).length, 1);
+    assert.equal(calls, 1);
+    const prompt = sent.request.chat.filter(message => message.role === 'system').map(message => message.content).join('\n');
+    assert.match(prompt, /Wessel — Obscure \(DEX\), normal: (?:SUCCESS|SUCCESS AT A COST|FAIL) \(\d+ vs \d+\)/);
+    assert.match(prompt, /Tell the approach, then the settled fight results in order/);
+    assert.match(prompt, /Exchange 1/);
+    assert.match(prompt, /write \[battle\] on its own line where the fight is told/i);
+    assert.match(prompt, /Code has already moved the bars for these results; never set those yourself/);
+    assert.match(prompt, outcome === 'won' ? /fight is won/ : /party fled/);
+    assert.match(prompt, /aftermath.+outcome permits/);
+    if (outcome === 'fled') assert.match(prompt, /do not assume the foes or their possessions are accessible/);
 });

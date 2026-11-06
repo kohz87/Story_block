@@ -168,7 +168,7 @@ export function pauseViewData({ fight = null, opening = null, state = null, wait
     if (waiting === true) {
         return {
             mode: 'working', title: '', status: WORKING_TEXT, foeTitle: '', foes: [], checks: [], edge: '', note: '',
-            label: 'Working out the fight', actions: [], boardLabel: PAUSE_BOARD_LABEL, narrateLabel: PAUSE_NARRATE_LABEL,
+            label: 'Working out the fight', actions: [pauseActions()[1]], boardLabel: PAUSE_BOARD_LABEL, narrateLabel: PAUSE_NARRATE_LABEL,
         };
     }
     return null;

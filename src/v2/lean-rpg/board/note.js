@@ -2,7 +2,7 @@
 // Every outcome and every bar movement is included, even in a long fight; one line is told as one
 // [Happened] cue and is never cut. It reads the result only, so the preview and the receipt agree.
 
-import { STAGES, stageWord } from '../names.js';
+import { BATTLE_MARKER, STAGES, stageWord } from '../names.js';
 
 const clean = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
 export const barMovement = (damage, resource = false) => {
@@ -21,7 +21,9 @@ function lineNote(line) {
 
 /** A compact but complete list of settled outcomes and changes, followed by the fight's status. */
 export function settledNote(result) {
-    const lines = [result.fromApproach ? 'Tell the approach, then these settled fight results in order; do not reroll them.' : 'Tell these settled fight results before the reader’s action; do not reroll them.'];
+    const lines = [result.fromApproach ? 'Tell the approach, then the settled fight results in order; do not reroll them.' : 'Tell the settled fight results in order; do not reroll them.',
+        `Write ${BATTLE_MARKER} on its own line where the fight is told.`,
+        'Code has already moved the bars for these results; never set those yourself.'];
     for (const line of result.opening ?? []) lines.push(`Opening: ${lineNote(line)}.`);
     const wear = Array.isArray(result.wear) ? result.wear : [], included = new Set();
     const wearNote = event => `${clean(event.who)}'s ${clean(event.item)} condition: ${clean(event.from)} → ${clean(event.to)}`;
@@ -36,5 +38,8 @@ export function settledNote(result) {
     wear.forEach((event, index) => { if (!included.has(index)) lines.push(`Exchange ${event.n}: ${wearNote(event)}.`); });
     const end = { won: 'The fight is won. Code gives the party its XP.', lost: 'The fight is lost.', fled: 'The party fled.', open: 'The fight is still open.' };
     lines.push(end[result.stop] ?? 'The fight is still open.');
+    lines.push(result.stop === 'open' ? 'The fight is still in progress; do not tell a post-fight aftermath yet.'
+        : result.stop === 'won' ? 'Then follow the reader’s requested aftermath as the outcome permits.'
+            : 'Then follow the reader’s requested aftermath only as the outcome permits; do not assume the foes or their possessions are accessible or looting succeeds.');
     return lines.join(' | ');
 }

@@ -141,28 +141,20 @@ export function grammarFor(state, quiet = null, { rolled = false, board = false 
     // that told it to practise a skill say nothing of it (the Combat rules' XP guide line, the Skills block's description).
     const noPractice = text => String(text ?? '').replace(/\s*Practice a skill 5 to 20 per use\./u, '').replace(/\s+and adds practice/u, '');
     const active = Object.keys(state?.domains?.dataModules?.active ?? {});
-    const seen = new Map();
+    const seen = new Map(), boardLib = board ? rpgLib() : null;
     const lines = active.map(id => {
         const definition = activeDefinition(state, id);
-        const only = board && definition?.role === 'foes' ? { only: /^set-slot-\d+$/u }
-            : quiet && definition?.role ? quiet[definition.role] : null;
+        // Features can be previewed before the lazy RPG library has loaded.
+        const fallback = board && definition?.role === 'rules' ? { skip: true, keep: /XP guide:.*$/u }
+            : board && definition?.role === 'foes' ? { prompt: false, only: /^set-slot-\d+$/u } : null;
+        const only = (board && (boardLib?.boardGrammar?.(definition?.role) ?? fallback)) || (quiet && definition?.role ? quiet[definition.role] : null);
         if (definition && only?.skip) {
             // (A skipped block may keep one line of its text: the XP guide stays on a quiet reply, whatever words the pinned block holds it in.)
             const kept = only.keep ? new RegExp(only.keep.source, 'u').exec(String(definition.prompt ?? ''))?.[0] : '';
-            return kept ? oneLine(rolled ? noPractice(kept) : kept) : '';
+            const value = rolled ? noPractice(kept) : kept;
+            return kept ? oneLine(board ? (boardLib?.boardXpGuide?.(value) ?? value.replace(/XP guide: code gives XP for a won fight(?: and practises rolled skills)?; write none for (?:them|it)\.\s*/u, 'XP guide: ')) : value) : '';
         }
-        let shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
-        if (board && shown?.role === 'rules') {
-            // Only remove the stock instructions. A pack's own combat text remains intact.
-            const prompt = String(shown.prompt ?? '')
-                .replace(/Rolls: tell the rolled result as given; code moves the bars for hits, heals, skill costs: never set those\.\s*/u, '')
-                .replace(/XP guide: code gives XP for a won fight(?: and practises rolled skills)?; write none for (?:them|it)\.\s*/u, 'XP guide: ');
-            shown = { ...shown, prompt };
-        }
-        if (board && shown?.role === 'foes') {
-            const prompt = String(shown.prompt ?? '').replace(/The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or (?:has )?yielded\./u, 'The narrator sets a slot when a group arrives.');
-            shown = { ...shown, prompt };
-        }
+        const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
         return shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
@@ -1293,7 +1285,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             static: hint => {
                 const board = boardOn() === true;
                 return grammarFor(state(), !board && rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null,
-                    { rolled: practiceFromRollsOnly(board || hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()), board });
+                    { rolled: board || practiceFromRollsOnly(hint?.view?.feature?.(LEAN_RPG_FEATURE), settings()), board });
             },
             tail: view => {
                 const lines = tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true);
@@ -1302,7 +1294,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
                     let pack = null;
                     try { pack = lib?.packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { /* no pack rules */ }
                     const manual = settings()?.[ROLLS_SETTING] === 'off' || (lib && !lib.isStandard(lib.rulesFromSettings(settings(), pack)));
-                    if (manual) lines.push(...(lib?.narratedFoeGrammar(view.state) ?? []));
+                    const fight = readSheet(view.state).foes.some(foe => foe.filled);
+                    lines.push(...(lib?.boardReplyGrammar?.(view.state, { fight, manual, practice: settings()?.[ROLLS_SETTING] === 'off' }) ?? []));
                 }
                 return { lines, optional: [] };
             },
