@@ -9,6 +9,8 @@ import { charId, rosterOf } from './roster.js';
 
 const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
 
+// ---- preparing --------------------------------------------------------------------------------------------------------
+
 const TYPE_FREE = ['social', 'check'];
 
 // A skill phrase on a character's sheet: { skill, rank, stat, uses, refused? }. A skill the character has brings its own stat (when it has one)

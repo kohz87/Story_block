@@ -416,7 +416,7 @@ test('member cards, target lines and the grouped order line come from the staged
     assert.equal(cards[1].classList.contains('rpg-down'), true, 'the Down member is greyed with the existing class');
     assert.ok(cards.every(card => card.querySelector('.rpg-foe-side .rpg-level-pill')));
     assert.ok(cards.every(card => card.querySelector('.rpg-foe-bar .ss-w-meter')), 'the Fight tab foe-card meter is reused');
-    assert.equal(root.querySelector('.rpg-board-order').textContent, 'Order: Wessel · Bristle-boars (1, 3) · 2 attacks on you each exchange');
+    assert.equal(root.querySelector('.rpg-board-order').textContent, 'Order: Wessel · Bristle-boars (1, 2, 3) · 2 attacks on you each exchange');
     root.querySelector('[data-choice="1"]').click();
     assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Choose a target');
     assert.deepEqual([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].map(node => node.textContent),

@@ -15,13 +15,13 @@ test('member target and pack lines use the board words, not a level parenthetica
     assert.equal(memberPackLine({ left: 1, attacks: 1 }), 'About 1 left · 1 attack each exchange');
 });
 
-test('standing groups keep real-slot order, drop all-Down groups, and collapse the turn order', () => {
+test('standing groups remain targetable while the shared turn order includes Down members', () => {
     const members = [member(11, 1, 4), member(12, 2, 0), member(13, 3, 2), member(21, 1, 0, { group: 2, name: 'Spiders' })];
     const foes = [{ slot: 1, name: 'Bristle-boar' }, { slot: 2, name: 'Spider' }];
     assert.deepEqual(memberGroups(members, foes).map(group => [group.group, group.label]), [[1, 'Bristle-boars']]);
     const order = [{ id: 'c:astra', name: 'Astra', party: true }, { id: 'f:11', name: 'Bristle-boar 1', party: false },
         { id: 'f:12', name: 'Bristle-boar 2', party: false }, { id: 'f:13', name: 'Bristle-boar 3', party: false }];
-    assert.equal(memberOrderLine(order, members, foes), 'Order: Astra · Bristle-boars (1, 3) · 2 attacks on you each exchange');
+    assert.equal(memberOrderLine(order, members, foes), 'Order: Astra · Bristle-boars (1, 2, 3) · 2 attacks on you each exchange');
 });
 
 test('real foe names keep trailing numbers while virtual suffixes are removed', () => {

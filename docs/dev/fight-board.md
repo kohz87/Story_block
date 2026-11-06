@@ -14,6 +14,7 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/standard/prepare.js`: `prepareStandard` and its helpers (acts, foe sides, checks, refusals and the witness).
 - `src/v2/lean-rpg/standard/roll.js`: `rollStandard` (turn order, rounds, acts, area and outcomes) and its outcome helpers; `standard.js` re-exports them.
 - `src/v2/lean-rpg/board/member-rolls.js`: supplies new-board hooks for pack attacks and area damage, rotation among standing targets and defence paid once per exchange.
+- `src/v2/lean-rpg/board/order.js`: shared grouped turn-order labels for the board and the battle log (a split slot rolls once, so its members show together).
 - `src/v2/lean-rpg/board/engine.js`: plays the setup and exchanges on a private state copy and checks their input witness; in a new fight (`setup.members: 1`) it runs split groups as virtual foes and collapses them only when the fight ends.
 - `src/v2/lean-rpg/board/plan.js`: validates member actions and makes a Standard plan with foe actions and automatic defence (a new fight: one attack per member, pack attacks, an area scoped to one group, defence paid once per exchange).
 - `src/v2/lean-rpg/board/rules.js`: picks the attack stat and the best usable defence skill.

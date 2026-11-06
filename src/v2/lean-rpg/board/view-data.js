@@ -9,6 +9,7 @@ import { fightOf, memberLevel, memberXp } from '../fight.js';
 import { scaleXp, xpRateFrom } from '../levels.js';
 import { usesOf } from '../practice.js';
 import { actionSkills } from './plan.js';
+import { memberBaseName, memberOrderEntries, pluralName } from './order.js';
 import { attackStat, bestDefence } from './rules.js';
 import { skillKey } from './flags.js';
 
@@ -61,10 +62,6 @@ export function memberPackLine(member) {
     return `About ${left} left · ${attacks} ${attacks === 1 ? 'attack' : 'attacks'} each exchange`;
 }
 
-const memberBaseName = (member, realFoe) => String(realFoe?.name ?? String(member?.name ?? '')
-    .replace(/ pack \d+$/u, '').replace(/ \d+$/u, ''));
-const pluralName = name => (!name ? '' : /s$/iu.test(name) ? name : `${name}s`);
-
 /** The standing real-slot groups, each with the display name an area asks for. */
 export function memberGroups(members, realFoes = []) {
     const list = standingMembers(members), out = [], seen = new Set();
@@ -79,24 +76,12 @@ export function memberGroups(members, realFoes = []) {
 }
 
 /**
- * The member fight's turn-order sentence: one entry per real group (its standing numbers in brackets), then the attacks
- * the reader faces each exchange. Party entries keep their turn-order places.
+ * The member fight's turn-order sentence: one entry per rolled group (its member numbers in brackets), then the attacks
+ * the reader faces each exchange. Down members remain in the group's shared roll; only standing members attack.
  */
 export function memberOrderLine(order, members, realFoes = []) {
-    const list = standingMembers(members), groups = memberGroups(list, realFoes), groupOf = new Map(groups.map(group => [group.group, group]));
-    const seen = new Set(), parts = [];
-    for (const item of (Array.isArray(order) ? order : [])) {
-        if (item?.party) { parts.push(item.name); continue; }
-        const slot = Number(item?.slot ?? String(item?.id ?? '').replace(/^f:/u, ''));
-        const member = list.find(entry => Number(entry?.slot) === slot);
-        const groupNumber = Number(member?.group);
-        if (!Number.isFinite(groupNumber) || seen.has(groupNumber)) continue;
-        const group = groupOf.get(groupNumber);
-        if (!group) continue;
-        seen.add(groupNumber);
-        const numbers = group.members.map(entry => Number(entry?.n)).filter(Number.isFinite);
-        parts.push(group.members.some(entry => entry?.pack) || !numbers.length ? group.label : `${group.label} (${numbers.join(', ')})`);
-    }
+    const list = standingMembers(members);
+    const parts = memberOrderEntries(order, members, realFoes).map(item => item.name).filter(Boolean);
     const attacks = list.reduce((sum, member) => sum + Math.max(0, Math.trunc(Number(member?.attacks) || 0)), 0);
     if (attacks) parts.push(`${attacks} ${attacks === 1 ? 'attack' : 'attacks'} on you each exchange`);
     return parts.length ? `Order: ${parts.join(' · ')}` : '';
