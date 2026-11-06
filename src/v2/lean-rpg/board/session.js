@@ -43,8 +43,6 @@ export function stageExchange(meta, state, actions) {
     return { session, preview };
 }
 
-// The old view imports this until its undo control is removed by its owner.
-export const undoExchange = undefined;
 
 /** Discard changes the next opening's seed; no staged rolls were written to the sheet. */
 export function discardBoard(meta) {

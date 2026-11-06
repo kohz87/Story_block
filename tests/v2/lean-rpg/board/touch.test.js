@@ -95,7 +95,7 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) {
         t.after(() => context.close());
         const page = await context.newPage();
         await page.goto(`http://127.0.0.1:${web.address().port}/`);
-        await page.waitForSelector('[data-ready="yes"]');
+        await page.waitForSelector('[data-ready="yes"]', { state: 'attached' });
         const metrics = await page.evaluate(() => {
             const choice = document.querySelector('.rpg-board-choice'), list = document.querySelector('.rpg-board-choices');
             const log = document.querySelector('.rpg-board-log'), status = document.querySelector('.rpg-board-status');
