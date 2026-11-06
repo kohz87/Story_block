@@ -333,7 +333,8 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const roll = diceOf(entry), pcDie = roll(), foeDie = roll();
         // (an area attack: the foe die already drawn is the first target's, one more for each other target. An old act has no group
         // and keeps drawing for every foe bar, as it always did; a grouped act draws only for its standing group.)
-        const areaBars = entry.area ? (entry.group === undefined ? foes : foes.filter(bar => standing(bar.id) && bar.foe.group === entry.group)) : [];
+        const areaBars = entry.area ? (entry.group === undefined ? foes
+            : foes.filter(bar => standing(bar.id) && (bar.foe.group ?? bar.at) === entry.group)) : [];
         const areaDice = areaBars.map((_, at) => (at === 0 ? foeDie : roll()));
         const me = bars.get(owner(entry));
         if (!standing(me.id)) return { idle: 'down' };

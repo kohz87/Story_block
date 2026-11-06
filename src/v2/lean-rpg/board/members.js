@@ -13,8 +13,10 @@ const hurtField = slot => `hurt${((num(slot) - 1) % 4) + 1}`;
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const held = (value, size) => clamp(num(value), 0, Math.max(0, num(size)));
 const isPack = foe => num(foe?.count) > MEMBER_CAP;
-const groupOf = foe => num(foe?.group ?? Math.floor(num(foe?.slot) / 10));
-const nOf = foe => (Number.isFinite(foe?.n) ? num(foe.n) : num(foe?.slot) % 10);
+const groupOf = foe => (Number.isInteger(foe?.group) ? num(foe.group)
+    : num(foe?.slot) >= 1 && num(foe?.slot) <= 4 ? num(foe.slot) : Math.floor(num(foe?.slot) / 10));
+const nOf = foe => (Number.isFinite(foe?.n) ? num(foe.n)
+    : num(foe?.slot) >= 1 && num(foe?.slot) <= 4 ? 1 : num(foe?.slot) % 10);
 const valueOf = foe => (Number.isFinite(foe?.value) ? foe.value : foe?.hurt);
 
 function valuesAt(values, slot) {
@@ -76,6 +78,7 @@ export function splitFoes(realFoes, { kept = null, maxOf } = {}) {
     for (const real of (Array.isArray(realFoes) ? realFoes : [])) {
         const group = num(real?.slot), count = num(real?.count), hurt = num(real?.hurt);
         if (!real?.filled || count <= 0 || hurt <= 0) continue;
+        if (count === 1) { out.push(real); continue; }
         const one = memberSize(real, maxOf), saved = keptAt(kept, group);
         if (isPack(real)) {
             const counts = packCounts(count), useSaved = saved?.length === counts.length;
@@ -93,7 +96,7 @@ export function splitFoes(realFoes, { kept = null, maxOf } = {}) {
                 levelled: true, size: one, hurt: value, count: 1, filled: true, member: true });
         }
     }
-    return out.sort((a, b) => a.group - b.group || a.n - b.n);
+    return out.sort((a, b) => groupOf(a) - groupOf(b) || nOf(a) - nOf(b));
 }
 
 function packBars(real, values, maxOf) {
@@ -109,7 +112,7 @@ export function collapseFoes(realFoes, values, { maxOf } = {}) {
     const out = [];
     for (const real of (Array.isArray(realFoes) ? realFoes : [])) {
         const group = num(real?.slot), count = num(real?.count), hurt = num(real?.hurt);
-        if (!real?.filled || count <= 0 || hurt <= 0) continue;
+        if (!real?.filled || count <= 0 || hurt <= 0 || count === 1) continue;
         let toCount = count, toHurt = 0;
         if (isPack(real)) {
             const standing = packBars(real, values, maxOf).filter(bar => bar.value > 0);
@@ -150,6 +153,7 @@ export function matchesBlock(members, realFoe) {
     const group = num(realFoe?.slot), count = num(realFoe?.count), hurt = num(realFoe?.hurt);
     if (count <= 0) return false;
     const mine = entriesOf(members).filter(member => groupOf(member) === group);
+    if (count === 1) return mine.some(member => num(valueOf(member)) === hurt);
     const packed = mine.some(member => member.pack === true || num(member.count) > 1);
     const original = packed ? mine.reduce((sum, member) => sum + Math.max(0, num(member.count)), 0) || count : mine.length || count;
     const values = new Map();
@@ -168,12 +172,13 @@ export function matchesBlock(members, realFoe) {
 /** The UI's virtual foe list: values override the bars rebuilt from the real block. */
 export function boardFoes(realFoes, values, { maxOf } = {}) {
     return splitFoes(realFoes, { maxOf }).map(foe => {
-        const value = held(valuesAt(values, foe.slot) ?? foe.hurt, foe.size), standing = value > 0;
+        const size = Number.isFinite(Number(foe.size)) ? num(foe.size) : memberSize(foe, maxOf);
+        const value = held(valuesAt(values, foe.slot) ?? foe.hurt, size), standing = value > 0;
         if (foe.pack) {
-            return { slot: foe.slot, group: foe.group, n: foe.n, name: foe.name, value, size: foe.size, pack: true, count: foe.count,
-                left: packLeft(foe.count, value, foe.size), attacks: packAttacks(foe.count, value, foe.size), standing };
+            return { slot: foe.slot, group: foe.group, n: foe.n, name: foe.name, value, size, pack: true, count: foe.count,
+                left: packLeft(foe.count, value, size), attacks: packAttacks(foe.count, value, size), standing };
         }
-        return { slot: foe.slot, group: foe.group, n: foe.n, name: foe.name, value, size: foe.size, pack: false, count: 1,
+        return { slot: foe.slot, group: groupOf(foe), n: nOf(foe), name: foe.name, value, size, pack: false, count: 1,
             left: standing ? 1 : 0, attacks: standing ? 1 : 0, standing };
     });
 }

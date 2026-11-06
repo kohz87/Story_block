@@ -75,7 +75,7 @@ test('the carried prompt includes recorded worn and broken gear at their exchang
     let found = false;
     for (let attempt = 0; attempt < 1000; attempt += 1) {
         openBoard(meta, state, { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 }, gear, weapons: { astra: slots.weapon } });
-        const staged = stageExchange(meta, state, [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, state, [{ who: 'Astra', kind: 'attack', target: 11 }]);
         const lines = staged.preview?.result?.rounds.flatMap(round => round.lines) ?? [];
         if (['act', 'foe'].every(kind => lines.some(line => line.kind === kind && line.outcome === 'fail' && line.decisive))) { found = true; break; }
         discardBoard(meta);

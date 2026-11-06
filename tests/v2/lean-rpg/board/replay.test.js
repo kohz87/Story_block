@@ -12,7 +12,7 @@ import { character, foeBlock, recordOf, rollReceipt, setup, skillBlock } from '.
 const FIGHT = {
     hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, stamina: 4 }) },
     skills: { role: 'skills', fields: skillBlock('Astra', [['Cut', 3, 'str', 'stamina', 'strike one foe']]) },
-    foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 3]]) },
+    foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 3]]) },
 };
 const RULES = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const ACTION = [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 1 }];
@@ -65,7 +65,7 @@ test('deleting an earlier pair keeps replay lookup and a repeated message gets a
             await host.send('Older.', 'An older reply.');
             const meta = host.ctx.chatMetadata;
             open(host);
-            const action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+            const action = [{ who: 'Astra', kind: 'attack', target: 11 }];
             assert.equal(stageExchange(meta, host.head(), action).error, undefined);
             await host.send('Strike.', 'Fight.');
             const first = rollReceipt(host, 4), rounds = structuredClone(first.data.v2.result.rounds), key = first.replan.payload.key;
@@ -102,7 +102,7 @@ test('rewinding a later segment restores its saved initiative', async () => {
     const blocks = { hero: { role: 'character', fields: character('Astra', { str: 3, agi: 15, vit: 20, health: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 8, 8, 5]]) } };
     const { host } = await setup({ blocks, board: true });
     try {
-        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 11 }];
         open(host);
         assert.equal(stageExchange(meta, host.head(), action).error, undefined);
         await host.send('First.', 'Fight.');
@@ -126,7 +126,7 @@ test('a rewind cannot reroll an already staged continuation', async () => {
     const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
     const { host } = await setup({ blocks, board: true });
     try {
-        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+        const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 11 }];
         open(host);
         stageExchange(meta, host.head(), action);
         await host.send('First.', 'Fight.');

@@ -113,15 +113,18 @@ export function playBoard(state, setup, exchanges) {
         return { error: 'The sheet or gear changed after the fight was rolled. Restore it or discard the fight.' };
     const copy = structuredClone(state), domain = copy.domains.dataModules, rules = setup.rules, limits = maxOf(domain);
     const startSheet = readSheet(copy), realFoes = setup.members === 1 ? startSheet.foes : null;
-    const virtualFoes = realFoes ? splitFoes(realFoes, { kept: setup.kept, maxOf: limits }) : null;
-    const values = virtualFoes ? new Map(virtualFoes.map(foe => [foe.slot, foe.hurt])) : null;
+    const boardFoeList = realFoes ? splitFoes(realFoes, { kept: setup.kept, maxOf: limits }) : null;
+    const split = Boolean(boardFoeList?.some(foe => Number.isInteger(foe.group)));
+    const values = split ? new Map(boardFoeList.filter(foe => Number.isInteger(foe.group)).map(foe => [foe.slot, foe.hurt])) : null;
     const rounds = [], opening = [], quickStart = [], idle = [], moved = new Map(), refused = [], wear = [];
     let order = setup.order ?? null, stop = 'open';
     for (const [at, choices] of exchanges.entries()) {
         if (stop !== 'open') return { error: 'The fight has already ended.' };
         const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
         const number = setup.offset + at + 1, sheet = applyGear(readSheet(copy), equipment.gear);
-        const fightSheet = virtualFoes ? { ...sheet, foes: virtualFoes.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) } : sheet;
+        const current = new Map(sheet.foes.map(foe => [foe.slot, foe]));
+        const fightSheet = boardFoeList ? { ...sheet, foes: boardFoeList.map(foe => (Number.isInteger(foe.group)
+            ? { ...foe, hurt: values.get(foe.slot) } : current.get(foe.slot) ?? foe)) } : sheet;
         const built = exchangePlan(fightSheet, choices?.actions, setup.flags, number);
         if (built.error) return { error: built.error };
         const source = boardDice(setup.seed, number), flee = built.flee ? fleeRoll(built.flee, sheet.foes, rules, source('flee', 0)) : null;
@@ -155,7 +158,7 @@ export function playBoard(state, setup, exchanges) {
     }
     let hurts = [...moved.values()].filter(hurt => hurt.from !== hurt.to);
     let members;
-    if (virtualFoes) {
+    if (split) {
         const collapsed = collapseMoves(realFoes, collapseFoes(realFoes, values, { maxOf: limits }), limits);
         const virtual = hurt => {
             const member = /^f:(\d+)$/u.exec(hurt.id);
@@ -163,7 +166,13 @@ export function playBoard(state, setup, exchanges) {
         };
         hurts = [...hurts.filter(hurt => !virtual(hurt)), ...collapsed];
         applyHurts(domain, collapsed);
-        members = boardFoes(realFoes, values, { maxOf: limits });
+        const shown = new Map(values);
+        for (const real of realFoes) {
+            if (Number.isInteger(real.group)) continue;
+            const movedReal = moved.get(`f:${real.slot}`);
+            shown.set(real.slot, movedReal?.to ?? real.hurt);
+        }
+        members = boardFoes(realFoes, shown, { maxOf: limits });
     }
     const result = { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
         summary: summaryStd([], rounds, refused) };

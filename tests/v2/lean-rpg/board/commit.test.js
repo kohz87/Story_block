@@ -72,7 +72,7 @@ test('editing a staged sheet holds generation until the original input is restor
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         assert.equal(staged.error, undefined);
         assert.equal((await host.sdk.command('test.set', { slug: 'hero', field: 'str', value: 20 })).ok, true);
         const blocked = await host.send('I strike.', 'Should not be sent.');
@@ -123,7 +123,7 @@ test('unequipping staged gear holds generation and restoring it keeps the rolls'
     const restore = seedCrypto(7), host = await gearHost();
     try {
         openWithGear(host);
-        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         const stack = Object.values(host.head().domains.inventory.stacks).find(item => item.equipped === 'weapon');
         assert.equal((await host.sdk.command('inventory.unequip', { stack: stack.id })).ok, true);
         const blocked = await host.send('I strike.', 'Should not be sent.');
@@ -144,7 +144,7 @@ test('a board prelude refused after another cue stops generation with a reason',
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         await host.sdk.registerModule({ id: 'change-before-fight', name: 'Change before fight', version: '1.0.0', hooks: {
             beforeGenerate: () => ({ commands: [{ type: 'test.set', payload: { slug: 'hero', field: 'str', value: 20 } }] }),
         } });
@@ -164,7 +164,7 @@ test('sheet edits and preview commits cannot change board inputs while the reply
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         const payload = { slug: 'hero', field: 'str', value: 20 };
         const preview = host.bus.preview('test.set', payload);
         assert.equal(preview.ok, true);
@@ -195,7 +195,7 @@ test('a non-reader command is not refused by the in-flight edit guard', async ()
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         host.st.addUser('I strike.');
         let aborted = false;
         await host.turn.interceptor([], 8192, () => { aborted = true; }, 'normal');
@@ -210,7 +210,7 @@ test('gear cannot be unequipped while a board reply is in flight', async () => {
     const restore = seedCrypto(84), host = await gearHost();
     try {
         openWithGear(host);
-        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         const stack = Object.values(host.head().domains.inventory.stacks).find(item => item.equipped === 'weapon');
         host.st.addUser('I strike.');
         await host.turn.interceptor([], 8192, () => assert.fail('the board should preflight'), 'normal');
@@ -234,7 +234,7 @@ test('a rebuilt sheet that changes during a reply invokes the stop callback and 
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         host.st.addUser('I strike.');
         let aborted = false;
         await host.turn.interceptor([], 8192, () => { aborted = true; }, 'normal');
@@ -260,7 +260,7 @@ test('a late input change holds the received reply until the sheet is restored',
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         host.st.addUser('I strike.');
         await host.turn.interceptor([], 8192, () => {}, 'normal');
         // The head changes without an event before the response arrives.
@@ -288,7 +288,7 @@ test('discarding a held fight allows the reply to be regenerated with the planne
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         host.st.addUser('I strike.');
         await host.turn.interceptor([], 8192, () => {}, 'normal');
         const edit = host.bus.run('test.set', { slug: 'hero', field: 'str', value: 20 }, { cause: 'system' });
@@ -307,7 +307,7 @@ test('a board reply applies its fight and its own sheet and equipment lines', as
     const restore = seedCrypto(88), host = await gearHost();
     try {
         openWithGear(host);
-        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         assert.equal(staged.error, undefined);
         host.st.addUser('I strike.');
         await host.turn.interceptor([], 8192, () => assert.fail('the board should preflight'), 'normal');
@@ -345,7 +345,7 @@ test('a held reply survives reload and captures its fight only after inputs are 
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         host.st.addUser('I strike.');
         await host.turn.interceptor([], 8192, () => assert.fail('the board should preflight'), 'normal');
         const edit = host.bus.run('test.set', { slug: 'hero', field: 'str', value: 20 }, { cause: 'system' });
@@ -380,7 +380,7 @@ test('after reload a held reply cannot read story lines before its fight', async
     const restore = seedCrypto(94), host = await gearHost();
     try {
         openWithGear(host);
-        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         host.st.addUser('I strike.');
         await host.turn.interceptor([], 8192, () => assert.fail('the board should preflight'), 'normal');
         const edit = host.bus.run('dm.set', { module: 'pack.chat/character', field: 'str', value: 8 }, { cause: 'ui' });
@@ -414,7 +414,7 @@ test('discarding a reloaded held fight requires regenerating its reply', async (
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]);
         host.st.addUser('I strike.');
         await host.turn.interceptor([], 8192, () => {}, 'normal');
         const edit = host.bus.run('test.set', { slug: 'hero', field: 'str', value: 20 }, { cause: 'system' });
@@ -439,7 +439,7 @@ test('a weapon breaking in one exchange changes later rolls, including across re
         const restore = seedCrypto(7), host = await gearHost();
         try {
             assert.equal(host.bus.command('gear.wear', { owner: 'party', slot: 'weapon', steps: 2 }, { cause: 'system' }).ok, true);
-            const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 1 }];
+            const meta = host.ctx.chatMetadata, action = [{ who: 'Astra', kind: 'attack', target: 11 }];
             let first;
             for (let attempt = 0; attempt < 200; attempt += 1) {
                 assert.equal(openWithGear(host).error, undefined);

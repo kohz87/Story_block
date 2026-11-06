@@ -94,8 +94,9 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     doc.key('1');
     assert.match(fight().textContent, /Choose a target/);
     const targets = [...fight().querySelectorAll('.rpg-board-choice')].map(node => node.textContent);
-    assert.ok(targets.some(text => /Rats \(Lv 1, /.test(text)), 'the target line names the foe, level and bar');
-    assert.ok(targets.some(text => /Spiders \(Lv 1, /.test(text)), 'every standing foe has a target line');
+    assert.ok(targets.some(text => /Rats 1\s+Unhurt/.test(text)), 'the target line names each standing member and its bar');
+    assert.ok(targets.some(text => /Rats 2\s+Unhurt/.test(text)), 'every standing member has a target line');
+    assert.ok(targets.some(text => /Spiders\s+Unhurt/.test(text)), 'a lone real foe in the mixed fight keeps its ordinary target line');
     const escape = { key: 'Escape', preventDefault() {}, stopImmediatePropagation() {}, stopPropagation() {} };
     doc.listeners.find(entry => entry.fn.name === 'keydown' && entry.capture).fn(escape);
     assert.match(fight().textContent, /choose an action/);
@@ -129,7 +130,7 @@ test('the board ends on a won card', async t => {
 test('the board ends on a lost card', async t => {
     const { doc, result } = await showStop(t, {
         character: { str: 3, agi: 3, vit: 3, health: 1 }, foes: [['Rats', 12, 99, 5]],
-        action: [{ who: 'Wessel', kind: 'attack', target: 1 }], stop: 'lost',
+        action: [{ who: 'Wessel', kind: 'attack', target: 11 }], stop: 'lost',
     });
     const fight = doc.querySelector('[data-ss-screen="story-block/fight"]');
     assert.equal(result.stop, 'lost');
@@ -167,7 +168,7 @@ for (const outcome of ['success', 'fail']) test(`the log labels a defence ${outc
     let result, defence;
     for (let attempt = 0; attempt < 200; attempt += 1) {
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        result = stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 1 }]).preview?.result;
+        result = stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 11 }]).preview?.result;
         defence = result?.rounds.flatMap(round => round.lines).find(line => line.kind === 'foe' && line.outcome === outcome);
         if (defence) break;
         discardBoard(meta);
@@ -176,7 +177,7 @@ for (const outcome of ['success', 'fail']) test(`the log labels a defence ${outc
     ui.mounts.screen.open('story-block/fight');
     await settle();
     const log = doc.querySelector('.rpg-board-log').textContent;
-    assert.match(log, new RegExp(`Rats attacks Wessel.*Wessel's defence: ${outcome.toUpperCase()}`));
+    assert.match(log, new RegExp(`Rats 1 attacks Wessel.*Wessel's defence: ${outcome.toUpperCase()}`));
     assert.match(log, /d20 \d+ [+-]\d+ = \d+ vs \d+/);
     assert.doesNotMatch(log, /(?:health|mana|stamina)\s+\d+\s*→\s*\d+/i);
     if (defence.damage) assert.ok(log.includes(`Wessel health ${stageWord(STAGES.health, defence.damage.from, defence.damage.size)} → ${stageWord(STAGES.health, defence.damage.to, defence.damage.size)}`));
@@ -208,7 +209,7 @@ test('a replacement choice stays locked after a roll, then accepts a later actio
     await makeBlocks(host, { character: { vit: 20 } });
     await defineFoes(host, [['Rats', 12, 3, 5]]);
     const meta = host.ctx.chatMetadata, state = host.head(), sid = host.store.carrierSid(host.store.headIndex());
-    const action = [{ who: 'Wessel', kind: 'attack', target: 1 }];
+    const action = [{ who: 'Wessel', kind: 'attack', target: 11 }];
     let found = false;
     for (let n = 0; n < 100; n += 1) {
         openBoard(meta, state, { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
@@ -238,7 +239,7 @@ test('a refused exchange keeps its reason on the board after the redraw', async 
     await makeBlocks(host, { character: { vit: 20 } });
     await defineFoes(host, [['Rats', 12, 3, 5]]);
     const meta = host.ctx.chatMetadata, state = host.head(), sid = host.store.carrierSid(host.store.headIndex());
-    const action = [{ who: 'Wessel', kind: 'attack', target: 1 }];
+    const action = [{ who: 'Wessel', kind: 'attack', target: 11 }];
     let found = false;
     for (let n = 0; n < 100; n += 1) {
         openBoard(meta, state, { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
@@ -308,7 +309,7 @@ test('a staged fight remains discardable when its opening reply no longer matche
     await defineFoes(host, [['Rats', 3, 3, 5]]);
     const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
     openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-    stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 1 }]);
+    stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 11 }]);
     boardSession(meta).anchor = 'missing-reply';
     ui.mounts.screen.open('story-block/fight');
     await settle();
@@ -326,7 +327,7 @@ test('a changed sheet leaves discard and its confirmation on the board', async t
     await defineFoes(host, [['Rats', 3, 3, 5]]);
     const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
     openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-    assert.equal(stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 1 }]).error, undefined);
+    assert.equal(stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 11 }]).error, undefined);
     assert.equal((await host.sdk.command('dm.set', { module: blocks.character, field: 'str', value: 12 })).ok, true);
     ui.mounts.screen.open('story-block/fight');
     await settle();
@@ -345,7 +346,7 @@ test('the reloaded board explains a held reply and lets the reader discard it', 
     await defineFoes(host, [['Rats', 3, 3, 5]]);
     const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
     openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-    stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 1 }]);
+    stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 11 }]);
     host.st.addUser('I strike.');
     await host.turn.interceptor([], 8192, () => assert.fail('the fight should preflight'), 'normal');
     const edit = host.bus.run('dm.set', { module: blocks.character, field: 'str', value: 12 }, { cause: 'ui' });
@@ -385,7 +386,7 @@ test('the next attack choice loses a weapon that broke in the staged exchange', 
     let result = null;
     for (let attempt = 0; attempt < 200; attempt += 1) {
         openBoard(meta, state, { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 }, gear, weapons: { wessel: weapon } });
-        const staged = stageExchange(meta, state, [{ who: 'Wessel', kind: 'attack', target: 1 }]);
+        const staged = stageExchange(meta, state, [{ who: 'Wessel', kind: 'attack', target: 11 }]);
         if (staged.preview?.result.stop === 'open' && staged.preview.result.wear?.some(event => event.to === 'broken')) { result = staged; break; }
         discardBoard(meta);
     }

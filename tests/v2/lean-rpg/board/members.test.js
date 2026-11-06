@@ -81,13 +81,11 @@ test('the SPEC table splits rats, level-60 wolves and forty gnashers into packs'
     assert.deepEqual(packs.map(pack => packAreaBlocks(pack.size, false)), [3, 3, 3, 3]);
 });
 
-test('splitFoes names members, keeps a lone name plain, skips Down groups, resumes kept bars and sorts', () => {
+test('splitFoes names members, leaves a lone real foe unchanged, skips Down groups, resumes kept bars and sorts', () => {
     const boars = splitFoes([realFoe({ count: 3, hurt: 4 })]);
     assert.deepEqual(boars.map(foe => foe.name), ['Bristle-boar 1', 'Bristle-boar 2', 'Bristle-boar 3']);
-    const lone = splitFoes([realFoe({ count: 1, name: 'Bristle-boar' })])[0];
-    assert.equal(lone.name, 'Bristle-boar');
-    assert.equal(lone.member, true);
-    assert.equal(lone.n, 1);
+    const single = realFoe({ count: 1, name: 'Bristle-boar' }), lone = splitFoes([single])[0];
+    assert.deepEqual(lone, single, 'count 1 is not split and keeps its real slot and fields');
     assert.deepEqual(splitFoes([realFoe({ count: 3, hurt: 0 })]), []);
     assert.deepEqual(splitFoes([realFoe({ count: 0 })]), []);
     assert.deepEqual(splitFoes([realFoe({ filled: false })]), []);
@@ -167,4 +165,10 @@ test('boardFoes builds member cards and each pack card with its own count, left 
     assert.equal(down.standing, false);
     assert.equal(down.left, 0);
     assert.equal(down.attacks, 0);
+    const mixed = boardFoes([realFoe({ slot: 1, count: 2, hurt: 4 }), realFoe({ slot: 2, name: 'Spiders', count: 1, hurt: 4 })],
+        map([[11, 2], [12, 2]]));
+    assert.deepEqual(mixed.map(card => [card.slot, card.group, card.n, card.name, card.value, card.size, card.standing]), [
+        [11, 1, 1, 'Bristle-boar 1', 2, 4, true], [12, 1, 2, 'Bristle-boar 2', 2, 4, true],
+        [2, 2, 1, 'Spiders', 4, 4, true],
+    ], 'a lone real foe shares the list with split members');
 });

@@ -92,7 +92,7 @@ test('a fight split over two replies pays both groups once and replays after a s
     const blocks = {
         hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, stamina: 4, level: 1 }) },
         skills: { role: 'skills', fields: skillBlock('Astra', [['Cut', 3, 'str', 'stamina', 'strike one foe']]) },
-        foes: { role: 'foes', fields: levelFoeBlock([['Rats', 2, 1, 1], ['Spiders', 3, 1, 1]]) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Rats', 1, 1, 1], ['Spiders', 1, 1, 1]]) },
     };
     const { host, callModel } = await setup({ blocks, board: true });
     try {
@@ -122,14 +122,14 @@ test('a fight split over two replies pays both groups once and replays after a s
         const practice = () => host.head().domains.dataModules.instances['pack.chat/skills'].chat.fields.practice1;
         const xp = () => host.head().domains.dataModules.instances['pack.chat/hero'].chat.fields.xp;
         assert.equal(practice(), (usedOne + usedTwo) * 3);
-        assert.equal(xp(), memberXp([{ count: 2, level: 1 }, { count: 3, level: 1 }], 1));
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1));
         assert.ok(xp() > 0, 'the won fight pays XP');
         await host.swipe('A different telling.');
         assert.equal(practice(), (usedOne + usedTwo) * 3);
-        assert.equal(xp(), memberXp([{ count: 2, level: 1 }, { count: 3, level: 1 }], 1));
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1));
         assert.equal((await host.turn.reread(4)).ok, true);
         assert.equal(practice(), (usedOne + usedTwo) * 3);
-        assert.equal(xp(), memberXp([{ count: 2, level: 1 }, { count: 3, level: 1 }], 1));
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1));
         assert.equal(callModel.calls.length, 0);
 
         const finalRounds = JSON.stringify(rollReceipt(host, 4).data.v2.result.rounds);
@@ -139,7 +139,7 @@ test('a fight split over two replies pays both groups once and replays after a s
         assert.equal(xp(), 0, 'a rewind takes back the win award');
         await host.regenerate('The fight ends again.');
         assert.equal(practice(), (usedOne + usedTwo) * 3, 'the replayed win gives practice once');
-        assert.equal(xp(), memberXp([{ count: 2, level: 1 }, { count: 3, level: 1 }], 1), 'the replayed win gives XP once');
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1), 'the replayed win gives XP once');
         assert.equal(JSON.stringify(rollReceipt(host, 4).data.v2.result.rounds), finalRounds, 'the rewind replay keeps the rounds');
         assert.equal(callModel.calls.length, 0);
         assert.equal(recordOf(host, 4).receipts.filter(receipt => receipt.type === 'rpg.fight').length, 1);

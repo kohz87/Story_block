@@ -10,6 +10,7 @@ import { skillFlags, skillKey } from './flags.js';
 const find = (entries, name, field) => entries.find(entry => fold(entry[field]) === fold(name));
 const standing = character => character.alive !== false && character.health !== 0;
 const up = foe => foe.filled && foe.hurt > 0;
+const groupOf = foe => (Number.isInteger(foe?.group) ? foe.group : foe?.slot);
 const isEmpty = (name) => `${name} is Empty`;
 const flagsFor = (flags, actor, skill) => flags?.[skillKey(actor.module, skill)];
 
@@ -52,12 +53,12 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1) {
         let target = null, group;
         if (area) {
             if (grouped) {
-                const groups = [...new Set(foes.map(foe => foe.group))];
+                const groups = [...new Set(foes.map(groupOf))];
                 const chosen = Number.isInteger(action.group) ? action.group
-                    : Number.isInteger(action.target) ? foes.find(foe => foe.slot === action.target)?.group
+                    : Number.isInteger(action.target) ? groupOf(foes.find(foe => foe.slot === action.target))
                         : groups.length === 1 ? groups[0] : null;
                 if (!Number.isInteger(chosen)) return { error: 'Choose a group for that area skill.' };
-                target = foes.find(foe => foe.group === chosen);
+                target = foes.find(foe => groupOf(foe) === chosen);
                 group = chosen;
             } else target = foes[0];
         } else target = foes.find(foe => foe.slot === action.target);
