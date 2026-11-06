@@ -48,9 +48,8 @@ export function resolveBoard(ctx, payload) {
     const claimId = claim(key, ctx.reply?.sid);
     if (!ctx.claim(claimId)) ctx.fail('CLAIMED', 'This message has already been rolled for.');
     const base = played.result, practice = practiceOf(payload.practice) ?? PRACTICE.perUse;
-    const opened = board.setup.members === 1 && Array.isArray(board.setup.opened) && board.setup.opened.length ? structuredClone(board.setup.opened) : null;
     const result = { v: 1, key, pace: 'careful', rules, flow: 2, fix: 3, practice, ...(hasLevels(rules) ? { lv: LV_VERSION } : {}),
-        ...(gear ? { gear } : {}), checks: structuredClone(board.setup.approach ?? []), ...base, ...(opened ? { opened } : {}),
+        ...(gear ? { gear } : {}), checks: structuredClone(board.setup.approach ?? []), ...base,
         board: { id: board.id, seed: board.setup.seed, offset: board.setup.offset, groups: board.groups } };
     if (gear) {
         const wear = wearGear(ctx, gear, { opening: result.opening, rounds: result.rounds, rules, condWord });
@@ -62,7 +61,7 @@ export function resolveBoard(ctx, payload) {
     ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate,
         inputHash: ctx.hash({ source: ctx.source, predicate, witness: witness(state) }) }, { key, board, practice });
     if (result.hurts.length) applyHurts(ctx.draft('dataModules'), result.hurts);
-    return { summary: settledNote(result), narrate: true, replan: true, data: { v2: { key: claimId, result } } };
+    return { summary: settledNote(result, board.setup), narrate: true, replan: true, data: { v2: { key: claimId, result } } };
 }
 
 /** The prefix witness for a board roll. Changed inputs cause the host to plan it again. */

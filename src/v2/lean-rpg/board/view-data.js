@@ -61,8 +61,8 @@ export function memberPackLine(member) {
     return `About ${left} left · ${attacks} ${attacks === 1 ? 'attack' : 'attacks'} each exchange`;
 }
 
-const memberBaseName = (member, realFoe) => String(realFoe?.name ?? member?.name ?? '')
-    .replace(/ pack \d+$/u, '').replace(/ \d+$/u, '');
+const memberBaseName = (member, realFoe) => String(realFoe?.name ?? String(member?.name ?? '')
+    .replace(/ pack \d+$/u, '').replace(/ \d+$/u, ''));
 const pluralName = name => (!name ? '' : /s$/iu.test(name) ? name : `${name}s`);
 
 /** The standing real-slot groups, each with the display name an area asks for. */

@@ -1,8 +1,7 @@
 // Board-only roll hooks for member and pack attacks, area damage and shared defence.
-// The standing-target marker keeps earlier member-fight receipts on their recorded rotation.
 import { packAreaBlocks, packAttacks } from './members.js';
 
-export function memberRolls(plan, { standingTargets = false } = {}) {
+export function memberRolls(plan) {
     const rotation = Array.isArray(plan.rotation?.targets) && plan.rotation.targets.length ? plan.rotation : null;
     const defended = new Map();
     let cursor = 0;
@@ -30,7 +29,7 @@ export function memberRolls(plan, { standingTargets = false } = {}) {
             let entry = base, advance = 1;
             if (Array.isArray(choices)) for (let skipped = 0; skipped < rotation.targets.length; skipped += 1) {
                 const candidate = choices[(cursor + skipped) % rotation.targets.length] ?? base;
-                if (!standingTargets || standing(candidate.actor)) { entry = candidate; advance += skipped; break; }
+                if (standing(candidate.actor)) { entry = candidate; advance += skipped; break; }
             }
             const first = entry.once === true ? defended.get(entry.actor) : undefined;
             const use = first === true ? { ...entry, paid: true } : entry;

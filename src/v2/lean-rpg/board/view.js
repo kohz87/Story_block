@@ -269,7 +269,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         }
         const details = h(doc, 'details', 'rpg-board-note');
         details.appendChild(h(doc, 'summary', '', 'What the narrator will be told'));
-        details.appendChild(h(doc, 'p', '', settledNote(played.result)));
+        details.appendChild(h(doc, 'p', '', settledNote(played.result, session.setup)));
         panel.appendChild(details);
         root.appendChild(panel);
         log.scrollTop = log.scrollHeight;

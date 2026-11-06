@@ -142,7 +142,7 @@ export function playBoard(state, setup, exchanges) {
             stop = 'fled';
             continue;
         }
-        const hooks = members ? memberRolls(built.plan, { standingTargets: setup.standingTargets === 1 }) : null;
+        const hooks = members ? memberRolls(built.plan) : null;
         const prepared = prepareStandard(built.plan, fightSheet, rules, { maxOf: limits, lv: hasLevels(rules), fix: true, then: true, memberRolls: hooks });
         weaponSides(prepared, fightSheet, equipment.weapons);
         const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, memberRolls: hooks, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
@@ -188,9 +188,8 @@ export function playBoard(state, setup, exchanges) {
         const fightSheet = { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) };
         order = openingOrder(copy, setup, fightSheet, rules);
     }
-    const opened = members && Array.isArray(setup.opened) && setup.opened.length ? structuredClone(setup.opened) : null;
     const result = { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
-        ...(opened ? { opened } : {}), summary: summaryStd([], rounds, refused) };
+        summary: summaryStd([], rounds, refused) };
     if (members) result.members = boardFoes(realFoes, values, { maxOf: limits, carried: setup.carriedMembers });
     return { state: copy, result };
 }

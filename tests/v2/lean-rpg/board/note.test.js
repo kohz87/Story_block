@@ -31,9 +31,9 @@ test('a fight without members keeps the settled note byte for byte', () => {
 });
 
 test('new foes say whether they fight alone or as a pack', () => {
-    const note = settledNote({ stop: 'open', members: [{}], opened: [
+    const note = settledNote({ stop: 'open', members: [{}], rounds: [] }, { opened: [
         { name: 'Bristle-boar', count: 3, level: 1 }, { name: 'Cellar-rat', count: 12, level: 2 },
-    ], rounds: [] });
+    ] });
     assert.match(note, /New foes: Bristle-boar ×3 \(Lv 1\), each fought on its own, Cellar-rat ×12 \(Lv 2\), fought as a pack\./);
 });
 

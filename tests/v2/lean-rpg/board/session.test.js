@@ -67,11 +67,11 @@ test('OPENING_NOTE: the preview names the new foes, and the next segment does no
     const meta = { rpgFightStart: { anchor: 'reply-1', result: { opened } } };
     const first = openBoard(meta, value, { sid: 'reply-1', rules: RULES });
     assert.equal(first.error, undefined, first.error);
-    assert.match(settledNote(first.preview.result), /New foes: Rats ×3 \(Lv 1\), each fought on its own\./);
+    assert.match(settledNote(first.preview.result, first.session.setup), /New foes: Rats ×3 \(Lv 1\), each fought on its own\./);
     const staged = stageExchange(meta, value, action.actions);
     assert.equal(staged.error, undefined, staged.error);
     assert.equal(staged.preview.result.stop, 'open');
-    assert.match(settledNote(staged.preview.result), /New foes:/, 'the staged preview and its committed note agree');
+    assert.match(settledNote(staged.preview.result, staged.session.setup), /New foes:/, 'the staged preview and its committed note agree');
 
     const payload = { key: 'b:first', board: { id: first.session.id, anchor: 'reply-1', groups: first.session.groups,
         setup: structuredClone(staged.session.setup), exchanges: structuredClone(staged.session.exchanges) } };
@@ -80,7 +80,7 @@ test('OPENING_NOTE: the preview names the new foes, and the next segment does no
     assert.equal(Object.hasOwn(nextSetup, 'opened'), false);
     const next = playBoard(value, nextSetup, []);
     assert.equal(next.error, undefined, next.error);
-    assert.doesNotMatch(settledNote(next.result), /New foes:/, 'the next segment has only its own note');
+    assert.doesNotMatch(settledNote(next.result, nextSetup), /New foes:/, 'the next segment has only its own note');
 });
 
 test('NEW4: a real-host opening ambush rewind restores its context and restages the same fight', async t => {
@@ -131,7 +131,7 @@ test('NEW4: a real-host opening ambush rewind restores its context and restages 
     const edge = result => result.rounds[0]?.lines.find(line => line.kind === 'act')?.pc.edge;
     assert.equal(edge(restaged.preview.result), edge(before), 'the ambush edge is not applied twice');
     assert.deepEqual(restaged.preview.result.checks, before.checks, 'the approach check is unchanged');
-    assert.deepEqual(restaged.preview.result.opened, before.opened, 'the same New foes are named');
+    assert.match(settledNote(restaged.preview.result, restaged.session.setup), /New foes: Rats ×3/, 'the same New foes are named');
 });
 
 test('NEW4: an ordinary opening with no prior carry restages its first segment unchanged', () => {

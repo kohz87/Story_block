@@ -1,6 +1,6 @@
 // Makes the narrator's settled account from the board's recorded lines.
 // Every outcome and every bar movement is included, even in a long fight; one line is told as one
-// [Happened] cue and is never cut. It reads the result only, so the preview and the receipt agree.
+// [Happened] cue and is never cut. Opening names come from the recorded setup for both preview and receipt.
 
 import { BATTLE_MARKER, STAGES, stageWord } from '../names.js';
 import { MEMBER_CAP, packLeft } from './members.js';
@@ -34,9 +34,9 @@ function lineNote(line, members = null) {
     return `${action}: ${verdict}${line.decisive ? ', decisive' : ''}${changes.length ? `; ${changes.join('; ')}` : ''}`;
 }
 
-function newFoesNote(result) {
-    if (!Array.isArray(result.members) || !Array.isArray(result.opened) || !result.opened.length) return '';
-    const foes = result.opened.filter(entry => entry && clean(entry.name) && Number.isInteger(entry.count) && entry.count > 0).map(entry => {
+function newFoesNote(result, setup) {
+    if (!Array.isArray(result.members) || !Array.isArray(setup?.opened) || !setup.opened.length) return '';
+    const foes = setup.opened.filter(entry => entry && clean(entry.name) && Number.isInteger(entry.count) && entry.count > 0).map(entry => {
         const list = entry.count >= 2 && entry.count <= MEMBER_CAP ? ', each fought on its own' : entry.count > MEMBER_CAP ? ', fought as a pack' : '';
         return `${clean(entry.name)} ×${entry.count}${Number.isInteger(entry.level) ? ` (Lv ${entry.level})` : ''}${list}`;
     });
@@ -44,12 +44,12 @@ function newFoesNote(result) {
 }
 
 /** A compact but complete list of settled outcomes and changes, followed by the fight's status. */
-export function settledNote(result) {
+export function settledNote(result, setup = null) {
     const lines = [result.fromApproach ? 'Tell the approach, then the settled fight results in order; do not reroll them.' : 'Tell the settled fight results in order; do not reroll them.',
         `Write ${BATTLE_MARKER} on its own line where the fight is told.`,
         'Code has already moved the bars for these results; never set those yourself.'];
     const members = new Map((Array.isArray(result.members) ? result.members : []).filter(entry => Number.isInteger(entry?.slot)).map(entry => [entry.slot, entry]));
-    const newFoes = newFoesNote(result);
+    const newFoes = newFoesNote(result, setup);
     if (newFoes) lines.push(newFoes);
     for (const line of result.opening ?? []) lines.push(`Opening: ${lineNote(line, members)}.`);
     const wear = Array.isArray(result.wear) ? result.wear : [], included = new Set();

@@ -1,12 +1,24 @@
-// The Standard formula's rolls: formula.js supplies the numbers and resolve.js dispatches the recorded rules here.
-// Typed rolls combine stats, class or level, skill and edge; fights carry initiative, opening actions and Health bars.
-// A beaten actor cannot act, area attacks roll once per target, and support rolls against a difficulty.
-// Lines record both sides, outcome, decisive hits and damage; the result also records order, opening, idle and hurts.
-// Each pc side carries its die, main and second stats, class, rank, luck window, edge and total; a foe side carries
-// its slot, name, die, base, class and total. A damage record names the bar, blocks, from, to and size.
-// Order entries retain each actor's initiative, die and bonus; quickStart names each leading character and foe.
-// Idle entries say who could not act and why; hurts contain the field moves applied after the roll.
-// resolve.js writes the told bar movements. Optional board hooks add member rules without changing planner rolls.
+// The Standard formula's roll (formula.js has the numbers; resolve.js dispatches here when the recorded rules say `formula: 'standard'`).
+//
+// What is different from Classic (resolve.js):
+// - a roll is typed: physical, magic, defence, social or check (plan.js). The stat part is formula.js statPart: a skill's stat takes the
+//   main slot, half of the type's second stat is added, the sum is halved once. Class = the level bonus (floor(level / divisor); before levels classWeight × Soul Class), then the skill's rank,
+//   then the situation's edge held inside LUK's window (formula.js luckWindow, edgeWithLuck).
+// - a foe adds foeBonus(class, rules) = foeBase + foeClassWeight × class.
+// - a fight has a turn order (rolled once, kept across replies, carried in the payload), an opening action for a character who leads a
+//   foe by the quick-start margin, and bars: a hit takes 1 block (2 when decisive) from the target's Health, a heal gives 1 (2). A foe
+//   group or a character who is beaten before their turn does not act. Area attacks roll once against each target. Support rolls
+//   against a difficulty.
+// - the blocks the told rolls take or give are recorded on the roll (`hurts`) and written to the bars by resolve.js.
+//
+// The record (extends resolve.js's): result.formula 'standard'; each Line has `type`, and pc = { who, die, type, stat (the main stat),
+// second, mainValue, secondValue, statBonus (the pair), style ('dodge'|'block'|'ward'|null), classValue, classBonus, rank, window { min, max } (what LUK allows the edge),
+// situation (the edge asked for), edge (after luck), total }, foe = { slot, name, die, base, classValue, classBonus, total }; contested lines
+// have `decisive` and, where a bar moved, `damage` = { id, kind: 'char'|'foe', name, blocks (+ hurt, − healed), from, to, size };
+// `area`, `support` (target = the one healed) and `opening` mark those lines. The result adds `order` = [{ id, name, total, die, bonus,
+// agi, party, fresh }] (the turn order for the fight), `quickStart` = [{ who, against }], `opening` = [Line], `idle` = [{ n, id, who,
+// kind, why }] and `hurts` = [{ id, kind, name, module, field, from, to, size }].
+// Optional board member hooks add pack attacks, area damage, target rotation and shared defence.
 import { ambushOf, ambushRecord, ambushedStandard } from './ambush.js';
 import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, levelBonus, luckWindow, quickStart, statPart, turnOrder } from './formula.js';
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
@@ -14,6 +26,7 @@ import { matchCharacter, matchFoe, matchSkill } from './read.js';
 import { fitCue, hurtsOf } from './cue.js';
 import { foeBlocksByLevel } from './foes.js';
 import { classTerm, hasLevels } from './rules.js';
+import { prepareFoes } from './standard-foes.js';
 
 const DIE = FORMULA.die;
 const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
@@ -181,27 +194,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
                 ...(later ? { then: later } : {}), foe: foeSide(foe) });
         }
     }
-    const preparedFoe = (entry, target, skillName, at, { note = true } = {}) => {
-        const foe = sheet.foes.find(slot => slot.slot === entry.slot && slot.filled);
-        const label = `${foe?.name ?? `Foe ${entry.slot}`} attacks ${target}`;
-        if (!foe) { if (note) refuse(`foe${entry.slot}`, `${label}: not rolled (that foe slot is empty).`); return null; }
-        const defender = ready(target);
-        if (defender.refusal) { if (note) refuse(target, `${label}: not rolled (${defender.refusal}).`); return null; }
-        const skill = skillStd(defender.character, skillName, {});
-        const { side, check } = skillSide(defender.character, skill, 'defence', { againstMagic: entry.againstMagic === true });
-        if (check.refusal) { if (note) refuse(target, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); return null; }
-        if (skill.refused && note) refuse(target, skill.refused, skill.refusedPlain);
-        return { at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...(entry.paid === true ? { paid: true } : {}),
-            ...(entry.once === true ? { once: true } : {}),
-            ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: foeSide(foe) };
-    };
-    for (const [at, entry] of (plan.foes ?? []).entries()) {
-        if (entry.hold) continue;
-        const base = preparedFoe(entry, entry.target, entry.skill, at);
-        if (!base) continue;
-        out.foes.push(base);
-        memberRolls?.prepareFoe(out, entry, base, at, preparedFoe);
-    }
+    prepareFoes({ plan, out, sheet, ready, refuse, skillStd, skillSide, withSkill, foeSide, charId, memberRolls });
     for (const [at, entry] of (plan.checks ?? []).entries()) {
         const actor = ready(entry.who);
         const label = `${entry.who} — ${entry.skill ?? entry.fit?.toUpperCase() ?? entry.stat?.toUpperCase() ?? 'check'}`;

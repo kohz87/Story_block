@@ -1,7 +1,6 @@
 // Board-specific Standard hooks keep pack damage, attack counts and shared defence out of the roll engine.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { memberRolls } from '../../../../src/v2/lean-rpg/board/member-rolls.js';
@@ -56,7 +55,7 @@ test('an idle attack neither advances the rotation nor pays defence', () => {
 
 test('skipping a fallen defender keeps the cyclic order of the survivors', () => {
     const guards = ['a', 'b', 'c'].map(target => ({ target }));
-    const hooks = memberRolls({ rotation: { number: 1, targets: guards } }, { standingTargets: true });
+    const hooks = memberRolls({ rotation: { number: 1, targets: guards } });
     const choices = guards.map(({ target }) => ({ at: 0, actor: target, once: true }));
     const prepared = { foeChoices: [choices] }, standing = new Set(['a', 'b', 'c']), targets = [];
     const roll = entry => { targets.push(entry.actor); return { lines: [{}] }; };
@@ -78,7 +77,7 @@ test('attacks keep rotating among standing party members after one falls during 
     const base = readSheet({ domains: { dataModules: sheetDomain(blocks) } });
     const sheet = { ...base, foes: splitFoes(base.foes), characters: base.characters.map((actor, at) => ({ ...actor, health: at ? 8 : 1 })) };
     const plan = exchangePlan(sheet, sheet.characters.map(actor => ({ who: actor.who, kind: 'attack', target: 11 })), {}, 1, { members: true }).plan;
-    const rules = { ...STANDARD_FORMULA, levelDivisor: 5 }, hooks = memberRolls(plan, { standingTargets: true });
+    const rules = { ...STANDARD_FORMULA, levelDivisor: 5 }, hooks = memberRolls(plan);
     const prepared = prepareStandard(plan, sheet, rules, { lv: true, fix: true, then: true, memberRolls: hooks });
     const source = (kind, at) => {
         const dice = kind === 'foe' ? (at === 0 ? [1, 20] : [20, 1]) : [];
@@ -93,7 +92,7 @@ test('attacks keep rotating among standing party members after one falls during 
     assert.deepEqual(lines.slice(1).map(line => line.cost ? [line.cost.from, line.cost.to] : null), [[4, 3], null]);
 });
 
-test('the standing-target rule is recorded in new fights and prior member receipts replay exactly', () => {
+test('new member fights rotate among standing targets, replay and continue without a rule flag', () => {
     const blocks = {
         hero: { role: 'character', fields: character('Astra', { vit: 20, health: 8, stamina: 4 }) },
         ally: { role: 'character', fields: character('Ren', { vit: 20, health: 1, stamina: 4 }) },
@@ -104,20 +103,16 @@ test('the standing-target rule is recorded in new fights and prior member receip
     const state = { domains: { dataModules: sheetDomain(blocks) } }, rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
     const setup = { seed: 2, offset: 0, rules, members: 1 };
     const exchanges = [{ actions: [{ who: 'Astra', kind: 'attack', target: 11 }, { who: 'Ren', kind: 'attack', target: 11 }] }];
-    const old = playBoard(state, setup, exchanges);
-    assert.equal(createHash('sha256').update(JSON.stringify(old)).digest('hex'), 'c99f8db6d2aecbd6f11e3f3fe39e8b4b1afd777f02b264a1529bc54fa5f1f328');
-    assert.deepEqual(old.result.rounds[0].lines.filter(line => line.kind === 'foe').map(line => line.pc.who), ['Ren', 'Astra']);
-
     const meta = {}, opened = openBoard(meta, state, { sid: 'origin', rules });
-    assert.equal(opened.session.setup.standingTargets, 1);
-    const freshSetup = { ...setup, standingTargets: opened.session.setup.standingTargets };
+    assert.equal(Object.hasOwn(opened.session.setup, 'standingTargets'), false);
+    const freshSetup = setup;
     const fresh = playBoard(state, freshSetup, exchanges);
     assert.deepEqual(fresh.result.rounds[0].lines.filter(line => line.kind === 'foe').map(line => line.pc.who), ['Ren', 'Astra', 'Astra']);
     assert.deepEqual(playBoard(state, freshSetup, exchanges), fresh, 'the recorded rule replays the same result');
     const board = { ...opened.session, setup: freshSetup, exchanges };
     assert.equal(fresh.result.stop, 'open');
     assert.equal(receiveBoard(meta, { key: 'b:origin', board }, fresh.result, 'reply-1', 'receipt-1', fresh.state), true);
-    assert.equal(meta.rpgFightBoard.setup.standingTargets, 1, 'the rule carries into the next segment');
+    assert.equal(Object.hasOwn(meta.rpgFightBoard.setup, 'standingTargets'), false, 'the next segment needs no rule flag');
 });
 
 test('the shared Standard roll engine stays within its 480-line budget', () => {

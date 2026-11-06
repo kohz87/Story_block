@@ -45,7 +45,7 @@ test('the reply resolver commits exactly the staged exchange and refuses a dupli
     } finally { host.close(); }
 });
 
-test('a new members setup records its opened foes; an old setup records neither new field', async () => {
+test('the opening is named from the setup without recording it on the board result', async () => {
     const blocks = { hero: { role: 'character', fields: character('Astra') }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
     const { host } = await setup({ blocks });
     try {
@@ -55,7 +55,8 @@ test('a new members setup records its opened foes; an old setup records neither 
             setup: { seed: 24, offset: 0, rules, members: 1, opened },
         } }, { cause: 'system' });
         assert.equal(made.ok, true, made.message);
-        assert.deepEqual(made.receipt.data.v2.result.opened, opened);
+        assert.equal(Object.hasOwn(made.receipt.data.v2.result, 'opened'), false);
+        assert.match(made.receipt.summary, /New foes: Rats ×2 \(Lv 1\), each fought on its own\./);
         const old = host.bus.run('rpg.resolve', { key: '7-abc', board: {
             id: 'old-open', groups: [1], exchanges: [], setup: { seed: 24, offset: 0, rules },
         } }, { cause: 'system' });

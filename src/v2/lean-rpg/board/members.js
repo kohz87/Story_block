@@ -115,7 +115,7 @@ export function splitFoes(realFoes, { carried = null, maxOf } = {}) {
 /** The exact bars a committed result records as the next segment's carried state. */
 export function carriedFrom(members) {
     const values = {}, counts = {};
-    for (const member of entriesOf(members)) {
+    for (const member of (Array.isArray(members) ? members : [])) {
         const group = groupOf(member), slot = Number.isInteger(member?.slot) ? member.slot : virtualSlot(group, nOf(member) || 1);
         const value = Number(valueOf(member));
         if (!Number.isFinite(group) || !Number.isFinite(value)) continue;
@@ -141,11 +141,6 @@ export function collapseFoes(realFoes, values, { maxOf } = {}) {
         const group = num(real?.slot), count = num(real?.count), hurt = num(real?.hurt);
         if (!real?.filled || count <= 0 || hurt <= 0) continue;
         let toCount = count, toHurt = 0;
-        if (count === 1) {
-            toHurt = held(valuesAt(values, group) ?? valuesAt(values, virtualSlot(group, 1)), memberSize(real, maxOf));
-            out.push({ slot: group, module: real.module, count: { from: count, to: count }, hurt: { from: hurt, to: toHurt } });
-            continue;
-        }
         if (isPack(real)) {
             const standing = packBars(real, values, maxOf).filter(bar => bar.value > 0);
             if (standing.length) {
@@ -161,12 +156,6 @@ export function collapseFoes(realFoes, values, { maxOf } = {}) {
         out.push({ slot: group, module: real.module, count: { from: count, to: toCount }, hurt: { from: hurt, to: toHurt } });
     }
     return out;
-}
-
-function entriesOf(members) {
-    if (Array.isArray(members)) return members;
-    if (members instanceof Map) return [...members].map(([slot, value]) => ({ slot, value }));
-    return [];
 }
 
 /** The UI's virtual foe list: values override the bars rebuilt from the real block. */

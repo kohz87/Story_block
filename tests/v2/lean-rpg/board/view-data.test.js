@@ -24,6 +24,15 @@ test('standing groups keep real-slot order, drop all-Down groups, and collapse t
     assert.equal(memberOrderLine(order, members, foes), 'Order: Astra · Bristle-boars (1, 3) · 2 attacks on you each exchange');
 });
 
+test('real foe names keep trailing numbers while virtual suffixes are removed', () => {
+    const trolls = [member(11, 1, 4, { name: 'Troll 2 1' }), member(12, 2, 4, { name: 'Troll 2 2' })];
+    assert.equal(memberGroups(trolls, [{ slot: 1, name: 'Troll 2' }])[0].label, 'Troll 2s');
+    assert.equal(memberGroups(trolls)[0].label, 'Troll 2s');
+    const packs = [member(11, 1, 4, { name: 'Troll 2 pack 1', pack: true })];
+    assert.equal(memberGroups(packs, [{ slot: 1, name: 'Troll 2' }])[0].label, 'Troll 2s');
+    assert.equal(memberGroups(packs)[0].label, 'Trolls');
+});
+
 test('a pack reads as one group and an area skill offers groups only when several stand', () => {
     const pack = { slot: 31, group: 3, n: 1, name: 'Cellar-rats', value: 5, size: 8, pack: true, count: 12, left: 8, attacks: 2, standing: true };
     assert.deepEqual(memberGroups([pack], [{ slot: 3, name: 'Cellar-rats' }]).map(group => group.label), ['Cellar-rats']);

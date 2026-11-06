@@ -9,7 +9,8 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 
 - `src/v2/lean-rpg/board/session.js`: opens, stages, discards and reconciles the metadata session, saves the last payload, keeps the Send copy (`markSend`, `readSend`, `clearSend`) and the `rpgFightLinks` message links.
 - `src/v2/lean-rpg/board/members.js`: splits a foe slot of 2–5 into numbered members and 6+ into even packs of at most 12 (bar, attacks, "about N left", area blocks), and collapses their final bars to ordinary count/hurt moves. A count of 1 is never split.
-- `src/v2/lean-rpg/board/member-rolls.js`: supplies new-board hooks for pack attacks and area damage, target rotation and defence paid once per exchange; a setup marker preserves earlier rotations on replay.
+- `src/v2/lean-rpg/standard-foes.js`: prepares Standard foe attacks and optional alternate member-fight defenders.
+- `src/v2/lean-rpg/board/member-rolls.js`: supplies new-board hooks for pack attacks and area damage, rotation among standing targets and defence paid once per exchange.
 - `src/v2/lean-rpg/board/engine.js`: plays the setup and exchanges on a private state copy and checks their input witness; in a new fight (`setup.members: 1`) it runs split groups as virtual foes and collapses them only when the fight ends.
 - `src/v2/lean-rpg/board/plan.js`: validates member actions and makes a Standard plan with foe actions and automatic defence (a new fight: one attack per member, pack attacks, an area scoped to one group, defence paid once per exchange).
 - `src/v2/lean-rpg/board/rules.js`: picks the attack stat and the best usable defence skill.
@@ -17,11 +18,11 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/dice.js`: derives the fight seed and each exchange's independent dice stream.
 - `src/v2/lean-rpg/board/flags.js`: infers skill flags from wording and keys explicit choices.
 - `src/v2/lean-rpg/board/overrides.js`: declares `rpg.boardSkill` and keeps reply-owned explicit flags.
-- `src/v2/lean-rpg/board/commit.js`: replays and guards the board prelude, claims once and writes hurts and wear.
+- `src/v2/lean-rpg/board/commit.js`: replays and guards the board prelude, claims once and writes member results, hurts and wear.
 - `src/v2/lean-rpg/board/note.js`: builds the settled account and word-based bar movements.
 - `src/v2/lean-rpg/board/awards.js`: selects the opening foe groups for one win award.
-- `src/v2/lean-rpg/board/view-data.js`: builds choices, target labels and pending awards.
-- `src/v2/lean-rpg/board/view.js`: renders the board, keyboard handling and in-page discard confirmation.
+- `src/v2/lean-rpg/board/view-data.js`: builds choices, member groups and target labels, and pending awards.
+- `src/v2/lean-rpg/board/view.js`: renders the board, member and pack cards, keyboard handling and in-page discard confirmation.
 - `src/v2/lean-rpg/board/skill-editor.js`: draws the three checkboxes in the skill editor.
 - `src/v2/lean-rpg/board/board.css`: provides the touch layout and sizing.
 - `src/v2/lean-rpg/board/offers.js`, `offer-line.js`, `start-view-data.js`: find the opening reply and draw its offer line (the Fight tab alert is the `badge` in `view/fight.js`).
@@ -92,7 +93,6 @@ the approach checks earn practice and a successful ambush applies to the first e
 ## Decisions
 
 - Foe members (owner 6 Nov, mockup 29BShyZ8z7niWqttc3kcCH): a new fight (`setup.members: 1`) gives 2–5 foes their own bars and attacks and fights 6+ as packs of at most 12 (bar = one foe's bar + count ÷ 3, at most 12; attacks = 1 + count ÷ 6, at most 3, thinning with the bar and capped at its turn; an area hit takes a third of a pack's bar). Each real slot keeps one initiative die. The automatic defence is paid once per exchange and covers every attack. An area skill hits one picked group. XP is unchanged and paid from the original counts on a win. Within one fight the exact bars carry across replies (`setup.carriedMembers`, restored on rewind); split groups are written to the Foes block only when the fight ends (count = foes standing, health = the healthiest). A later, separate fight rebuilds from the block. Setups without `members` and the planner path are unchanged (standard.js hooks are no-ops for them).
-
 - Exchanges are final once rolled; Discard fight confirms before clearing the unsent fight and changes its
   next seed. A message sent mid-fight carries the exchanges already played and the fight stays open.
 - A changed sheet or gear holds a staged fight until restored or discarded. The board is offered only under
@@ -110,7 +110,6 @@ the approach checks earn practice and a successful ambush applies to the first e
 ## Test map
 
 - `members.test.js`, `members-fight.test.js`, and the member cases in `engine`, `plan`, `session`, `awards`, `view`, `view-data`, `standard`, `state-fuzz` and `delete-fuzz` tests: splitting, packs, carry and rewind, collapse, XP, pay-once defence, group area, pack attack cap, opening order and byte-identical old fights.
-
 - `awards.test.js` covers batched practice, the per-skill cap, swipe and Re-read, and XP across a split fight.
 - `commit.test.js` covers staged versus committed results, claims, gear wear, story lines during capture,
   reader edits in flight, and held-reply restore/discard after reload. `view.test.js` covers the hold notice.
