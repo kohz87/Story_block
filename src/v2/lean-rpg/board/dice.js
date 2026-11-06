@@ -1,5 +1,5 @@
 // Fixed streams for the board: a fight seed and exchange number select its dice.
-// Opening, undo and replay all ask for the same stream without advancing shared state.
+// Opening and replay ask for the same stream without advancing shared state.
 // The seeded generator is the host's existing dice source.
 
 import { rng } from '../../rng.js';
