@@ -44,7 +44,7 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 - `tests/*.test.js`: `id.test.js`, `text.test.js` (the helpers kept in `src/`). `tests/v2/`: v2 tests; `qa/` (fuzz, ownership, security, prompt layout),
   `break/` (one file per break finding, named after the finding id), `domains/`, `packs/`, `view/`, `screens/`, `ux/`.
 - `docs/v2/`: the specs (below). `docs/dev/`: short area notes for agents.
-- Every other source file: `docs/dev/codemap.md` (one line each).
+- Source files not named in the other docs: `docs/dev/codemap.md` (one line each).
 
 ## Commands
 

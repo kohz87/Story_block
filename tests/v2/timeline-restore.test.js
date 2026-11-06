@@ -419,18 +419,47 @@ test('participants that cannot switch leave the restore committed and the barrie
     assert.equal(native.native.calls.filter(call => call.name === 'activate' && !call.fail).length >= 2, true);
 });
 
-test('a missing checkpoint during a committed restore is reported and recovery preserves the journal', async t => {
+for (const failure of ['aborted', 'conflict', 'not-found']) {
+    test(`a committed restore waits quietly on participant ${failure} until it recovers`, async t => {
+        let failing = false;
+        const { host, saved } = await story(t, { configure(module) {
+            const status = module.def.participant.status;
+            const activate = module.def.participant.activate;
+            module.def.participant.status = input => {
+                const answer = status(input);
+                return failing && failure === 'aborted' && answer.ok ? { ...answer, status: 'aborted' } : answer;
+            };
+            module.def.participant.activate = input => failing && failure === 'conflict'
+                ? { ok: false, code: 'CONFLICT', message: 'other checkpoint' }
+                : failing && failure === 'not-found' ? { ok: false, code: 'NOT_FOUND', message: 'nothing prepared' } : activate(input);
+        } });
+        const head = await host.sdk.timeline.head();
+        const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+        failing = true;
+        assert.equal((await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash })).status, 'participants-pending');
+        const status = await host.sdk.timeline.status();
+        assert.equal(status.state, 'pending');
+        assert.equal(status.blockedBy, null);
+        assert.deepEqual(host.turn.problems(NATIVE), []);
+        assert.deepEqual(host.st.notices, []);
+        failing = false;
+        assert.equal((await host.timeline.host.recover()).state, 'idle');
+        assert.deepEqual(host.turn.problems(NATIVE), []);
+    });
+}
+
+for (const code of ['SNAPSHOT_UNAVAILABLE', 'NOT_FOUND']) test(`a missing checkpoint (${code}) during a committed restore is reported and recovery preserves the journal`, async t => {
     let missing = false;
     const { host, native, saved } = await story(t, { configure(module) {
         const activate = module.def.participant.activate;
-        module.def.participant.activate = input => missing ? { ok: false, code: 'SNAPSHOT_UNAVAILABLE', message: 'checkpoint file returned 404' } : activate(input);
+        module.def.participant.activate = input => missing ? { ok: false, code, message: 'checkpoint file returned 404' } : activate(input);
     } });
     const head = await host.sdk.timeline.head();
     const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
     missing = true;
     assert.equal((await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash })).status, 'participants-pending');
     const status = await host.sdk.timeline.status();
-    assert.deepEqual(status.blockedBy, { module: NATIVE, code: 'SNAPSHOT_UNAVAILABLE' });
+    assert.deepEqual(status.blockedBy, { module: NATIVE, code });
     assert.match(status.reason, /404.*backup.*original chat/);
     assert.equal(host.turn.problems(NATIVE).at(-1).toast, true);
     const sent = await host.send('Please continue.', 'Not sent.');

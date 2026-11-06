@@ -212,6 +212,35 @@ test('a send reports an existing block without waiting for a newly hung recovery
     assert.equal((await host.timeline.host.recover()).state, 'idle');
 });
 
+test('blocked sends and a retry timer share an in-flight recovery', { timeout: 3000 }, async t => {
+    let mode = 'fail';
+    let attempts = 0;
+    let finish;
+    const { host } = await setup(t, { timers: true, customize(module) {
+        const prepare = module.def.participant.prepare;
+        module.def.participant.prepare = input => {
+            attempts += 1;
+            return mode === 'fail' ? { ok: false, code: 'FAILED', message: 'temporarily unavailable' }
+                : mode === 'hang' ? new Promise(resolve => { finish = () => resolve(prepare(input)); }) : prepare(input);
+        };
+    } });
+    await host.st.deleteMessage(4);
+    assert.equal(attempts, 1);
+    mode = 'hang';
+    for (let i = 0; i < 3; i += 1) assert.equal((await host.send(`Waiting ${i}.`, 'Not sent.')).aborted, true);
+    for (let i = 0; i < 40 && !finish; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(attempts, 2);
+    assert.equal(host.turn.problems(null).filter(item => item.code === 'RESTORE_PENDING').length, 1);
+    assert.equal(host.st.notices.length, 1);
+    await tick(t, RETRY_SCHEDULE_MS[0]);
+    assert.equal(attempts, 2, 'the scheduled retry shares the held recovery');
+    mode = 'ready';
+    finish();
+    await tick(t, 0);
+    assert.equal((await host.sdk.timeline.status()).state, 'idle');
+    assert.equal(attempts, 2, 'no second recovery was queued');
+});
+
 test('alternating transient participant failures use one retry budget and eventually warn', async t => {
     let attempts = 0;
     const { host } = await setup(t, { timers: true, customize(module) {

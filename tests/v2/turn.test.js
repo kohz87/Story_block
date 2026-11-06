@@ -51,6 +51,64 @@ const stored = (host, index) => host.ctx.chat[index].extra.storySuite;
 const items = host => host.head().domains.inventory.items;
 const systemText = request => request.chat.filter(message => message.role === 'system').map(message => message.content).join('\n---\n');
 
+test('a healthy interceptor does not settle the timeline or move the barrier', async t => {
+    const host = await fakeHost();
+    t.after(() => host.close());
+    await host.st.addUser('Hello.');
+    let settles = 0;
+    const timeline = {
+        settle() { settles += 1; host.registry.setRestore('pending', 'Unexpected barrier.'); },
+        needsRecovery: () => false,
+    };
+    const turn = createTurn({ ctx: host.ctx, store: host.store, bus: host.bus, registry: host.registry, settings: host.settings, timeline });
+    let aborted = false;
+    await turn.interceptor([], 8192, () => { aborted = true; }, 'normal');
+    assert.equal(settles, 0);
+    assert.equal(host.registry.restore().state, 'idle');
+    assert.equal(aborted, false);
+    assert.ok(turn.session());
+    turn.uninstall({ globalName: null });
+});
+
+test('repeated blocked sends share a recovery and tell the reader once per barrier', async t => {
+    const host = await fakeHost();
+    t.after(() => host.close());
+    await host.st.addUser('Keep this.');
+    const notices = [];
+    let attempts = 0;
+    let finish;
+    const timeline = {
+        settle() {},
+        needsRecovery: () => true,
+        recover() { attempts += 1; return new Promise(resolve => { finish = resolve; }); },
+    };
+    const turn = createTurn({ ctx: host.ctx, store: host.store, bus: host.bus, registry: host.registry, settings: host.settings, timeline,
+        notify: reason => notices.push(reason) });
+    host.registry.setRestore('pending', 'Waiting for records.');
+    let aborted = 0;
+    const send = () => turn.interceptor([], 8192, () => { aborted += 1; }, 'normal');
+    await send();
+    await send();
+    await send();
+    assert.equal(aborted, 3);
+    assert.equal(attempts, 1);
+    assert.equal(notices.length, 1);
+    assert.equal(turn.problems(null).filter(item => item.code === 'RESTORE_PENDING').length, 1);
+    host.registry.setRestore('idle');
+    host.registry.setRestore('pending', 'Another restore.');
+    await send();
+    assert.equal(attempts, 1, 'the earlier recovery is still running');
+    assert.equal(notices.length, 2, 'a new barrier gets its own notice');
+    assert.equal(turn.problems(null).filter(item => item.code === 'RESTORE_PENDING').length, 2);
+    finish();
+    await Promise.resolve();
+    await send();
+    assert.equal(attempts, 2, 'a finished recovery can be tried again');
+    assert.equal(notices.length, 2);
+    finish();
+    turn.uninstall({ globalName: null });
+});
+
 test('install empties the v1 keys and both slots; the interceptor sets both for an ordinary reply', async () => {
     const host = await fakeHost();
     const keys = Object.fromEntries(host.st.promptLog.slice(0, V1_KEYS.length).map(entry => [entry.key, entry]));

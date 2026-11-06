@@ -62,7 +62,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         barrierEarly: false,  // raised by `settle` as the chat opened, before its recovery had its turn (not by a running operation)
         hideFailed: new WeakSet(),  // chats (by their holder) where a faded message could not be hidden or shown
         witnessHashes: new WeakMap(),
-        block: null,  // what keeps the open chat's participants off the selected head: { holder, module, code, message, permanent, gaveUp, tries, reported } (session only)
+        block: null,  // the open chat's participant wait or failure (session only)
         retryTimer: null,  // the timer of the next try of a transient block (session only)
     };
     const archive = createArchive({ metadata, touch: () => store.touch?.(), bound: () => s.scope?.holder ?? null });
@@ -96,6 +96,18 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const run = s.busy.then(() => scoped(fn, holder), () => scoped(fn, holder));
         s.busy = run.then(() => {}, () => {});
         run.then(() => bump(holder, -1), () => bump(holder, -1));
+        return run;
+    };
+    // Recovery requested by a send, module setup or a retry timer shares the same work for this chat.
+    // An explicit host recovery keeps its own turn: the host may have fixed the cause since an earlier try started.
+    const recovering = new Map();
+    const recoverOnce = () => {
+        const holder = archive.holder();
+        if (recovering.has(holder)) return recovering.get(holder);
+        const run = exclusive(() => guarded(() => recover()));
+        recovering.set(holder, run);
+        const clear = () => { if (recovering.get(holder) === run) recovering.delete(holder); };
+        run.then(clear, clear);
         return run;
     };
     const guarded = async fn => {
@@ -186,7 +198,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     // The native half (coordinator-native.js), wired first of the halves: it needs `headNow`, `head`, `release`, `availability`, `makeNow` and
     // `unmaterializedMarkers` from the halves wired after it, and gets each as a function that reads it when it is called (none runs before the last wiring).
     // The blocked selection (coordinator-block.js): classifies a participant's failure, retries a transient one on a timer, tells a permanent one.
-    const block = createBlock(s, { archive, registry, problem, raise, again: () => exclusive(() => guarded(() => recover())) });
+    const block = createBlock(s, { archive, registry, problem, raise, again: recoverOnce });
     const { selectionPlan, withWholePrefixes, nativeSelectionProblem, selectionNeeded, selectHead, finishSelection, prefixKey, publishRestore, finishNative, pin, nativeEvent, register, attach, guard, contract, makeCommand } = createNative(s, { store, registry, activeHistory, archive, ask, block, availability: modules => availability(modules), brokenProblem, callParticipant, durable, exclusive, guarded, head: () => head(), headNow: () => headNow(), here, makeNow: (input, options) => makeNow(input, options), participants, pendingNow, point, pointsOf, raise, release: id => release(id), session, stillHere, unmaterializedMarkers: () => unmaterializedMarkers() });
     // The reading half (coordinator-read.js), wired once everything it calls is defined (the native half, above, is the last it needs).
     const { settle, release, reconcile, minuteOf, sceneOf, headNow, head, listNow, list, status, activeLine, syncHidden, history } = createRead(s, { block, store, registry, chat, barrier, problem, redraw, archive, participants, durable, here, ask, pointsOf, pendingEntry, pendingNow, raise, nativeSelectionProblem, selectionNeeded, selectHead, withWholePrefixes });
@@ -246,7 +258,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         attach,
         guard,
         makeCommand,
-        recover: () => exclusive(() => guarded(() => recover())),
+        recover: recoverOnce,
         /** A chat was opened: what belongs to the one before it is dropped (the host calls it before it recovers). */
         settle,
         available: hash => archive.hasPayload(hash),

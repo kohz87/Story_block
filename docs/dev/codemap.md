@@ -1,4 +1,4 @@
-This map covers files under `src/` that are not already named by path or file name in the repository's other documentation.
+This map covers files under `src/` that are not named by path or file name in the other repository documentation.
 Files already mapped elsewhere are listed in `CLAUDE.md`, `AI-README.md`, `README.md`, and `docs/**/*.md`.
 Last checked: 2026-11-07.
 

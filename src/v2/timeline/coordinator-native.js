@@ -49,9 +49,9 @@ export function createNative(s, deps) {
     function withWholePrefixes(fn) {
         const was = registry.restore();
         if (was.state !== 'pending') return fn();
-        registry.setRestore('idle', '');
+        registry.setRestore('idle', '', { temporary: true });
         try { store.lifecycleChanged?.(); return fn(); }
-        finally { registry.setRestore(was.state, was.reason); store.lifecycleChanged?.(); }
+        finally { registry.setRestore(was.state, was.reason, { temporary: true }); store.lifecycleChanged?.(); }
     }
     const selectionNeeded = () => hashJson(selectionPlan()) !== hashJson(archive.selection());
 
