@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 const { OWNER, PARTY, PLAN_ANSWER, fakeModel, sheetDomain } = await import('../../../tests/v2/lean-rpg/helpers.js');
 const { createHost } = await import('../../../testkit/index.js');
 const { LEAN_RPG_FEATURE, RESOLVE, createLeanRpgPart } = await import('../../../src/v2/lean-rpg/index.js');
+const { CORE_FEATURE } = await import('../../../src/v2/features.js');
 
 test('a query run from a command sees the roll cue as the receipt summary, as sdk.query does', async () => {
     const callModel = fakeModel(PLAN_ANSWER);
@@ -12,7 +13,7 @@ test('a query run from a command sees the roll cue as the receipt summary, as sd
     const rolls = (_state, _args, tools) => (tools.receipts() ?? []).map(e => e.receipt).filter(r => r.type === RESOLVE).map(r => r.summary);
     const module = {
         id: OWNER, name: 'probe', version: '0.0.1',
-        features: [{ id: LEAN_RPG_FEATURE, label: 'RPG', describe: 'Test.', default: false }],
+        features: [{ id: LEAN_RPG_FEATURE, label: 'RPG', describe: 'Test.', default: false }, { id: CORE_FEATURE.fightBoard, label: 'Fight board', describe: 'Test.', default: false }],
         domains: { dataModules: { initial: () => sheetDomain(PARTY()) } },
         commands: { ...part.commands, 'probe.cmd'(ctx) { const seen = ctx.query('probe.rolls', {}); return { summary: 'probe', narrate: false, data: { seen } }; } },
         queries: { ...part.queries, 'probe.rolls': rolls },

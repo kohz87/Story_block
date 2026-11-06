@@ -66,6 +66,8 @@ The story decides how much money and how many items a reply gives; there is no p
 
 The optional RPG adds a party sheet, automatic dice for fights and checks, and levels and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
 
+With the RPG on, the Fight tab can also offer a **fight board**: choose each character's action for an exchange, tap or number-key it, and the code rolls the result at once. Undo an exchange until you send; sending tells the played fight and leaves an unfinished one open. The board is the **Fight board** switch under **Settings → Features**. Off, the ordinary planner path is exactly as before.
+
 ## Removing Story Block from a chat
 
 Story Block keeps change lists inside hidden reply comments and removes them from prompts while it runs. To continue a chat with Story Block switched off, add a SillyTavern regex script under **Extensions → Regex → New global script**:

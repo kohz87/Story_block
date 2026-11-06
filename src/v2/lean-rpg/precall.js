@@ -22,6 +22,8 @@ import { dropOf } from './ambush.js';
 import { readSheet } from './read.js';
 import { plannerWanted } from './gate.js';
 import { SOUL_LABEL, soulShortOf } from './soul.js';
+import { readRecord } from '../persist.js';
+import { boardPayload, boardSession, lastBoard, priorBoard, receiveBoard, reconcileBoard } from './board/session.js';
 
 // The query that names a level's rank (LV-C: `rpg.rank { level }` → `{ name } | null`); without it a level has no rank.
 const RANK_QUERY = 'rpg.rank';
@@ -183,7 +185,7 @@ export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === 
  * chatId() → the open chat's id, hold (plan.js createPlanHold), problem(entry) (the turn's Problems list), moduleId,
  * timeoutMs (the planner's limit in ms; none: the setting Settings → RPG → Rolls → Planner time limit, read at each call), timer, skip { peek() → whether the next reply is to go out with no dice, clear() } (start.js: "Send without the RPG for now") }. Returns { beforeGenerate(view, info) → { commands, lines? } | { lines } | null, afterCapture(view) }.
  */
-export function createPrecall({ callModel, chat, chatId, hold, problem = null, moduleId = 'story-block', timeoutMs, timer, skip: noDice = { peek: () => false, clear: () => {} } }) {
+export function createPrecall({ callModel, chat, chatId, metadata = () => null, hold, problem = null, moduleId = 'story-block', timeoutMs, timer, skip: noDice = { peek: () => false, clear: () => {} } }) {
     // The planner's limit in ms: the one the part was given (tests), else the setting of this moment.
     const limitOf = values => plannerLimitMs(values, timeoutMs);
     const skip = (sheet, failure, key) => {
@@ -244,7 +246,6 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         if (!['normal', 'regenerate', 'swipe'].includes(normalizeType(info?.type))) return null;
         // The reader chose to send the first message without the RPG: that reply has no dice (the flag goes when the reply is captured).
         if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
-        if (readSettings(view, moduleId)[ROLLS_SETTING] === 'off') return null;
         const sheet = readSheet(view.state);
         if (!sheet.characters.length) return null;
         // The reader's message: the last one for a send or a regenerate, the one before the reply for a swipe.
@@ -257,6 +258,18 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         if (!text) return null;
         const key = `${index}-${hashText(text)}`;
         if (claimed(view.state, key)) return null;
+        if (view?.feature?.('story-block.fight-board') === true) {
+            let meta = null;
+            try { meta = metadata(); } catch { /* no board without chat metadata */ }
+            const type = normalizeType(info?.type), previous = type === 'swipe' ? priorBoard(messages[index + 1], key) : null;
+            const remembered = type === 'regenerate' ? lastBoard(meta, key) : null;
+            const anchorRecord = readRecord(messages[index - 1]);
+            let session = boardSession(meta);
+            if (session?.anchor === anchorRecord?.sid) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
+            const board = previous?.board ?? remembered?.board ?? (session?.anchor === anchorRecord?.sid ? boardPayload(session) : null);
+            if (board) return { commands: [{ type: RESOLVE, payload: { key, board, practice: previous?.practice ?? remembered?.practice ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } }] };
+        }
+        if (readSettings(view, moduleId)[ROLLS_SETTING] === 'off') return null;
         const where = String(chatId() ?? '');
         // The numbers the dice are rolled with are fixed here, from the settings of this moment, and travel in the payload: the roll
         // (and every Re-read of it) uses these, whatever the settings say later (rules.js).
@@ -300,5 +313,14 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         noDice.clear();
     }
 
-    return { beforeGenerate, afterCapture };
+    function afterReceive(info = {}) {
+        const record = readRecord((chat() ?? [])[info.index]);
+        const receipt = record?.receipts?.findLast(item => item?.type === RESOLVE && item.replan?.payload?.board);
+        if (!receipt) return;
+        let meta = null;
+        try { meta = metadata(); } catch { return; }
+        receiveBoard(meta, receipt.replan.payload, receipt.data?.v2?.result, record.sid, receipt.id);
+    }
+
+    return { beforeGenerate, afterCapture, afterReceive };
 }

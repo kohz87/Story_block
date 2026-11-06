@@ -40,6 +40,23 @@ character who gets an opening action against a foe (a quick start). Under it are
 or its pencil, to set the foe's health from Down to Unhurt, the same way as on the Party card), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
 reply that was rolled. **See it in the story** closes the game view and scrolls the chat to that reply.
 
+### The fight board
+
+The board is on by default; turn **Fight board** off under **Settings → Features** to use the planner as before. When a foe
+is standing, the Fight tab offers **Fight on the board**. Choose one numbered line for each standing party member: Attack with
+the equipped weapon, a skill with one target or every foe in reach, or Flee. Tap a line or press its number; when there is
+more than one foe group, choose the target next, or press Esc to go back. A line that cannot be used stays visible with its
+reason. Defence is automatic: the best usable defence skill, else the plain defence roll. Foes act by code.
+
+The bars stay above a scrolling battle log, and the next choices stay at the bottom on a phone. **Undo last exchange** takes
+back only choices not yet sent. **Discard fight** asks first and gives the next opening a new seed. The end card says won,
+lost or fled and explains that the next message carries the fight. The folded note shows what the narrator will be told.
+
+When you send while exchanges are played, they become that reply's settled rolls: the narrator tells them first, then your
+own action, and an unfinished fight stays open with its current bars. The planner is not called while a board fight is open.
+A swipe of the narrated reply keeps the same fight, seed and actions; Re-read, reload, rewind, regenerate and a middle delete
+replay the same result. A won fight pays its XP once; open, lost and fled fights pay none.
+
 With the Standard formula a foe group's health bar has `4 + floor(level/30)` blocks (levels 1 to 29 give 4, 30 to 59 give 5, 60 to 89 give 6, 90 to 99 give 7) and reads
 "Scratched · 5 of 6"; the battle log shows the recorded turn order with its totals (`Turn order: Wessel 21 > Weir-drake 18`), the
 quick start and its opening action, "<who> does not act: beaten before its turn" for a group or character beaten before its turn
@@ -226,8 +243,10 @@ shows its name, its rank, the stat and resource it uses, what it does, a mastery
 the next one filling as practice grows; its colour follows the rank (Novice grey, Adept blue, Expert purple, Master green).
 Empty slots show a dashed line and are filled when the story has the character learn a skill.
 
-The pencil on a skill fixes its name or what it does, and nothing else: rank and practice only move through play (a swipe takes
-them back), and a skill's stat and resource are fixed by its Skills block.
+The pencil on a skill fixes its name or what it does, and, while the fight board is on, its three optional board choices:
+**One foe**, **Every foe in reach** and **Automatic defence**. The defaults come from the skill's words (for example, a
+description saying "every foe" sets area); the choices are stored on the reply that saved them, so a swipe or delete takes
+the edit back. Rank and practice only move through play, and a skill's stat and resource are fixed by its Skills block.
 
 ## Stage bars
 

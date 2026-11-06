@@ -33,6 +33,10 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 - `src/v2/screens/`: the host's own screens (home, inventory, scene, changes card, inspector, save points).
 - `src/v2/ui-host.js`, `src/v2/host-ui.js`: page furniture (bar, panel, drawer) and the settings folds (`src/v2/host-ui/`: field controls, wording, sent-size figures, tab host; host-ui.js keeps its exports); `src/v2/view/settings/`: the settings window (shell, sections, search).
 - `src/v2/extras.js`, `extras-ui.js`: display kinds `? choice` and `~ chatter`.
+- `src/v2/lean-rpg/`: the optional Lean RPG, its sheet readers, planner, rolls, views and templates. `lean-rpg/board/` is the
+  reader-controlled fight board: staging and replay in `session.js`, preview/replay in `engine.js`, guards in `commit.js`,
+  pure choices in `plan.js`/`rules.js`/`flee.js`, flags in `flags.js`/`overrides.js`, the narrator note in `note.js`, and its
+  view, data and styles in `view.js`, `view-data.js` and `board.css`.
 - `src/v2/rewind.js`, `reply-notes.js`, `diagnostics.js`: rewinds and save points, per-reply notes, Diagnostics fold.
 - `testkit/`: fake SillyTavern (`createFakeContext`) and a whole host on it (`createHost`); vendored by modules.
 - `scripts/`: `check.mjs` (syntax), `sync-testkit.mjs`, `bench-v2.mjs` / `bench-long.mjs` (PERFORMANCE.md).
@@ -69,7 +73,8 @@ Full suite: about 2,100 tests, 1.5–3 minutes. Skills in `.claude/skills/`: `ru
    via a Feature or a setting. Tail additions short and within budget (SPEC §5).
 5. **Every optional mechanic is a Feature (F100):** `features: [{ id, label, describe, default }]`, tag kinds,
    commands, queries, context, hooks and screens with `feature:`; check `ctx.feature(id)` where needed.
-6. **Story-driven:** no buttons for story actions (F95/F96); bag-management buttons are fine.
+6. **Story-driven:** no buttons for story actions (F95/F96), except the fight board (F129: the reader chooses their own
+   character's actions and code rolls them); bag-management buttons are fine.
 7. **No markup or script from text:** use templates and widgets; names flattened; cut by code points.
 8. **Tests for every rule,** run once after the fix (no before/after runs on old code). `npm test` and
    `npm run check` green; docs (SPEC/GUIDE/MODULES/PACKS) updated with behaviour.
@@ -98,7 +103,7 @@ Full suite: about 2,100 tests, 1.5–3 minutes. Skills in `.claude/skills/`: `ru
   branch `claude/hopeful-babbage-tipaw8` (README.md, WAVE_BRIEF.md, V2_LOG.md newest at the end).
 
 Area notes in `docs/dev/`: `capture-and-reread.md`, `saves-and-persist.md`, `prompt-and-context.md`,
-`ui-and-screens.md`, `packs.md`.
+`ui-and-screens.md`, `packs.md`, `fight-board.md`.
 
 ## Known traps
 

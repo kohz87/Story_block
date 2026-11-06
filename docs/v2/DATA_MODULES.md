@@ -323,7 +323,8 @@ Persist only under `state.domains.dataModules`, owned by Story Block:
 { pins: { definitionHash: { definition, packId, packVersion, packHash, interpreter: 1 } },
   active: { moduleId: { hash, generation, subjects } },
   instances: { moduleId: { chat: instance OR characters: { canonicalActorId: instance } } },
-  perReply: { sourceKey: { roots, visits, actions } } }
+  perReply: { sourceKey: { roots, visits, actions } },
+  boardFlags: { sid: { entryId: { id, key, flags, rev } } } }
 instance = { fields, timers, offers, settled }
 ```
 
@@ -339,6 +340,12 @@ message indices. Subjects/offers are maps by canonical key, not positional list 
 `perReply` is declared scratch, written/pruned by Source key with SPEC's replay rules; it is not
 created by inspection or an empty hook. `.view` returns `{chat: fields}` or `{characters: [...]}`
 with canonical IDs/names and flattened fields; `.public` returns only the named export's fields.
+
+`boardFlags` is also scratch and belongs only to Story Block's Fight board. Each entry is written by
+`rpg.boardSkill` on the reply whose Skill editor saved it; `flags` is `{ target, area, defence }`, and
+`key` identifies the Character block, slot and skill name ignoring case and spacing. Reads take the
+latest `rev` for each key. A newer edit may use keyed removes for older entries of that skill; replay
+never depends on a list position, and deleting the newer reply brings the older explicit choice back.
 
 Capture order: parse/resolve → validate pin, dependencies, labels and budget → settle timers on
 a draft → check/choose template values → kind effects → rules → validate every touched domain →

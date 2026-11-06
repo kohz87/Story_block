@@ -126,6 +126,7 @@ export const CORE_FEATURES = Object.freeze([
     // The mounts: on; the grammar line and the narrator's line are there only while it is on.
     Object.freeze({ id: CORE_FEATURE.mounts, label: STRINGS.features.mounts, describe: STRINGS.features.mountsDescribe, default: true, presets: LEAN_OFF }),
     Object.freeze({ id: CORE_FEATURE.leanRpg, label: STRINGS.features.leanRpg, describe: STRINGS.features.leanRpgDescribe, default: false, presets: OUT_OF_PRESETS }),
+    Object.freeze({ id: CORE_FEATURE.fightBoard, label: 'Fight board', describe: 'Choose each exchange on the Fight tab.', default: true, presets: OUT_OF_PRESETS }),
 ]);
 
 

@@ -813,8 +813,14 @@ sdk.registerModule({
     same under each present person for the Scene screen), `story-block.weather` (the capture kind `weather`
     and the query `scene.weather`, on; §7, MODULES §F120), `story-block.you` ("Your look": the capture kind `you`, the command
     and the query `scene.you`, on; §7, MODULES §F126), `story-block.mounts` (the capture kind `mount`, the
-    queries `mounts.list` and `mounts.pace` and the command `mounts.edit`, on; §7). The older switches (`storySuite.hud`, the
+    queries `mounts.list` and `mounts.pace` and the command `mounts.edit`, on; §7), `story-block.fight-board` (the Fight
+    tab's exchange board, on while the RPG is on; MODULES §F129; off keeps the planner path), and `story-block.rpg` (the
+    optional Lean RPG, off). The older switches (`storySuite.hud`, the
     `assistClassifier` and `assistExtractor` settings) are the choice until the reader sets the feature.
+  * The fight board's unsent exchanges, discard counts and last payload live in `chatMetadata.rpgFightBoard`,
+    `chatMetadata.rpgFightAttempts` and `chatMetadata.rpgFightLast`; they are not game state and add no prompt text. Its
+    committed rolls are ordinary reply-bound `rpg.resolve` receipts. Explicit skill flags are reserved under the
+    `dataModules.boardFlags` scratch map, keyed by reply `sid`, block, slot and skill name (DATA_MODULES.md).
   * A module without `features` behaves as before. On a host older than features, `features` and the
     `feature` keys are warned about and ignored (everything is on), and `context.parts` is ignored too:
     a module that must run there checks `sdk.feature?.(id) ?? true` and keeps its core text in

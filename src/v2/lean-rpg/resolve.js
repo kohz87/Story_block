@@ -65,6 +65,7 @@
 // number B shows as "Rolled for you: N exchanges". The told count is not recorded: the narrator is not asked to count.
 import { FIGHT, FIX_VERSION, FORMULA, LEVEL, LIMITS, LV_VERSION, PACE, PRACTICE_STEP, RESOLVE, STAGES, practiceOf } from './names.js';
 import { fightGuard } from './fight.js';
+import { boardGuard, resolveBoard } from './board/commit.js';
 import { practiceGuard } from './practice.js';
 import { classTerm, EARLIER_RULES, hasLevels, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
 import { prepareStandard, rollStandard, summaryStd } from './standard.js';
@@ -411,6 +412,7 @@ const guardOf = (ctx, predicate, witness) => ({ owner: ctx.module, version: 2, e
  * reply with the same seed). `key` is the reader's message (its index and a hash of its text), as Assist's pre-roll keys it.
  */
 export function resolve(ctx, payload = {}) {
+    if (payload?.board !== undefined) return resolveBoard(ctx, payload);
     if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'Rolls are made by Story Block before a reply, not by an action.');
     const key = String(payload?.key ?? '');
     if (!KEY.test(key)) ctx.fail('INVALID', 'A roll needs the key of the message it was made for.');
@@ -484,6 +486,7 @@ export function resolve(ctx, payload = {}) {
  * the state before the block and what it recorded, nothing else.
  */
 export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
+    if (guard?.predicate?.board === 1) return boardGuard({ state, hash }, { guard, source, recorded });
     const bad = reason => ({ ok: false, reason });
     if (guard?.predicate?.kind === FIGHT) return fightGuard({ state, hash }, { guard, source, recorded });
     if (guard?.predicate?.kind === PRACTICE_STEP) return practiceGuard({ state, hash }, { guard, source, recorded });

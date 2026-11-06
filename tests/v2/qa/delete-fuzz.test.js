@@ -14,6 +14,10 @@ import { createHost } from '../../../testkit/index.js';
 import { prng, seedCrypto } from './helpers/seeded.js';
 import { checkInvariants } from './helpers/oracle.js';
 import { displayLines } from '../../../src/v2/extras.js';
+import { readRecord } from '../../../src/v2/persist.js';
+import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
+import { boardSession, discardBoard, openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
 
 const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 6, 9, 11, 19, 22, 27, 29, 101];
 const REPLIES = 20;
@@ -122,13 +126,46 @@ for (const seed of SEEDS) {
     test(`delete fuzz seed ${seed}: middle deletes on clean input skip nothing; replay equals rebuild`, async t => {
         t.mock.method(console, 'warn', () => {});
         const restore = seedCrypto(seed);
-        const host = await createHost({ settings: { features: { 'story-block.choices': true, 'story-block.chatter': true } } });
+        const host = await createHost({ settings: { features: { 'story-block.choices': true, 'story-block.chatter': true, 'story-block.rpg': true } } });
         // A pack that gives Your look a Rank, so the `~ you rank:` lines are read (without one they are refused).
         await host.packs.packs.install({ id: 'guild', version: '1.0.0', requires: { storyBlock: '^2' }, content: { you: { rank: { label: 'Guild rank' } } } });
         t.after(() => { host.close(); restore(); });
         const r = prng(seed);
         await host.send('Hello.', 'The road.');
         await host.send('We set out.', reply('Supplies.', ['+ coin 300', '+ item Torch | qty: 40', '~ place Bluewatch Village | kind: settlement']));
+        // Two board exchanges happen before the replies whose deletes are studied. They use the RPG's own
+        // sheet and production board functions; their receipts stay fixed in the setup, outside the deleted range.
+        const definitions = structuredClone(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
+        const hero = definitions.find(definition => definition.role === 'character'), foes = definitions.find(definition => definition.role === 'foes');
+        hero.slug = 'delete-fuzz-hero'; hero.name = 'Delete Fuzz Hero';
+        Object.assign(hero.state.who, { default: 'Astra' });
+        Object.assign(hero.state.str, { default: 14 }); Object.assign(hero.state.vit, { default: 20 });
+        Object.assign(hero.state.agi, { default: 20 }); Object.assign(hero.state.health, { default: 5 });
+        Object.assign(hero.state.level, { default: 1 });
+        foes.slug = 'delete-fuzz-foes'; foes.name = 'Delete Fuzz Foes';
+        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 99 });
+        Object.assign(foes.state.level1, { default: 1 }); Object.assign(foes.state.hurt1, { default: 5 });
+        for (const definition of definitions) {
+            const made = await host.sdk.command('dm.define', { definition });
+            assert.equal(made.ok, true, `seed ${seed}: the board sheet is made: ${made.message}`);
+        }
+        let boardFights = 0;
+        for (let exchange = 0; exchange < 2; exchange += 1) {
+            const sid = host.store.carrierSid(host.store.headIndex());
+            if (!boardSession(host.ctx.chatMetadata)) {
+                const opened = openBoard(host.ctx.chatMetadata, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+                assert.equal(opened.error, undefined, `seed ${seed}: the board opens: ${opened.error}`);
+            }
+            const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+            assert.equal(staged.error, undefined, `seed ${seed}: board exchange ${exchange + 1} stages: ${staged.error}`);
+            const result = await host.send(`Board exchange ${exchange + 1}.`, 'The fight goes on.');
+            const receipt = readRecord(host.ctx.chat[result.index])?.receipts?.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
+            assert.ok(receipt, `seed ${seed}: board exchange ${exchange + 1} is committed`);
+            assert.deepEqual(receipt.data.v2.result.rounds, staged.preview.result.rounds, `seed ${seed}: board exchange ${exchange + 1} matches its staged roll`);
+            boardFights += 1;
+        }
+        discardBoard(host.ctx.chatMetadata);
+        assert.ok(boardFights > 0, `seed ${seed}: the delete fuzz ran board fights`);
         const base = { coin: coin(host), torches: qty(host, 'Torch') };
         const setup = host.store.headIndex();
         // The replies after the first, by the record ID that stays with them: what each did.

@@ -72,8 +72,8 @@ const prefixImports = definition => {
 };
 
 export function validateDomain(domain) {
-    if (!dmObject(domain) || Object.keys(domain).some(key => !['pins', 'active', 'instances', 'perReply'].includes(key))
-        || ['pins', 'active', 'instances', 'perReply'].some(key => !dmObject(domain[key]))) return ['Invalid dataModules domain.'];
+    if (!dmObject(domain) || Object.keys(domain).some(key => !['pins', 'active', 'instances', 'perReply', 'boardFlags'].includes(key))
+        || ['pins', 'active', 'instances', 'perReply'].some(key => !dmObject(domain[key])) || (domain.boardFlags !== undefined && !dmObject(domain.boardFlags))) return ['Invalid dataModules domain.'];
     const errors = [];
     if (Object.keys(domain.pins).length > L.pins || sizeOf(domain.pins) > L.pinsBytes) errors.push('Retained pins exceed budget.');
     for (const [module, active] of Object.entries(domain.active)) {
@@ -1237,7 +1237,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     const kind = { get enabled() { return Boolean(Object.keys(state()?.domains?.dataModules?.active ?? {}).length); },
         grammar: '! dm Module — reason | kind: name | label: value (only the lines listed under Data modules; each has its own op)', apply: wrap((ctx, line, call) => act(ctx, {}, line, call)) };
     return {
-        domains: { dataModules: { initial, deferred: true, snapshot: 'when-present', scratch: ['perReply'], validate: validateDomain } },
+        domains: { dataModules: { initial, deferred: true, snapshot: 'when-present', scratch: ['perReply', 'boardFlags'], validate: validateDomain } },
         commands: { 'dm.pin': wrap((ctx, payload, call) => target(ctx, payload, false, call)), 'dm.migrate': wrap((ctx, payload, call) => target(ctx, payload, true, call)),
             'dm.define': wrap((ctx, payload, call) => changeBlock(ctx, payload, 'define', call)),
             'dm.redefine': wrap((ctx, payload, call) => changeBlock(ctx, payload, 'redefine', call)),

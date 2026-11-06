@@ -944,7 +944,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         Promise.resolve().then(() => loadLeanRpg()).then(view => {
             rpgLoading = false;
             if (rpgGone || rpg || !rpgOn()) return;
-            rpg = view.mountLeanRpg({ doc, ctx, store, events, screens, widgets: hostWidgets, headState: headStateNow, featureOn: rpgOn,
+            rpg = view.mountLeanRpg({ doc, ctx, store, events, screens, widgets: hostWidgets, headState: headStateNow, featureOn: rpgOn, boardOn: () => registry.featureOn?.(CORE_FEATURE.fightBoard) === true,
                 // Settings → RPG holds the gear switch (the feature stays out of the Features list).
                 gear: { on: () => registry.featureOn?.(GEAR_FEATURE) === true, set: value => runtime.features?.set?.(GEAR_FEATURE, Boolean(value)) },
                 readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''),
