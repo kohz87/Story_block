@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { hashJson } from '../../src/v2/replay.js';
+import { RETRY_SCHEDULE_MS } from '../../src/v2/timeline/coordinator-block.js';
+import { PARTICIPANT_TIMEOUT_MS } from '../../src/v2/timeline/participants.js';
 import { director, T1, T2 } from './helpers/evidence.js';
 import { BATCH, DEATH, NATIVE, batchFor, clone, nativeModule, restore, rulesModule, seal, slice } from './helpers/timeline.js';
 
@@ -13,8 +15,9 @@ const cmd = (host, type, payload = {}) => host.sdk.command(type, payload).then(r
 });
 
 // A story with a bit of everything on it, a manual save, and then more of the same: the dead timeline.
-async function story(t, { extra = [], options = {} } = {}) {
+async function story(t, { extra = [], options = {}, configure = null } = {}) {
     const native = nativeModule();
+    configure?.(native);
     const host = await createHost({ modules: [rulesModule(), native.def, director(), ...extra], ...options });
     t.after(() => host.close());
     await host.send('Hello.', reply('The road.', ['+ coin 30', '+ item Torch | qty: 2', '~ place Bluewatch | kind: settlement', '+ present Tavi']));
@@ -392,7 +395,12 @@ test('participants that cannot switch leave the restore committed and the barrie
     assert.equal(host.head().domains.progress.xp, 40, 'the story is restored (when every module is asked: after the barrier)');
     assert.deepEqual(host.sdk.modules().map(module => module.status), ['restore-pending', 'restore-pending', 'restore-pending', 'restore-pending']);
     assert.equal((await host.sdk.timeline.head()).code, 'RESTORE_PENDING');
-    assert.deepEqual(await host.sdk.timeline.status(), { ok: true, state: 'pending', return: prepared.return, participants: saved.participants, reason: 'A restore is finishing; every part must agree before the story goes on.', code: null, blockedBy: null });
+    const waiting = await host.sdk.timeline.status();
+    assert.equal(waiting.state, 'pending');
+    assert.equal(waiting.return, prepared.return);
+    assert.deepEqual(waiting.participants, saved.participants);
+    assert.deepEqual(waiting.blockedBy, { module: NATIVE, code: 'FAILED' });
+    assert.match(waiting.reason, /Test native.*activate failed.*tried again/);
     assert.equal((await host.sdk.command('tl.xp', { amount: 1 })).code, 'RESTORE_PENDING');
     assert.equal((await host.sdk.timeline.make({ kind: 'manual' })).code, 'RESTORE_PENDING');
     assert.equal((await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: ['ev_other0001'], batchResult: batchFor('br_batch009'), expectedHead: head.headHash })).code, 'RESTORE_PENDING');
@@ -409,6 +417,97 @@ test('participants that cannot switch leave the restore committed and the barrie
     assert.deepEqual(native.native.store.dossiers, { tavi: { trust: 3 } });
     assert.equal(host.head().domains.savepoints.returns[prepared.return].status, 'complete');
     assert.equal(native.native.calls.filter(call => call.name === 'activate' && !call.fail).length >= 2, true);
+});
+
+for (const failure of ['aborted', 'conflict', 'not-found']) {
+    test(`a committed restore waits quietly on participant ${failure} until it recovers`, async t => {
+        let failing = false;
+        const { host, saved } = await story(t, { configure(module) {
+            const status = module.def.participant.status;
+            const activate = module.def.participant.activate;
+            module.def.participant.status = input => {
+                const answer = status(input);
+                return failing && failure === 'aborted' && answer.ok ? { ...answer, status: 'aborted' } : answer;
+            };
+            module.def.participant.activate = input => failing && failure === 'conflict'
+                ? { ok: false, code: 'CONFLICT', message: 'other checkpoint' }
+                : failing && failure === 'not-found' ? { ok: false, code: 'NOT_FOUND', message: 'nothing prepared' } : activate(input);
+        } });
+        const head = await host.sdk.timeline.head();
+        const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+        failing = true;
+        assert.equal((await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash })).status, 'participants-pending');
+        const status = await host.sdk.timeline.status();
+        assert.equal(status.state, 'pending');
+        assert.equal(status.blockedBy, null);
+        assert.deepEqual(host.turn.problems(NATIVE), []);
+        assert.deepEqual(host.st.notices, []);
+        failing = false;
+        assert.equal((await host.timeline.host.recover()).state, 'idle');
+        assert.deepEqual(host.turn.problems(NATIVE), []);
+    });
+}
+
+for (const code of ['SNAPSHOT_UNAVAILABLE', 'NOT_FOUND']) test(`a missing checkpoint (${code}) during a committed restore is reported and recovery preserves the journal`, async t => {
+    let missing = false;
+    const { host, native, saved } = await story(t, { configure(module) {
+        const activate = module.def.participant.activate;
+        module.def.participant.activate = input => missing ? { ok: false, code, message: 'checkpoint file returned 404' } : activate(input);
+    } });
+    const head = await host.sdk.timeline.head();
+    const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+    missing = true;
+    assert.equal((await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash })).status, 'participants-pending');
+    const status = await host.sdk.timeline.status();
+    assert.deepEqual(status.blockedBy, { module: NATIVE, code });
+    assert.match(status.reason, /404.*backup.*original chat/);
+    assert.equal(host.turn.problems(NATIVE).at(-1).toast, true);
+    const sent = await host.send('Please continue.', 'Not sent.');
+    assert.equal(sent.aborted, true);
+    assert.equal(host.ctx.chat.at(-1).mes, 'Please continue.');
+    assert.match(host.st.notices.at(-1).reason, /404.*backup/);
+    assert.equal(host.timeline.host.journal().find(each => each.id === prepared.prepared).phase, 'participants-pending');
+    missing = false;
+    assert.equal((await host.timeline.host.recover()).state, 'idle');
+    assert.equal(native.native.active, saved.participants[0].checkpoint);
+});
+
+test('a committed restore with a hung status callback times out, warns once, and retries safely', { timeout: 3000 }, async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let hang = false;
+    let finish;
+    const { host, saved } = await story(t, { configure(module) {
+        const status = module.def.participant.status;
+        module.def.participant.status = input => hang ? new Promise(resolve => { finish = () => resolve(status(input)); }) : status(input);
+    } });
+    const head = await host.sdk.timeline.head();
+    const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+    hang = true;
+    const activation = host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash });
+    for (let i = 0; i < 40 && !finish; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(typeof finish, 'function');
+    const sent = await host.send('Keep my words.', 'Not sent.');
+    assert.equal(sent.aborted, true);
+    assert.equal(host.ctx.chat.at(-1).mes, 'Keep my words.');
+    t.mock.timers.tick(PARTICIPANT_TIMEOUT_MS);
+    for (let i = 0; i < 40; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal((await activation).status, 'participants-pending');
+    let status = await host.sdk.timeline.status();
+    assert.deepEqual(status.blockedBy, { module: NATIVE, code: 'STALE' });
+    assert.match(status.reason, /did not answer status in time/);
+    for (const ms of RETRY_SCHEDULE_MS) {
+        t.mock.timers.tick(ms);
+        for (let i = 0; i < 40; i += 1) await new Promise(resolve => setImmediate(resolve));
+    }
+    status = await host.sdk.timeline.status();
+    assert.match(status.reason, /still could not load.*timed out.*Reload the page/);
+    assert.equal(host.turn.problems(NATIVE).length, 1);
+    assert.equal(host.turn.problems(NATIVE)[0].toast, true);
+    hang = false;
+    finish();
+    for (let i = 0; i < 40; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal((await host.timeline.host.recover()).state, 'idle');
+    assert.equal((await host.sdk.timeline.status()).state, 'idle');
 });
 
 test('recover finishes a restore whose participants were pending, and aborts a prepare nobody activated', async t => {

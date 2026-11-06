@@ -266,6 +266,8 @@ test('activation must return the saved checkpoint id as well as its hash: anothe
     assert.equal(host.timeline.host.journal().find(entry => entry.id === prepared.prepared).participants[NATIVE].ack, null);
     assert.match(host.timeline.host.journal().find(entry => entry.id === prepared.prepared).why, /another checkpoint/);
     assert.equal(host.registry.restore().state, 'pending');
+    assert.equal((await host.sdk.timeline.status()).blockedBy, null);
+    assert.deepEqual(host.turn.problems(NATIVE), []);
     native.alias = null;
     assert.equal((await activate()).status, 'complete');
 });

@@ -7,6 +7,7 @@ import { adoptLegacy, extractBlock, hideBlock, legacyRead, markOff } from '../ca
 import { replacedProofs, reusePlan } from '../evidence.js';
 import { readRecord } from '../persist.js';
 import { heldForMessage } from './held-board.js';
+import { logSceneReread, sceneBeforeReread } from './reread-scene.js';
 
 export function createReread(s, deps) {
     const { ctx, metadata = () => ctx?.chatMetadata, store, events, timeline, refusal, changeHeads, readBlock, strayProblems, capped, lateLines, assistRoom, nowLines, heldInReply, legacyProblem, storySeeds, afterCapture, captureEach, stepSeeds, withCaps, isPrelude, LATE, NOW, planAgain, problem, trySave } = deps;
@@ -43,6 +44,9 @@ export function createReread(s, deps) {
         // reply's story without them would lose what it stored: nothing is replaced while one is involved.
         const waiting = heldInReply(message, [...lines, ...extra.map(item => item.line)]);
         if (waiting) return refusal(waiting.code, `Re-read is waiting for ${waiting.name}: ${waiting.reason} Nothing was changed.`);
+        // Keep just enough to distinguish changed scene captures from a display refresh; never fail a Re-read for a diagnostic.
+        let sceneBefore = null;
+        try { sceneBefore = sceneBeforeReread(store, index, readRecord(message)); } catch { /* diagnostic unavailable */ }
         const swipe = message.swipe_id;
         let ops;
         let off = [];
@@ -123,6 +127,7 @@ export function createReread(s, deps) {
         }
         timeline?.settle();
         if (timeline?.needsRecovery()) await timeline.recover();
+        if (sceneBefore) logSceneReread(store, index, sceneBefore, receipts, late.length);
         await trySave('after the Re-read');
         for (const receipt of [...receipts, ...steps.map(step => step.receipt)]) events?.emit('committed', { receipt });
         events?.emit('head', { index: store.headIndex(), reason: 'reread' });

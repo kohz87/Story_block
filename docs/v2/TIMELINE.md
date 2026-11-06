@@ -7,7 +7,7 @@ How the host keeps save points, installs one absolutely on a restore, and lets a
 beside the story take part. [HISTORY.md](HISTORY.md) documents active history and participant head selection.
 Modules that do not use the timeline keep their existing blocks, replay and saves.
 
-Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `coordinator-native.js` its selection of a head, native mutations and events, participant registration, guard and capability projection, `coordinator-prepare.js` its make, forget, prepare and finish, `coordinator-read.js` its settle, release, head, list, status, history and the hiding of faded messages, `coordinator-restore.js` its activate, abort, recover and the completion of a restore, `manifest.js` the all-domain payload and the restore plan,
+Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `coordinator-block.js` participant failures and retries, `coordinator-native.js` its selection of a head, native mutations and events, participant registration, guard and capability projection, `coordinator-prepare.js` its make, forget, prepare and finish, `coordinator-read.js` its settle, release, head, list, status, history and the hiding of faded messages, `coordinator-restore.js` its activate, abort, recover and the completion of a restore, `manifest.js` the all-domain payload and the restore plan,
 `archive.js` the host archive, `participants.js`, `host-block.js` the blocks the host stores itself, `gate.js` the epoch and rules
 check, `part.js` the core module's commands, query and replay guard). Wiring: `runtime.js` makes it, `sdk.js` exposes it
 (`sdk.timeline`, `sdk.command('savepoint.make')`, recovery in `ensureModules`), `store.js` has `boundary()` (`store/read.js`), `touch()` (`store/write.js`), the
@@ -125,6 +125,16 @@ synchronous section: if it still holds the restore, the return is marked `comple
 restore is published for the head; if not (a swipe or delete took it away meanwhile) it is retracted and `activate` answers
 `STALE`. Either way the barrier drops only in `release`, once the participants stand on the selected head's checkpoints and
 the chat file has it (HISTORY.md).
+
+A participant that cannot follow a selected head, a committed restore, or a native change keeps the barrier up, so a send is stopped with
+the reason rather than running on mismatched records. The status and a refused head name the participant and cause. An unavailable checkpoint
+or other permanent failure is shown at once; `FAILED` and `STALE` answers are retried after 2, 5 and 15 seconds, then shown as a Problem and
+notification if they still fail. A callback has 10 seconds to answer; a timed-out call stays quarantined until it actually finishes, so a
+late activation cannot race a replacement. The reader can restore missing records from a backup and reload, or open the original chat. A send
+checks the barrier before awaiting recovery, leaves the reader's message in the chat, and reports the block; recovery may continue in the
+background. Once retries are exhausted, `blockedBy.code` is `DEPENDENCY_UNAVAILABLE` so a consumer stops waiting for automatic retries;
+the status `code` retains the underlying `FAILED` or `STALE` cause. A successful retry makes the journal durable and releases the barrier only
+after every participant agrees.
 
 **What the restore block installs**, every domain at its path with an `add` (no `was`, nothing relative), so replaying it on any
 numbers leaves the saved ones:
