@@ -423,6 +423,22 @@ test('member cards, target lines and the grouped order line come from the staged
         ['1. Bristle-boar 1  Unhurt', '2. Bristle-boar 3  Unhurt'], 'Down members are not targetable');
 });
 
+test('E5: a newly opened board shows the seeded member order before the first choice', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    await defineFoes(host, [['Bristle-boar', 3, 1, 5]]);
+    const sid = host.store.carrierSid(host.store.headIndex()), meta = host.ctx.chatMetadata;
+    const opened = openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+    assert.equal(opened.error, undefined, opened.error);
+    assert.equal(boardSession(meta).exchanges.length, 0);
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    const order = doc.querySelector('[data-ss-screen="story-block/fight"] .rpg-board-order');
+    assert.ok(order, 'the order line is present before any choice');
+    assert.match(order.textContent, /^Order: .*Bristle-boars \(1, 2, 3\).*3 attacks on you each exchange$/u);
+});
+
 test('a pack card wears the pack pill, its thinning line, and stays a single target', async t => {
     const { doc, host } = await page(t, { formula: 'standard' });
     await begin(host);

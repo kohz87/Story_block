@@ -80,6 +80,13 @@ function weaponSides(prepared, sheet, weapons) {
     }
 }
 
+function openingOrder(state, setup, fightSheet, rules) {
+    const plan = { formula: 'standard', pace: 'careful', acts: [], foes: [], checks: [] };
+    const prepared = prepareStandard(plan, fightSheet, rules, { maxOf: maxOf(state.domains.dataModules), lv: hasLevels(rules), fix: true, then: true });
+    return rollStandard(plan, prepared, boardDice(setup.seed, setup.offset + 1), rules,
+        { carried: setup.order, flow: 2, fix: true, then: true, board: true }).order;
+}
+
 export function applyHurts(domain, hurts) {
     for (const hurt of hurts) {
         const fields = domain?.instances?.[hurt.module]?.chat?.fields;
@@ -114,7 +121,8 @@ export function playBoard(state, setup, exchanges) {
     const copy = structuredClone(state), domain = copy.domains.dataModules, rules = setup.rules, limits = maxOf(domain);
     const startSheet = readSheet(copy), members = setup.members === 1, realFoes = members ? startSheet.foes : null;
     const boardFoeList = members ? splitFoes(realFoes, { carried: setup.carriedMembers, maxOf: limits }) : null;
-    const boardSlots = new Set((boardFoeList ?? []).map(foe => foe.slot));
+    const virtual = (boardFoeList ?? []).filter(foe => Number.isInteger(foe.group));
+    const virtualSlots = new Set(virtual.map(foe => foe.slot)), virtualGroups = new Set(virtual.map(foe => foe.group));
     const values = members ? new Map(boardFoeList.map(foe => [foe.slot, foe.hurt])) : null;
     const rounds = [], opening = [], quickStart = [], idle = [], moved = new Map(), refused = [], wear = [];
     let order = setup.order ?? null, stop = 'open';
@@ -147,11 +155,11 @@ export function playBoard(state, setup, exchanges) {
         idle.push(...rolled.idle);
         refused.push(...prepared.refused);
         order = rolled.order;
-        const boardHurt = hurt => {
+        const virtualHurt = hurt => {
             const foe = /^f:(\d+)$/u.exec(hurt.id);
-            return Boolean(foe && boardSlots.has(Number(foe[1])));
+            return Boolean(foe && virtualSlots.has(Number(foe[1])));
         };
-        applyHurts(domain, members ? rolled.hurts.filter(hurt => !boardHurt(hurt)) : rolled.hurts);
+        applyHurts(domain, members ? rolled.hurts.filter(hurt => !virtualHurt(hurt)) : rolled.hurts);
         for (const hurt of rolled.hurts) {
             const previous = moved.get(hurt.id);
             moved.set(hurt.id, { ...hurt, from: previous?.from ?? hurt.from });
@@ -164,13 +172,19 @@ export function playBoard(state, setup, exchanges) {
     if (members) {
         hurts = hurts.filter(hurt => {
             const foe = /^f:(\d+)$/u.exec(hurt.id);
-            return !(foe && boardSlots.has(Number(foe[1])));
+            return !(foe && virtualSlots.has(Number(foe[1])));
         });
     }
     if (members && stop !== 'open') {
-        const collapsed = collapseMoves(realFoes, collapseFoes(realFoes, values, { maxOf: limits }), limits);
+        const collapsed = collapseMoves(realFoes, collapseFoes(realFoes.filter(foe => virtualGroups.has(foe.slot)), values, { maxOf: limits }), limits);
         hurts = [...hurts, ...collapsed];
         applyHurts(domain, collapsed);
+    }
+    if (members && !exchanges.length) {
+        const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
+        const sheet = applyGear(readSheet(copy), equipment.gear);
+        const fightSheet = { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) };
+        order = openingOrder(copy, setup, fightSheet, rules);
     }
     const opened = members && Array.isArray(setup.opened) && setup.opened.length ? structuredClone(setup.opened) : null;
     const result = { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),

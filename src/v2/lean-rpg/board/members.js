@@ -24,11 +24,6 @@ function valuesAt(values, slot) {
     return values?.[slot];
 }
 
-function keptAt(kept, group) {
-    const values = kept instanceof Map ? kept.get(group) : kept?.[group];
-    return Array.isArray(values) ? values : null;
-}
-
 /** The blocks one foe of this slot has, held to the block field's maximum (`maxOf(module, field)`). */
 export function memberSize(foe, maxOf = () => Infinity) {
     const blocks = foe?.levelled ? foe.size ?? foeBlocksByLevel(foe.level) : foeHealthBlocks(foe.class);
@@ -81,7 +76,7 @@ const carriedValue = (values, slot) => (values && Object.hasOwn(values, slot) &&
     ? Number(values[slot]) : undefined);
 
 /** Split filled, standing real slots into virtual foes, sorted by group then number. A Down group has no bars. */
-export function splitFoes(realFoes, { kept = null, carried = null, maxOf } = {}) {
+export function splitFoes(realFoes, { carried = null, maxOf } = {}) {
     const out = [];
     for (const real of (Array.isArray(realFoes) ? realFoes : [])) {
         const group = num(real?.slot), blockCount = num(real?.count), hurt = num(real?.hurt);
@@ -92,15 +87,13 @@ export function splitFoes(realFoes, { kept = null, carried = null, maxOf } = {})
             out.push(exact === undefined ? real : { ...real, hurt: held(exact, memberSize(real, maxOf)) });
             continue;
         }
-        const one = memberSize(real, maxOf), saved = keptAt(kept, group);
+        const one = memberSize(real, maxOf);
         if (isPack(real)) {
-            const counts = packCounts(count), useSaved = saved?.length === counts.length;
+            const counts = packCounts(count);
             counts.forEach((packCount, at) => {
                 const n = at + 1, size = packSize(one, packCount);
                 const exact = carriedValue(values, virtualSlot(group, n));
-                const value = exact === undefined
-                    ? useSaved && Number.isFinite(Number(saved[at])) ? held(saved[at], size) : packValue(hurt, one, size)
-                    : held(exact, size);
+                const value = exact === undefined ? packValue(hurt, one, size) : held(exact, size);
                 out.push({ ...real, slot: virtualSlot(group, n), group, n, name: packName(real.name, n, counts.length),
                     module: null, levelled: true, size, hurt: value, count: packCount, filled: true, pack: true });
             });
@@ -108,9 +101,7 @@ export function splitFoes(realFoes, { kept = null, carried = null, maxOf } = {})
         }
         for (let n = 1; n <= Math.min(MEMBER_CAP, count); n += 1) {
             const exact = carriedValue(values, virtualSlot(group, n));
-            const value = exact === undefined
-                ? saved?.length === count && Number.isFinite(Number(saved[n - 1])) ? held(saved[n - 1], one) : held(hurt, one)
-                : held(exact, one);
+            const value = exact === undefined ? held(hurt, one) : held(exact, one);
             out.push({ ...real, slot: virtualSlot(group, n), group, n, name: memberName(real.name, n, count), module: null,
                 levelled: true, size: one, hurt: value, count: 1, filled: true, member: true });
         }
@@ -172,38 +163,6 @@ function entriesOf(members) {
     if (Array.isArray(members)) return members;
     if (members instanceof Map) return [...members].map(([slot, value]) => ({ slot, value }));
     return [];
-}
-
-/** The exact final bars, grouped by real slot for the next setup's `kept`. */
-export function keptFrom(members) {
-    const out = {};
-    for (const member of entriesOf(members).slice().sort((a, b) => groupOf(a) - groupOf(b) || nOf(a) - nOf(b))) {
-        const group = groupOf(member), value = Number(valueOf(member));
-        if (!Number.isFinite(value)) continue;
-        (out[group] ??= []).push(value);
-    }
-    return out;
-}
-
-/** Whether this board result still collapses to the real block's count and hurt for that slot. */
-export function matchesBlock(members, realFoe) {
-    const group = num(realFoe?.slot), count = num(realFoe?.count), hurt = num(realFoe?.hurt);
-    if (count <= 0) return false;
-    const mine = entriesOf(members).filter(member => groupOf(member) === group);
-    if (count === 1) return mine.some(member => num(valueOf(member)) === hurt);
-    const packed = mine.some(member => member.pack === true || num(member.count) > 1);
-    const original = packed ? mine.reduce((sum, member) => sum + Math.max(0, num(member.count)), 0) || count : mine.length || count;
-    const values = new Map();
-    for (const member of mine) values.set(virtualSlot(group, nOf(member) || 1), valueOf(member));
-    if (hurt <= 0) {
-        if (packed) {
-            const bars = packBars({ ...realFoe, count: original }, values, undefined);
-            return original === count && bars.every(bar => bar.value <= 0);
-        }
-        return original === count && mine.every(member => held(valueOf(member), memberSize(realFoe)) <= 0);
-    }
-    const [collapsed] = collapseFoes([{ ...realFoe, count: original, hurt }], values);
-    return Boolean(collapsed) && collapsed.count.to === count && collapsed.hurt.to === hurt;
 }
 
 /** The UI's virtual foe list: values override the bars rebuilt from the real block. */

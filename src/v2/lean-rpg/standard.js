@@ -19,7 +19,7 @@
 // agi, party, fresh }] (the turn order for the fight), `quickStart` = [{ who, against }], `opening` = [Line], `idle` = [{ n, id, who,
 // kind, why }] and `hurts` = [{ id, kind, name, module, field, from, to, size }].
 import { ambushOf, ambushRecord, ambushedStandard } from './ambush.js';
-import { packAreaBlocks } from './board/members.js';
+import { packAreaBlocks, packAttacks } from './board/members.js';
 import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, levelBonus, luckWindow, quickStart, statPart, turnOrder } from './formula.js';
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
@@ -435,7 +435,8 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
                     roundLines.push(...done.lines);
                 }
             } else {
-                const mine = board ? prepared.foes.filter(entry => entry.foe.slot === bar.slot) : [prepared.foes.find(entry => entry.foe.slot === bar.slot)];
+                let mine = board ? prepared.foes.filter(entry => entry.foe.slot === bar.slot) : [prepared.foes.find(entry => entry.foe.slot === bar.slot)];
+                if (board && bar.foe.pack === true) mine = mine.slice(0, packAttacks(bar.foe.count, bar.value, bar.size));
                 for (const entry of mine) {
                     if (!entry) continue;
                     const done = doFoe(entry);

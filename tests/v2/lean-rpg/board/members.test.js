@@ -1,9 +1,9 @@
-// Foe members and packs: the pure split, pack formula, collapse, kept-bar and board-list rules.
+// Foe members and packs: the pure split, pack formula, carried bars, collapse and board-list rules.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    MEMBER_CAP, PACK_MAX_ATTACKS, PACK_MAX_SIZE, boardFoes, collapseFoes, keptFrom, matchesBlock, memberSize,
+    MEMBER_CAP, PACK_MAX_ATTACKS, PACK_MAX_SIZE, boardFoes, collapseFoes, memberSize,
     packAreaBlocks, packAttacks, packCounts, packFullAttacks, packLeft, packSize, splitFoes, virtualSlot,
 } from '../../../../src/v2/lean-rpg/board/members.js';
 
@@ -81,7 +81,7 @@ test('the SPEC table splits rats, level-60 wolves and forty gnashers into packs'
     assert.deepEqual(packs.map(pack => packAreaBlocks(pack.size, false)), [3, 3, 3, 3]);
 });
 
-test('splitFoes names members, leaves a lone real foe unchanged, skips Down groups, resumes kept bars and sorts', () => {
+test('splitFoes names members, leaves a lone real foe unchanged, skips Down groups, resumes carried bars and sorts', () => {
     const boars = splitFoes([realFoe({ count: 3, hurt: 4 })]);
     assert.deepEqual(boars.map(foe => foe.name), ['Bristle-boar 1', 'Bristle-boar 2', 'Bristle-boar 3']);
     const single = realFoe({ count: 1, name: 'Bristle-boar' }), lone = splitFoes([single])[0];
@@ -89,8 +89,8 @@ test('splitFoes names members, leaves a lone real foe unchanged, skips Down grou
     assert.deepEqual(splitFoes([realFoe({ count: 3, hurt: 0 })]), []);
     assert.deepEqual(splitFoes([realFoe({ count: 0 })]), []);
     assert.deepEqual(splitFoes([realFoe({ filled: false })]), []);
-    const kept = splitFoes([realFoe({ count: 3, hurt: 4 })], { kept: { 1: [0, 2, 4] } });
-    assert.deepEqual(kept.map(foe => foe.hurt), [0, 2, 4]);
+    const carried = splitFoes([realFoe({ count: 3, hurt: 4 })], { carried: { values: { 11: 0, 12: 2, 13: 4 }, counts: { 1: 3 } } });
+    assert.deepEqual(carried.map(foe => foe.hurt), [0, 2, 4]);
     const sorted = splitFoes([realFoe({ slot: 2 }), realFoe({ slot: 1 })]);
     assert.deepEqual(sorted.map(foe => [foe.group, foe.n]), [[1, 1], [1, 2], [1, 3], [2, 1], [2, 2], [2, 3]]);
     const clamped = splitFoes([realFoe({ count: 3, size: 8 })], { maxOf: () => 4 });
@@ -103,17 +103,18 @@ test('splitFoes names members, leaves a lone real foe unchanged, skips Down grou
     assert.ok(count13.concat(count99).every(foe => foe.slot > 4 && foe.slot % 10 > 0));
 });
 
-test('packs rebuild from hurt, use kept values only when their count matches the pack count, and collapse in pack order', () => {
+test('packs rebuild from hurt, resume exact carried values, and collapse in pack order', () => {
     const gnashers = realFoe({ slot: 3, name: 'Reed-gnasher', count: 40, hurt: 4 });
     const rebuilt = splitFoes([gnashers]);
     assert.deepEqual(rebuilt.map(pack => pack.hurt), [7, 7, 7, 7], 'ceil(7 × 4 / 4)');
-    const shortened = splitFoes([gnashers], { kept: { 3: [1, 2, 3] } });
-    assert.deepEqual(shortened.map(pack => pack.hurt), [7, 7, 7, 7], 'three values cannot stand for four packs');
-    const resumed = splitFoes([gnashers], { kept: { 3: [1, 2, 3, 4] } });
+    const partial = splitFoes([gnashers], { carried: { values: { 31: 1, 32: 2 }, counts: { 3: 40 } } });
+    assert.deepEqual(partial.map(pack => pack.hurt), [1, 2, 7, 7], 'bars absent from the record rebuild from hurt');
+    const resumed = splitFoes([gnashers], { carried: { values: { 31: 1, 32: 2, 33: 3, 34: 4 }, counts: { 3: 40 } } });
     assert.deepEqual(resumed.map(pack => pack.hurt), [1, 2, 3, 4]);
     const rats = splitFoes([realFoe({ slot: 3, count: 12, hurt: 2 })])[0];
     assert.equal(rats.hurt, 4, 'ceil(8 × 2 / 4)');
-    assert.equal(splitFoes([realFoe({ slot: 3, count: 12, hurt: 2 })], { kept: { 3: [5] } })[0].hurt, 5);
+    assert.equal(splitFoes([realFoe({ slot: 3, count: 12, hurt: 2 })],
+        { carried: { values: { 31: 5 }, counts: { 3: 12 } } })[0].hurt, 5);
     assert.deepEqual(collapseFoes([gnashers], map([[31, 0], [32, 3], [33, 5], [34, 7]])), [{
         slot: 3, module: 'foes', count: { from: 40, to: 23 }, hurt: { from: 4, to: 4 },
     }]);
@@ -123,21 +124,6 @@ test('packs rebuild from hurt, use kept values only when their count matches the
     assert.deepEqual(collapseFoes([realFoe({ count: 13 })], map([[11, 0], [12, 4]])), [{
         slot: 1, module: 'foes', count: { from: 13, to: 4 }, hurt: { from: 4, to: 3 },
     }]);
-});
-
-test('keptFrom and matchesBlock compare several packs with the block in pack order', () => {
-    const gnashers = realFoe({ slot: 3, name: 'Reed-gnasher', count: 40, hurt: 4 });
-    const members = boardFoes([gnashers], map([[31, 0], [32, 3], [33, 5], [34, 7]]));
-    assert.deepEqual(keptFrom(members), { 3: [0, 3, 5, 7] });
-    assert.equal(matchesBlock(members, realFoe({ slot: 3, name: 'Reed-gnasher', count: 23, hurt: 4 })), true);
-    assert.equal(matchesBlock(members, realFoe({ slot: 3, name: 'Reed-gnasher', count: 40, hurt: 4 })), false);
-    const allDown = boardFoes([gnashers], map([[31, 0], [32, 0], [33, 0], [34, 0]]));
-    assert.equal(matchesBlock(allDown, realFoe({ slot: 3, name: 'Reed-gnasher', count: 40, hurt: 0 })), true);
-    assert.equal(matchesBlock(allDown, realFoe({ slot: 3, name: 'Reed-gnasher', count: 39, hurt: 0 })), false);
-    const rats = realFoe({ slot: 3, name: 'Cellar-rat', count: 12, hurt: 4 });
-    const ratPack = boardFoes([rats], map([[31, 5]]));
-    assert.equal(matchesBlock(ratPack, realFoe({ slot: 3, name: 'Cellar-rat', count: 8, hurt: 3 })), true);
-    assert.equal(matchesBlock(ratPack, realFoe({ slot: 3, name: 'Cellar-rat', count: 12, hurt: 4 })), false);
 });
 
 test('boardFoes builds member cards and each pack card with its own count, left and attacks', () => {

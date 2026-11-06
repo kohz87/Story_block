@@ -5,12 +5,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
+import { carriedFrom } from '../../../../src/v2/lean-rpg/board/members.js';
 import * as sessionApi from '../../../../src/v2/lean-rpg/board/session.js';
 import { character, foeBlock, levelFoeBlock, setup, sheetDomain, skillBlock } from '../helpers.js';
 
 const rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const choice = { actions: [{ who: 'Astra', kind: 'attack', target: 1 }] };
 const stateOf = blocks => ({ domains: { dataModules: sheetDomain(blocks) } });
+const fieldsAt = state => state.domains.dataModules.instances['pack.chat/foes'].chat.fields;
 
 test('a rolled exchange has no undo operation', () => {
     assert.equal(typeof sessionApi.undoExchange, 'undefined');
@@ -103,4 +105,63 @@ test('FLEE_DOWN_GROUP: flee contests only a real group that still has a standing
     assert.equal(flee.foe.slot, 2);
     assert.equal(flee.foe.name, 'Rat', 'the defeated Bear group is not contested');
     assert.equal(played.result.members.find(member => member.group === 2).standing, true);
+});
+
+test('R1: carried member bars continue an open segment; a lone real foe writes its move in that segment', () => {
+    const state = stateOf({
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bat', 1, 1, 4]]) },
+    });
+    const setup = { seed: 0, offset: 0, rules, members: 1 };
+    const first = playBoard(state, setup, [choice]);
+    assert.equal(first.error, undefined, first.error);
+    assert.equal(first.result.stop, 'open');
+    const bar = first.result.members.find(member => member.slot === 1).value;
+    assert.ok(bar < 4, 'the real foe took its own field move');
+    assert.equal(fieldsAt(first.state).hurt1, bar, 'the committed Foes block follows the real bar while open');
+    assert.ok(first.result.hurts.some(hurt => hurt.field === 'hurt1' && hurt.to === bar));
+
+    const again = playBoard(state, setup, [choice]);
+    assert.deepEqual(again, first, 'the real move replays byte-identically');
+});
+
+test('R1: split groups carry exact bars and collapse only when the fight ends', () => {
+    const state = stateOf({
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bristle-boar', 3, 1, 4]]) },
+    });
+    const setup = { seed: 25, offset: 0, rules, members: 1 };
+    const first = playBoard(state, setup, [{ actions: [{ who: 'Astra', kind: 'attack', target: 11 }] }]);
+    assert.equal(first.error, undefined, first.error);
+    assert.equal(first.result.stop, 'open');
+    assert.deepEqual([fieldsAt(first.state).count1, fieldsAt(first.state).hurt1], [3, 4], 'an open split group keeps its block');
+    const boarChoice = { actions: [{ who: 'Astra', kind: 'attack', target: 11 }] };
+    const next = playBoard(first.state, { ...setup, offset: 1, order: first.result.order, carriedMembers: carriedFrom(first.result.members) }, [boarChoice]);
+    const together = playBoard(state, setup, [boarChoice, boarChoice]);
+    assert.deepEqual(next.state, together.state, 'the carried segment equals one continuous run');
+    assert.deepEqual(next.result.members, together.result.members);
+
+    const wonState = stateOf({
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
+        skills: { role: 'skills', fields: skillBlock('Astra', [['Sweep', 3, 'str', 'stamina', 'sweep every foe']]) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bristle-boar', 3, 1, 4]]) },
+    });
+    const won = playBoard(wonState, { seed: 0, offset: 0, rules, members: 1,
+        carriedMembers: { values: { 11: 1, 12: 1, 13: 1 }, counts: { 1: 3 } } }, [{ actions: [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }] }]);
+    assert.equal(won.result.stop, 'won');
+    assert.deepEqual([fieldsAt(won.state).count1, fieldsAt(won.state).hurt1], [3, 0], 'the win writes the original count and a Down hurt');
+    assert.ok(won.result.hurts.some(hurt => hurt.field === 'hurt1' && hurt.from === 4 && hurt.to === 0));
+});
+
+test('R1/E5: a new setup previews its seeded order, while an old setup keeps an empty preview order', () => {
+    const state = stateOf({
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, health: 8 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Bristle-boar', 3, 1, 4]]) },
+    });
+    const preview = playBoard(state, { seed: 25, offset: 0, rules, members: 1 }, []);
+    assert.deepEqual(preview.result.order.map(entry => entry.id), ['c:astra', 'f:11', 'f:12', 'f:13']);
+    const first = playBoard(state, { seed: 25, offset: 0, rules, members: 1 }, [{ actions: [{ who: 'Astra', kind: 'attack', target: 11 }] }]);
+    const seeded = order => order.map(({ left, ...entry }) => entry);
+    assert.deepEqual(seeded(preview.result.order), seeded(first.result.order), 'the displayed order is the order the first exchange rolls');
+    assert.deepEqual(playBoard(state, { seed: 25, offset: 0, rules }, []).result.order, [], 'a setup without members is byte-identical');
 });

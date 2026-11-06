@@ -112,10 +112,10 @@ export function receiveBoard(meta, payload, result, sid, receiptId = null, state
         current.carriedKey = payload.key;
         return true;
     }
-    const base = { offset: board.setup.offset, order: structuredClone(board.setup.order ?? null) };
+    const base = { offset: board.setup.offset, order: structuredClone(board.setup.order ?? null),
+        carriedMembers: structuredClone(board.setup.carriedMembers ?? null) };
     const setup = { ...structuredClone(board.setup), offset: nextOffset, order: structuredClone(result.order ?? []), ...(carried ? { carriedMembers: carried } : {}) };
     delete setup.witness;
-    delete setup.kept;
     delete setup.opening;
     delete setup.approach;
     delete setup.drop;
@@ -144,6 +144,8 @@ export function reconcileBoard(meta, hasReceipt) {
     const base = object(session.base) ? session.base : { offset: 0, order: null };
     session.setup = { ...session.setup, offset: Number.isSafeInteger(base.offset) ? base.offset : 0 };
     if (orderOf(base.order)) session.setup.order = structuredClone(base.order); else delete session.setup.order;
+    if (object(base.carriedMembers)) session.setup.carriedMembers = structuredClone(base.carriedMembers);
+    else delete session.setup.carriedMembers;
     delete session.setup.witness;
     // Choices staged after the take-back are kept; they now roll from the segment's first die.
     delete session.carried;

@@ -168,13 +168,13 @@ for (const seed of SEEDS) {
         Object.assign(skills.state.stat2, { default: 'str' }); Object.assign(skills.state.uses2, { default: 'stamina' });
         Object.assign(skills.state.rank2, { default: 3 });
         foes.slug = 'delete-fuzz-foes'; foes.name = 'Delete Fuzz Foes';
-        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 1 });
+        Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 12 });
         Object.assign(foes.state.level1, { default: 1 }); Object.assign(foes.state.hurt1, { default: 1 });
         for (const definition of definitions) {
             const made = await host.sdk.command('dm.define', { definition });
             assert.equal(made.ok, true, `seed ${seed}: the board sheet is made: ${made.message}`);
         }
-        let boardFights = 0, memberWins = 0, boardDeletes = 0, memberDeletes = 0, boardReplays = 0;
+        let boardFights = 0, memberWins = 0, packWins = 0, boardDeletes = 0, memberDeletes = 0, packDeletes = 0, boardReplays = 0;
         const base = { coin: coin(host), torches: qty(host, 'Torch') };
         const setup = host.store.headIndex();
         // The replies after the first, by the record ID that stays with them: what each did.
@@ -201,18 +201,19 @@ for (const seed of SEEDS) {
             made.step = step;
             const all = [...made.weather, ...youLines(made.you), ...made.mounts, ...made.lines, ...made.extras];
             if (step % 4 === 1) dropEcho(made, all);
-            let staged = null, stagedMember = false;
+            let staged = null, stagedKind = null, stagedCount = 1;
             if (step === 1) {
                 const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
                 if (boardSession(meta)) discardBoard(meta);
-                staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 1 }], 'board exchange');
+                staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }], 'pack exchange');
+                stagedKind = 'pack'; stagedCount = 12;
             } else if (step === 8) {
                 const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
                 if (boardSession(meta)) discardBoard(meta);
                 assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/delete-fuzz-foes', fields: { count1: 3, hurt1: 1 } })).ok, true,
                     `seed ${seed}: the member fight's Foes block is set`);
                 staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }], 'member exchange');
-                stagedMember = true;
+                stagedKind = 'member'; stagedCount = 3;
             }
             await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, all));
             const index = host.store.headIndex();
@@ -226,10 +227,12 @@ for (const seed of SEEDS) {
                 assert.deepEqual(roll.data.v2.result.rounds, staged.preview.result.rounds, `seed ${seed} step ${step}: committed rounds match staging`);
                 const uses = usesOf(roll.data.v2.result).find(entry => entry.who === 'Astra' && entry.skill === 'Cut');
                 assert.equal(practice.find(entry => entry.who === 'Astra' && entry.skill === 'Cut')?.amount ?? 0, uses ? Math.min(20, uses.n * 3) : 0);
-                assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, memberXp([{ count: stagedMember ? 3 : 1, level: 1 }], 1));
-                made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards, member: stagedMember };
+                assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, memberXp([{ count: stagedCount, level: 1 }], 1));
+                made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards,
+                    member: stagedKind === 'member', pack: stagedKind === 'pack' };
                 boardFights += 1;
-                if (stagedMember) memberWins += 1;
+                if (stagedKind === 'member') memberWins += 1;
+                if (stagedKind === 'pack') packWins += 1;
             }
             done.set(host.store.carrierSid(index), made);
             if (made.loot && r.chance(0.7)) {
@@ -253,6 +256,7 @@ for (const seed of SEEDS) {
             const deletedBoard = done.get(goneSid)?.board;
             if (deletedBoard) boardDeletes += 1;
             if (deletedBoard?.member) memberDeletes += 1;
+            if (deletedBoard?.pack) packDeletes += 1;
             done.delete(goneSid);
             await host.st.deleteMessage(gone);
             await host.st.deleteMessage(gone - 1);
@@ -299,8 +303,10 @@ for (const seed of SEEDS) {
         }
         assert.ok(boardFights > 0, `seed ${seed}: the fuzz ran board fights in the deleted range`);
         assert.ok(memberWins > 0, `seed ${seed}: the fuzz won a member fight with its original count`);
+        assert.ok(packWins > 0, `seed ${seed}: the fuzz won a pack fight with its original count`);
         assert.ok(boardDeletes > 0, `seed ${seed}: a board fight was deleted`);
         assert.ok(memberDeletes > 0, `seed ${seed}: a member win was deleted`);
+        assert.ok(packDeletes > 0, `seed ${seed}: a pack win was deleted`);
         assert.ok(boardReplays > 0, `seed ${seed}: a later board fight replayed after a deletion`);
     });
 }

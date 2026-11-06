@@ -50,7 +50,7 @@ test('a pack makes its attacks-now count as its bar thins, and every pack attack
     const base = readSheet(stateOf({ hero: boars().hero, foes: { role: 'foes', fields: levelFoeBlock([['Cellar-rat', 12, 1, 4]]) } }));
     const attack = [{ who: 'Astra', kind: 'attack', target: 11 }];
     for (const [value, attacks] of [[8, 3], [5, 2], [2, 1]]) {
-        const pack = splitFoes(base.foes, { kept: { 1: [value] } })[0], sheet = { ...base, foes: [pack] };
+        const pack = splitFoes(base.foes, { carried: carriedFor([value], { 1: 12 }) })[0], sheet = { ...base, foes: [pack] };
         const built = exchangePlan(sheet, attack, {}, 1, { members: true });
         assert.equal(built.error, undefined);
         assert.deepEqual(built.plan.foes.map(foe => foe.slot), Array(attacks).fill(11));
@@ -73,7 +73,7 @@ test('H3: an area act is scoped to its group, and a decisive area hit takes a th
     assert.deepEqual(rolled.rounds[0].lines.filter(line => line.kind === 'act').map(line => line.foe.name), ['Cellar-rat 1', 'Cellar-rat 2']);
 
     const packBase = readSheet(stateOf({ hero: blocks.hero, skills: blocks.skills, foes: { role: 'foes', fields: levelFoeBlock([['Cellar-rat', 12, 1, 4]]) } }));
-    const pack = splitFoes(packBase.foes, { kept: { 1: [8] } })[0], packSheet = { ...packBase, foes: [pack] };
+    const pack = splitFoes(packBase.foes, { carried: carriedFor([8], { 1: 12 }) })[0], packSheet = { ...packBase, foes: [pack] };
     const packPlan = exchangePlan(packSheet, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }], {}, 1, { members: true });
     assert.equal(packPlan.error, undefined, 'one group is selected automatically');
     const packPrepared = prepareStandard(packPlan.plan, packSheet, rules, { lv: true, fix: true, then: true });
