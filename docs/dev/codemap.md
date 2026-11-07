@@ -120,3 +120,19 @@ Last checked: 2026-11-07.
 - `src/v2/view/bind.js` → `view/bind/`: `paths.js` path syntax and reads; `scope.js` scopes; `expressions.js` compiled expressions; `helpers.js` helpers and formatters; `text.js` text and interpolation; `changes.js` change checks.
 - `src/v2/view/css.js` → `view/css/`: `parse.js` limits and tokenizing; `names.js` scope names; `selectors.js` selector scoping; `values.js` value filtering and theme properties; `scoping.js` the scoper.
 - `src/v2/view/widgets/map.js` → `view/widgets/map/data.js`: map data cleaning and layer visibility.
+- `src/v2/ops/constants.js`: shared op names and JSON Pointer list index.
+- `src/v2/ops/paths.js`: JSON Pointer escaping, parsing and value reads.
+- `src/v2/ops/json.js`: plain-object test, JSON check, defensive copies and deep equality.
+- `src/v2/ops/freeze.js`: deep freezing, frozen checks and frozen copies sharing a base.
+- `src/v2/ops/diff.js`: minimal JSON Patch changes between two states.
+- `src/v2/ops/apply.js`: applying JSON Patch changes to a state without changing it.
+- `src/v2/ops/counters.js`: counter path detection and the pointer inside a counter holder.
+- `src/v2/ops/rebase.js`: counter rebasing, per-reply scratch fitting and replay rules.
+- `src/v2/ops/check.js`: generic op validation and forbidden key rules.
+- `src/v2/sdk/constants.js`: sdk event names, host settings, limits and preflight patterns.
+- `src/v2/sdk/shared.js`: the sdk's shared non-array object test.
+- `src/v2/sdk/ids.js`: crypto-backed ids with a module prefix.
+- `src/v2/sdk/events.js`: the sdk's named event bus.
+- `src/v2/sdk/settings.js`: schema coercion and settings over extension_settings.storySuite.
+- `src/v2/sdk/queries.js`: query tools, mounted queries, module views and missing-domain checks.
+- `src/v2/sdk/lifecycle.js`: lifecycle announcements, initial domains and read-only preflight.
