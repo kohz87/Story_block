@@ -174,7 +174,7 @@ export function createParty(deps) {
     function makeParty(ctx, request, soul, call, { added = false } = {}) {
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
-        // (the formula and numbers in force: the reader's settings, else what the story's pack asks for, as the roll planner reads them)
+        // (the formula and numbers in force: the reader's settings, else what the story's pack asks for, as the rolls read them)
         let pack = null;
         const rpgRecords = (packs?.packs?.() ?? []).flatMap(entry => entry?.content?.rpg ?? []);
         try { pack = rpg().packRulesOf(rpgRecords); } catch { pack = null; }

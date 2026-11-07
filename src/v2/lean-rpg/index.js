@@ -74,7 +74,7 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
         commands: {
             ...board.commands,
             [RESOLVE]: Object.assign((ctx, payload) => resolve(ctx, payload), { prelude: true, internal: true }),
-            // The note that a live fight's planner gave nothing usable, kept with the reply (noroll.js). Not tied to the feature either.
+            // The note that a live fight's planner (gone) gave nothing usable, kept with the reply; old records only (noroll.js). Not tied to the feature either.
             [NOROLL]: Object.assign((ctx, payload) => noRoll(ctx, payload), { prelude: true, internal: true }),
             // XP for a won fight, a step after the reply's lines (fight.js). Not tied to the feature either: a Re-read keeps it.
             [FIGHT]: Object.assign((ctx, payload) => fightXp(ctx, payload), { internal: true }),

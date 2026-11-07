@@ -136,7 +136,7 @@ export function skillsOf(block) {
     return out;
 }
 
-/** The foes a Foes block holds: `[{ slot, name, count, level, levelText ("Rank F · Lv 7"), hurt, word, max?, text?, blocks? }]` (a Standard group has its size `max`, the `text` "Hurt · 4 of 6"), empty slots left out (a slot is filled with a name and a count above 0, as the roll planner reads it). */
+/** The foes a Foes block holds: `[{ slot, name, count, level, levelText ("Rank F · Lv 7"), hurt, word, max?, text?, blocks? }]` (a Standard group has its size `max`, the `text` "Hurt · 4 of 6"), empty slots left out (a slot is filled with a name and a count above 0, as the fight board reads it). */
 export function foesOf(block, { ranks = [] } = {}) {
     const out = [];
     for (let slot = 1; slot <= FOE_SLOTS; slot += 1) {

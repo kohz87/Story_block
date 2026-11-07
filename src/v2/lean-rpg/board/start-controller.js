@@ -28,7 +28,7 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
     const send = () => {
         const pending = current();
         if (!pending || sending) return;
-        // The staged fight goes with the send or the send does not happen: it is never replaced by a new planner roll.
+        // The staged fight goes with the send or the send does not happen: it is never replaced by a new roll.
         if (pending.choice === 'board' && !markSend(meta(), pending, boardSession(meta()))) {
             error = 'The staged fight cannot be attached to this reply (its anchor reply or exchanges are missing). Discard it and start the fight again.';
             tell(); return;
