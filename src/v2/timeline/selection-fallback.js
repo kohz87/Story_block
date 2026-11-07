@@ -79,17 +79,23 @@ export function createSelectionFallback({ archive, store, witnessStateHash = sta
      * once. If nothing works, `failure` (the original prepare failure) is returned unchanged, as the
      * block stays today. Nothing here installs a checkpoint.
      */
-    async function walkSelectionFallback(module, { from = null, headIndex = null, verify = null, prepare, failure = null } = {}) {
+    async function walkSelectionFallback(module, { from = null, headIndex = null, countReplies = null, verify = null, prepare, failure = null, chain = fallbackChain(module) } = {}) {
         if (typeof prepare !== 'function') throw new TypeError('walkSelectionFallback needs a prepare callback.');
         const tried = [];
-        for (const target of fallbackChain(module)) {
+        // The selected point may have left the current head while its prepare was waiting. Do not
+        // mistake a newer point on the changed head for an earlier fallback in that case.
+        const start = from ? chain.findIndex(target => sameTarget(from, target)) : -1;
+        if (from && start < 0) return failure ?? { ok: false, code: 'STALE', message: 'The selected point is no longer on this head.' };
+        for (const target of chain.slice(start + 1)) {
             if (sameTarget(from, target)) continue;
+            if (from && target.schema !== from.schema) continue;
             const attempt = { checkpoint: target.checkpoint, hash: target.hash };
             tried.push(attempt);
             if (typeof verify === 'function') {
                 const answer = await verify({ checkpoint: target.checkpoint, hash: target.hash });
                 if (answer?.ok !== true) {
                     attempt.code = answer?.code ?? 'FAILED';
+                    if (!canFallback(attempt.code)) return { ...answer, ok: false, code: attempt.code, target, tried };
                     continue;
                 }
             }
@@ -102,8 +108,8 @@ export function createSelectionFallback({ archive, store, witnessStateHash = sta
             if (prepared.hash !== target.hash) {
                 return { ok: false, code: 'CONFLICT', message: 'The participant prepared other selected bytes.', target, tried };
             }
-            const replies = Number.isInteger(headIndex) && Number.isInteger(target.index)
-                ? Math.max(0, headIndex - target.index) : null;
+            const replies = countReplies ? countReplies(target.index) : (Number.isInteger(headIndex) && Number.isInteger(target.index)
+                ? Math.max(0, headIndex - target.index) : null);
             return { ok: true, target, prepared, tried, fell: { module, from: from ? targetOf(from) : null, to: targetOf(target), replies } };
         }
         return failure ?? { ok: false, code: 'SNAPSHOT_UNAVAILABLE', message: 'No earlier saved point could be checked.', tried };
@@ -121,7 +127,7 @@ export function settledPlan(plan, selection, entries) {
     let result = plan;
     for (const entry of entries) {
         if (entry.kind !== 'selection' || entry.phase !== 'complete') continue;
-        for (const fell of [].concat(entry.fell ?? [])) {
+        for (const fell of [].concat(entry.fell ?? [], entry.fellOthers ?? [])) {
             const { module, from, to } = fell;
             const wanted = plan[module];
             const held = selection[module];

@@ -8,12 +8,12 @@
 import { hashJson, isHash, isRecordId, sourceProblem } from '../replay.js';
 import { HOST_DOMAIN } from './gate.js';
 import { stateHash } from './host-block.js';
-import { canFallback, createSelectionFallback, fellNotice, settledPlan } from './selection-fallback.js';
+import { boundaryMatches, canFallback, createSelectionFallback, fellNotice, settledPlan } from './selection-fallback.js';
 import { crashing, fail, isObject, isStaleChat, makeId } from './util.js';
 
 export function createNative(s, deps) {
     const {
-        store, registry, activeHistory, archive, ask, block, availability, brokenProblem, callParticipant, durable, exclusive, guarded, head, headNow, here,
+        store, registry, activeHistory, activeLine, archive, ask, block, availability, brokenProblem, callParticipant, durable, exclusive, guarded, head, headNow, here,
         makeNow, participants, pendingNow, point, pointsOf, problem, raise, release, session, stillHere, unmaterializedMarkers,
     } = deps;
 
@@ -37,7 +37,7 @@ export function createNative(s, deps) {
                 for (const mapping of archive.prefixes(module)) {
                     if (!mapping.boundary || !mapping.after) continue;
                     const witness = store.prefixWitness(mapping.boundary.cursor);
-                    if (witness && (!through || witness.index < through.index || (witness.index === through.index && witness.op <= through.op)) && witness.prefixHash === mapping.boundary.prefixHash && witnessStateHash(witness.state) === mapping.boundary.stateHash) {
+                    if (boundaryMatches(mapping, witness, { through, stateHashOf: witnessStateHash })) {
                         candidates.push({ mapping, index: witness.index, op: witness.op });
                     }
                 }
@@ -62,21 +62,25 @@ export function createNative(s, deps) {
     // A head selection whose chosen checkpoint is gone or belongs to another line walks to the nearest earlier one that holds (spec 3a).
     // Only a head selection comes here: a reader's Return here and every save point are restores, which stay exact and never fall back.
     async function fallBack(entry, module, target, failure) {
-        const head = headNow();
-        const headIndex = head ? store.prefixWitness(head.cursor)?.index : null;
+        const { headIndex, chain, replyIndexes } = withWholePrefixes(() => {
+            const head = headNow();
+            const line = activeLine();
+            const replyIndexes = line.messages.flatMap((message, index) => message && !message.is_user && !message.is_system && !line.at.has(index) ? [index] : []);
+            return { headIndex: head ? store.prefixWitness(head.cursor)?.index : null, chain: fallback.fallbackChain(module), replyIndexes };
+        });
         const verify = typeof participants.get(module)?.verify === 'function' ? input => callParticipant(module, 'verify', input) : null;
         const walked = await fallback.walkSelectionFallback(module, {
-            from: target, headIndex, verify, failure,
+            from: target, headIndex, verify, failure, chain,
+            countReplies: index => Number.isInteger(headIndex) ? replyIndexes.filter(at => at > (index ?? -1) && at <= headIndex).length : null,
             prepare: input => callParticipant(module, 'prepare', { return: entry.id, ...input }),
         });
         if (!walked.ok) return walked;
         const to = { module, checkpoint: walked.target.checkpoint, hash: walked.target.hash, schema: walked.target.schema };
         const slot = { prepared: walked.prepared.prepared, ack: false };
-        archive.patch(entry.id, { desired: { ...archive.get(entry.id).desired, [module]: to }, slots: { ...archive.get(entry.id).slots, [module]: slot },
-            fell: [...(archive.get(entry.id).fell ?? []), walked.fell] });
+        const previous = archive.get(entry.id);
+        archive.patch(entry.id, { desired: { ...previous.desired, [module]: to }, slots: { ...previous.slots, [module]: slot },
+            ...(previous.fell ? { fellOthers: [...(previous.fellOthers ?? []), walked.fell] } : { fell: walked.fell }) });
         await durable();
-        const message = fellNotice(LABELS[module] ?? registry.module?.(module)?.name ?? module, { index: walked.target.index, replies: walked.fell.replies });
-        try { problem?.({ module, code: 'SELECTION_FELL', message }); } catch { /* a listener is not the timeline's business */ }
         return { ok: true, target: to, slot };
     }
 
@@ -105,7 +109,7 @@ export function createNative(s, deps) {
 
     async function selectHead() {
         if (!selectionNeeded()) return { ok: true };
-        const desired = selectionPlan();
+        const desired = settledPlan(selectionPlan(), archive.selection(), archive.entries());
         const lacking = availability(Object.values(desired));
         if (lacking) return block.note(null, fail('SNAPSHOT_UNAVAILABLE', lacking));
         const entry = archive.add({ id: makeId('hs'), kind: 'selection', phase: 'prepared', desired, slots: {} });
@@ -150,6 +154,11 @@ export function createNative(s, deps) {
         archive.select(entry.desired);
         archive.patch(entry.id, { phase: 'complete' });
         await durable();
+        for (const fell of [].concat(entry.fell ?? [], entry.fellOthers ?? [])) {
+            const chosen = withWholePrefixes(() => fallback.fallbackChain(fell.module).find(item => item.checkpoint === fell.to.checkpoint && item.hash === fell.to.hash));
+            const message = fellNotice(LABELS[fell.module] ?? registry.module?.(fell.module)?.name ?? fell.module, { index: chosen?.index, replies: fell.replies });
+            try { problem?.({ module: fell.module, code: 'SELECTION_FELL', quiet: true, message }); } catch { /* a listener is not the timeline's business */ }
+        }
         block.clear();
         return { ok: true };
     }

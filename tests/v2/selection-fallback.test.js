@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { boundaryMatches, createSelectionFallback } from '../../src/v2/timeline/selection-fallback.js';
+import { boundaryMatches, createSelectionFallback, settledPlan } from '../../src/v2/timeline/selection-fallback.js';
 
 const MODULE = 'tl-native';
 const descriptor = (checkpoint, schema = 1) => ({ module: MODULE, checkpoint, hash: `hash-${checkpoint}`, schema });
@@ -98,7 +98,7 @@ test('selection walk: a failed verify moves on without preparing that candidate'
     const prepared = [];
     const result = await fallback.walkSelectionFallback(MODULE, {
         from: descriptor('ck-two'),
-        verify: async input => ({ ok: input.checkpoint === 'ck-one' }),
+        verify: async input => input.checkpoint === 'ck-one' ? { ok: true } : { ok: false, code: 'CONFLICT', message: 'other line' },
         prepare: async input => { prepared.push(input.checkpoint); return { ok: true, prepared: `pr-${input.checkpoint}`, hash: input.hash }; },
     });
     assert.equal(result.target.checkpoint, 'ck-one');
@@ -135,4 +135,45 @@ test('selection walk: a non-fallback failure stops, and nothing usable leaves th
         prepare: async () => ({ ok: false, code: 'CONFLICT', message: 'other bytes' }),
     });
     assert.equal(walked, original, 'the block keeps today\'s failure');
+});
+
+test('selection walk: a temporary verify failure stops before an older point is prepared', async () => {
+    const { fallback } = fixture();
+    const calls = [];
+    const result = await fallback.walkSelectionFallback(MODULE, {
+        from: descriptor('ck-two'),
+        verify: async input => { calls.push(input.checkpoint); return { ok: false, code: 'STALE', message: 'retry shortly' }; },
+        prepare: async input => { calls.push(`prepared ${input.checkpoint}`); return { ok: true, prepared: 'pr', hash: input.hash }; },
+    });
+    assert.equal(result.code, 'STALE');
+    assert.deepEqual(calls, ['ck-three']);
+});
+
+test('selection walk: never moves to a newer point, an absent head, or an incompatible schema', async () => {
+    const { fallback } = fixture();
+    const calls = [];
+    const prepare = async input => { calls.push(input.checkpoint); return { ok: true, prepared: 'pr', hash: input.hash }; };
+    const chain = fallback.fallbackChain(MODULE);
+    const below = await fallback.walkSelectionFallback(MODULE, { from: descriptor('ck-three'), chain, prepare });
+    assert.equal(below.target.checkpoint, 'ck-one');
+    assert.deepEqual(calls, ['ck-one']);
+    calls.length = 0;
+    const original = { ok: false, code: 'SNAPSHOT_UNAVAILABLE', message: 'gone' };
+    assert.equal(await fallback.walkSelectionFallback(MODULE, { from: descriptor('no-longer-on-head'), chain, prepare, failure: original }), original);
+    assert.deepEqual(calls, []);
+    chain[1].schema = 2;
+    const compatible = await fallback.walkSelectionFallback(MODULE, { from: descriptor('ck-two'), chain, prepare });
+    assert.equal(compatible.target.checkpoint, 'ck-one');
+    assert.deepEqual(calls, ['ck-one']);
+});
+
+test('settled fallback selections survive a different participant needing a new selection', () => {
+    const from = descriptor('missing');
+    const to = descriptor('earlier');
+    const plan = { [MODULE]: from, other: { checkpoint: 'new' } };
+    const selection = { [MODULE]: to, other: { checkpoint: 'old' } };
+    const entries = [{ kind: 'selection', phase: 'complete', fell: { module: MODULE, from, to, replies: 2 } }];
+    assert.deepEqual(settledPlan(plan, selection, entries), { [MODULE]: to, other: { checkpoint: 'new' } });
+    const another = { module: 'other', from: { checkpoint: 'new', hash: 'n' }, to: { checkpoint: 'old', hash: 'o' } };
+    assert.deepEqual(settledPlan({ ...plan, other: another.from }, { ...selection, other: another.to }, [{ ...entries[0], fellOthers: [another] }]), { [MODULE]: to, other: another.to });
 });
