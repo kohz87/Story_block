@@ -35,13 +35,13 @@ test('careful-one-exchange-says-pace', () => {
     const careful = model('pace', { pace: 'careful', rounds: [{ n: 1, decisive: true, lines: [] }] });
     assert.equal(stopLine(careful), 'Ended: careful pace allows 1 exchange.');
     assert.doesNotMatch(stopLine(careful), /decisive/i);
-    assert.equal(stopHint(careful), 'The fight goes on next reply. To allow more per reply: Settings → RPG → Rolls → Most exchanges per reply.');
+    assert.equal(stopHint(careful), 'The fight goes on next reply. To allow more per reply: Settings → RPG → Difficulty → Custom → Most exchanges per reply.');
 });
 
 test('cap-uses-rules-roundcap', () => {
     assert.equal(stopLine({ stop: 'cap', flow: 2, rules: { roundCap: 3 } }), 'Ended: reached the most exchanges per reply (3).');
     assert.equal(stopLine({ stop: 'cap', pace: 'normal' }), 'Ended: reached the most exchanges per reply (5).', 'a roll before the flow keeps 5');
-    assert.equal(stopHint({ stop: 'cap', flow: 2, cap: 8 }), 'The fight goes on next reply. To allow more per reply: Settings → RPG → Rolls → Most exchanges per reply.');
+    assert.equal(stopHint({ stop: 'cap', flow: 2, cap: 8 }), 'The fight goes on next reply. To allow more per reply: Settings → RPG → Difficulty → Custom → Most exchanges per reply.');
 });
 
 test('board-record-no-pace-words', () => {
