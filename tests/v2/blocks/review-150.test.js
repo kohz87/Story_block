@@ -38,6 +38,7 @@ test('export, import and enable retain the tab, Home card and buttons without ch
     const original = doc.querySelector('.ss-gameview [data-ss-screen="story-block/block/vigor"]');
     input(original, S.menu).click();
     button(original, S.exportPack).click();
+    await new Promise(resolve => setTimeout(resolve, 20));   // (the pack checker is fetched on the first export)
     assert.deepEqual(filenames, ['vigor.pack.json']);
     const exported = blobs[0].parts.join('');
     assert.equal(JSON.parse(exported).content.dataModules[0].show.card, true);

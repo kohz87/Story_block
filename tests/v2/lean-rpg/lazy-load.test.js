@@ -12,6 +12,7 @@ import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { createLeanRpgPart } from '../../../src/v2/lean-rpg/index.js';
 import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { checkerLoaded } from '../../../src/v2/packs/installed.js';
 import { createLazyRpgPart, createRpgLoader, holdsRpg, rpgLib, setRpgLib } from '../../../src/v2/rpg-lazy.js';
 
 const available = await hostAvailable();
@@ -47,6 +48,43 @@ test('the page start (index.js static imports) reaches none of the RPG\'s code, 
     // …and what a dynamic import brings in is the whole RPG (the part and its pieces), so the split is real.
     const whole = closure('src/v2/lean-rpg/index.js').filter(file => file.startsWith('src/v2/lean-rpg/'));
     assert.ok(bytes(whole) > 4 * bytes(lean), 'the part is most of the RPG\'s code');
+});
+
+
+// ---- the pack checker, the Diagnostics page and the UI sample (P4: less code at every page open) ----------------------------------------
+
+test('the page start reaches neither the pack checker\'s checks, nor the Diagnostics page, nor the UI sample', () => {
+    const files = closure('index.js');
+    for (const file of ['src/v2/packs/validate.js', 'src/v2/packs/validate/items.js', 'src/v2/packs/validate/world.js', 'src/v2/packs/validate/events-economy.js',
+        'src/v2/view/settings/diagnostics-page.js', 'src/v2/screens/ui-sample.js']) assert.ok(!files.includes(file), `${file} comes in by import() only`);
+    // …while the checker and the page are reachable on their own, so the split is real.
+    assert.ok(closure('src/v2/packs/validate.js').includes('src/v2/packs/validate/items.js'));
+    assert.ok(closure('src/v2/ui-host/settings.js').every(file => file !== 'src/v2/screens/ui-sample.js'), 'the settings host does not import the sample');
+});
+
+const TINY = { id: 'tiny', name: 'Tiny', version: '1.0.0', requires: { storyBlock: '^2' }, content: { items: [{ name: 'Brass key', slot: 'hand' }] } };
+
+test('no pack stored: a whole session never loads the pack checker; the first install loads it and works', { skip }, async t => {
+    const host = await createHost({});
+    t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    assert.equal(host.packs.packs.ready(), undefined, 'nothing to wait for');
+    assert.equal(checkerLoaded(), false, 'the checker was not fetched');
+    assert.deepEqual(host.packs.packs.list(), []);
+    const done = await host.packs.packs.install(TINY);
+    assert.equal(done.ok, true, JSON.stringify(done.errors));
+    assert.equal(checkerLoaded(), true);
+    assert.equal(host.packs.packs.list()[0].name, 'Tiny');
+});
+
+test('a stored pack: the checker is awaited before the chat is read, so the pack gives its content from the first read', { skip }, async t => {
+    const host = await createHost({ settings: { packs: [{ id: 'tiny', version: '1.0.0', enabled: true, source: 'file', origin: '', pack: TINY }] } });
+    t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    assert.equal(checkerLoaded(), true);
+    assert.deepEqual(host.packs.packs.packs().map(pack => pack.id), ['tiny']);
+    assert.equal(host.packs.packs.list()[0].problem, '');
 });
 
 // ---- the loader --------------------------------------------------------------------------------------------------------------------------

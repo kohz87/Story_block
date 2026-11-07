@@ -251,14 +251,14 @@ test('templates keep the new keys and open in the editor; an export of them asks
     assert.equal(saved.definition.layout, 'cards');
     assert.deepEqual(saved.definition.roles, built.checked.roles);
     assert.ok(editableBlockDraft(saved.definition), 'a saved template opens as a form');
-    const exported = exportBlockPack(built.checked);
+    const exported = await exportBlockPack(built.checked);
     assert.equal(exported.ok, true, JSON.stringify(exported.errors));
     assert.equal(exported.pack.requires.storyBlock, '^2.22.0');
     assert.equal(validatePack(exported.text, { hostVersion: '2.22.0' }).ok, true);
     assert.equal(validatePack(exported.text, { hostVersion: '2.21.2' }).ok, false, 'an older Story Block refuses it by its version');
     // a block with none of the new keys keeps the old requirement
     const plain = buildBlock({ name: 'Notes', fields: [{ name: 'Mood', type: 'text', max: 30, default: 'calm' }], functions: [], prompt: '', show: { tab: true, card: false, tabName: 'Notes', icon: 'ph-star' } });
-    assert.equal(exportBlockPack(plain.checked).pack.requires.storyBlock, '^2');
+    assert.equal((await exportBlockPack(plain.checked)).pack.requires.storyBlock, '^2');
 });
 
 test('an old block opens as it was, shows the layout its shape suggests, and saving it again keeps its bytes (no layout is written)', async t => {

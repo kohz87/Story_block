@@ -281,7 +281,14 @@ export function createRuntime({
         featureOn: () => registry.featureOn(CORE_FEATURE.leanRpg), chat: () => ctx.chat, metadata: chatMetadata, problem: entry => turn?.report(entry),
     });
     events.on('feature', () => { rpgLoader.ensure({ scan: false }); });
-    turn = createTurn({ ctx, live, store, bus, timeline, registry, settings, events, onBlocked, initial, prepare: options => rpgLoader.ensure(options), ownPrompt: eventData => ownCalls.owns(eventData), ...(notify ? { notify } : {}) });
+    // The pack checker too (packs/installed.js): fetched at once when packs are stored, awaited before a chat is read; undefined when nothing is to be waited for.
+    const checkerReady = () => { try { return packPart?.packs?.ready?.(); } catch { return undefined; } };
+    const prepareLibs = options => {
+        const rpg = rpgLoader.ensure(options), checker = checkerReady();
+        return rpg && checker ? Promise.all([rpg, checker]) : rpg ?? checker;
+    };
+    checkerReady();
+    turn = createTurn({ ctx, live, store, bus, timeline, registry, settings, events, onBlocked, initial, prepare: options => prepareLibs(options), ownPrompt: eventData => ownCalls.owns(eventData), ...(notify ? { notify } : {}) });
     // The public API (public-api.js, docs/v2/PUBLIC-API.md): the head state read through the queries and readers that exist, events after the store has written.
     const apiPersona = () => { try { return String((live() ?? ctx)?.name1 ?? ''); } catch { return String(ctx?.name1 ?? ''); } };
     const api = createPublicApi({

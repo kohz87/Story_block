@@ -23,9 +23,9 @@ test('templates save detached definitions, require replacement consent, and can 
     assert.deepEqual(templates.list(), []);
 });
 
-test('an exported block validates and imports as an ordinary pack with the same fields', () => {
+test('an exported block validates and imports as an ordinary pack with the same fields', async () => {
     const built = buildBlock(draft());
-    const result = exportBlockPack(built.checked);
+    const result = await exportBlockPack(built.checked);
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.filename, 'notes.pack.json');
     const imported = validatePack(result.text);
@@ -34,11 +34,11 @@ test('an exported block validates and imports as an ordinary pack with the same 
     assert.deepEqual(imported.pack.content.dataModules[0].state, built.checked.state);
 });
 
-test('export preserves a block name containing non-BMP characters', () => {
+test('export preserves a block name containing non-BMP characters', async () => {
     const name = '😀'.repeat(60);
     const built = buildBlock(draft(name));
     assert.equal(built.ok, true, JSON.stringify(built.errors));
-    const exported = exportBlockPack(built.checked);
+    const exported = await exportBlockPack(built.checked);
     assert.equal(exported.ok, true, JSON.stringify(exported.errors));
     assert.equal(validatePack(exported.text).pack.name, name);
 });
@@ -48,7 +48,7 @@ test('templates stop at sixteen and an exported pack enables through the normal 
     for (let i = 0; i < 16; i++) assert.equal((await templates.put(buildBlock(draft(`Notes ${i}`)).checked)).ok, true);
     assert.equal((await templates.put(buildBlock(draft('One more')).checked)).code, 'FULL');
     const host = await createHost(); t.after(() => host.close());
-    const exported = exportBlockPack(buildBlock(draft()).checked);
+    const exported = await exportBlockPack(buildBlock(draft()).checked);
     assert.equal((await host.packs.packs.install(exported.text)).ok, true);
     await host.send('Begin.', 'Opening.');
     const offer = host.sdk.query('dataModules.offers')[0];
