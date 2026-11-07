@@ -71,6 +71,7 @@ Last checked: 2026-11-07.
 
 ## src/v2/timeline/
 - `src/v2/timeline/boundary.js`: hashes and checks logical clock markers against transactions and captured proofs.
+- `src/v2/timeline/selection-fallback.js`: matches head prefixes and walks compatible earlier participant checkpoints, newest first, for a head selection; the Inspector note when a selection fell back.
 - `src/v2/timeline/coordinator-block.js`: classifies blocked timeline selections and schedules retries for temporary failures.
 - `src/v2/timeline/referenced.js`: the `timeline.referenced` query: checkpoint ids named by every chat SillyTavern lists (chats of deleted characters are not checked); any listed chat unreadable makes the answer incomplete. Not replay-safe.
 - `src/v2/timeline/util.js`: holds shared timeline ids, error codes, crash and stale-chat helpers.
