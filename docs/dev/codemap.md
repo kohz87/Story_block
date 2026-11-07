@@ -120,3 +120,17 @@ Last checked: 2026-11-07.
 - `src/v2/view/bind.js` → `view/bind/`: `paths.js` path syntax and reads; `scope.js` scopes; `expressions.js` compiled expressions; `helpers.js` helpers and formatters; `text.js` text and interpolation; `changes.js` change checks.
 - `src/v2/view/css.js` → `view/css/`: `parse.js` limits and tokenizing; `names.js` scope names; `selectors.js` selector scoping; `values.js` value filtering and theme properties; `scoping.js` the scoper.
 - `src/v2/view/widgets/map.js` → `view/widgets/map/data.js`: map data cleaning and layer visibility.
+- `src/v2/data-modules/check/shape.js`: the message table `E`, the shape validators shared by every section, and the display names of an int field.
+- `src/v2/data-modules/check/names.js`: `dataModuleDefaults`, the defaults a checked definition starts from.
+- `src/v2/data-modules/check/effects.js`: reward types, the line a List of entries field is worked by, and the effects a rule may write.
+- `src/v2/data-modules/check/imports.js`: the imports a definition declares and the offers collected from them.
+- `src/v2/data-modules/check/migration.js`: the migrations a definition declares and `validateDataMigration`.
+- `src/v2/data-modules/check/screens.js`: the presentation a definition declares (editable props, screens, action and template payloads, view paths).
+- `src/v2/data-modules/check/layout.js`: the block layout keys, the stage-bar fields and the block functions (cards, rules, hidden fields).
+- `src/v2/data-modules/check/validate.js`: `validateDataModules`, the entry point that checks a pack's definitions, catalog and capabilities.
+- `src/v2/data-modules/check/hash.js`: the memoised text hash and the hashes of a checked definition and of a whole pack.
+- `src/v2/evidence/constants.js`: proof owners, stat names, structural caps, the stored key list, and the shared readers `isObject`, `whole` and `occurrenceOf`.
+- `src/v2/evidence/payloads.js`: checks that a proof payload is closed and well formed for its kind, its payload key, and the intent check.
+- `src/v2/evidence/stored.js`: whether a stored proof is whole and owned, its pin, the pins written with a block's ops, and the proof write checks.
+- `src/v2/evidence/visible.js`: recorded entries, the visible proofs and the `story.evidence` query.
+- `src/v2/evidence/submit.js`: `newRoot` and `submitProof`, which check a `ctx.proof` call and build its proof.
