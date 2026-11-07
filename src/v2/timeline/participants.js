@@ -4,6 +4,10 @@
 // the module's). Each callback is the module's own, called with the contract's input, and answers `{ ok: true, ...fields }`
 // or the common failure; whatever else it does (throws, answers nothing, answers the wrong shape) is a FAILED, never a
 // success. A callback may be synchronous or return a promise.
+// `verify({ checkpoint, hash })` is optional and read-only (see selection-fallback.js): the head-selection fallback asks it before
+// it prepares an earlier checkpoint. It answers { ok: true } or the common failure, and changes nothing.
+// `restored({ from, to, reason: 'fallback' })` is optional: told once a head selection fell back to an earlier checkpoint `to` (instead of the wanted `from`)
+// and that selection is durable, so the participant reads the replies it missed (its normal catch-up) before new play. Best effort.
 
 import { isHash } from '../replay.js';
 import { CODES, crashing, fail, isObject } from './util.js';
@@ -68,9 +72,11 @@ export function createParticipants({ timeoutMs = PARTICIPANT_TIMEOUT_MS, chat = 
             }
             if (spec.applyEvent !== undefined && typeof spec.applyEvent !== 'function') return fail('INVALID', `The participant ${spec.module} has an applyEvent that is not a function.`);
             if (spec.current !== undefined && typeof spec.current !== 'function') return fail('INVALID', `The participant ${spec.module} has a current that is not a function.`);
+            if (spec.verify !== undefined && typeof spec.verify !== 'function') return fail('INVALID', `The participant ${spec.module} has a verify that is not a function.`);
+            if (spec.restored !== undefined && typeof spec.restored !== 'function') return fail('INVALID', `The participant ${spec.module} has a restored that is not a function.`);
             if (table.has(spec.module)) return fail('CONFLICT', `The participant ${spec.module} is registered already.`);
             const entry = { module: spec.module, schema: spec.schema };
-            for (const name of [...CALLBACKS, 'applyEvent', 'current']) if (typeof spec[name] === 'function') entry[name] = spec[name];
+            for (const name of [...CALLBACKS, 'applyEvent', 'current', 'verify', 'restored']) if (typeof spec[name] === 'function') entry[name] = spec[name];
             table.set(spec.module, Object.freeze(entry));
             return { ok: true, module: spec.module };
         },
