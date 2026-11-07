@@ -120,8 +120,8 @@ test('the default list walks character chat files and every group chat, and the 
         throw new Error(`unexpected ${url}`);
     };
     const answer = await referencedCheckpoints({ context: () => context, fetchFn });
-    assert.equal(answer.complete, false, 'the visible character and group lists do not prove that all retained files were listed');
-    assert.match(answer.unreadable[0].reason, /every retained chat file/);
+    assert.equal(answer.complete, true);
+    assert.deepEqual(answer.unreadable, []);
     assert.deepEqual(answer.referenced, [
         'nk_ann-chat', 'nk_bo-chat', 'nk_group-one', 'nk_group-two', 'nk_live0001',
     ]);
@@ -132,6 +132,33 @@ test('the default list walks character chat files and every group chat, and the 
     assert.deepEqual(requests.slice(2).map(call => [call.body.is_group, call.body.avatar_url]), [
         [false, 'ann.png'], [false, 'bo.png'], [true, undefined], [true, undefined],
     ]);
+});
+
+test('chats left behind by a deleted character are not listed and do not block the answer', async () => {
+    const context = { characters: [{ name: 'Ann', avatar: 'ann.png' }], groups: [], getRequestHeaders: () => ({}) };
+    const asked = [];
+    const fetchFn = async (url, options) => {
+        const body = JSON.parse(options.body);
+        asked.push(body.avatar_url ?? body.file);
+        if (url === '/api/characters/chats') return json(body.avatar_url === 'ann.png' ? [{ file_id: 'one' }] : []);
+        if (body.avatar_url === 'gone.png') throw new Error('the deleted character was read');
+        return json({ result: chat({ v: 1, selection: { checkpoint: 'nk_ann00001' } }).map(row => JSON.stringify(row)).join('\n') });
+    };
+    const answer = await referencedCheckpoints({ context, fetchFn });
+    assert.equal(answer.complete, true);
+    assert.deepEqual(answer.unreadable, []);
+    assert.deepEqual(answer.referenced, ['nk_ann00001']);
+    assert.ok(!asked.includes('gone.png'));
+});
+
+test('a listed chat that cannot be read makes the answer incomplete and is named', async () => {
+    const context = { characters: [{ name: 'Ann', avatar: 'ann.png' }], groups: [], getRequestHeaders: () => ({}) };
+    const fetchFn = async url => url === '/api/characters/chats'
+        ? json([{ file_id: 'one' }, { file_id: 'two' }])
+        : { ok: false, status: 500, async json() { return {}; } };
+    const answer = await referencedCheckpoints({ context, fetchFn });
+    assert.equal(answer.complete, false);
+    assert.deepEqual(answer.unreadable.map(item => item.chat), ['Ann / one', 'Ann / two']);
 });
 
 test('a corrupt JSONL header or message is reported even when other lines are valid', async () => {
@@ -187,7 +214,7 @@ test('the public query is asynchronous and reads the open chat metadata', async 
     host.ctx.getRequestHeaders = () => ({});
     host.ctx.chatMetadata = { storySuite: { timeline: { v: 1, journal: { live: { checkpoint: 'nk_live0001' } } } } };
     const answer = await host.sdk.query('timeline.referenced', {});
-    assert.equal(answer.complete, false);
+    assert.equal(answer.complete, true);
     assert.deepEqual(answer.referenced, ['nk_live0001']);
 });
 

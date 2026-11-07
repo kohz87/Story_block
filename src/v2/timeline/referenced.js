@@ -1,10 +1,10 @@
 // Which native checkpoints the chats of this install still refer to (docs/v2/TIMELINE.md, checkpoint clean-up).
 //
-// The answer is deliberately conservative. Every character and group chat is listed through SillyTavern and read in
-// full; the timeline archive in each chat header is walked for checkpoint ids, and the open chat's live metadata is
-// read as well. SillyTavern's character and group lists can omit retained files, so the default scan cannot prove
-// completeness and must keep every checkpoint file. A complete answer from an exhaustive list is still only the set
-// of references the chats carry; it never deletes anything itself.
+// "In use" means named by a chat SillyTavern LISTS now: every character and group chat. Each is read in full as a raw
+// export (so a damaged line is seen, not dropped); the timeline archive in the header is walked for checkpoint ids, and
+// the open chat's live metadata is read as well. Chats left behind by a deleted character are not listed and are out of
+// scope: they do not make the answer incomplete. Any LISTED chat or group record that cannot be read, a damaged chat
+// file, or an open-chat switch during the read gives complete:false and is named in `unreadable`. It never deletes.
 //
 // The timeline fields that can name a native checkpoint include the journal (make, restore, native change and head
 // selection entries), the prefix map's before/after records, the selected and baseline records, snapshot and payload
@@ -220,9 +220,6 @@ export async function referencedCheckpoints({ context = liveContext, fetchFn = f
     } catch (error) {
         unreadable.push({ chat: 'chat list', reason: reasonOf(error) });
     }
-    // Character deletion may retain its chat directory, and corrupt group records are omitted from the group
-    // list. Neither visible list proves that all files on the install were included.
-    if (typeof list !== 'function') unreadable.push({ chat: 'chat list', reason: 'SillyTavern cannot verify every retained chat file' });
     let chats = null;
     if (Array.isArray(listed)) chats = listed;
     else if (listed && typeof listed === 'object') {
