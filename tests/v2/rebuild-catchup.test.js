@@ -212,7 +212,7 @@ test('a long gap says so: the last 40 of 60, and the 20 older replies are marked
     assert.match(text(host.querySelector('.rebuild-skip-dialog p')), /Replies 19 to 78 are marked as read/);
 });
 
-test('the notes: done (N replies read), stopped (the chat changed), stopped otherwise, a skip says nothing; each can be dismissed', async () => {
+test('the notes: done (N replies read), stopped (the chat changed), stopped otherwise, a skip says it was skipped; each can be dismissed', async () => {
     // a view that never saw the catch-up reading shows no note for it
     const ended = { ...reading({ total: 40 }), active: false, outcome: 'done' };
     assert.equal(mount({ catchUp: () => ended }).host.children.length, 0);
@@ -235,7 +235,7 @@ test('the notes: done (N replies read), stopped (the chat changed), stopped othe
     const stale = await watch('stale');
     assert.equal(text(stale.host.querySelector('.rebuild-note-text')), 'ⓘ The catch-up stopped (the chat changed). Your dossiers are as they were before it; it will try again when you open this chat.');
     assert.equal(text((await watch('failed')).host.querySelector('.rebuild-note-text')), REBUILD_TEXT.stoppedOther);
-    assert.equal((await watch('skipped')).host.children.length, 0);
+    assert.equal(text((await watch('skipped')).host.querySelector('.rebuild-note-text')), '✓ Catch-up skipped. The dossiers stay as they were restored.');
 });
 
 test('a rebuild that reads on shows the working banner with the real count, then the done note; no Skip', async () => {
