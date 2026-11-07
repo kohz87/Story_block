@@ -70,3 +70,10 @@ test('no-innerhtml', () => {
     assert.equal(node.querySelector('pre').children.length, 0);
     assert.match(node.querySelector('pre').textContent, /<img src=x onerror="boom\(\)"> & <b>bold<\/b>/);
 });
+
+test('receipt-old-flow-names-no-flow-number', () => {
+    const doc = setupDom();
+    const node = buildReceipt(doc, model('[Rolls] told', { flow: 0, cap: 5, rules: undefined }));
+    assert.doesNotMatch(node.querySelector('pre').textContent, /flow/);
+    assert.match(node.querySelector('pre').textContent, /up to 5 exchanges/);
+});

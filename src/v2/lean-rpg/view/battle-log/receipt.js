@@ -27,7 +27,7 @@ function rulesOf(model) {
     if (model?.board !== true && pace) terms.push(`pace ${pace}`);
     if (model?.board !== true && cap !== null) terms.push(`up to ${cap} exchanges`);
     if (margin !== null) terms.push(`decisive margin ${margin}`);
-    if (flow !== null) terms.push(`flow ${flow}`);
+    if (flow) terms.push(`flow ${flow}`);
     return terms.join(' · ');
 }
 
