@@ -3,6 +3,7 @@
 // steps one new unguarded record from the previous state instead of replaying a checkpoint window again.
 
 import { isCarrier, lastCarrier, readRecord } from '../persist.js';
+import { hashJson } from '../replay.js';
 import { deepFreeze } from './constants.js';
 import { hasMeta } from './digest.js';
 
@@ -16,25 +17,40 @@ const textOf = (read, fallback = '?') => {
 export function createPrefixMemo(s, deps) {
     const { chain, chatId, markNow, marked, replay, replayEnv, replayRecord, spineStep } = deps;
     const cache = s.prefixes instanceof Map ? s.prefixes : (s.prefixes = new Map());
+    const checkpoints = new WeakMap();
     const bump = name => {
         if (!s.counts) return;
         s.counts[name] = (Number.isFinite(s.counts[name]) ? s.counts[name] : 0) + 1;
     };
 
-    // The spine hash after every carrier, from one pass: index i holds the hash through carrier i. Users and
-    // carriers without a record have no entry. spineStep is cached per record by chains.js, so this pass is
-    // cheap; callers may build it once per witness scope and pass it to stateAfterPrefix.
+    // The spine covers replay inputs, but intentionally omits later checkpoints and their trust fields. Chain those
+    // separately for this memo: changing one can change where replay starts even when the ordinary spine is unchanged.
+    // Both links are cached per immutable record, so an unchanged pass costs one lookup per carrier/checkpoint.
     function spineRun(arr) {
         const out = new Array(arr.length);
         let hash = '';
+        let checkpointHash = '';
         let first = true;
         for (let i = 0; i < arr.length; i++) {
             if (!isCarrier(arr[i])) continue;
             const record = readRecord(arr[i]);
             if (!record) continue;
             hash = spineStep(hash, record, arr[i], first);
+            if (record.checkpoint) {
+                const hit = checkpoints.get(record);
+                if (hit && hit.prev === checkpointHash) checkpointHash = hit.out;
+                else {
+                    const trust = {};
+                    for (const field of ['prefix', 'covers', 'coverHash', 'guardEnv']) {
+                        if (record[field] !== undefined) trust[field] = record[field];
+                    }
+                    const out = hashJson({ p: checkpointHash, checkpoint: record.checkpoint, trust });
+                    checkpoints.set(record, { prev: checkpointHash, out });
+                    checkpointHash = out;
+                }
+            }
             first = false;
-            out[i] = hash;
+            out[i] = JSON.stringify([hash, checkpointHash]);
         }
         return out;
     }

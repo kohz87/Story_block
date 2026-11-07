@@ -6,6 +6,7 @@ import { readRecord } from '../../src/v2/persist.js';
 import { hashJson } from '../../src/v2/replay.js';
 import { hasMeta } from '../../src/v2/store/digest.js';
 import { createPrefixMemo, PREFIX_MEMO_MAX } from '../../src/v2/store/prefix-memo.js';
+import { createStore } from '../../src/v2/store.js';
 
 const state = (n, seen = []) => ({ v: 2, meta: { rev: n }, domains: { test: { n, seen } } });
 const user = text => ({ is_user: true, mes: text, extra: {} });
@@ -188,6 +189,73 @@ test('prefix memo: a checkpoint on the new record uses the full replay', () => {
     assert.equal(calls.step, 0);
     assert.equal(calls.replay, 2);
     assert.equal(s.counts.prefixReplays, 2);
+});
+
+test('prefix memo: every later checkpoint and its trust fields change this and later keys', () => {
+    const { memo } = setup();
+    const checkpoint = { checkpoint: state(1, ['a']), prefix: 'prior', covers: ['a'], coverHash: 'window', guardEnv: 'owners' };
+    const arr = [reply('a'), reply('b', 1, checkpoint), reply('c')];
+    const original = memo.spineRun(arr);
+    for (const [field, value] of Object.entries({ checkpoint: state(9, ['changed']), prefix: 'other', covers: ['other'], coverHash: 'other', guardEnv: 'other' })) {
+        arr[1].extra.storySuite = { ...arr[1].extra.storySuite, ...checkpoint, [field]: value };
+        const changed = memo.spineRun(arr);
+        assert.equal(changed[0], original[0], `${field}: the earlier prefix stays the same`);
+        assert.notEqual(changed[1], original[1], `${field}: the checkpoint prefix changes`);
+        assert.notEqual(changed[2], original[2], `${field}: later prefixes change too`);
+    }
+});
+
+test('prefix memo: a changed checkpoint and its trust gate are reflected by real replay', () => {
+    const arr = [reply('a'), reply('b'), reply('c')];
+    // Let the store make its own checkpoint and trust fields, then change only those fields on a replacement record.
+    for (const message of arr) delete message.extra.storySuite;
+    let id = 0;
+    const store = createStore({ chat: () => arr, save: async () => {}, checkpointEvery: 1,
+        recordId: () => `sw_${String(++id).padStart(8, '0')}` });
+    store.ensureInitial(state(1));
+    store.setNarrated(1, []);
+    store.setNarrated(2, []);
+    const saved = arr[1].extra.storySuite;
+    assert.ok(saved.checkpoint && saved.prefix);
+    assert.equal(store.before(2).domains.test.n, 1);
+    const changed = { ...saved, checkpoint: state(17) };
+    arr[1].extra.storySuite = changed;
+    assert.equal(store.before(2).domains.test.n, 17, 'the changed saved state is trusted');
+    arr[1].extra.storySuite = { ...changed, prefix: 'wrong' };
+    assert.equal(store.before(2).domains.test.n, 1, 'a failed prefix gate starts at the earlier checkpoint');
+    arr[1].extra.storySuite = { ...changed, covers: ['wrong'] };
+    assert.equal(store.before(2).domains.test.n, 1, 'a failed covers gate starts at the earlier checkpoint');
+    arr[1].extra.storySuite = changed;
+    assert.equal(store.before(2).domains.test.n, 17, 'restoring the trusted checkpoint restores its state');
+
+    const source = store.sourceAt(2);
+    const cursor = { sid: source.sid, swipeKey: source.swipeKey, op: 0 };
+    const warm = store.prefixWitness(cursor);
+    assert.equal(warm.state.domains.test.n, 17);
+    const before = store.work();
+    assert.deepEqual(store.witnessFresh(cursor), warm);
+    const after = store.work();
+    assert.equal(after.replays, before.replays + 1, 'a fresh witness replays its base');
+    assert.equal(after.prefixHits, before.prefixHits, 'a fresh witness does not consult the prefix cache');
+});
+
+test('prefix memo: a head replay does not hide reconciliation discovered in an earlier prefix', () => {
+    const arr = [reply('a', 0, { checkpoint: state(0) }), reply('b'), reply('c')];
+    arr[1].extra.storySuite = { ...arr[1].extra.storySuite,
+        ops: [{ op: 'replace', path: '/meta/rev', value: 0 }], spans: [{ n: 1, story: false }] };
+    delete arr[2].extra.storySuite;
+    let id = 0;
+    const store = createStore({ chat: () => arr, save: async () => {}, checkpointEvery: 1,
+        recordId: () => `sw_${String(++id).padStart(8, '0')}` });
+    store.before(2);
+    assert.equal(store.replansFrom(), 1, 'the earlier replay finds a repeated revision');
+    store.setNarrated(2, []);
+    assert.ok(arr[2].extra.storySuite.checkpoint);
+    arr[2].extra.storySuite = { ...arr[2].extra.storySuite };
+    store.head();
+    assert.equal(store.replansFrom(), null, 'the head now replays from the later checkpoint');
+    store.before(2);
+    assert.equal(store.replansFrom(), 1, 'the earlier prefix is replayed after the head reset');
 });
 
 test('prefix memo: the cap evicts the oldest, and an evicted state is replayed again', () => {

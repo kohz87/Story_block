@@ -338,7 +338,7 @@ export function createRead(s, deps) {
 
         /** `prefixWitness` worked out afresh, never from the memo (tests compare the two). */
         witnessFresh(cursor) {
-            return prefixWitnessUncached(list(), cursor);
+            return prefixWitnessUncached(list(), cursor, { fresh: true });
         },
     };
 }
