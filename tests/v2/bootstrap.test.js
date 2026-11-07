@@ -92,7 +92,7 @@ test('a module\'s layout screen with a standard widget shows as a tab and in the
     doc.querySelector('.story-suite-sheet-close').click();
 });
 
-test('the settings window opens from the bar: Packs and the prompt size under Tabs & Packs, Story Block\'s money and Assist settings on their own pages, Diagnostics (with Events) in its own', () => {
+test('the settings window opens from the bar: Packs and the prompt size under Tabs & Packs, Story Block\'s money and Assist settings on their own pages, Diagnostics (with Events) in its own', async () => {
     doc.querySelector('.story-suite-bar-settings').click();
     const overlay = doc.querySelector('#story_suite_v2_overlay');
     assert.ok(overlay);
@@ -122,6 +122,9 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     // Its card stays in Modules with the line to its features (its features are on the Features page).
     assert.match(page('modules').querySelector('.ss-module-card[data-module="story-block"] .ss-module-features').textContent, /^Features: \d+ of \d+ on — change$/);
     // Events, debug information that can spoil the story, is a folded sub-fold of Diagnostics; Versions is with the modules.
+    // (the Diagnostics page's code is fetched when its rail item is first pressed)
+    overlay.querySelectorAll('.ss-tabs-item').find(node => node.textContent.includes('Diagnostics')).click();
+    for (let waited = 0; waited < 200 && !page('diagnostics').querySelector('.ss-diagnostics'); waited += 1) await new Promise(resolve => setTimeout(resolve, 5));
     assert.deepEqual(foldsOf('diagnostics'), [], 'the Diagnostics page is the form engine\'s: the report card, then Events as a fold card');
     assert.ok(page('diagnostics').querySelector('.ss-diagnostics-card[data-fold="story-suite-diagnostics"] .story-suite-diagnostics-report'));
     assert.ok(page('diagnostics').querySelector('.ss-diagnostics-fold[data-fold="story-block/events"] .ss-events'));
