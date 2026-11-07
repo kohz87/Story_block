@@ -37,7 +37,10 @@ export const SPLIT_PARTS = Object.freeze({
     'src/v2/packs/validate.js': [
         'src/v2/packs/validate/core.js', 'src/v2/packs/validate/items.js', 'src/v2/packs/validate/events-economy.js', 'src/v2/packs/validate/world.js', 'src/v2/packs/validate/theme.js',
     ],
-    'src/v2/view/template/render.js': ['src/v2/view/template/render/dom.js', 'src/v2/view/template/render/page-ids.js'],
+    'src/v2/view/template/render.js': [
+        'src/v2/view/template/render/view.js', 'src/v2/view/template/render/blocks.js', 'src/v2/view/template/render/elements.js',
+        'src/v2/view/template/render/widgets.js', 'src/v2/view/template/render/dom.js', 'src/v2/view/template/render/page-ids.js',
+    ],
 });
 
 /** The text of `rel` (a path from the repository root) and of the parts moved out of it. */
