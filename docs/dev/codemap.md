@@ -120,3 +120,13 @@ Last checked: 2026-11-07.
 - `src/v2/view/bind.js` → `view/bind/`: `paths.js` path syntax and reads; `scope.js` scopes; `expressions.js` compiled expressions; `helpers.js` helpers and formatters; `text.js` text and interpolation; `changes.js` change checks.
 - `src/v2/view/css.js` → `view/css/`: `parse.js` limits and tokenizing; `names.js` scope names; `selectors.js` selector scoping; `values.js` value filtering and theme properties; `scoping.js` the scoper.
 - `src/v2/view/widgets/map.js` → `view/widgets/map/data.js`: map data cleaning and layer visibility.
+- `src/v2/view/template/render/view.js`: the renderer's view lifecycle, draft scope, element budget and the renderTemplate/destroyTemplate entry points.
+- `src/v2/view/template/render/blocks.js`: the text, if and each blocks and the block factory.
+- `src/v2/view/template/render/elements.js`: the element block for attributes, variables, classes, text, drafts, commands and form submits.
+- `src/v2/view/template/render/widgets.js`: the widget block, its props, api and instance cleanup.
+- `src/v2/view/form/fields/shared.js`: the field renderers' shared element, button, label and disabled helpers and fresh ids.
+- `src/v2/view/form/fields/basic.js`: the switch, text, number and slider field renderers.
+- `src/v2/view/form/fields/choice.js`: the select, profile, chips, segmented and chipset field renderers.
+- `src/v2/view/form/fields/lines.js`: the editable list field in rows or lines form.
+- `src/v2/view/form/fields/page.js`: the settings search box and grouped section block.
+- `src/v2/view/form/fields/renderers.js`: the frozen renderer table by field kind.
