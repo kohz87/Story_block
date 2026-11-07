@@ -1,4 +1,4 @@
-// The Standard stat formula's roll engine (src/v2/lean-rpg/standard/roll.js, re-exported by standard.js; rules.js, plan.js, precall.js, cue.js): the recorded rules, the
+// The Standard stat formula's roll engine (src/v2/lean-rpg/standard/roll.js, re-exported by standard.js; rules.js, plan.js, cue.js): the recorded rules, the
 // planner's lines, the typed roll with its breakdown, the bars a hit or a heal moves, the turn order, the opening action, area and support,
 // and a whole roll through the real turn. The numbers themselves are formula.js's (formula.test.js).
 import test from 'node:test';
@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { blocksFor, foeHealthBlocks } from '../../../src/v2/lean-rpg/formula.js';
 import { hostAvailable } from '../../../testkit/index.js';
-import { LIMITS, PACE, RESOLVE, STAGES, leanRpgGuard, normalizeRules, parsePlanAnswer, positionalDice, prepare, readSheet, rollPrepared, stageWord, validatePlan } from '../../../src/v2/lean-rpg/index.js';
-import { FORMULA_SETTING, STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_RULE_KEYS, formulaOf, oddsFor, presetOf, rulesFromSettings, sameRules, PRESETS, subjectOdds, oddsSubject, STANDARD_SETTING, DIFFICULTY_SETTING } from '../../../src/v2/lean-rpg/rules.js';
-import { PRECALL_HEAD, PRECALL_HEAD_STANDARD, precallPrompt, sheetText } from '../../../src/v2/lean-rpg/precall.js';
+import { LIMITS, PACE, RESOLVE, STAGES, leanRpgGuard, normalizeRules, positionalDice, prepare, readSheet, rollPrepared, stageWord, validatePlan } from '../../../src/v2/lean-rpg/index.js';
+import { STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_RULE_KEYS, oddsFor, presetOf, rulesFromSettings, sameRules, subjectOdds, oddsSubject, STANDARD_SETTING, DIFFICULTY_SETTING } from '../../../src/v2/lean-rpg/rules.js';
+import { parsePlanAnswer } from './legacy-planner.js';
 import { cueText } from '../../../src/v2/lean-rpg/cue.js';
 import { judge, outcomeStd, prepareStandard as prepareMemberStandard, rollStandard as rollMemberStandard } from '../../../src/v2/lean-rpg/standard.js';
 import { packAttacks, splitFoes } from '../../../src/v2/lean-rpg/board/members.js';
@@ -53,15 +53,7 @@ const bodies = hurts => hurts.filter(item => item.field === 'health' || /^hurt/.
 
 // ---- the recorded rules -----------------------------------------------------------------------------------------------
 
-test('the setting picks the formula: Standard unless the reader chose Classic', () => {
-    assert.equal(formulaOf({}), 'standard');
-    assert.equal(formulaOf(undefined), 'standard');
-    assert.equal(formulaOf({ [FORMULA_SETTING]: 'standard' }), 'standard');
-    assert.equal(formulaOf({ [FORMULA_SETTING]: 'classic' }), 'classic');
-    assert.equal(formulaOf({ [FORMULA_SETTING]: 'nonsense' }), 'standard');
-});
-
-test('Standard carries its formula and numbers in the rules; Gentle, Standard and Harsh move only the foe\'s base; Classic has no formula key', () => {
+test('Standard carries its formula and numbers in the rules; Gentle, Standard and Harsh move only the foe\'s base', () => {
     const rules = difficulty => rulesFromSettings({ [DIFFICULTY_SETTING]: difficulty });
     assert.deepEqual(Object.keys(rules('standard')), [...STANDARD_RULE_KEYS, 'levelDivisor'], 'and, from 2.17.0, the level divisor last');
     assert.equal(rules('standard').formula, 'standard');
@@ -71,9 +63,6 @@ test('Standard carries its formula and numbers in the rules; Gentle, Standard an
     // formula.js's own numbers are the starting point: only the preset's foeBase differs from them.
     assert.deepEqual({ ...rules('standard'), foeBase: 3, levelDivisor: undefined }, { formula: 'standard', foeBase: 3, foeClassWeight: 3, classWeight: 2, costMargin: 2, decisiveMargin: 8, roundCap: 8,
         startStat: 5, createPoints: 10, createMin: 3, createMax: 10, pointsPerSoul: 4, statMax: 20, quickStartMargin: 10, levelDivisor: undefined });
-    const classic = rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' });
-    assert.deepEqual(classic, { ...PRESETS.harsh, levelDivisor: 5 });
-    assert.equal('formula' in classic, false);
 });
 
 test('Custom Standard numbers are each held to their range, and the creation numbers must agree', () => {
@@ -87,21 +76,19 @@ test('Custom Standard numbers are each held to their range, and the creation num
     assert.equal(custom({ formula: 'classic' }).formula, 'standard');
 });
 
-test('normalizeRules: a payload without a formula is Classic (six keys), whatever else it says; with Standard it is the nine numbers and the shared four', () => {
-    assert.deepEqual(Object.keys(normalizeRules({ foeBase: 7 })), ['foeBase', 'classWeight', 'statDivisor', 'costMargin', 'decisiveMargin', 'roundCap']);
+test('normalizeRules: a payload without a formula replays as Standard (the nine numbers and the shared four), whatever else it says', () => {
+    assert.deepEqual(Object.keys(normalizeRules({ foeBase: 7 })), STANDARD_RULE_KEYS);
     assert.deepEqual(normalizeRules({ formula: 'classic', foeBase: 7 }), normalizeRules({ foeBase: 7 }));
-    assert.deepEqual(normalizeRules(undefined), PRESETS.standard);
+    assert.deepEqual(normalizeRules(undefined), STANDARD_FORMULA);
     assert.deepEqual(normalizeRules({ formula: 'standard' }), { ...STANDARD_FORMULA });
     assert.deepEqual(normalizeRules({ formula: 'standard', foeBase: 5, junk: 1 }), { ...STANDARD_FORMULA, foeBase: 5 });
-    assert.equal(hashJson(normalizeRules(PRESETS.gentle)), hashJson(PRESETS.gentle), 'a Classic set is its own normal form, so old payloads hash as before');
     assert.equal(hashJson(normalizeRules(STANDARD_PRESETS.harsh)), hashJson(STANDARD_PRESETS.harsh));
 });
 
-test('sameRules and presetOf tell the presets of each formula apart', () => {
+test('sameRules and presetOf tell the presets apart', () => {
     assert.equal(presetOf(STANDARD_PRESETS.harsh), 'harsh');
-    assert.equal(presetOf(PRESETS.harsh), 'harsh');
     assert.equal(presetOf({ ...STANDARD_PRESETS.standard, foeBase: 5 }), 'custom');
-    assert.equal(sameRules(STANDARD_PRESETS.standard, PRESETS.standard), false);
+    assert.equal(sameRules(STANDARD_PRESETS.standard, STANDARD_PRESETS.harsh), false);
     assert.equal(sameRules(STANDARD_PRESETS.gentle, { ...STANDARD_PRESETS.gentle }), true);
 });
 
@@ -117,34 +104,6 @@ test('the odds bar follows the formula in force: Standard puts the pair, the Sou
     const given = subjectOdds(rules, subject);
     assert.equal(given.bonus, 6 + 4 + 2, 'pair(10, 6) + Class II + Expert');
     assert.equal(given.success, odds.success);
-    // Classic keeps its own bonus for the same subject.
-    assert.equal(subjectOdds(PRESETS.standard, oddsSubject(sheetOf(), 'Wessel', { rankNames: [], soulNames: [], fold: text => String(text).toLowerCase() })).bonus, 5 + 4 + 2);
-});
-
-// ---- Classic stays byte for byte --------------------------------------------------------------------------------------
-
-test('Classic output is byte-identical to the build before the Standard formula: prompt, sheet text, cue, rounds, witness, parse, rules', () => {
-    // (2.17.0: `rules` moved again, on purpose: the settings' numbers now carry the level divisor; the cue, rounds, witness and prompt are the same bytes.)
-    // (Fingerprints taken from the build that holds formula.js only, c072d16, for this fixed party, plan and seed. Only `rules` and `presets` moved, on purpose, in stage 49:
-    // the presets' most exchanges per reply went from 5 to 8; the roll itself (cue, rounds, witness, prompt) is unchanged byte for byte. `prompt` and `head` moved on purpose in stage 50: the planner is told to name a defender's fitting skill.)
-    const sha = text => createHash('sha256').update(text).digest('hex').slice(0, 16);
-    const sheet = sheetOf(PARTY());
-    const prompt = precallPrompt({ sheet, message: 'I strike the rat.', excerpt: 'The rat hisses.', note: 'Be fair.' });
-    const plan = { pace: 'normal', acts: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats', edge: 2, why: 'ambush' }, { who: 'Ren', skill: 'Spark', uses: 'mana', stat: 'int', target: 'Sluice Rats' }],
-        foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }], checks: [{ who: 'Ren', stat: 'int', difficulty: 'hard' }] };
-    const prepared = prepare(plan, sheet);
-    const rolled = rollPrepared(plan, prepared, positionalDice(987654), PRESETS.standard);
-    const answer = ['pace: all', 'act Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats | edge: +2 ambush', 'foe Sluice Rats | target: Wessel | defend: AGI | skill: Iron Breath', 'check Ren | stat: INT | difficulty: hard'].join('\n');
-    assert.deepEqual({
-        prompt: sha(prompt), head: sha(PRECALL_HEAD), sheet: sha(sheetText(sheet)), cue: sha(rolled.text), rounds: sha(JSON.stringify(rolled.rounds)), witness: sha(JSON.stringify(prepared.witness)),
-        parsed: sha(JSON.stringify(parsePlanAnswer(answer, sheet))), rules: sha(JSON.stringify(rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' }))), presets: sha(JSON.stringify(PRESETS)),
-    }, {
-        // (Changed on purpose in the prompt diet (stage 59): the planner head is shorter, so `prompt` and `head` moved; the sheet, cue, rounds and witness are the same bytes.)
-        // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
-        // (Changed on purpose in the follow-up skill release: the head's defender-skill rule is reworded and `then:` is ordered, so prompt and head; the rest is the same bytes.)
-        prompt: 'a36a672966e71c0e', head: '89260e1743d36784', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
-        parsed: 'f3d9eb8728e780eb', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
-    });
 });
 
 // ---- the plan ---------------------------------------------------------------------------------------------------------
@@ -167,64 +126,6 @@ test('a Standard plan carries a type, a fitting stat, area and support, and need
     assert.match(classic({ acts: [{ who: 'W', target: 'R', stat: 'str', type: 'physical' }] }).errors.join(' '), /"type", which a plan does not use/);
     assert.match(classic({ acts: [{ who: 'W', target: 'R' }] }).errors.join(' '), /needs stat/);
     assert.match(classic({ foes: [{ slot: 1, target: 'W' }] }).errors.join(' '), /needs defend/);
-});
-
-test('the planner\'s Standard lines read into a plan against the sheet; a Classic read of the same answer is untouched', () => {
-    const sheet = sheetOf(party());
-    const answer = [
-        'pace: all',
-        'act Wessel | skill: Iron Breath | type: physical | target: Sluice Rats | edge: +2 ambush',
-        'act Ren | skill: Spark | type: magic | target: Sluice Rats | area',
-        'act Ren | skill: Mend | type: magic | target: Wessel | support: hard',
-        'act Wessel | type: social | target: Sluice Rats',
-        'foe Sluice Rats | target: Ren | magic',
-        'check Wessel | type: check | fit: AGI | difficulty: hard',
-        'check Ren | skill: Spark | type: social | difficulty: easy',
-    ].join('\n');
-    const { plan, dropped } = parsePlanAnswer(answer, sheet, { formula: 'standard' });
-    assert.equal(dropped, 0);
-    assert.deepEqual(plan, {
-        formula: 'standard', pace: 'all',
-        acts: [
-            // (PRACTICE-FIX 4: an act's own "+2 ambush" edge is dropped when the plan has no ambush check)
-            { who: 'Wessel', skill: 'Iron Breath', type: 'physical', target: 'Sluice Rats' },
-            { who: 'Ren', skill: 'Spark', type: 'magic', area: true, target: 'Sluice Rats' },
-            { who: 'Ren', skill: 'Mend', type: 'magic', support: true, difficulty: 'hard', target: 'Wessel' },
-            { who: 'Wessel', type: 'social', target: 'Sluice Rats' },
-        ],
-        foes: [{ slot: 1, target: 'Ren', againstMagic: true }],
-        checks: [{ who: 'Wessel', type: 'check', fit: 'agi', difficulty: 'hard' }, { who: 'Ren', skill: 'Spark', type: 'social', difficulty: 'easy' }],
-    });
-    assert.deepEqual(validatePlan(plan), { ok: true, errors: [] });
-    // A support line whose target is not on the party is dropped; a bare `support` is a normal difficulty.
-    const odd = parsePlanAnswer('act Ren | skill: Mend | target: Nobody | support\nact Ren | skill: Mend | target: Wessel | support', sheet, { formula: 'standard' });
-    assert.equal(odd.dropped, 1);
-    assert.deepEqual(odd.plan.acts, [{ who: 'Ren', skill: 'Mend', support: true, difficulty: 'normal', target: 'Wessel' }]);
-    // Classic reads the same answer as before: no type, no fit, no area.
-    const classic = parsePlanAnswer('act Wessel | skill: Iron Breath | type: physical | target: Sluice Rats | area', sheet);
-    assert.deepEqual(classic.plan.acts, [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }]);
-    assert.equal('formula' in classic.plan, false);
-});
-
-test('the Standard planner prompt asks for a type, not a stat; it is no longer than it must be, and a Classic chat gets the Classic prompt', () => {
-    const sheet = sheetOf(party());
-    assert.match(PRECALL_HEAD_STANDARD, /type: physical\|magic\|social\|check/);
-    assert.doesNotMatch(PRECALL_HEAD_STANDARD, /defend:/);
-    // Measured at 1.232 (1315 characters against 1067); a little margin, so a growing head is noticed.
-    // (PINNED CHANGE, PRACTICE-FIX and FIGHT-FIX: the heads grew by the ambush rule, the `ambush?` flag and the Standard-only `else:` rule; measured at 1.274, 1631 against 1280.)
-    const STANDARD_HEAD_RATIO_MAX = 1.3;
-    assert.ok(PRECALL_HEAD_STANDARD.length <= PRECALL_HEAD.length * STANDARD_HEAD_RATIO_MAX, `${PRECALL_HEAD_STANDARD.length} against ${PRECALL_HEAD.length}`);
-    const input = { sheet, message: 'I attack.', excerpt: '' };
-    assert.ok(precallPrompt({ ...input, standard: true }).startsWith(PRECALL_HEAD_STANDARD));
-    assert.ok(precallPrompt(input).startsWith(PRECALL_HEAD));
-    assert.equal(precallPrompt({ ...input, standard: false }), precallPrompt(input));
-    // The sheet in blocks (the words are spread over the bar like the Party tab's): Health 6 of 6 is Unhurt, 3 of 6 Hurt, and the rats' 3 of 4 blocks read the same way.
-    // (what readSheet gives for blocks of the Standard formula: the size of each bar next to the blocks left)
-    const sized = sheet => ({ ...sheet, characters: sheet.characters.map(item => ({ ...item, size: blocksFor(item.stats) })), foes: sheet.foes.map(item => ({ ...item, size: foeHealthBlocks(item.class) })) });
-    const hurt = sized(sheetOf(party({ wessel: { health: 3 }, foes: [['Sluice Rats', 6, 2, 3]] })));
-    assert.match(sheetText(hurt, { standard: true }), /Wessel \(class II\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 9 CHA 5; Health Hurt/);
-    assert.match(sheetText(hurt, { standard: true }), /1\. Sluice Rats x6 \(Lv 15, Scratched\)/);
-    assert.match(sheetText(sized(sheetOf(party())), { standard: true }), /Health Unhurt/);
 });
 
 // ---- the typed roll ---------------------------------------------------------------------------------------------------
@@ -487,63 +388,29 @@ test('a fuzz of fights: no bar leaves 0 to its size, a Down actor never acts, an
 
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { packRulesOf } from '../../../src/v2/lean-rpg/rules.js';
-import { createHost } from '../../../testkit/index.js';
 
-const packOf = rpg => ({ id: 'sealed', version: '1.0.0', name: 'Sealed', author: 'Test', description: 'A pack that plays on the Classic formula.', requires: { storyBlock: '^2' }, content: { rpg } });
+const packOf = rpg => ({ id: 'sealed', version: '1.0.0', name: 'Sealed', author: 'Test', description: 'A pack that sets the Standard formula\'s numbers.', requires: { storyBlock: '^2' }, content: { rpg } });
 
 test('a pack\'s content.rpg may name the formula and its numbers; they are kept as one more record and read as the story\'s default', () => {
-    const ok = validatePack(packOf({ formula: 'classic', numbers: { foeBase: 7, costMargin: 3 }, skillSets: [{ name: 'Set', skills: [{ name: 'Spear', about: 'Holds a line.', stat: 'str' }] }] }));
+    const ok = validatePack(packOf({ formula: 'standard', numbers: { foeBase: 6, startStat: 6 }, skillSets: [{ name: 'Set', skills: [{ name: 'Spear', about: 'Holds a line.', stat: 'str' }] }] }));
     assert.equal(ok.ok, true, JSON.stringify(ok.errors));
     const records = ok.pack.content.rpg;
     assert.equal(records.length, 2, 'the skill set, then the formula record');
-    assert.deepEqual(records.at(-1), { id: 'sealed/formula', slug: 'formula', pack: 'sealed', formula: 'classic', numbers: { foeBase: 7, costMargin: 3 } });
-    assert.deepEqual(packRulesOf(records), { pack: 'sealed', formula: 'classic', numbers: { foeBase: 7, costMargin: 3 } });
+    assert.deepEqual(records.at(-1), { id: 'sealed/formula', slug: 'formula', pack: 'sealed', formula: 'standard', numbers: { foeBase: 6, startStat: 6 } });
+    const pack = packRulesOf(records);
+    assert.deepEqual(pack, { pack: 'sealed', formula: 'standard', numbers: { foeBase: 6, startStat: 6 } });
     assert.equal(packRulesOf(records.slice(0, 1)), null);
     assert.equal(packRulesOf(undefined), null);
-    // Bad words are named and the pack is refused; a pack with only skill sets is exactly what it was.
+    // Bad words are named and the pack is refused (Classic is among them: it was removed); a pack with only skill sets is exactly what it was.
     const bad = validatePack(packOf({ formula: 'modern', numbers: { foeBase: 'high', luck: 3 } }));
     assert.equal(bad.ok, false);
     assert.deepEqual(bad.errors.map(error => error.path).sort(), ['content.rpg.formula', 'content.rpg.numbers.foeBase', 'content.rpg.numbers.luck']);
+    assert.equal(validatePack(packOf({ formula: 'classic' })).ok, false, 'Classic rules were removed');
     assert.equal(validatePack(packOf({ skillSets: [] })).pack.content.rpg.length, 0);
     // The reader's choice wins; a pack fills in what they have not chosen.
-    const pack = packRulesOf(records);
-    assert.equal(formulaOf({}, pack), 'classic');
-    assert.equal(formulaOf({ rpgFormula: 'standard' }, pack), 'standard');
-    assert.equal(formulaOf({ rpgFormula: 'classic' }, null), 'classic');
-    assert.deepEqual(rulesFromSettings({}, pack), normalizeRules({ ...PRESETS.standard, foeBase: 7, costMargin: 3, levelDivisor: 5 }));
-    assert.deepEqual(rulesFromSettings({ rpgDifficulty: 'harsh' }, pack), { ...PRESETS.harsh, levelDivisor: 5 }, 'a difficulty the reader picked is theirs');
-    const standardPack = packRulesOf([{ slug: 'formula', formula: 'standard', numbers: { foeBase: 6, startStat: 6 } }]);
-    assert.deepEqual(rulesFromSettings({}, standardPack), { ...STANDARD_FORMULA, foeBase: 6, startStat: 6, levelDivisor: 5 });
+    assert.deepEqual(rulesFromSettings({}, pack), { ...STANDARD_FORMULA, foeBase: 6, startStat: 6, levelDivisor: 5 });
+    assert.deepEqual(rulesFromSettings({ rpgDifficulty: 'harsh' }, pack), { ...STANDARD_PRESETS.harsh, levelDivisor: 5 }, 'a difficulty the reader picked is theirs');
     assert.deepEqual(rulesFromSettings({}, null), { ...STANDARD_FORMULA, levelDivisor: 5 });
-});
-
-test('a roll in a story whose pack asks for Classic is rolled on Classic with the pack\'s numbers, unless the reader chose Standard', { skip }, async () => {
-    const roll = async settings => {
-        const callModel = async () => 'act Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats';
-        const host = await createHost({ callModel, settings: { modules: { 'story-block': settings } } });
-        host.features.set('story-block.rpg', true);
-        host.features.set('story-block.fight-board', false);
-        assert.equal((await host.packs.packs.install(packOf({ formula: 'classic', numbers: { foeBase: 8 } }))).ok, true);
-        await host.send('Begin.', 'Opening.');
-        const { LEAN_RPG_TEMPLATES } = await import('../../../src/v2/lean-rpg/templates.js');
-        for (const entry of LEAN_RPG_TEMPLATES.filter(item => ['character', 'skills', 'foes'].includes(item.definition.role))) {
-            const definition = structuredClone(entry.definition);
-            if (definition.role === 'character') { definition.slug = 'wessel'; definition.name = 'Wessel'; definition.state.who.default = 'Wessel'; }
-            if (definition.role === 'skills') { definition.slug = 'wessel-skills'; definition.state.who.default = 'Wessel'; definition.state.skill1.default = 'Iron Breath'; definition.state.stat1.default = 'str'; }
-            if (definition.role === 'foes') { definition.state.foe1.default = 'Sluice Rats'; definition.state.count1.default = 2; }
-            assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
-        }
-        await host.send('I hit the rat.', 'They scatter.');
-        const result = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve')?.data.v2.result;
-        host.close();
-        return result;
-    };
-    const asked = await roll({});
-    assert.deepEqual(asked.rules, normalizeRules({ ...PRESETS.standard, foeBase: 8, levelDivisor: 5 }), 'Classic with the pack\'s base');
-    assert.equal('order' in asked, false);
-    const chosen = await roll({ rpgFormula: 'standard' });
-    assert.equal(chosen.rules.formula, 'standard');
-    assert.equal(chosen.rules.foeBase, STANDARD_FORMULA.foeBase, 'the pack\'s numbers belong to its own formula');
 });
 
 // ---- a skill costs a block of its resource ----------------------------------------------------------------------------------
@@ -705,7 +572,7 @@ test('the resource runs out in the fight: the last block is spent, then the acti
 });
 
 test('the cost goes through the turn: it is written to the sheet, and a Re-read, a swipe, a rebuild and a reload agree', { skip }, async () => {
-    const { host } = await setup({ blocks: party({ wessel: { stamina: 4 } }), answers: ['pace: careful\nact Wessel | skill: Iron Breath | type: physical | target: Sluice Rats'], settings: { rpgFormula: 'standard' } });
+    const { host } = await setup({ blocks: party({ wessel: { stamina: 4 } }), answers: ['pace: careful\nact Wessel | skill: Iron Breath | type: physical | target: Sluice Rats'] });
     const fieldsOf = () => host.head().domains.dataModules.instances['pack.chat/wessel'].chat.fields;
     const result = () => host.ctx.chat[2].extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve').data.v2.result;
     // (an opening action and each round's action each spend one: the sheet holds 4 less what the told lines spent)

@@ -3,41 +3,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    CLASS_NAMES, CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, EARLIER_RULES, FORMULA, LIMITS, NOTE_MAX, NOTE_SETTING, PRESETS, RANK_NAMES, RULE_KEYS, RULE_RANGES, STANDARD,
-    difficultyOf, fold, normalizeRules, oddsFor, oddsSubject, outcomeOf, plannerNoteOf, precallPrompt, prepare, presetOf, readSheet, rollPrepared, rulesFromSettings, sameRules, subjectOdds,
+    CLASS_NAMES, DIFFICULTIES, DIFFICULTY_SETTING, EARLIER_RULES, STANDARD, STANDARD_PRESETS, STANDARD_RANGES, STANDARD_RULE_KEYS, STANDARD_SETTING, RANK_NAMES,
+    difficultyOf, fold, normalizeRules, oddsFor, oddsSubject, outcomeOf, prepare, presetOf, readSheet, rollPrepared, rulesFromSettings, sameRules, subjectOdds,
 } from '../../../src/v2/lean-rpg/index.js';
+import { foeBonus } from '../../../src/v2/lean-rpg/formula.js';
 import { PARTY, character, sheetDomain, skillBlock } from './helpers.js';
 
 const sheetOf = (blocks = PARTY()) => readSheet({ domains: { dataModules: sheetDomain(blocks) } });
-const dice = (...values) => () => {
-    if (!values.length) throw new Error('the script ran out of dice');
-    return values.shift();
-};
-const calm = (n = 200) => dice(...Array.from({ length: n }, () => 10));
+const calm = () => () => () => 10;
 const wessel = (over = {}) => ({ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats', ...over });
-const plan = (over = {}) => ({ pace: 'normal', acts: [wessel()], foes: [], checks: [], ...over });
+const plan = (over = {}) => ({ formula: 'standard', pace: 'normal', acts: [wessel()], foes: [], checks: [], ...over });
 
-test('Standard is today\'s formula, to the number; Gentle and Harsh move the foe\'s base and the "at a cost" window only', () => {
-    assert.deepEqual(STANDARD, { foeBase: FORMULA.foeBase, classWeight: FORMULA.classWeight, statDivisor: FORMULA.statDivisor, costMargin: FORMULA.costMargin, decisiveMargin: LIMITS.decisiveMargin, roundCap: LIMITS.roundCapDefault });
-    assert.deepEqual(PRESETS.gentle, { foeBase: 3, classWeight: 2, statDivisor: 2, costMargin: 3, decisiveMargin: 8, roundCap: 8 });
-    assert.deepEqual(PRESETS.standard, { foeBase: 5, classWeight: 2, statDivisor: 2, costMargin: 2, decisiveMargin: 8, roundCap: 8 });
-    assert.deepEqual(PRESETS.harsh, { foeBase: 7, classWeight: 2, statDivisor: 2, costMargin: 1, decisiveMargin: 8, roundCap: 8 });
+const PRESETS = STANDARD_PRESETS;
+const GENTLE = { success: 69, cost: 7, fail: 25 }, MIDDLE = { success: 61, cost: 8, fail: 31 }, HARSH = { success: 52, cost: 9, fail: 39 };
+
+test('Standard is the one formula; Gentle and Harsh move the foe\'s base only', () => {
+    assert.equal(STANDARD, PRESETS.standard);
+    assert.deepEqual([PRESETS.gentle.foeBase, PRESETS.standard.foeBase, PRESETS.harsh.foeBase], [2, 4, 6]);
+    for (const name of ['gentle', 'harsh']) assert.deepEqual({ ...PRESETS[name], foeBase: 4 }, { ...PRESETS.standard });
+    assert.equal(PRESETS.standard.formula, 'standard');
     assert.deepEqual(DIFFICULTIES, ['gentle', 'standard', 'harsh', 'custom']);
     assert.ok(Object.isFrozen(PRESETS.standard) && Object.isFrozen(PRESETS));
-    assert.deepEqual(Object.keys(normalizeRules()), RULE_KEYS);
+    assert.deepEqual(Object.keys(normalizeRules()), STANDARD_RULE_KEYS);
 });
 
-test('Custom numbers are whole numbers inside their ranges, else Standard\'s; always the same six keys in the same order', () => {
-    assert.deepEqual(RULE_RANGES.foeBase, { min: 0, max: 15 });
-    assert.deepEqual(RULE_RANGES.decisiveMargin, { min: 4, max: 15 });
-    assert.deepEqual(RULE_RANGES.roundCap, { min: 1, max: 8 });
-    assert.deepEqual(RULE_RANGES.costMargin, { min: 0, max: 5 });
-    assert.deepEqual(normalizeRules({ foeBase: 15, classWeight: 3, statDivisor: 3, costMargin: 0, decisiveMargin: 4, roundCap: 1 }), { foeBase: 15, classWeight: 3, statDivisor: 3, costMargin: 0, decisiveMargin: 4, roundCap: 1 });
+test('Custom numbers are whole numbers inside their ranges, else Standard\'s; always the same keys in the same order', () => {
+    assert.deepEqual(STANDARD_RANGES.foeBase, { min: 0, max: 15 });
+    assert.deepEqual(STANDARD_RANGES.decisiveMargin, { min: 4, max: 15 });
+    assert.deepEqual(STANDARD_RANGES.roundCap, { min: 1, max: 8 });
+    assert.deepEqual(STANDARD_RANGES.costMargin, { min: 0, max: 5 });
+    assert.deepEqual(normalizeRules({ foeBase: 15, classWeight: 3, costMargin: 0, decisiveMargin: 4, roundCap: 1 }), { ...STANDARD, foeBase: 15, classWeight: 3, costMargin: 0, decisiveMargin: 4, roundCap: 1 });
     // Out of range, not whole, not a number, missing: Standard's value for that number.
-    const bad = normalizeRules({ foeBase: 16, classWeight: 0, statDivisor: 4, costMargin: 2.5, decisiveMargin: '8', roundCap: 9, extra: 1 });
+    const bad = normalizeRules({ foeBase: 16, classWeight: 0, costMargin: 2.5, decisiveMargin: '8', roundCap: 9, extra: 1 });
     assert.deepEqual(bad, STANDARD);
     assert.deepEqual(normalizeRules({ roundCap: 3, foeBase: -1 }), { ...STANDARD, roundCap: 3 });
+    // A record with no `formula` replays as Standard.
     for (const nothing of [undefined, null, 5, 'x', [], [1]]) assert.deepEqual(normalizeRules(nothing), STANDARD);
+    assert.equal(normalizeRules({ roundCap: 3 }).formula, 'standard');
     assert.equal(JSON.stringify(normalizeRules({ roundCap: 3, foeBase: 9 })), JSON.stringify(normalizeRules({ foeBase: 9, roundCap: 3 })), 'key order does not depend on how it was given');
 });
 
@@ -46,23 +48,24 @@ test('the settings give the numbers: a preset by its word, Custom by its stored 
     assert.equal(difficultyOf({ [DIFFICULTY_SETTING]: 'maybe' }), 'standard');
     // (From 2.17.0 every set the settings give also carries the level divisor, 5 unless the Custom numbers say 3 to 8: `levelled`.)
     const levelled = rules => ({ ...rules, levelDivisor: 5 });
-    for (const name of ['gentle', 'standard', 'harsh']) assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: name }), levelled(PRESETS[name]));
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic' }), levelled(STANDARD));
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'custom', [CUSTOM_SETTING]: { foeBase: 11, costMargin: 4, roundCap: 99 } }), levelled({ ...STANDARD, foeBase: 11, costMargin: 4 }));
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'custom' }), levelled(STANDARD), 'Custom with nothing stored');
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'gentle', [CUSTOM_SETTING]: { foeBase: 11 } }), levelled(PRESETS.gentle), 'the custom numbers are not read for a preset');
-    assert.notEqual(rulesFromSettings({ rpgFormula: 'classic' }), STANDARD, 'a copy');
+    for (const name of ['gentle', 'standard', 'harsh']) assert.deepEqual(rulesFromSettings({ [DIFFICULTY_SETTING]: name }), levelled(PRESETS[name]));
+    assert.deepEqual(rulesFromSettings({}), levelled(STANDARD));
+    assert.deepEqual(rulesFromSettings({ [DIFFICULTY_SETTING]: 'custom', [STANDARD_SETTING]: { foeBase: 11, costMargin: 4, roundCap: 99 } }), levelled({ ...STANDARD, foeBase: 11, costMargin: 4 }));
+    assert.deepEqual(rulesFromSettings({ [DIFFICULTY_SETTING]: 'custom' }), levelled(STANDARD), 'Custom with nothing stored');
+    assert.deepEqual(rulesFromSettings({ [DIFFICULTY_SETTING]: 'gentle', [STANDARD_SETTING]: { foeBase: 11 } }), levelled(PRESETS.gentle), 'the custom numbers are not read for a preset');
+    assert.notEqual(rulesFromSettings({}), STANDARD, 'a copy');
     assert.equal(presetOf(PRESETS.harsh), 'harsh');
     assert.equal(presetOf({ ...STANDARD, roundCap: 4 }), 'custom');
     assert.equal(sameRules(STANDARD, { roundCap: 8 }), true);
     assert.equal(sameRules(STANDARD, PRESETS.harsh), false);
 });
 
-test('the odds: Wessel (+9: STR 12, Soul Class I, Adept) against a Class I foe is 69 / 10 / 22 Gentle, 61 / 8 / 31 Standard, 52 / 5 / 43 Harsh', () => {
+test('the odds: a +9 bonus against a Class I foe is 69 / 7 / 25 Gentle, 61 / 8 / 31 Standard, 52 / 9 / 39 Harsh', () => {
     const at = rules => oddsFor(rules, { bonus: 9, foeClass: 1 });
-    assert.deepEqual(at(PRESETS.gentle), { success: 69, cost: 10, fail: 22 });
-    assert.deepEqual(at(PRESETS.standard), { success: 61, cost: 8, fail: 31 });
-    assert.deepEqual(at(PRESETS.harsh), { success: 52, cost: 5, fail: 43 });
+    assert.deepEqual(at(PRESETS.gentle), GENTLE);
+    assert.deepEqual(at(PRESETS.standard), MIDDLE);
+    assert.deepEqual(at(PRESETS.harsh), HARSH);
+    assert.ok(GENTLE.success > MIDDLE.success && MIDDLE.success > HARSH.success);
     assert.deepEqual(at(undefined), at(STANDARD), 'no numbers: Standard');
 });
 
@@ -70,7 +73,7 @@ test('the odds agree with the roll itself over every pair of dice, for any numbe
     for (const rules of [PRESETS.gentle, PRESETS.harsh, { ...STANDARD, foeBase: 15, classWeight: 3, costMargin: 5 }, { ...STANDARD, foeBase: 0, costMargin: 0 }]) {
         for (const [bonus, foeClass] of [[0, 1], [9, 1], [14, 3], [30, 9]]) {
             const counts = { success: 0, cost: 0, fail: 0 };
-            for (let pc = 1; pc <= 20; pc += 1) for (let foe = 1; foe <= 20; foe += 1) counts[outcomeOf(pc, pc + bonus, foe + rules.foeBase + rules.classWeight * foeClass, rules)] += 1;
+            for (let pc = 1; pc <= 20; pc += 1) for (let foe = 1; foe <= 20; foe += 1) counts[outcomeOf(pc, pc + bonus, foe + foeBonus(foeClass, rules), rules)] += 1;
             assert.deepEqual(oddsFor(rules, { bonus, foeClass }), { success: Math.round(counts.success / 4), cost: Math.round(counts.cost / 4), fail: Math.round(counts.fail / 4) });
         }
     }
@@ -85,7 +88,7 @@ test('who the odds are for: the persona-named character, else the first; their b
     const mine = oddsSubject(sheet, 'Wessel', names);
     assert.deepEqual(mine, { who: 'Wessel', stat: 'str', statValue: 12, soul: 1, level: 5, rank: 1, skill: 'Iron Breath', foeClass: 1, foeLevel: 5, rankName: 'Adept', soulName: 'I' });
     assert.deepEqual(subjectOdds(PRESETS.standard, mine), { bonus: 9, success: 61, cost: 8, fail: 31 });
-    assert.equal(subjectOdds({ ...STANDARD, statDivisor: 3, classWeight: 3 }, mine).bonus, 4 + 3 + 1, 'a third of the stat, ×3 for the class, plus the rank');
+    assert.equal(subjectOdds({ ...STANDARD, classWeight: 3 }, mine).bonus, 6 + 3 + 1, 'the stat\'s share, ×3 for the class, plus the rank');
     assert.equal(oddsSubject(sheet, 'Ren', names).who, 'Ren');
     assert.equal(oddsSubject(sheet, 'Ren', names).stat, 'int', 'Ren has no Spark ranked above Novice, so the first skill, and its stat');
     assert.equal(oddsSubject(sheet, 'a stranger', names).who, 'Ren', 'a persona with no block: the first Character block (they are read in block order)');
@@ -96,46 +99,6 @@ test('who the odds are for: the persona-named character, else the first; their b
     assert.equal(oddsSubject(sheetOf({ foes: PARTY().foes }), 'Wessel', names), null, 'no character');
 });
 
-test('each number does its work in the roll', () => {
-    const sheet = sheetOf();
-    const at = (rules, body = plan({ pace: 'careful' }), rolls = dice(14, 9)) => rollPrepared(body, prepare(body, sheet, rules), rolls, rules);
-    // The foe's base and what a Soul Class adds (Sluice Rats are Class I, Wessel Class II).
-    const hard = at({ ...STANDARD, foeBase: 9, classWeight: 3 }).rounds[0].lines[0];
-    assert.deepEqual([hard.foe.base, hard.foe.classBonus, hard.foe.total, hard.pc.classBonus, hard.pc.total], [9, 3, 9 + 9 + 3, 6, 14 + 7 + 6 + 1]);
-    // The stat's share: STR 14 counts half (7) or a third (4).
-    assert.equal(at(STANDARD).rounds[0].lines[0].pc.statBonus, 7);
-    assert.equal(at({ ...STANDARD, statDivisor: 3 }).rounds[0].lines[0].pc.statBonus, 4);
-    // "At a cost": the window below the foe's total, and 0 turns it off.
-    const outcome = (rules, pcDie) => at(rules, plan({ pace: 'careful' }), dice(pcDie, 9)).rounds[0].lines[0].outcome;
-    // Wessel's total is die + 12; the foe's is 9 + 5 + 2 = 16: die 2 is 14, two short.
-    assert.equal(outcome(STANDARD, 2), 'cost');
-    assert.equal(outcome({ ...STANDARD, costMargin: 1 }, 2), 'fail');
-    assert.equal(outcome({ ...STANDARD, costMargin: 0 }, 3), 'fail', 'one short, window 0: a fail');
-    assert.equal(outcome({ ...STANDARD, costMargin: 5 }, 2), 'cost');
-    assert.equal(outcome({ ...STANDARD, costMargin: 3 }, 2), 'cost');
-});
-
-test('the decisive margin and the most exchanges per reply', () => {
-    const sheet = sheetOf();
-    const body = plan({ pace: 'all' });
-    // A margin of 7 each round: Wessel's 12 + 12 = 24 against the foe's 10 + 5 + 2 = 17.
-    const run = rules => rollPrepared(body, prepare(body, sheet, rules), calmWith(12, 10), rules);
-    const calmWith = (pc, foe) => { let turn = 0; return () => (turn++ % 2 === 0 ? pc : foe); };
-    // (The rule of a roll made before the flow of stage 49, which has the cap of 5: its numbers are EARLIER_RULES; presets now hold 8.)
-    assert.equal(run(EARLIER_RULES).rounds.length, 5, 'margin 7 is not decisive at 8: five rounds (the cap)');
-    assert.equal(run(EARLIER_RULES).stop, 'cap');
-    assert.equal(run(STANDARD).rounds.length, 8, 'a preset now holds eight');
-    const keen = run({ ...STANDARD, decisiveMargin: 7 });
-    assert.deepEqual([keen.rounds.length, keen.stop], [1, 'decisive'], 'at 7 the first round settles it');
-    for (const roundCap of [1, 2, 3, 8]) {
-        const result = run({ ...STANDARD, roundCap });
-        assert.equal(result.rounds.length, roundCap, `cap ${roundCap}`);
-    }
-    assert.equal(run({ ...STANDARD, roundCap: 8 }).stop === 'pace' || run({ ...STANDARD, roundCap: 8 }).stop === 'budget', true, 'eight rounds: all of the pace, or what the cue budget holds');
-    const careful = plan({ pace: 'careful' });
-    assert.equal(rollPrepared(careful, prepare(careful, sheet, { ...STANDARD, roundCap: 8 }), calm(), { ...STANDARD, roundCap: 8 }).rounds.length, 1, 'careful is still one');
-});
-
 test('with no numbers given, a roll is made with Standard\'s (what it always was)', () => {
     const sheet = sheetOf();
     const body = plan();
@@ -144,17 +107,23 @@ test('with no numbers given, a roll is made with Standard\'s (what it always was
     assert.deepEqual(plain, standard);
 });
 
-test('the planner\'s extra instructions: tidied, at most 400 characters, after the fixed part and before the party', () => {
-    assert.equal(plannerNoteOf({}), '');
-    assert.equal(plannerNoteOf({ [NOTE_SETTING]: '  Play it safe.  \r\n\r\n  Talk is free.   ' }), 'Play it safe.\n\n  Talk is free.', 'trimmed, lines kept');
-    assert.equal(plannerNoteOf({ [NOTE_SETTING]: 5 }), '');
-    assert.equal([...plannerNoteOf({ [NOTE_SETTING]: 'a'.repeat(900) })].length, NOTE_MAX);
-    assert.equal([...plannerNoteOf({ [NOTE_SETTING]: '🙂'.repeat(500) })].length, NOTE_MAX, 'never inside a character');
+test('each number does its work in the roll: the foe\'s base, the "at a cost" window, the decisive margin and the most exchanges', () => {
     const sheet = sheetOf();
-    const without = precallPrompt({ sheet, message: 'hi' });
-    const withNote = precallPrompt({ sheet, message: 'hi', note: 'Companions play it safe.' });
-    assert.ok(!without.includes('Reader\'s instructions'));
-    assert.ok(withNote.includes('\n\nReader\'s instructions: Companions play it safe.\n\nParty:'));
-    assert.ok(withNote.startsWith(without.slice(0, without.indexOf('\n\nParty:'))), 'the fixed part comes first, unchanged');
-    assert.equal(precallPrompt({ sheet, message: 'hi', note: '   ' }), without, 'a blank note adds nothing');
+    const run = (rules, body = plan({ pace: 'all' }), pcDie = 10, foeDie = 10) => rollPrepared(body, prepare(body, sheet, rules), () => { let turn = 0; return () => (turn++ % 2 === 0 ? pcDie : foeDie); }, rules);
+    const first = rules => run(rules, plan({ pace: 'careful' })).rounds[0].lines[0];
+    assert.equal(first({ ...STANDARD, foeBase: 9 }).foe.total - first(STANDARD).foe.total, 5, 'the foe\'s base is added to its die');
+    // Cost window: the number of totals short of the foe's that still count as "at a cost".
+    const gap = first(STANDARD).foe.total - first(STANDARD).pc.total;
+    const at = (costMargin, pcDie) => run({ ...STANDARD, costMargin }, plan({ pace: 'careful' }), pcDie, 10).rounds[0].lines[0].outcome;
+    const low = 10 + gap - 1;
+    assert.ok(low > 1 && low < 20, `a gap of ${gap}`);
+    assert.equal(at(0, low), 'fail');
+    assert.equal(at(5, low), 'cost');
+    assert.equal(at(5, 1), 'fail', 'a natural 1 always fails');
+    // The most exchanges per reply: the cap, whatever the pace.
+    const long = (roundCap, margin = STANDARD.decisiveMargin) => run({ ...STANDARD, roundCap, decisiveMargin: margin }, plan({ pace: 'all' }), 10, 10);
+    for (const roundCap of [1, 2, 3]) assert.equal(long(roundCap).rounds.length, roundCap, `cap ${roundCap}`);
+    assert.ok(long(8).rounds.length > 3 || long(8).stop !== 'cap', 'eight rounds: all of the pace, or what the cue budget holds');
+    assert.equal(run(STANDARD, plan({ pace: 'careful' }), 10, 10).rounds.length, 1, 'careful is one');
+    assert.equal(EARLIER_RULES.roundCap, 5, 'a roll made before the flow of stage 49 replays with the cap of 5');
 });

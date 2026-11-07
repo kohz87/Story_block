@@ -42,34 +42,31 @@ reply that was rolled. **See it in the story** closes the game view and scrolls 
 
 ### The fight board
 
-The board is on by default and is offered under Standard rules; Classic keeps the usual planner. Its switch is in
+The board is on by default and is offered under the Standard rules. Its switch is in
 **Settings → RPG** and **Settings → Features**. When a reply introduces foes, a line beneath it offers **Fight on the board** or
-**Keep narrating**, and a dot marks the Fight tab while the offer is open. Keeping narration hides the offer for that fight;
-the board remains available in the Fight tab.
+**Auto-fight**, and a dot marks the Fight tab while the offer is open. The board remains available in the Fight tab.
 
-When you send a fight action against known foes, the reply waits while you choose **Fight it on the board** or **Narrate it instead**.
-When your message starts a fight with new foes, the planner first finds the foes and rolls any approach checks; the pause shows
-those results and any ambush. The board uses the same approach and carries the ambush into its first exchange. Choose one numbered line for each standing party member: Attack with
+When you type an attack on a standing foe, the send is held with only those two choices (titled "This is an attack on <foes>"). Nothing waits on a model call. Choose one numbered line for each standing party member: Attack with
 the equipped weapon, a skill with one target or every foe in reach, or Flee. Tap a line or press its number; when there is
 more than one foe group, choose the target next, or press Esc to go back. A line that cannot be used stays visible with its
 reason. Defence is automatic: the best usable defence skill, else the plain defence roll. Foes act by code.
 
+**Auto** plays up to the cap's exchanges for you (the **Auto-fight cap** setting, 1 to 8 or **Until the end**, default 3) with ordinary attacks. It stops on a win, a loss, a badly hurt hero (2 or more Health blocks lost in one exchange) or the cap, and it never flees. After it stops, **Auto again** plays on and **Send with this fight** sends the reply. A fight against foes that a fled or lost fight left starts from their exact bars; the board says "These foes are as you left them: N of M standing, with their bars from the last fight."
+
 The bars stay above a scrolling battle log, and the next choices stay at the bottom on a phone. Each rolled exchange is final.
 **Discard fight** asks first and gives the next opening a new seed. A changed sheet or equipment holds a staged board fight until
-the original inputs are restored or the fight is discarded. If you switch to Classic with a staged fight, switch back to Standard
-or discard it before continuing. While the reply is being written, wait until it finishes before changing that fight's sheet or gear.
-If a reply is held after its inputs change, restore them to finish it, or discard the fight and regenerate it. Both the waiting
-fight choice and a held reply survive a reload.
+the original inputs are restored or the fight is discarded. While the reply is being written, wait until it finishes before changing that fight's sheet or gear.
+If a reply is held after its inputs change, restore them to finish it, or discard the fight and regenerate it. A held reply survives a reload.
 The log shows bar changes as words with the dice and totals. The board labels defence results as the defender's and sends each
 recorded gear condition change to the narrator at its exchange. The end card says won, lost or fled, shows pending XP and practice,
 and offers **Send with this fight** when a reply is waiting. The folded note shows what the narrator will be told.
 
 When you send while exchanges are played, they become that reply's settled rolls: the narrator tells them first, then your
-own action, and an unfinished fight stays open with its current bars. The planner is not called while a board fight is open.
+own action, and an unfinished fight stays open with its current bars.
 A swipe of the narrated reply keeps the same fight, seed and actions; Re-read, reload, rewind, regenerate and a middle delete
 replay the same result. A branch does not keep a staged fight if the reply that anchored it is absent. A won fight pays its XP once;
 open, lost and fled fights pay none. With the board on, the narrator's fixed combat instructions omit rules already handled by code;
-the roll notes still explain each narrated roll. With the board off, the original instructions and planner path are used.
+the roll notes still explain each narrated roll. With the board off, no dice are rolled before a reply.
 
 With the Standard formula a foe group's health bar has `4 + floor(level/30)` blocks (levels 1 to 29 give 4, 30 to 59 give 5, 60 to 89 give 6, 90 to 99 give 7) and reads
 "Scratched · 5 of 6"; the battle log shows the recorded turn order with its totals (`Turn order: Wessel 21 > Weir-drake 18`), the
@@ -92,8 +89,7 @@ Weir-drake d20 9 + 3 + Lv 7 ÷ 5 = 1 = 13 · Weir-drake loses 1 block (5 of 6)")
    you type is yours. The **Starting level** (1 to 99, held to the story's level cap) is set here too.
 2. **Stats.** The same steppers and radar as Spend points. On the **Standard** formula (the default) every stat starts at 5 and you have
    10 points to spend; a stat can go down to 3 to free a point and up to 10, and a line under the steppers says what the next points
-   buy: `Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)`. On **Classic**
-   every stat starts at 10 with 6 points to spend, from 8 to 15. Points you leave unspent stay on the character for Spend points. Spend
+   buy: `Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)`. Points you leave unspent stay on the character for Spend points. Spend
    points shows the same line and keeps it up to date as you move the steppers.
 3. **Skills.** Start from a template (Guild fighter, River scout, Hedge mage, Field medic, Silver tongue, and the sets a
    pack adds) or write your own. Up to five skills, each with a name, what it does (up to 120 characters, which the
@@ -296,13 +292,12 @@ than 4, 3 and 3 blocks). The Character block does this itself with one rule per 
 same live, after a reload and after a rebuild.
 
 A field says it is such a bar with `blocks` on its definition (`"blocks": "health" | "stamina" | "mana"` on a Character block's
-bars, `"foe"` on a Foes block's `hurtN`); a field without it is a Classic stage bar and is read exactly as before. A kind's number
+bars, `"foe"` on a Foes block's `hurtN`); a field without it is a stage bar and is read as before. A kind's number
 label may carry its own `names`, which is how the story's words reach a value its effect works out.
 
 ## Rolls
 
-With rolls on, the narrator's next reply is planned first. The planning step reads what you wrote, picks the actions
-and checks for the reply, and the dice are rolled for them. The result is drawn as a battle log in the reply, with
+With rolls on, the dice are rolled by code: the fight board's exchanges (the Standard formula is the only one). No model call plans them; a reply with no board fight goes out with the "no fight" line in its tail. The result is drawn as a battle log in the reply, with
 one short line per action, for example `Wessel uses Short blade on Sluice Rat A — Success (26 vs 16)`. Tap a line to see the numbers.
 It stands where the narrator wrote `[battle]` (else under the reply), and is drawn again when another extension redraws the
 reply's text. A `[battle]` line with no rolls behind it (or with the RPG off) is hidden, never shown as text.
@@ -311,64 +306,26 @@ A foe's attack reads from the foe's side: **Hit** (red) when it gets through, **
 
 **How long a reply's exchanges run.** The rolls for a reply keep going, exchange after exchange, until the first of these happens: the fight is
 **won** (every foe group is Down), it is **lost** (every party member who has not Left is Down), it turns **heavy** (a party member has lost 2 or
-more Health blocks in this reply, 2 or more stages under Classic, or went Down), the reader's **Most exchanges per reply** is reached (8 by
+more Health blocks in this reply, or went Down), the reader's **Most exchanges per reply** is reached (8 by
 default), the roll cue no longer fits its budget, or, at the careful pace, one exchange is done. A Decisive result is still marked Decisive in the
 log and still counts (a Decisive hit takes two blocks), but it no longer ends the reply. A foe group or a party member who is Down does not act in
 the exchanges after, and the cue says so ("does not act: Down"). The cue's last line tells the narrator where the rolls end, and for a won fight
-that code gives the XP for it (below). Under Classic, where the narrator sets the bars, the rolls keep a count of their own just to know when
-to stop (a hit takes one stage, a Decisive one two, from the Health on the sheet) and write nothing. A roll made before this (its record has no
+that code gives the XP for it (below). A roll made before this (its record has no
 `flow`) stopped at the first Decisive round, at the pace (careful 1, normal 5, all 8) or at the cap of 5, and still reads, replays and Re-reads
 exactly so; the log's stop word for it is `decisive`, `over`, `pace`, `cap` or `budget`, and for a new roll `won`, `lost`, `heavy`, `cap`,
 `budget` or `pace`.
 
-**The roll rule (Classic).** The rest of this section describes the **Classic** formula; the Standard one, the default, is described in
-[The stat formulas](#the-stat-formulas). A character's roll is `d20 + half the stat (rounded down) + skill rank + floor(level ÷ 5) + edge`, against
-the foe's `d20 + 5 + floor(the foe's level ÷ 5)`. The level term is `levelBonus`: floor(level ÷ 5), or ÷ 3 to ÷ 8 when the Custom numbers say so; a roll made before Levels keeps its Soul Class term (2 × class). The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
-plus 3) is what the situation earns, such as an ambush. That is the **Standard** difficulty; the foe's base, the level divisor and
-"half" can be changed in [Settings → RPG](#settings--rpg). "Half the stat" can also be "a third of the stat", or
-**full above 10**: the stat minus 5 (a stat of 10 adds 5, 14 adds 9, 20 adds 15, 8 adds 3). Whichever is chosen is the stat's
-bonus everywhere: checks, attacks and defence.
-
 - **A skill brings its own stat and resource.** An action that uses a skill the character has rolls with that skill's stat
-  and spends that skill's resource (stamina or mana), whatever the planning step wrote. If the resource is Empty the action
-  is rolled without the skill: same stat, rank 0.
-- An action with no skill rolls the stat the planning step picked, at rank 0. So does an action that names a skill the
-  character does not have, and the log says so. If there is no stat at all (a skill the character lacks and none given, or a
-  skill from an old Skills block that has no stat of its own) the roll uses the character's best stat, untrained, and says so.
-- **A skill can count when you defend.** When a foe attacks, the planning step may name one of the defender's skills if it
-  plausibly fits (a parry, a dodge, a shield, a counter-draw): `foe Sluice Rat A | target: Astra | defend: AGI | skill: Iaijutsu`.
-  It is resolved like an action's skill: the skill's own stat wins over `defend`, its rank adds, an Empty resource rolls without
-  it (with the same plain note), and a skill the defender does not have is rolled untrained with the `defend` stat. The cue and
-  the battle log name it (`Sluice Rat A attacks Astra (Iaijutsu) — Blocked (24 vs 18)`). With no skill the defender rolls the `defend`
-  stat at rank 0, as before; a roll made before this existed reads and tells exactly as it did. A stat or resource the pack hides
-  still counts and is not named.
-- **Each action has dice of its own.** The dice belong to the action's place in the plan, so an action that is refused (a
-  character who is Down) or comes back later never moves another action's dice. A plan whose every line names nobody on the
-  sheet counts as a failed plan, not as "no rolls": the narrator is told to keep the fight undecided.
+  and spends that skill's resource (stamina or mana). If the resource is Empty the action is rolled without the skill: same stat, rank 0.
+- An action with no skill rolls the stat that fits it, at rank 0. If there is no stat at all (a skill from an old Skills block that has no
+  stat of its own) the roll uses the character's best stat, untrained, and says so.
 - **The narrator always gets the rolls.** The roll cue is kept whole when the notes are trimmed to fit, and is shortened to
   stay under 600 tokens (fewer exchanges first, then shorter check and refusal lines, then shorter names). Shortened names
   stay different from each other (a cut name keeps the end of the name when its beginning is the same as another's). A roll made
   by an older build, whose record has no dice version, is shortened the way it was then, so a Re-read tells what it told.
-- **Foes.** A foe slot counts as filled with a name and a count above 0, in the Fight tab and for the planning step alike, and
-  every Foes block in the story is read.
-- **A fight that starts in this reply.** The planning step may list foes that are not on the Foes block yet, when your message
-  starts a fight against them (`foe <name> | new | count: 3 | level: 14`, or `rank: F` for a level inside that rank's band). Story Block checks each one before anything is rolled: a
-  distinctive word of its name (not "the" or "a", a plural -s ignored) must appear as a whole word in your message or in the
-  reply before it, so a foe nobody named is never added; the count is held to 1-12 and the level to 1 to 99 and at most your party's
-  highest level + 10 (none given: a level within 2 of the party's average). An accepted foe fills a free slot through the Foes block's own set-slot kind, as part of the
-  reply's roll, and the dice are rolled against it as for any fight (an ambush edge included). A swipe plans it again, Re-read
-  keeps it, deleting the reply takes the foes back with it, and a rebuild or a reload gives the same. A refused foe adds
-  nothing, and a plan that names only refused foes is treated like a plan that could not be read. If the narrator also writes
-  `set-slot` for a group of the same name in the same Foes block, that slot is updated (count and level), not doubled. When no
-  foe is filled in and nothing is rolled for a reply, the narrator is told that if a fight starts now it should set the Foes line
-  and stop at the first clash, and the dice decide from the next reply.
+- **Foes.** A foe slot counts as filled with a name and a count above 0, in the Fight tab and for the board alike, and
+  every Foes block in the story is read. A fight starts when a foe slot is set; while a Foes block exists and none stands, the reply's tail says so, and while foes stand only the clear-N kinds are offered.
 
-- **When the planning step gives nothing usable.** If it times out, its call fails or its answer cannot be read, the reply goes on with no
-  dice: a quiet line in Settings → Diagnostics (`ROLLS_SKIPPED`), and, while a fight is live (a filled foe with health), the narrator keeps the fight
-  undecided. In that case the reply also shows a note where the battle log would have stood (at `[battle]`, else under the reply): *No rolls this
-  reply:* and the reason (the planner did not answer within N s, where N is the limit that reply used; its call failed; its answer could not be read),
-  with a hint to swipe. The note is kept with the reply as a receipt (`rpg.noroll`), so a reload, a rebuild and a Re-read show it again, and a swipe
-  that rolls replaces it with the battle log. It is never sent to the model. Outside a live fight there is no note.
 - A **swipe** rolls again: the reply and its dice are new, and made with the numbers the settings say then.
 - **Re-read** keeps the same dice, and the same numbers (see below).
 - Changes made by a roll, and any level-up, appear under **Changed this reply**.
@@ -381,23 +338,17 @@ Settings page, only changes the rolls made after it.
 
 The page shows only while the RPG is on.
 
-- **Stat formula.** **Standard** or **Classic** (see [The stat formulas](#the-stat-formulas)), with the roll table of the one in force
-  and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks on
-  Standard). A chat that never chose is on Standard. Rolls already made keep the formula and numbers they were made with.
-- **Fight board.** Turn the board on or off here; this is the same switch as the one on Features.
-- **Rolls.** **Automatic** or **Off**, as above. Under it, **Planner time limit**: how many seconds a reply waits for the roll planner before it
-  goes on without dice (10 to 120 in steps of 5, default 45; it was a fixed 20). A slow model in Settings → Assist needs more. Only the planner's
-  call uses it; Assist's other helpers keep their own 20 seconds. It is read when the reply asks, so a change moves only the replies after it.
-- **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. On the Standard formula the presets move only the foe's base (2, 4 and
-  6) and **Custom** shows its thirteen numbers; the paragraph below is Classic's. The presets change the foe's base and how far short
-  a roll may fall and still be "success at a cost": Gentle is a base of 3 and a window of 3, Standard 5 and 2 (the rule
-  above), Harsh 7 and 1. All three keep the level term at floor(level ÷ 5), half the stat, a decisive margin of 8 and at most 8 exchanges
-  a reply (5 before stage 49; a Custom number you typed stays as you typed it, and a roll already made keeps its own). **Custom** shows its numbers: **Foe's base** (0 to 15), **Level divisor** (3 to 8, 5 unset: a level adds floor(level ÷ divisor) on both sides),
+- **Stat formula.** The roll table of the Standard formula (see [The stat formulas](#the-stat-formulas)) and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks).
+  Rolls already made keep the numbers they were made with.
+- **Fight board.** Turn the board on or off here; this is the same switch as the one on Features. Under it, **Auto-fight cap** (`rpgAutoCap`, a slider from 1 to 8 or **Until the end**, default 3): the most exchanges **Auto** plays in one press.
+- **Rolls.** **Automatic** or **Off**, as above.
+- **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. The presets move only the foe's base (2, 4 and 6) and how far short
+  a roll may fall and still be "success at a cost"; **Custom** shows its thirteen numbers: **Foe's base** (0 to 15), **Level divisor** (3 to 8, 5 unset),
   **Stat adds** (half the stat, a third of the stat, or full above 10), **"At a cost" when short by** (0 to 5; 0 turns it off), **Decisive at a margin
   of** (4 to 15, or a natural 1 or 20) and **Most exchanges per reply** (1 to 8). A number outside its range is held to
-  it. Under the numbers a bar shows the exact chances of success, success at a cost and fail for your own character (the
+  it, and a roll already made keeps its own. Under the numbers a bar shows the exact chances of success, success at a cost and fail for your own character (the
   persona's name, else the first Character block) with their best skill, against a foe of the same level, and it
-  changes as you type. A line under it gives the other presets for the same fight.
+  changes as you type.
 - **Levels and practice.** **Level cap** (1 to 99, default 99; the pack's cap wins when it names one), **Practice per skill use** (1 to 5, default 3) and **XP rate** (50 to 300 %, in steps of 25, default 100), as in [Levels, XP and skill ranks](#levels-xp-and-skill-ranks).
 - **What the narrator is told about combat.** The text of this chat's Combat rules block (up to 1200 characters, counted
   as you type). It is saved when you leave the box (or close the settings window with text still in it), as an edit of that
@@ -405,18 +356,14 @@ The page shows only while the RPG is on.
   when it has kept as many as it can, the box says so in plain words. **Reset to the default** puts the template's text back (a Standard chat's
   default also explains the roll types and that code moves the Health bars for rolled hits). Each chat has its own text; a new chat
   starts from the default. A chat with no Combat rules block says so and offers **Add the Combat rules block**.
-- **Roll planner.** Your own instructions (up to 400 characters) for the short call that plans the dice, added after its
-  fixed part. **Show the planner's full prompt** shows exactly what that call is sent for this chat, read-only: the format
-  of its answer stays fixed so the dice can be read.
-
 - **Companions who join.** **Ask**, **Automatically** or **Off**, as in [Companions who join](#companions-who-join).
 
 With the RPG off none of this is read or sent.
 
 ## The stat formulas
 
-A chat plays on one of two formulas, chosen in [Settings → RPG](#settings--rpg). **Standard** is the default for a chat that never chose.
-**Classic** is the formula described under [Rolls](#rolls), exactly as it was. Every roll records its formula and numbers (see "Past rolls
+**Standard** is the only formula: a chat plays on it, and a record with no formula replays as Standard. (The Classic formula and its settings are gone; a pack with `content.rpg.formula: "classic"` is refused as `BAD_CONTENT`. Old Classic rolls still replay as they were made.) Every roll records its formula and numbers (see "Past rolls
+never change" above), so a change only moves the rolls made after it.
 never change" above), so switching only changes the rolls made after it.
 
 ### Standard
@@ -433,7 +380,7 @@ after luck. `(A + B/2)/2` is rounded down once, at the end.
 | Check | level term + (the fitting stat + DEX/2)/2 + rank + edge: STR to climb or force, AGI to sneak, DEX for locks, INT for lore, VIT to endure |
 
 A skill's own stat takes the main slot and nothing is added on top. A skill that uses Stamina is physical and one that uses Mana is magic,
-unless the planner marks the action defence, social or a check. A skill whose resource is Empty is rolled without it: no skill, rank 0 and
+unless the action is marked defence, social or a check. A skill whose resource is Empty is rolled without it: no skill, rank 0 and
 the type's own stat.
 
 - **Luck is a window on the edge.** The situation gives an edge from −3 to +3; LUK holds it inside a window and never lets it fall below the
@@ -464,7 +411,7 @@ the type's own stat.
 
 The numbers behind the presets were chosen with `node scripts/sim-standard.mjs` (no network; measured on the Soul Class term, before Levels): at Standard a focused build (the skill's stat
 and DEX at the creation maximum, then 3 and 1 points a class) succeeds about 61 times in a hundred against a foe of its own Soul Class at
-Soul Class I and 72 to 79 from III to IX, near Classic's own 52 to 81; a spread build succeeds about 43 to 52 times. A hero against one
+Soul Class I and 72 to 79 from III to IX; a spread build succeeds about 43 to 52 times. A hero against one
 foe of the same class ends the fight in about 4 to 6 exchanges (skill costs included); at Standard a focused build wins 62 to 81 of a hundred
 such duels and a spread build 75 down to 25 from Soul Class I to IX.
 
@@ -551,17 +498,17 @@ A block with a `role` is held to these rules, and is told like any other block w
 - A field drawn as a bar (`health`, `mana`, `stamina`, a foe's `hurt1` to `hurt4`) has at most 10 stages, counted up from 0; a
   longer one is refused when the block is made.
 - `prompt: false` is honoured for every field the RPG tells the narrator about: a skill's name, what it does, a foe's name or
-  level, and `who`. The same holds for the roll planning step and the rolls: a hidden foe name is "Foe 2" (its slot) there,
+  level, and `who`. The same holds for the rolls: a hidden foe name is "Foe 2" (its slot) there,
   a hidden skill name is not offered, and a hidden `who` is the block's own name. A hidden number (health, a stat, level, a
   rank, a foe's count, level or health, a skill's stat or resource) still counts for the dice; it is only left out of what the
-  planner and the narrator are told: a check on a hidden stat reads "Wessel — Silent Trick, normal" (or "Wessel — check") with no
+  narrator is told: a check on a hidden stat reads "Wessel — Silent Trick, normal" (or "Wessel — check") with no
   stat named, a skill whose hidden resource is Empty is "cannot use Silent Trick: rolled without it", and a hidden skill stat
   missing from the sheet is "lacks the skill's stat". Whether something is hidden never changes the dice or how many rounds
   the cue tells: the cue is measured as if nothing were hidden (checks and refusals alike), and the hidden wording is never
   longer than the shown one. The replay witness holds the sheet numbers and the refusal texts as said, so hiding a field
   that changes a refusal's wording asks for a Re-read of that reply.
 - A block with a `role` is made for the chat (`scope: chat`, one block for each person); a `role` on a block for a character is
-  refused when the block is made, so the Party and Fight views and the roll planner always read the same blocks.
+  refused when the block is made, so the Party and Fight views always read the same blocks.
 - Cards are shown in the order death notice (an `end` card of a `character` block), other end cards, warn, info (at most 8 at a
   time), so the death notice always has a place.
 - The story cannot kill a character directly: the stock Character has no line that sets `alive`. A character dies only through

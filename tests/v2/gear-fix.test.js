@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../testkit/index.js';
 import { createFakeModel } from '../../testkit/model.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
-import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { gearMatches, planGear, sameWho } from '../../src/v2/lean-rpg/gear.js';
 import { actorIdOf } from '../../src/v2/lean-rpg/roster.js';
 import { readSheet } from '../../src/v2/lean-rpg/index.js';
@@ -16,6 +16,8 @@ import { core, stocked } from './domains/fixtures.js';
 import { reply, success } from './data-modules/helpers.js';
 import { pack } from './packs/helpers/fixtures.js';
 import { character, sheetDomain } from './lean-rpg/helpers.js';
+import { legacyPlanner } from './lean-rpg/legacy-planner.js';
+import { seedCrypto } from './qa/helpers/seeded.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -28,15 +30,22 @@ const SET = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 
 const GEAR_LINES = ['+ item Cane Sword | kind: weapon | rarity: rare | DEX: +2 | equipped: weapon', '+ item Jerkin | kind: armour | rarity: uncommon | VIT: +1 | equipped: body'];
 const resultAt = (host, index) => host.ctx.chat[index].extra?.storySuite?.receipts?.find(entry => entry.type === 'rpg.resolve')?.data?.v2?.result;
 const payloadAt = (host, index) => host.ctx.chat[index].extra?.storySuite?.receipts?.find(entry => entry.type === 'rpg.resolve')?.replan?.payload;
+// (the real host with the test-only legacy planner behind the RPG part's hook: the planner itself is gone)
+const withPlanner = (model, get) => async () => { const lib = await import('../../src/v2/lean-rpg/index.js'); return { ...lib, createLeanRpgPart(deps) { const part = lib.createLeanRpgPart(deps); part.hooks.beforeGenerate = legacyPlanner(part, { callModel: model, chat: () => get().ctx.chat, metadata: () => get().ctx.chatMetadata ?? null }); return part; } }; };
 const stable = host => JSON.stringify(host.head());
 
 async function fightWorld(t, { gear = true } = {}) {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost({ callModel: createFakeModel(Array(60).fill(PLAN_TEXT)), settings: { features: gear ? { 'story-block.gear': true } : {}, modules: { 'story-block': { rpgFormula: 'classic' } } } });
+    // (Standard dice follow the record ids: a fixed seed keeps the fights, and so these tests, the same on every run.)
+    const restore = seedCrypto(11);
+    t.after(restore);
+    const model = createFakeModel(Array(60).fill(PLAN_TEXT));
+    let host = null;
+    host = await createHost({ callModel: model, lazyRpg: true, rpgLoad: withPlanner(model, () => host), settings: { features: gear ? { 'story-block.gear': true } : {} } });
     t.after(() => host.close());
     host.features.set('story-block.rpg', true);
     await host.send('Begin.', 'Opening.');
-    for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition) }));
+    for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition) }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 5 } }));
     await host.send('Set.', reply(SET));
     await host.send('Gear up.', reply(...GEAR_LINES));
@@ -98,12 +107,14 @@ test('R1: a later equip never moves a roll that was made', { skip }, async t => 
 test('R1: no party module, a companion who sorts first: the reader named in the user message gets the shared bag\'s bonus; live = rebuild = reload', { skip }, async t => {
     t.mock.method(console, 'warn', () => {});
     const plan = 'pace: all\nact Wessel | target: Mud Crawlers\nfoe Mud Crawlers | target: Wessel | defend: AGI';
-    const host = await createHost({ st: { user: 'Wessel' }, callModel: createFakeModel(Array(20).fill(plan)), settings: { features: { 'story-block.gear': true }, modules: { 'story-block': { rpgFormula: 'classic' } } } });
+    const model = createFakeModel(Array(20).fill(plan));
+    let host = null;
+    host = await createHost({ st: { user: 'Wessel' }, callModel: model, lazyRpg: true, rpgLoad: withPlanner(model, () => host), settings: { features: { 'story-block.gear': true } } });
     t.after(() => host.close());
     host.features.set('story-block.rpg', true);
     await host.send('Begin.', 'Opening.');
-    for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition) }));
-    const second = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Character').definition);
+    for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition) }));
+    const second = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Character').definition);
     second.slug = 'wessel'; second.name = 'Wessel'; second.state.who.default = 'Wessel';
     success(await host.sdk.command('dm.define', { definition: second }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 5 } }));
@@ -200,7 +211,7 @@ async function joinWorld(t, { list = [person({ gear: ['Cane Sword', 'Oak Buckler
     t.after(() => host.close());
     host.packId = built.pack.id;
     await host.send('Begin.', 'Opening.');
-    const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
+    const defs = Object.fromEntries(STANDARD_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = 'wessel'; defs.character.name = 'Wessel'; defs.character.state.who.default = 'Wessel';
     defs.skills.slug = 'wessel-skills'; defs.skills.name = 'Wessel skills'; defs.skills.state.who.default = 'Wessel';
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
@@ -271,7 +282,7 @@ test('R4: a first name or an alias counts only when exactly one Character matche
 test('R5: packs.castGear counts "already in the party" the way sameWho does: by first name when one Character is meant, not when two are', { skip }, async t => {
     const host = await joinWorld(t, { list: [person({ aliases: ['the ferrywoman'], gear: ['Cane Sword'] })] });
     const define = async (slug, name) => {
-        const definition = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === 'character').definition);
+        const definition = structuredClone(STANDARD_TEMPLATES.find(entry => entry.definition.role === 'character').definition);
         definition.slug = slug; definition.name = name; definition.state.who.default = name;
         assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
     };

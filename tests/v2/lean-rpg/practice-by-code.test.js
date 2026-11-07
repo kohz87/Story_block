@@ -9,14 +9,20 @@ import { createFakeModel } from '../../../testkit/model.js';
 import { LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING } from '../../../src/v2/lean-rpg/index.js';
 import { practiceLines, rpgReplyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { PRACTICE_HELD, usesOf } from '../../../src/v2/lean-rpg/practice.js';
-import { PRECALL_HEAD, PRECALL_HEAD_STANDARD } from '../../../src/v2/lean-rpg/precall.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { legacyPlanner } from './legacy-planner.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { rollReceipt } from './helpers.js';
 
+// The RPG library is cached for the whole process, so the test-only legacy planner reads the world of the test now running.
+const live = { host: null, model: null };
+const planned = async () => {
+    const lib = await import('../../../src/v2/lean-rpg/index.js');
+    return { ...lib, createLeanRpgPart(deps) { const part = lib.createLeanRpgPart(deps); part.hooks.beforeGenerate = legacyPlanner(part, { callModel: (...args) => live.model(...args), chat: () => live.host.ctx.chat, metadata: () => live.host.ctx.chatMetadata ?? null }); return part; } };
+};
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
-const definitionOf = name => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition);
+const definitionOf = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
 const PLAN = [
     'pace: careful',
     'act Astra | skill: Iron Breath | stat: STR | target: Rats',
@@ -26,8 +32,11 @@ const LEARN = (n, name) => `~ dm skills — learned | kind: learn-${n} | name: $
 const sheetFields = (host, slug) => host.head().domains.dataModules.instances[`pack.chat/${slug}`].chat.fields;
 
 async function world(t, { perUse, answers = [PLAN] } = {}) {
-    const model = createFakeModel([...answers]);
-    const host = await createHost({ callModel: model, settings: { modules: { 'story-block': { rpgFormula: 'classic', ...(perUse === undefined ? {} : { [PRACTICE_SETTING]: perUse }) } } } });
+    const model = createFakeModel(['none', ...answers]);   // (the first answer goes to the Learn send, which has no foe to plan against)
+    // (the real host with the test-only legacy planner behind the RPG part's hook: the planner itself is gone)
+    live.model = model;
+    const host = await createHost({ callModel: model, lazyRpg: true, rpgLoad: planned, settings: { modules: { 'story-block': { ...(perUse === undefined ? {} : { [PRACTICE_SETTING]: perUse }) } } } });
+    live.host = host;
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
     await host.send('Begin.', 'Opening.');
@@ -37,6 +46,14 @@ async function world(t, { perUse, answers = [PLAN] } = {}) {
     await host.send('Learn.', reply(LEARN(1, 'Iron Breath'), LEARN(2, 'Dodge'), LEARN(3, 'Spark').replace('stamina', 'mana'),
         '+ dm foes — why | kind: set-slot-1 | name: Rats | count: 2 | level: 5'));
     return { host, model };
+}
+// The dice are random per run, so how many times a skill was used (an opening action, a foe beaten before it strikes back) is read from the rolls kept on
+// the chat: `owed` is what code should have credited, per use, for every roll still on it.
+const rollsOf = host => host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === 'rpg.resolve').map(receipt => receipt.data.v2.result);
+function owed(host) {
+    const total = [0, 0, 0], at = { 'Iron Breath': 0, Dodge: 1, Spark: 2 };
+    for (const result of rollsOf(host)) for (const use of usesOf(result)) total[at[use.skill]] += result.practice * use.n;
+    return total;
 }
 const practice = host => { const f = sheetFields(host, 'skills'); return [f.practice1, f.practice2, f.practice3]; };
 function agree(host) {
@@ -51,14 +68,6 @@ async function reloads(host) {
 }
 const told = host => host.turn.problems().filter(problem => problem.message === PRACTICE_HELD);
 
-test('the planner heads name a defender\'s skill on the foe line only when the message asks for it (Classic and Standard)', () => {
-    // (PINNED CHANGE, USER option A: the line used to say a fitting skill always goes on the foe line)
-    assert.match(PRECALL_HEAD, /Defending with a skill \(evade, dodge, parry, block\): guard: that skill on the act; else leave it out\./);
-    assert.match(PRECALL_HEAD_STANDARD, /Defending with a skill \(evade, dodge, parry, block\): guard: that skill on the act; else leave it out\./);
-    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.doesNotMatch(head, /fitting skill/);
-    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.doesNotMatch(head, /plausibly fits/);
-});
-
 for (const perUse of [1, 3, 5]) {
     test(`practice per use ${perUse}: an act's skill and a defender's skill each get it, an untrained roll none, and the roll records the value`, { skip }, async t => {
         const { host } = await world(t, { perUse });
@@ -66,8 +75,9 @@ for (const perUse of [1, 3, 5]) {
         const at = host.ctx.chat.length - 1;
         assert.equal(rollReceipt(host, at).data.v2.result.practice, perUse, 'recorded with the roll');
         const uses = usesOf(rollReceipt(host, at).data.v2.result);
-        assert.deepEqual(uses.map(use => [use.skill, use.n]), [['Dodge', 1], ['Iron Breath', 1]]);
-        assert.deepEqual(practice(host), [perUse, perUse, 0], 'Spark was not rolled');
+        assert.ok(uses.some(use => use.skill === 'Iron Breath') && uses.every(use => ['Dodge', 'Iron Breath'].includes(use.skill)), 'the act\'s skill and a defender\'s skill, never Spark');
+        assert.deepEqual(practice(host), owed(host), 'each use is worth the value the roll recorded');
+        assert.equal(practice(host)[2], 0, 'Spark was not rolled');
         assert.deepEqual(told(host), []);
         agree(host);
         await reloads(host);
@@ -77,16 +87,19 @@ for (const perUse of [1, 3, 5]) {
 test('a later setting change moves no reply already made; a swipe rolls anew with the value then; Re-read keeps the recorded value', { skip }, async t => {
     const { host } = await world(t, { perUse: 2, answers: [PLAN, PLAN, PLAN, PLAN, PLAN] });
     await host.send('I strike.', reply());
-    assert.deepEqual(practice(host), [2, 2, 0]);
+    assert.deepEqual(practice(host), owed(host));
+    const first = rollsOf(host)[0].practice;
+    assert.equal(first, 2);
     host.settings.set('story-block', PRACTICE_SETTING, 5);
     agree(host);
-    assert.deepEqual(practice(host), [2, 2, 0], 'a rebuild with the new setting changes nothing');
+    assert.deepEqual(practice(host), owed(host), 'a rebuild with the new setting changes nothing');
     assert.equal((await host.turn.reread(host.ctx.chat.length - 1)).ok, true);
-    assert.deepEqual(practice(host), [2, 2, 0], 'Re-read keeps the value the roll was made with');
+    assert.deepEqual(practice(host), owed(host), 'Re-read keeps the value the roll was made with');
     await host.send('Again.', reply());
-    assert.deepEqual(practice(host), [7, 7, 0], 'the next reply uses 5');
+    assert.deepEqual(practice(host), owed(host), 'the next reply uses 5');
+    assert.deepEqual(rollsOf(host).map(result => result.practice), [2, 5]);
     await host.swipe(reply());
-    assert.deepEqual(practice(host), [7, 7, 0], 'the swipe takes the credit back and rolls anew at 5');
+    assert.deepEqual(practice(host), owed(host), 'the swipe takes the credit back and rolls anew at 5');
     await host.st.deleteMessage(host.ctx.chat.length - 2);
     agree(host);
     await reloads(host);
@@ -95,7 +108,7 @@ test('a later setting change moves no reply already made; a swipe rolls anew wit
 test('the setting out of range or missing is 3; the payload mark is the value, so a roll with none gives none', { skip }, async t => {
     const { host } = await world(t, { perUse: 9 });
     await host.send('I strike.', reply());
-    assert.deepEqual(practice(host), [3, 3, 0]);
+    assert.deepEqual(practice(host), owed(host));
     const record = rollReceipt(host, host.ctx.chat.length - 1);
     assert.equal(record.data.v2.result.practice, PRACTICE.perUse);
     // A roll recorded before (no `practice` in it) is read by the hook as giving nothing.
@@ -119,11 +132,12 @@ const refusals = host => host.turn.problems().filter(problem => problem.message.
 test('with the RPG on and Rolls automatic the narrator\'s practice line is refused, with a Problems line, for a rolled skill and for one not rolled; only the code practises', { skip }, async t => {
     const { host } = await world(t, { perUse: 3, answers: [PLAN, 'none'] });
     await host.send('I strike.', reply('+ dm skills — practised Iron Breath | kind: practice-1 | amount: 20', '+ dm skills — practised Spark | kind: practice-3 | amount: 10'));
-    assert.deepEqual(practice(host), [3, 3, 0], 'code 3 for Iron Breath and for Dodge; the narrator\'s 20 and 10 changed nothing');
+    assert.deepEqual(practice(host), owed(host), 'code 3 a use for Iron Breath and for Dodge; the narrator\'s 20 and 10 changed nothing');
+    const before = practice(host);
     assert.equal(refusals(host).length, 2, 'one Problems line for each refused line');
     assert.equal(told(host).length, 0, 'nothing to put back: the lines never applied');
     await host.send('Training.', reply('+ dm skills — practised Iron Breath | kind: practice-1 | amount: 15'));
-    assert.deepEqual(practice(host), [3, 3, 0], 'a reply with no roll: the line is refused too (no farming)');
+    assert.deepEqual(practice(host), before, 'a reply with no roll: the line is refused too (no farming)');
     assert.equal(refusals(host).length, 3);
     agree(host);
     await reloads(host);
@@ -194,13 +208,15 @@ test('the reply card tells the practice code gave, in the fight XP line\'s style
     const { host } = await world(t, { perUse: 3, answers: [PLAN, PLAN] });
     await host.send('I strike.', reply());
     const record = host.ctx.chat.at(-1).extra.storySuite;
-    assert.deepEqual(practiceLines(record).map(line => line.text), ['Astra\'s Dodge +3 practice (rolled)', 'Astra\'s Iron Breath +3 practice (rolled)']);
-    assert.equal(practiceLines(record)[0].summary, 'Astra\'s Dodge +3');
-    assert.deepEqual(rpgReplyLines({ state: host.head(), before: null, record }).map(line => line.text).filter(text => /practice/.test(text)), ['Astra\'s Dodge +3 practice (rolled)', 'Astra\'s Iron Breath +3 practice (rolled)'], 'the card shows them beside the rolls');
+    const lines = usesOf(rollsOf(host)[0]).map(use => `Astra's ${use.skill} +${3 * use.n} practice (rolled)`);
+    assert.ok(lines.length >= 1);
+    assert.deepEqual(practiceLines(record).map(line => line.text), lines);
+    assert.equal(practiceLines(record)[0].summary, lines[0].replace(' practice (rolled)', ''));
+    assert.deepEqual(rpgReplyLines({ state: host.head(), before: null, record }).map(line => line.text).filter(text => /practice/.test(text)), lines, 'the card shows them beside the rolls');
     assert.deepEqual(practiceLines({ receipts: [] }), []);
     assert.deepEqual(practiceLines({ receipts: [{ type: 'rpg.practice', id: 'x', data: { v2: { result: { practice: { skills: [{ who: 'A', skill: 'S', amount: 0 }, { who: '', skill: 'S', amount: 2 }] } } } } }] }), [], 'nothing without a name or an amount');
     await host.swipe('Again.');
-    assert.equal(practiceLines(host.ctx.chat.at(-1).extra.storySuite).length, 2, 'the swiped reply has its own');
+    assert.ok(practiceLines(host.ctx.chat.at(-1).extra.storySuite).length >= 1, 'the swiped reply has its own');
 });
 
 test('a roll made before practice by code has no mark and gives nothing, byte for byte as it was', { skip }, async t => {

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setupDom } from '../../view/mounts/helpers.js';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { readParty } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { createPartyWidget } from '../../../../src/v2/lean-rpg/view/party.js';
 import { RANK_TONES, masteryOf, renderSkills, rollOf } from '../../../../src/v2/lean-rpg/view/skills.js';
@@ -12,7 +12,7 @@ import { reply, rebuilt } from '../../data-modules/helpers.js';
 import { fakeState } from './helpers.js';
 import { begin, fieldsOf, makeBlocks, page, party, settle } from './page.js';
 
-const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
+const template = role => structuredClone(STANDARD_TEMPLATES.find(entry => entry.definition.role === role).definition);
 const character = (fields = {}) => ({ definition: template('character'), fields: { who: 'Wessel', str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, level: 2, ...fields } });
 const SKILLS = {
     who: 'Wessel',
@@ -52,10 +52,9 @@ test('the roll: d20 + half the stat + rank + level ÷ 5 (rounded down), worked o
     assert.deepEqual(rollOf(iron, wessel()), { total: 8, stat: 'VIT', value: 12, half: 6, rank: 2, bonus: 0 });
     assert.equal(rollOf(blade, wessel()).total, 5, 'AGI 11 → +5, Novice +0, level ÷ 5 = 0');
     assert.equal(rollOf(rope, wessel()).total, 6);
-    // Level 14 (the Level field): 14 ÷ 5 = 2; under other numbers a third of the stat and a divisor of 3 (14 ÷ 3 = 4).
+    // Level 14 (the Level field): 14 ÷ 5 = 2.
     const high = readParty(fakeState([character({ level: 14 }), { definition: template('skills'), fields: SKILLS }]), { own: 'Wessel' })[0];
     assert.deepEqual(rollOf(high.skills[0], high), { total: 6 + 2 + 2, stat: 'VIT', value: 12, half: 6, rank: 2, bonus: 2 });
-    assert.deepEqual(rollOf(high.skills[0], high, { statDivisor: 3, levelDivisor: 3 }), { total: 4 + 2 + 4, stat: 'VIT', value: 12, half: 4, rank: 2, bonus: 4 });
     assert.equal(rollOf(swim, wessel()).total, 9);
     const none = rollOf({ ...iron, stat: null }, wessel());
     assert.deepEqual([none.stat, none.total], [null, 2], 'a skill with no stat of its own: rank and level only');

@@ -1,7 +1,7 @@
 // scripts/sim-standard.mjs: the numbers the Standard presets were chosen by stay what they were chosen for.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAt, classicTable, exactOdds, fight, rankAt, rollTable } from '../../../scripts/sim-standard.mjs';
+import { buildAt, exactOdds, fight, rankAt, rollTable } from '../../../scripts/sim-standard.mjs';
 import { STANDARD_FORMULA, STANDARD_PRESETS } from '../../../src/v2/lean-rpg/rules.js';
 import { blocksFor, foeBonus } from '../../../src/v2/lean-rpg/formula.js';
 
@@ -28,14 +28,12 @@ test('exact odds count all 400 pairs: the three outcomes add up and a harsher fo
     assert.ok(at('gentle').success > at('standard').success && at('standard').success > at('harsh').success);
 });
 
-test('Standard\'s presets: a focused build against a foe of its own Soul Class succeeds 60 to 85 times in a hundred at every Soul Class, near Classic\'s own line; a spread build is lower', () => {
-    const rows = rollTable(), classic = classicTable();
+test('Standard\'s presets: a focused build against a foe of its own Soul Class succeeds 60 to 85 times in a hundred at every Soul Class. A spread build is lower', () => {
+    const rows = rollTable();
     assert.equal(rows.length, 30);
     const at = (difficulty, build) => rows.filter(row => row.difficulty === difficulty && row.build === build);
     for (const row of at('standard', 'focused')) {
         assert.ok(row.same.success >= 60 && row.same.success <= 85, `focused ${row.soul}: ${row.same.success}`);
-        const reference = classic.find(item => item.soul === row.soul).same.success;
-        assert.ok(Math.abs(row.same.success - reference) <= 12, `focused ${row.soul}: ${row.same.success} against Classic's ${reference}`);
     }
     for (const row of at('standard', 'spread')) assert.ok(row.same.success >= 40 && row.same.success <= 65, `spread ${row.soul}: ${row.same.success}`);
     for (const build of ['focused', 'spread']) for (const [gentle, standard, harsh] of at('gentle', build).map((row, n) => [row, at('standard', build)[n], at('harsh', build)[n]])) {

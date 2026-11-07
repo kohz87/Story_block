@@ -5,16 +5,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
-import { LEAN_RPG_FEATURE, parsePlanAnswer, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
+import { LEAN_RPG_FEATURE, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { parsePlanAnswer } from './legacy-planner.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply } from '../data-modules/helpers.js';
 import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
 import { character, foeBlock, sheetDomain } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
-const definitionOf = name => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition);
+const definitionOf = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
 const LEARN = (n, name) => `~ dm skills — learned | kind: learn-${n} | name: ${name} | about: x. | stat: str | uses: stamina`;
 const NAMES = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'];
 const fieldsOf = host => host.head().domains.dataModules.instances['pack.chat/skills'].chat.fields;
@@ -22,7 +23,7 @@ const REFUSED = 'Practice comes from rolled skill uses';
 const refusals = host => host.turn.problems().filter(problem => problem.message.includes(REFUSED));
 
 async function world(t, rolls) {
-    const host = await createHost({ callModel: createFakeModel(['none', 'none', 'none', 'none']), settings: { modules: { 'story-block': { rpgFormula: 'classic', rpgRolls: rolls } } } });
+    const host = await createHost({ callModel: createFakeModel(['none', 'none', 'none', 'none']), settings: { modules: { 'story-block': { rpgRolls: rolls } } } });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
     await host.send('Begin.', 'Opening.');

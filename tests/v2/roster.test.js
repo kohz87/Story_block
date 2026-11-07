@@ -3,12 +3,11 @@
 // answers `party.actors` itself wins; a 2.18.0 chat replays as it was written; a real `+ party` / `- party` hands out, binds, stows and restores signature gear.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { createHost, hostAvailable } from '../../testkit/index.js';
 import { createFakeModel } from '../../testkit/model.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
-import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { actorIdOf, rosterOf, rosterQueries } from '../../src/v2/lean-rpg/roster.js';
 import { gearMatches, planGear } from '../../src/v2/lean-rpg/gear.js';
 import { readSheet } from '../../src/v2/lean-rpg/index.js';
@@ -16,6 +15,7 @@ import { hashJson } from '../../src/v2/replay.js';
 import { reply as dmReply, success } from './data-modules/helpers.js';
 import { pack } from './packs/helpers/fixtures.js';
 import { character, sheetDomain } from './lean-rpg/helpers.js';
+import { legacyPlanner } from './lean-rpg/legacy-planner.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -32,20 +32,25 @@ const PLAN = 'pace: all\nact Ren | target: Mud Crawlers\nfoe Mud Crawlers | targ
 const SET = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | level: 60';
 
 const definitionOf = (name, slug = null, who = null) => {
-    const definition = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition);
+    const definition = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
     if (slug) { definition.slug = slug; definition.name = who; definition.state.who.default = who; }
     return definition;
 };
 const define = async (host, definition) => success(await host.sdk.command('dm.define', { definition }));
+
+// (the real host with the test-only legacy planner behind the RPG part's hook: the planner itself is gone)
+const withPlanner = (model, get) => async () => { const lib = await import('../../src/v2/lean-rpg/index.js'); return { ...lib, createLeanRpgPart(deps) { const part = lib.createLeanRpgPart(deps); part.hooks.beforeGenerate = legacyPlanner(part, { callModel: model, chat: () => get().ctx.chat, metadata: () => get().ctx.chatMetadata ?? null }); return part; } }; };
 
 async function world(t, { user, gear = true, rpg = true, modules = [], withPack = true, model = null } = {}) {
     t.mock.method(console, 'warn', () => {});
     const raw = pack({ content: { items: ITEMS, cast: [MARA] } });
     const built = validatePack(raw);
     assert.equal(built.ok, true, JSON.stringify(built.errors));
-    const host = await createHost({
-        modules, ...(user ? { st: { user } } : {}), ...(model ? { callModel: createFakeModel(Array(40).fill(model)) } : {}),
-        settings: { features: { ...(gear ? { 'story-block.gear': true } : {}), 'story-block.rpg': rpg }, modules: { 'story-block': { rpgJoin: 'auto', rpgFormula: 'classic' } },
+    const fake = model ? createFakeModel(Array(40).fill(model)) : null;
+    let host = null;
+    host = await createHost({
+        modules, ...(user ? { st: { user } } : {}), ...(fake ? { callModel: fake, lazyRpg: true, rpgLoad: withPlanner(fake, () => host) } : {}),
+        settings: { features: { ...(gear ? { 'story-block.gear': true } : {}), 'story-block.rpg': rpg }, modules: { 'story-block': { rpgJoin: 'auto' } },
             ...(withPack ? { packs: [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] } : {}) },
     });
     t.after(() => host.close());
@@ -289,60 +294,6 @@ test('the guard: an owner that is another Character\'s actor does not match the 
     assert.equal(gearMatches(state, record({ wessel: { own: [a, 'party'] } }), hashJson), false);
     assert.equal(gearMatches(state, record({ astra: { own: ['party'] } }), hashJson), true, 'a record made before the roster');
     assert.equal(gearMatches(state, record({ astra: { own: ['ac_old00001'] } }), hashJson), true, 'an owner of a roster of another make cannot be told here');
-});
-
-// ---- a chat made by 2.18.0 replays as written -----------------------------------------------------------------------------------------------
-
-test('a 2.18.0 chat (no roster: gear on the party bag, a join that gave nothing) replays unchanged, then goes on with owners where they were', { skip }, async t => {
-    t.mock.method(console, 'warn', () => {});
-    const fixture = JSON.parse(readFileSync(new URL('./fixtures/roster-2180-chat.json', import.meta.url), 'utf8'));
-    const raw = pack({ content: { items: ITEMS, cast: [{ ...MARA }] } });
-    const built = validatePack(raw);
-    const host = await createHost({ callModel: createFakeModel(Array(20).fill('pace: all\nact Astra | target: Mud Crawlers\nfoe Mud Crawlers | target: Astra | defend: AGI')),
-        settings: { features: { 'story-block.gear': true, 'story-block.rpg': true }, modules: { 'story-block': { rpgFormula: 'classic', rpgJoin: 'auto' } },
-            packs: [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] } });
-    t.after(() => host.close());
-    await host.st.loadChat(plain(fixture.chat));
-    assert.deepEqual(host.store.problems(), []);
-    assert.deepEqual(plain(host.head()), fixture.head, 'the state is what 2.18.0 made');
-    assert.deepEqual(rows(host).map(item => `${item.name}:${item.owner}:${item.equipped}`), ['Cane Sword:party:weapon', 'Jerkin:party:body'], 'nothing moved to anyone');
-    host.store.rebuild();
-    assert.deepEqual(plain(host.head()), fixture.head, 'a cold rebuild');
-    // the rolls it made keep their gear: the records say `party`, and the guard still matches them
-    const results = host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(entry => entry.type === 'rpg.resolve').map(entry => entry.data.v2.result);
-    assert.ok(results.length >= 2);
-    for (const result of results) assert.deepEqual(result.gear?.who?.astra?.own, ['party']);
-    // the roster is there now: Astra (Mara left); her gear is still the party bag's
-    assert.deepEqual(host.sdk.query('party.actors').map(actor => actor.name), ['Astra']);
-    // the first new action: Mara returns and her signature gear is handed out, hers
-    await host.send('Mara is back.', reply('+ party Mara'));
-    assert.equal(rows(host).find(item => item.name === 'Cane Sword' && !item.bound).owner, 'party', 'the party\'s own blade is not hers');
-    const hers = rows(host).filter(item => item.bound);
-    assert.deepEqual(hers.map(item => item.owner), [actorIdOf('pack.chat/mara'), actorIdOf('pack.chat/mara')]);
-    assert.deepEqual(host.store.problems(), []);
-});
-
-test('RPG on, gear off: the 2.18.0 chat renders and replays exactly as 233b131 did (no roster, no members, no pickers); a join gives no gear', { skip }, async t => {
-    t.mock.method(console, 'warn', () => {});
-    const fixture = JSON.parse(readFileSync(new URL('./fixtures/roster-2180-chat.json', import.meta.url), 'utf8'));
-    const expect = JSON.parse(readFileSync(new URL('./fixtures/roster-2180-gear-off.json', import.meta.url), 'utf8'));
-    const raw = pack({ content: { items: ITEMS, cast: [{ ...MARA }] } });
-    const built = validatePack(raw);
-    const host = await createHost({ callModel: createFakeModel(Array(20).fill('x')),
-        settings: { features: { 'story-block.rpg': true }, modules: { 'story-block': { rpgFormula: 'classic', rpgJoin: 'auto' } },
-            packs: [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] } });
-    t.after(() => host.close());
-    await host.st.loadChat(plain(fixture.chat));
-    const seen = () => ({ head: plain(host.head()), equipment: plain(host.sdk.query('inventory.equipment')), items: plain(host.sdk.query('inventory.items')), gearView: host.sdk.query('gear.view', {}) });
-    assert.deepEqual(host.store.problems(), []);
-    assert.deepEqual(seen(), { head: expect.head, equipment: expect.equipment, items: expect.items, gearView: expect.gearView });
-    assert.equal(host.sdk.query('party.actors'), null);
-    assert.deepEqual(host.sdk.query('inventory.equipment').members, [], 'no members, so no pickers and no Give to a member');
-    host.store.rebuild();
-    assert.deepEqual(seen().head, expect.head, 'a cold rebuild');
-    await host.send('Mara is back.', reply('+ party Mara'));
-    assert.doesNotMatch(JSON.stringify(host.head().domains.inventory), /bound|kept/);
-    assert.equal(host.sdk.query('inventory.items').length, expect.items.length, 'no gear handed out');
 });
 
 // ---- a Character who is removed leaves nothing filed under their actor ---------------------------------------------------------------------------

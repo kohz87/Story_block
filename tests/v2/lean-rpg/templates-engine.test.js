@@ -4,14 +4,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
 import { LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/index.js';
 import { summaryOf } from '../../../src/v2/data-modules/part.js';
 import { DM_LIMITS } from '../../../src/v2/data-modules/schema.js';
 import { estimateTokens } from '../../../src/v2/assist/common.js';
 import { reply, success, view, rebuilt } from '../data-modules/helpers.js';
 
-const definition = name => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition);
+const definition = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
 // A line's sign is its kind's op: `+` for the add kinds (add-xp, practice-N), `~` for the set kinds.
 const line = (slug, kind, extra = '') => `${/^(add-|practice-)/.test(kind) ? '+' : '~'} dm ${slug} — why | kind: ${kind}${extra}`;
 const sheet = (host, slug) => view(host, `pack.chat/${slug}`).chat;
@@ -144,7 +144,7 @@ test('the story reads all of a full sheet in the tail: five skills with what eac
     const state = host.head();
     const sheetLine = summaryOf(state, 'pack.chat/character'), skillsLine = summaryOf(state, 'pack.chat/skills');
     assert.match(sheetLine, /^Wessel — about "A drill-yard washout[^"]*Keeps a ledger\."/);
-    assert.match(sheetLine, /STR 10 VIT 10 AGI 10 DEX 10 INT 10 LUK 10 CHA 10; level 1\.$/, 'the whole sheet: every stat and the Level; a full bar, no points, no XP, alive are the defaults and left out');
+    assert.match(sheetLine, /STR 5 VIT 5 AGI 5 DEX 5 INT 5 LUK 5 CHA 5; level 1\.$/, 'the whole sheet: every stat and the Level; a full bar, no points, no XP, alive are the defaults and left out');
     const lines = skillsLine.split('\n');
     assert.equal(lines[0], 'Wessel skills:');
     assert.deepEqual(lines.slice(1), full.map(skill => `- ${skill.name} (Novice, ${skill.stat}, ${skill.uses}): ${skill.about}`), 'one line per skill, the rank by its name, what it does in full');
@@ -168,13 +168,13 @@ test('the tail leaves out empty slots and defaults, and says only what is there:
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Wessel', health: 3, stamina: 1, points: 2, level: 2, xp: 40, str: 14 } }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/skills', fields: { who: 'Wessel', skill2: 'Iron Breath', about2: 'Drill-yard breathing.', stat2: 'vit', uses2: 'stamina' } }));
     let state = host.head();
-    assert.equal(summaryOf(state, 'pack.chat/character'), 'Wessel — health Hurt; stamina Spent; STR 14 VIT 10 AGI 10 DEX 10 INT 10 LUK 10 CHA 10; points 2; level 2; xp 40.');
+    assert.equal(summaryOf(state, 'pack.chat/character'), 'Wessel — health Hurt; stamina Spent; STR 14 VIT 5 AGI 5 DEX 5 INT 5 LUK 5 CHA 5; points 2; level 2; xp 40.');
     assert.equal(summaryOf(state, 'pack.chat/skills'), 'Wessel skills:\n- Iron Breath (Novice, vit, stamina): Drill-yard breathing.', 'the empty slots are not there');
     assert.equal(summaryOf(state, 'pack.chat/foes'), '', 'no foe, no line');
     assert.equal(summaryOf(state, 'pack.chat/combat-rules'), '', 'a block with no fields has nothing to tell');
     success(await host.sdk.command('dm.set', { module: 'pack.chat/foes', fields: { foe1: 'Sluice Rat A', count1: 1, foe2: 'Rat Swarm', count2: 3, level2: 15, hurt2: 2 } }));
     state = host.head();
-    assert.equal(summaryOf(state, 'pack.chat/foes'), 'Foes: Sluice Rat A (Lv 1); Rat Swarm ×3 (Lv 15, Wounded).', 'a group of one needs no count, an unhurt one no health');
+    assert.equal(summaryOf(state, 'pack.chat/foes'), 'Foes: Sluice Rat A (Lv 1); Rat Swarm ×3 (Lv 15, Hurt).', 'a group of one needs no count, an unhurt one no health');
     await host.send('Hit.', reply(line('character', 'set-health', ' | to: Down')));
     assert.match(summaryOf(host.head(), 'pack.chat/character'), /health Down; /);
     await host.send('Hit again.', reply(line('character', 'set-health', ' | to: Down')));

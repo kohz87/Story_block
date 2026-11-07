@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { validateDataModules } from '../../../../src/v2/data-modules/check.js';
 import { CREATION, STATS } from '../../../../src/v2/lean-rpg/index.js';
-import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, SKILL_SETS } from '../../../../src/v2/lean-rpg/templates.js';
 import { createWizardScreen, WIZARD_SCREEN_ID, WIZARD_WIDGET } from '../../../../src/v2/lean-rpg/view/wizard.js';
 import { RPG_EXTRAS, adeptCount, blockNames, buildDefinitions, extraDefinitions, extrasPlan, hasRoom, missingBlocks, mayStartAdept, newDraft, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf, statsLine, withSet, withSkill,
     withSkillPatch, withoutSkill } from '../../../../src/v2/lean-rpg/view/wizard-data.js';
@@ -19,23 +19,25 @@ const FIGHTER = SKILL_SETS[0];
 
 // ---- the data: draft, budget, skills, sets, problems, definitions --------------------------------------------------------------
 
-test('a new draft: the persona\'s name, You unless there is one already, every stat at 10 and 6 points to spend', () => {
-    assert.deepEqual(newDraft({ persona: 'Wessel' }), { name: 'Wessel', kind: 'you', about: '', stats: Object.fromEntries(STATS.map(stat => [stat, 10])), skills: [], set: '' });
+test('a new draft: the persona\'s name, You unless there is one already, every stat at 5 and 10 points to spend', () => {
+    const { creation } = newDraft({ persona: 'Wessel' });
+    assert.deepEqual([creation.start, creation.budget, creation.min, creation.max, creation.standard], [5, 10, 3, 10, true], 'the Standard numbers');
+    assert.deepEqual(newDraft({ persona: 'Wessel' }), { name: 'Wessel', kind: 'you', about: '', stats: Object.fromEntries(STATS.map(stat => [stat, 5])), skills: [], set: '', creation });
     assert.equal(newDraft({ persona: 'Wessel', hasYou: true }).kind, 'companion');
     assert.equal(newDraft().name, '');
-    assert.equal(pointsLeft(newDraft()), 6);
+    assert.equal(pointsLeft(newDraft()), 10);
 });
 
-test('the budget: a stat above 10 costs a point a step, below it gives one back, 8 to 15, and a draft is made whole when read', () => {
+test('the budget: a stat above 5 costs a point a step, below it gives one back, 3 to 10, and a draft is made whole when read', () => {
     const draft = newDraft({ persona: 'Wessel' });
-    assert.equal(pointsLeft({ ...draft, stats: { ...draft.stats, str: 14, vit: 12 } }), 0, '+4 and +2');
-    assert.equal(pointsLeft({ ...draft, stats: { ...draft.stats, str: 15, vit: 8, agi: 8 } }), 6 - 5 + 2 + 2, 'two stats at 8 free four points');
+    assert.equal(pointsLeft({ ...draft, stats: { ...draft.stats, str: 9, vit: 7 } }), 4, '+4 and +2');
+    assert.equal(pointsLeft({ ...draft, stats: { ...draft.stats, str: 10, vit: 3, agi: 3 } }), 10 - 5 + 2 + 2, 'two stats at 3 free four points');
     const odd = readDraft({ name: `  ${'x'.repeat(60)}  `, kind: 'boss', about: 'y'.repeat(300), stats: { str: 99, vit: 1, agi: 12.5, dex: 'ten' }, skills: 'many', set: 7 });
     assert.deepEqual([odd.name.length, odd.kind, odd.about.length, odd.set], [40, 'you', 240, '']);
-    assert.deepEqual([odd.stats.str, odd.stats.vit, odd.stats.agi, odd.stats.dex, odd.stats.luk], [15, 8, 10, 10, 10], 'clamped to 8 to 15, a bad value is the start');
+    assert.deepEqual([odd.stats.str, odd.stats.vit, odd.stats.agi, odd.stats.dex, odd.stats.luk], [10, 3, 5, 5, 5], 'clamped to 3 to 10, a bad value is the start');
     assert.deepEqual(odd.skills, []);
     assert.deepEqual(readDraft(null).stats, newDraft().stats);
-    assert.equal(statsLine(newDraft()), 'STR 10 · VIT 10 · AGI 10 · DEX 10 · INT 10 · LUK 10 · CHA 10');
+    assert.equal(statsLine(newDraft()), 'STR 5 · VIT 5 · AGI 5 · DEX 5 · INT 5 · LUK 5 · CHA 5');
 });
 
 test('at most five skills and at most one at Adept, however the draft got there', () => {
@@ -91,14 +93,14 @@ test('what holds Create up, in plain words', () => {
 
 test('Create\'s two definitions come from the templates with the wizard\'s values as the field defaults, and the checker takes both', () => {
     const base = withSet(newDraft({ persona: 'Wessel' }), FIGHTER);
-    const draft = { ...base, about: 'A drill-yard washout.', stats: { ...base.stats, str: 14, vit: 12, agi: 11, int: 8 }, skills: base.skills.map((skill, at) => (at === 0 ? { ...skill, start: 1 } : skill)) };
-    assert.equal(pointsLeft(draft), 6 - 4 - 2 - 1 + 2, 'STR +4, VIT +2, AGI +1, INT -2');
+    const draft = { ...base, about: 'A drill-yard washout.', stats: { ...base.stats, str: 9, vit: 7, agi: 6, int: 3 }, skills: base.skills.map((skill, at) => (at === 0 ? { ...skill, start: 1 } : skill)) };
+    assert.equal(pointsLeft(draft), 10 - 4 - 2 - 1 + 2, 'STR +4, VIT +2, AGI +1, INT -2');
     const { character, skills } = buildDefinitions(draft, { used: [] });
     assert.deepEqual([character.slug, character.name, character.role, skills.slug, skills.name, skills.role], ['wessel', 'Wessel', 'character', 'wessel-skills', 'Wessel\'s skills', 'skills']);
     assert.deepEqual(blockNames('Wessel'), { character: 'Wessel', skills: 'Wessel\'s skills' });
     const state = character.state;
-    assert.deepEqual([state.who.default, state.about.default, state.str.default, state.vit.default, state.agi.default, state.dex.default, state.int.default], ['Wessel', 'A drill-yard washout.', 14, 12, 11, 10, 8]);
-    assert.deepEqual([state.points.default, state.level.default, state.xp.default, state.health.default, state.mana.default, state.stamina.default, state.alive.default], [1, 1, 0, 5, 4, 4, true], 'full bars, Level 1, 0 XP and the unspent point');
+    assert.deepEqual([state.who.default, state.about.default, state.str.default, state.vit.default, state.agi.default, state.dex.default, state.int.default], ['Wessel', 'A drill-yard washout.', 9, 7, 6, 5, 3]);
+    assert.deepEqual([state.points.default, state.level.default, state.xp.default, state.health.default, state.mana.default, state.stamina.default, state.alive.default], [5, 1, 0, 5, 3, 4, true], 'full bars (they grow with VIT, AGI and INT), Level 1, 0 XP and the unspent points');
     assert.deepEqual([state.cap.default, state.soul], [99, undefined], 'the cap is 99 unless the story says another; no Soul Class');
     const sk = skills.state;
     assert.deepEqual([sk.who.default, sk.skill1.default, sk.about1.default, sk.stat1.default, sk.uses1.default, sk.rank1.default, sk.practice1.default], ['Wessel', 'Short blade', FIGHTER.skills[0].about, 'agi', 'stamina', 1, 0], 'the Adept one starts at rank 1');
@@ -110,7 +112,7 @@ test('Create\'s two definitions come from the templates with the wizard\'s value
         assert.equal(checked.ok, true, `${definition.slug}: ${JSON.stringify(checked.errors)}`);
     }
     // The templates themselves are untouched, and a second character gets slugs of its own.
-    assert.equal(LEAN_RPG_TEMPLATES[0].definition.state.who.default, '');
+    assert.equal(STANDARD_TEMPLATES[0].definition.state.who.default, '');
     const second = buildDefinitions({ ...draft, name: 'Wessel' }, { used: ['pack.chat/wessel', 'pack.chat/wessel-skills'] });
     assert.deepEqual([second.character.slug, second.skills.slug], ['wessel-2', 'wessel-skills-2']);
     assert.deepEqual([second.character.name, second.skills.name], ['Wessel', 'Wessel\'s skills']);
@@ -182,7 +184,7 @@ test('Who: the persona\'s name, You or A companion, who they are with its count;
     assert.deepEqual(who.querySelectorAll('.rpg-wiz-seg button').map(node => [node.textContent, node.getAttribute('aria-pressed')]), [['You', 'true'], ['A companion', 'false']]);
     assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-name').textContent, 'Wessel');
     assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^You · Lv 1$/);
-    assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 6');
+    assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 10');
     const about = who.querySelector('[data-wiz="about"]');
     assert.equal(about.getAttribute('maxlength'), '240');
     type(about, 'A drill-yard washout from Bluewatch.');
@@ -202,7 +204,7 @@ test('Who: the persona\'s name, You or A companion, who they are with its count;
     dialog.close();
 });
 
-test('Stats: steppers under 6 points, a stat down to 8 frees a point and up to 15, with the radar and the summary row following', async t => {
+test('Stats: steppers under 10 points, a stat down to 3 frees a point and up to 10, with the radar and the summary row following', async t => {
     const ctx = await page(t, { persona: 'Wessel' });
     await begin(ctx.host);
     const dialog = await openFrom(ctx, { empty: true });
@@ -212,26 +214,26 @@ test('Stats: steppers under 6 points, a stat down to 8 frees a point and up to 1
     assert.deepEqual(stats.querySelectorAll('.rpg-stat-step').map(node => node.getAttribute('data-stat')), [...STATS]);
     assert.ok(stats.querySelector('.rpg-radar .ss-w-radar'), 'the radar');
     for (let n = 0; n < 5; n += 1) step('str', 'inc').click();
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 1');
-    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /STR 15/, 'the summary row');
-    assert.equal(step('str', 'inc').disabled, true, 'STR stops at 15');
-    assert.equal(step('vit', 'inc').disabled, false, 'one point left');
-    step('vit', 'inc').click();
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 5');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /STR 10/, 'the summary row');
+    assert.equal(step('str', 'inc').disabled, true, 'STR stops at 10');
+    assert.equal(step('vit', 'inc').disabled, false, 'five points left');
+    for (let n = 0; n < 5; n += 1) step('vit', 'inc').click();
     assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 0');
     assert.equal(step('agi', 'inc').disabled, true, 'no points left');
     step('dex', 'dec').click();
     step('dex', 'dec').click();
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 2', 'DEX 8 frees two');
-    assert.equal(step('dex', 'dec').disabled, true, 'nothing goes below 8');
-    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /STR 15 · VIT 11 · AGI 10 · DEX 8/);
-    // Back and forth keeps them; Reset puts every stat back at 10.
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 2', 'DEX 3 frees two');
+    assert.equal(step('dex', 'dec').disabled, true, 'nothing goes below 3');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /STR 10 · VIT 10 · AGI 5 · DEX 3/);
+    // Back and forth keeps them; Reset puts every stat back at 5.
     stats = await goTo(dialog, 'skills');
     stats = await goTo(dialog, 'stats');
-    assert.match(stats.querySelector('.rpg-wiz-sum').textContent, /STR 15 · VIT 11 · AGI 10 · DEX 8/);
+    assert.match(stats.querySelector('.rpg-wiz-sum').textContent, /STR 10 · VIT 10 · AGI 5 · DEX 3/);
     click(stats, 'Reset');
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 6');
-    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /STR 10 · VIT 10 · AGI 10 · DEX 10/);
-    assert.match(wizardOf(dialog).textContent, /Every stat starts at 10\. Spend 6 points; a stat can go down to 8 to free a point and up to 15 now\./);
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 10');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /STR 5 · VIT 5 · AGI 5 · DEX 5/);
+    assert.match(wizardOf(dialog).textContent, /Every stat starts at 5\. Spend 10 points; a stat can go down to 3 to free a point and up to 10 now\./);
     dialog.close();
 });
 
@@ -307,7 +309,7 @@ test('Review shows everything and what is in the way; Create waits for a name an
     let review = await goTo(dialog, 'review');
     assert.match(review.textContent, /Wessel · You/);
     assert.match(review.textContent, /Makes two blocks: "Wessel" and "Wessel's skills"\./);
-    assert.match(review.textContent, /6 unspent points go to Spend points on the Party tab\./);
+    assert.match(review.textContent, /10 unspent points go to Spend points on the Party tab\./);
     assert.match(review.textContent, /Spark · STR · Stamina · starts at Novice/);
     const create = () => wizardOf(dialog).querySelector('.rpg-wiz-create');
     assert.equal(create().disabled, true);
@@ -329,7 +331,7 @@ test('Create makes the two blocks with one dm.define each, the wizard\'s values 
     const dialog = await openFrom(ctx, { empty: true });
     type(wizardOf(dialog).querySelector('[data-wiz="about"]'), 'A drill-yard washout from Bluewatch.');
     await goTo(dialog, 'stats');
-    for (const [stat, times] of [['str', 4], ['vit', 2]]) for (let n = 0; n < times; n += 1) wizardOf(dialog).querySelector(`.rpg-stat-step[data-stat="${stat}"] .ss-w-stepper-inc`).click();
+    for (const [stat, times] of [['str', 5], ['vit', 5]]) for (let n = 0; n < times; n += 1) wizardOf(dialog).querySelector(`.rpg-stat-step[data-stat="${stat}"] .ss-w-stepper-inc`).click();
     await goTo(dialog, 'skills');
     wizardOf(dialog).querySelectorAll('.rpg-wiz-card')[0].click();
     const first = wizardOf(dialog).querySelector('.rpg-wiz-row[data-skill="0"] [data-field="start"]');
@@ -344,7 +346,7 @@ test('Create makes the two blocks with one dm.define each, the wizard\'s values 
     assert.deepEqual(made.map(receipt => receipt.type), ['dm.define', 'dm.define', 'dm.define', 'dm.define'], 'four defines and nothing else: no dm.set');
     const character = fieldsOf(host, 'pack.chat/wessel'), skills = fieldsOf(host, 'pack.chat/wessel-skills');
     assert.deepEqual([character.who, character.about, character.str, character.vit, character.points, character.level, character.xp, character.health, character.mana, character.stamina, character.alive],
-        ['Wessel', 'A drill-yard washout from Bluewatch.', 14, 12, 0, 1, 0, 5, 4, 4, true]);
+        ['Wessel', 'A drill-yard washout from Bluewatch.', 10, 10, 0, 1, 0, 6, 4, 4, true]);
     assert.deepEqual([skills.who, skills.skill1, skills.stat1, skills.uses1, skills.rank1, skills.practice1, skills.skill2, skills.rank2, skills.skill4, skills.rank4],
         ['Wessel', 'Short blade', 'agi', 'stamina', 1, 0, 'Iron Breath', 0, '', 0]);
     const domain = host.head().domains.dataModules;
@@ -361,7 +363,7 @@ test('Create makes the two blocks with one dm.define each, the wizard\'s values 
     assert.match(card.textContent, /Short blade \(Adept\) · Iron Breath \(Novice\) · Shield work \(Novice\)/);
     assert.ok(!card.textContent.includes('points to spend'), 'every point was spent');
     card.querySelector('.rpg-skills-open').click();
-    assert.match(party(doc).querySelector('.rpg-skill[data-slot="1"] .rpg-skill-roll').textContent, /Rolls with it: d20 \+6 = AGI 10 → \+5 · Adept \+1 · Lv 1 ÷ 5 \+0/);
+    assert.match(party(doc).querySelector('.rpg-skill[data-slot="1"] .rpg-skill-roll').textContent, /Rolls with it: d20 \+4 = \(AGI 5 \+ DEX 5\/2\)\/2 → \+3 · Adept \+1 · Lv 1 ÷ 5 \+0/);
     await reload(host);
 });
 
@@ -479,7 +481,7 @@ test('no room for two more blocks: the Review says so and Create stays off', asy
     const ctx = await page(t, { persona: 'Wessel' });
     await begin(ctx.host);
     for (const who of ['Ren', 'Tamsin', 'Mira']) await makeBlocks(ctx.host, { who });
-    const foes = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Foes').definition);
+    const foes = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition);
     assert.equal((await ctx.host.sdk.command('dm.define', { definition: foes })).ok, true);
     await ctx.host.send('Go.', 'The quay.');
     assert.equal(hasRoom(ctx.host.head()), false);
@@ -619,7 +621,7 @@ test('2.9.1: a chat with neither block: the Review says "Also adds: Combat rules
     const defines = ctx.host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === 'dm.define');
     assert.deepEqual(defines.length, 4);
     const domain = ctx.host.head().domains.dataModules;
-    assert.equal(domain.pins[domain.active['pack.chat/combat-rules'].hash].definition.prompt, LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Combat rules').definition.prompt.replace(/\s+/g, ' '), 'the stock Combat rules text (a block keeps it on one line)');
+    assert.equal(domain.pins[domain.active['pack.chat/combat-rules'].hash].definition.prompt, STANDARD_TEMPLATES.find(entry => entry.name === 'Combat rules').definition.prompt.replace(/\s+/g, ' '), 'the stock Combat rules text (a block keeps it on one line)');
     await ctx.host.swipe('Another opening.');
     assert.deepEqual(rolesOf(ctx.host), [], 'one swipe: character, skills, Combat rules and Foes all go with the reply');
     await reload(ctx.host);
@@ -628,7 +630,7 @@ test('2.9.1: a chat with neither block: the Review says "Also adds: Combat rules
 test('2.9.1: only the missing ones: with a Combat rules block already there the Review and Create add the Foes alone, and with both nothing extra', async t => {
     const ctx = await page(t, { persona: 'Wessel' });
     await begin(ctx.host);
-    const rules = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Combat rules').definition);
+    const rules = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Combat rules').definition);
     rules.prompt = 'My own combat text.';
     assert.equal((await ctx.host.sdk.command('dm.define', { definition: rules })).ok, true);
     let { dialog, review } = await createFrom(ctx);
@@ -718,14 +720,13 @@ test('2.9.1: the Stats step is one card with an even grid of label-over-stepper 
         assert.equal(note.hidden, true, 'the budget line is left out');
         assert.equal(note.textContent, '');
     }
-    assert.doesNotMatch(stats.textContent, /Points left: 6[\s\S]*Points left: 6/, 'the pill says it once');
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 6');
+    assert.doesNotMatch(stats.textContent, /Points left: 10[\s\S]*Points left: 10/, 'the pill says it once');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 10');
     const actions = card.querySelector('.rpg-wiz-stats-actions');
     assert.deepEqual([...actions.children].map(node => node.className.split(' ').find(name => name.startsWith('rpg-'))), ['rpg-wiz-reset', 'rpg-sheet-note'], 'Reset, then the help, in the card');
-    assert.deepEqual([...card.children].map(node => String(node.className).split(' ')[0]), ['rpg-sheet-body', 'rpg-actions'], 'the card is the grid, then them');
-    // The budget still limits: spend all six and the next + is off.
-    for (let n = 0; n < 5; n += 1) wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="str"] .ss-w-stepper-inc').click();
-    wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="vit"] .ss-w-stepper-inc').click();
+    assert.deepEqual([...card.children].map(node => String(node.className).split(' ')[0]), ['rpg-sheet-body', 'rpg-actions', 'rpg-wiz-growth'], 'the card is the grid, them, then the growth line');
+    // The budget still limits: spend all ten and the next + is off.
+    for (const stat of ['str', 'vit']) for (let n = 0; n < 5; n += 1) wizardOf(dialog).querySelector(`.rpg-stat-step[data-stat="${stat}"] .ss-w-stepper-inc`).click();
     assert.equal(wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="agi"] .ss-w-stepper-inc').disabled, true);
     dialog.close();
 });
@@ -742,7 +743,7 @@ test('2.9.2: after a + or a − the Stats step still shows no "Points left" unde
     };
     wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="agi"] .ss-w-stepper-inc').click();
     noneShown('after a +');
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 5', 'the pill still counts');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 9', 'the pill still counts');
     wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="luk"] .ss-w-stepper-dec').click();
     noneShown('after a −');
     stats = await goTo(dialog, 'skills');

@@ -1,15 +1,16 @@
 // Companions who join (mockup section 8; src/v2/lean-rpg/join.js, data-modules/part.js): the setting (Ask, Automatically, Off), the narrator's
-// `+ party` line in the grammar, what a line makes (a Character and an empty Skills block, stats 10, the best stat 14, Soul Class as written
+// `+ party` line in the grammar, what a line makes (a Character and an empty Skills block, stats 5, the best stat 9 and a point for every third level, Soul Class as written
 // but never above the party's highest, bars full), the plain refusals, Ask's card (Add to party, Edit first, No), `- party` (Left, kept) and
 // that a swipe, a delete, a Re-read, a rebuild and a reload all treat it like any other line of the reply.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
+import { STANDARD } from '../../../src/v2/lean-rpg/rules.js';
 import { levelOfClass } from '../../../src/v2/lean-rpg/formula.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { partyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { fakeState, characterDefinition, skillsDefinition } from './view/helpers.js';
 
@@ -20,14 +21,14 @@ const reply = (...lines) => `The tide turns.\n<Changes>\n${lines.join('\n')}\n</
 
 // A host with the RPG on and Wessel (Soul Class III) already in the party, made from the real templates.
 async function world({ mode = 'auto', feature = true, wessel = true } = {}) {
-    const host = await createHost({ settings: { modules: { 'story-block': { rpgJoin: mode, rpgFormula: 'classic' } } } });
+    const host = await createHost({ settings: { modules: { 'story-block': { rpgJoin: mode } } } });
     if (feature) host.features.set(CORE_FEATURE.leanRpg, true);
     await host.send('Begin.', 'Opening.');
     if (wessel) await make(host, 'Wessel', 3);
     return host;
 }
 async function make(host, who, soul = 1) {
-    const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
+    const defs = Object.fromEntries(STANDARD_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = who.toLowerCase(); defs.character.name = who; defs.character.state.who.default = who; defs.character.state.level.default = levelOfClass(soul);
     defs.skills.slug = `${who.toLowerCase()}-skills`; defs.skills.name = `${who}'s skills`; defs.skills.state.who.default = who;
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
@@ -75,17 +76,17 @@ test('the setting: Ask by default, then Automatically or Off; anything else is A
     assert.equal(joinGrammar().includes('\n'), false, 'one line, as every kind\'s');
 });
 
-test('what a joining companion is made of: stats 10, the best one 14, no points, Soul Class as given (capped by the party), an empty Skills block', () => {
-    const draft = joinDraft({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' });
-    assert.deepEqual([draft.kind, draft.name, draft.about, draft.level, draft.stats.int, draft.stats.str], ['companion', 'Mara', 'a hedge-witch', 35, 14, 10]);
-    assert.equal(joinDraft({ name: 'Mara', best: 'wits' }).stats.int, 10, 'a best that is no stat raises nothing');
-    const made = joinDefinitions({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' }, { used: ['pack.chat/wessel'], soul: 3 });
+test('what a joining companion is made of: stats 5, the best one 9 and a point for every third level, no points left, Soul Class as given (capped by the party), an empty Skills block', () => {
+    const draft = joinDraft({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' }, STANDARD);
+    assert.deepEqual([draft.kind, draft.name, draft.about, draft.level, draft.stats.int, draft.stats.str], ['companion', 'Mara', 'a hedge-witch', 35, 15, 5]);
+    assert.equal(joinDraft({ name: 'Mara', best: 'wits' }, STANDARD).stats.int, 5, 'a best that is no stat raises nothing');
+    const made = joinDefinitions({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' }, { used: ['pack.chat/wessel'], soul: 3, rules: STANDARD });
     const state = made.character.state;
-    assert.deepEqual([made.character.slug, made.character.role, state.int.default, state.vit.default, state.points.default, state.level.default, state.health.default, state.mana.default, state.stamina.default, state.left.default], ['mara', 'character', 14, 10, 0, 25, 5, 4, 4, false]);
+    assert.deepEqual([made.character.slug, made.character.role, state.int.default, state.vit.default, state.points.default, state.level.default, state.health.default, state.mana.default, state.stamina.default, state.left.default], ['mara', 'character', 13, 5, 0, 25, 5, 5, 4, false]);
     assert.equal(made.skills.role, 'skills');
     assert.equal(made.skills.state.who.default, 'Mara');
     for (let n = 1; n <= 5; n += 1) assert.equal(made.skills.state[`skill${n}`].default, '', `skill ${n} is empty`);
-    assert.equal(joinDefinitions({ name: 'Mara', about: '', soul: 1, best: '' }, { used: ['pack.chat/mara'] }).character.slug, 'mara-2', 'a free slug');
+    assert.equal(joinDefinitions({ name: 'Mara', about: '', soul: 1, best: '' }, { used: ['pack.chat/mara'], rules: STANDARD }).character.slug, 'mara-2', 'a free slug');
 });
 
 test('checkJoin: the name is taken, the party is full (8, those who left count), there is no room for two blocks, someone who left comes back, class is capped', () => {
@@ -115,8 +116,8 @@ test('Automatically: a + party line makes the Character and an empty Skills bloc
     await host.send('Mara walks in.', reply(MARA));
     assert.deepEqual(blocks(host), ['pack.chat/mara', 'pack.chat/mara-skills', 'pack.chat/wessel', 'pack.chat/wessel-skills']);
     const mara = fields(host, 'mara');
-    assert.deepEqual([mara.who, mara.about, mara.str, mara.vit, mara.agi, mara.dex, mara.int, mara.luk, mara.cha], ['Mara', 'a hedge-witch from Kvildal', 10, 10, 10, 10, 14, 10, 10]);
-    assert.deepEqual([mara.level, mara.points, mara.xp, mara.health, mara.mana, mara.stamina, mara.alive, mara.left], [25, 0, 0, 5, 4, 4, true, false], 'class IV asked, the party\'s highest is III; bars full');
+    assert.deepEqual([mara.who, mara.about, mara.str, mara.vit, mara.agi, mara.dex, mara.int, mara.luk, mara.cha], ['Mara', 'a hedge-witch from Kvildal', 5, 5, 5, 9, 13, 5, 5]);
+    assert.deepEqual([mara.level, mara.points, mara.xp, mara.health, mara.mana, mara.stamina, mara.alive, mara.left], [25, 0, 0, 5, 5, 4, true, false], 'class IV asked, the party\'s highest is III; bars full');
     const skills = fields(host, 'mara-skills');
     assert.deepEqual([skills.who, skills.skill1, skills.rank1, skills.practice1, skills.skill5], ['Mara', '', 0, 0, '']);
     const receipt = lastReceipts(host).find(entry => entry.type === 'capture.party');
@@ -134,8 +135,8 @@ test('a joining class never goes above the party\'s highest, and class I is the 
     t.after(() => host.close());
     await host.send('Two arrive.', reply('+ party Pip', '+ party Dov | class: IX | best: str', '+ party Ilse | class: II | best: dex'));
     assert.deepEqual(['pip', 'dov', 'ilse'].map(slug => fields(host, slug)?.level), [5, 25, 15]);
-    assert.equal(fields(host, 'dov').str, 14);
-    assert.equal(fields(host, 'pip').int, 10, 'no best named: nothing raised');
+    assert.equal(fields(host, 'dov').str, 13);
+    assert.equal(fields(host, 'pip').int, 5, 'no best named: nothing raised');
     await rebuilt(host, 'three joins');
 });
 
@@ -242,7 +243,7 @@ test('Ask: Add to party makes the companion as Automatically does; the card goes
     const added = await host.sdk.command(JOIN_ADD, host.sdk.query('rpg.joins', {})[0]);
     assert.equal(added.ok, true, added.message);
     assert.deepEqual(blocks(host), ['pack.chat/mara', 'pack.chat/mara-skills', 'pack.chat/wessel', 'pack.chat/wessel-skills']);
-    assert.deepEqual([fields(host, 'mara').level, fields(host, 'mara').int, fields(host, 'mara').points], [25, 14, 0]);
+    assert.deepEqual([fields(host, 'mara').level, fields(host, 'mara').int, fields(host, 'mara').points], [25, 13, 0]);
     assert.deepEqual(host.sdk.query('rpg.joins', {}), [], 'answered: the card goes');
     assert.deepEqual(partyLines(host.ctx.chat.at(-1).extra.storySuite).map(line => line.text), ['Mara joined the party']);
     const again = await host.sdk.command(JOIN_ADD, { name: 'Mara', about: '', soul: 1, best: '' });
@@ -316,7 +317,7 @@ test('- party Name marks the companion as Left (kept, never deleted), out of the
 test('a sheet made before Left existed cannot be marked as left, and says so', { skip }, async t => {
     const host = await world({ mode: 'auto' });
     t.after(() => host.close());
-    const old = LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === 'character');
+    const old = STANDARD_TEMPLATES.find(entry => entry.definition.role === 'character');
     const definition = structuredClone(old.definition);
     delete definition.state.left;
     definition.slug = 'ren'; definition.name = 'Ren'; definition.state.who.default = 'Ren';

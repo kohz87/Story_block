@@ -10,7 +10,7 @@ import { castSkillsOf } from '../../src/v2/packs/cast-skills.js';
 import { CAST_LIMITS, CAST_SKILL_STATS } from '../../src/v2/packs/limits.js';
 import { STATS } from '../../src/v2/lean-rpg/names.js';
 import { SKILL_SLOTS_MAX, skillSlots, signatureAt } from '../../src/v2/skill-slots.js';
-import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { partyLines } from '../../src/v2/lean-rpg/view/changes-lines.js';
 import { readParty } from '../../src/v2/lean-rpg/view/party-data.js';
 import { buildCharacterFile, parseCharacterFile } from '../../src/v2/lean-rpg/charfile.js';
@@ -102,7 +102,7 @@ test('skill slots by level: 5, a sixth at Lv 20, a seventh at 40, an eighth at 6
 });
 
 test('the Skills template has eight slots, the signature mark (hidden, not typed) and 16 kinds', () => {
-    const { state, kinds, rules } = LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Skills').definition;
+    const { state, kinds, rules } = STANDARD_TEMPLATES.find(entry => entry.name === 'Skills').definition;
     assert.equal(Object.keys(state).length, 50);
     assert.equal(Object.keys(kinds).length, 16);
     assert.equal(rules.length, 8);
@@ -131,7 +131,7 @@ async function world(t, { list = [person({ skills: SKILLS })], rpg = true, join 
     });
     t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
-    const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
+    const defs = Object.fromEntries(STANDARD_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = 'wessel'; defs.character.name = 'Wessel'; defs.character.state.who.default = 'Wessel';
     defs.skills.slug = 'wessel-skills'; defs.skills.name = 'Wessel skills'; defs.skills.state.who.default = 'Wessel';
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
@@ -317,7 +317,7 @@ test('Re-read of a join from before the update seeds nothing; Re-read of a retur
 
 // ---- the Skills view --------------------------------------------------------------------------------------------------------------------
 
-const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
+const template = role => structuredClone(STANDARD_TEMPLATES.find(entry => entry.definition.role === role).definition);
 function drawSkills(level, fields) {
     const doc = setupDom(), el = doc.createElement('div');
     doc.body.appendChild(el);

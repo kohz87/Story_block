@@ -8,8 +8,8 @@
 // The single-roll odds are exact (all 400 pairs of dice through the engine's own `judge`); the fights run the real roll engine
 // (src/v2/lean-rpg/standard.js) over a synthetic sheet with a seeded generator, so the same numbers come out every time.
 import { blocksFor, foeBonus, foeHealthBlocks, pair, STAT_KEYS } from '../src/v2/lean-rpg/formula.js';
-import { STANDARD_PRESETS, STANDARD_FORMULA, statShare } from '../src/v2/lean-rpg/rules.js';
-import { FORMULA, PRESETS } from '../src/v2/lean-rpg/index.js';
+import { STANDARD_PRESETS, STANDARD_FORMULA } from '../src/v2/lean-rpg/rules.js';
+import { FORMULA } from '../src/v2/lean-rpg/index.js';
 import { positionalDice } from '../src/v2/lean-rpg/resolve.js';
 import { judge, prepareStandard, rollStandard } from '../src/v2/lean-rpg/standard.js';
 
@@ -85,15 +85,6 @@ export function rollTable() {
     return rows;
 }
 
-/** Classic at its Standard difficulty, for the same builds (a hero's STR is the skill's stat there): the line the Standard formula is tuned against. */
-export function classicTable() {
-    const rules = PRESETS.standard, classic = { ...rules, formula: undefined };
-    return CLASSES.map(soul => {
-        const stats = buildAt('focused', soul), bonus = statShare(stats.str, classic) + classic.classWeight * soul + rankAt(soul);
-        return { soul, bonus, same: exactOdds(bonus, classic.foeBase + classic.classWeight * soul, classic) };
-    });
-}
-
 // ---- fights -----------------------------------------------------------------------------------------------------------
 
 function seeded(seed) {
@@ -146,7 +137,7 @@ export function fightTable() {
 const odds = o => `${o.success}/${o.cost}/${o.fail} d${o.decisive}`;
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
 
-function markdown(rolls, classic, fights) {
+function markdown(rolls, fights) {
     const out = [];
     out.push('# Standard formula simulation', '', `Presets: ${DIFFICULTIES.map(name => `${name} foeBase ${STANDARD_PRESETS[name].foeBase}`).join(', ')}; foeClassWeight ${STANDARD_FORMULA.foeClassWeight}; Soul Class worth ${STANDARD_FORMULA.classWeight}.`, '');
     out.push('Each cell: success / at a cost / fail in per cent, then d = decisive per cent of rolls. Rank by Soul Class: ' + CLASSES.map(soul => `${ROMAN[soul]} ${rankAt(soul)}`).join(', ') + '.', '');
@@ -155,8 +146,6 @@ function markdown(rolls, classic, fights) {
         for (const row of rolls.filter(item => item.difficulty === difficulty)) out.push(`| ${row.build} | ${ROMAN[row.soul]} | +${row.bonus} | ${odds(row.same)} | ${odds(row.below)} | ${odds(row.above)} |`);
         out.push('');
     }
-    out.push('## Classic at its Standard difficulty (focused build, same class), for comparison', '', '| Soul Class | Bonus | success / at a cost / fail |', '|---|---|---|');
-    for (const row of classic) out.push(`| ${ROMAN[row.soul]} | +${row.bonus} | ${row.same.success}/${row.same.cost}/${row.same.fail} |`);
     out.push('', `## A hero against one foe of the same class (${FIGHTS} fights each)`, '', 'Exchanges are rounds rolled until one side is down; a reply holds up to the decisive round.', '',
         '| Difficulty | Build | Soul Class | Exchanges | Replies | Hero wins % |', '|---|---|---|---|---|---|');
     for (const row of fights) out.push(`| ${row.difficulty} | ${row.build} | ${ROMAN[row.soul]} | ${row.exchanges} | ${row.replies} | ${row.heroWins} |`);
@@ -164,6 +153,6 @@ function markdown(rolls, classic, fights) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-    const rolls = rollTable(), classic = classicTable(), fights = fightTable();
-    console.log(process.argv.includes('--json') ? JSON.stringify({ rolls, classic, fights }, null, 1) : markdown(rolls, classic, fights));
+    const rolls = rollTable(), fights = fightTable();
+    console.log(process.argv.includes('--json') ? JSON.stringify({ rolls, fights }, null, 1) : markdown(rolls, fights));
 }

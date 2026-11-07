@@ -8,7 +8,7 @@ import { FIGHT, LEAN_RPG_FEATURE, RESOLVE, readSheet } from '../../../src/v2/lea
 import { fightIsOpen } from '../../../src/v2/lean-rpg/quiet.js';
 import { openFoes, vetOpen } from '../../../src/v2/lean-rpg/open.js';
 import { openedSlots, fightHook } from '../../../src/v2/lean-rpg/fight.js';
-import { sheetText } from '../../../src/v2/lean-rpg/precall.js';
+import { legacyPlanner } from './legacy-planner.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { PARTY, foeBlock, sheetDomain } from './helpers.js';
 
@@ -19,7 +19,12 @@ const ok = result => { assert.equal(result.ok, true, `${result.code}: ${result.m
 // A strong Astra against small groups, so every fight is won inside one reply.
 async function world(t) {
     const model = createFakeModel([]);
-    const host = await createHost({ callModel: model, settings: { modules: { 'story-block': { rpgFormula: 'standard' } } } });
+    // (the real host with the test-only legacy planner behind the RPG part's hook: the planner itself is gone)
+    const rpgLoad = async () => {
+        const lib = await import('../../../src/v2/lean-rpg/index.js');
+        return { ...lib, createLeanRpgPart(deps) { const part = lib.createLeanRpgPart(deps); part.hooks.beforeGenerate = legacyPlanner(part, { callModel: model, chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null }); return part; } };
+    };
+    const host = await createHost({ callModel: model, lazyRpg: true, rpgLoad });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
     host.features.set('story-block.fight-board', false);
@@ -71,9 +76,7 @@ test('a Down group of the name is not "already there" for the planner: vetOpen l
     assert.deepEqual(vetted.open.map(entry => entry.name), ['rats']);
 });
 
-test('the planner is shown standing groups only (a beaten one is not listed), and a block of Down groups alone is no open fight for the quiet reply', () => {
-    const down = readSheet({ domains: { dataModules: sheetDomain({ ...PARTY(), foes: { role: 'foes', fields: foeBlock([['Rats', 4, 2, 0]]) } }) } });
-    assert.match(sheetText(down), /Foes: none$/);
+test('a block of Down groups alone is no open fight for the quiet reply', () => {
     assert.equal(fightIsOpen({ domains: { dataModules: sheetDomain({ ...PARTY(), foes: { role: 'foes', fields: foeBlock([['Rats', 4, 2, 0]]) } }) } }), false);
     assert.equal(fightIsOpen({ domains: { dataModules: sheetDomain({ ...PARTY(), foes: { role: 'foes', fields: foeBlock([['Rats', 4, 2, 0], ['Wolves', 2, 2, 3]]) } }) } }), true);
     assert.deepEqual(openedSlots([{ type: RESOLVE, data: { v2: { result: { opened: [{ slot: 2 }, { slot: 5 }, { slot: 'x' }] } } } }]), [2, 5]);

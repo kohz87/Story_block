@@ -186,21 +186,22 @@ test('an import fills the stats, the unspent points, the Soul Class and the skil
     assert.deepEqual(draft.from, { stats: STAT_VALUES, points: 3 });
     assert.deepEqual(draft.skills.map(skill => [skill.name, skill.stat, skill.uses, skill.rank]), [['Iron Breath', 'vit', 'stamina', 2], ['Spark', 'int', 'mana', 0]]);
     assert.equal(pointsLeft(draft), 3, 'the file\'s unspent points are what is left to spend');
-    assert.deepEqual(Object.keys(draft).sort(), ['about', 'from', 'kind', 'level', 'name', 'set', 'skills', 'stats'], 'no XP, health or anything else appears');
+    assert.deepEqual(Object.keys(draft).sort(), ['about', 'creation', 'from', 'kind', 'level', 'name', 'set', 'skills', 'stats'], 'no XP, health or anything else appears');
     assert.equal(withImport({ ...before, level: 35 }, good(sample({ soul: 1 }))).draft.level, 5, 'Soul Class I stands for level 5');
     assert.deepEqual(before, typed(), 'the draft that was given is not changed');
 });
 
-test('the usual rules still hold after an import: points are spent from the file\'s pool, a stat stays within 8 to 15 or where it came from, ranks do not move', () => {
+test('the usual rules still hold after an import: points are spent from the file\'s pool, a stat stays within 3 to 10 or where it came from, ranks do not move', () => {
     const file = good(sample({ stats: { ...STAT_VALUES, str: 18, cha: 3 } }));
     const { draft } = withImport(typed(), file);
-    assert.deepEqual([statBounds(draft, 'str'), statBounds(draft, 'cha'), statBounds(draft, 'vit'), statBounds(newDraft(), 'vit')], [[8, 18], [3, 15], [8, 15], [8, 15]]);
-    const spent = readDraft({ ...draft, stats: { ...draft.stats, vit: 15, dex: 8 } });
-    assert.equal(pointsLeft(spent), 3 - 3 + 2, 'VIT +3 and DEX -2');
+    assert.deepEqual([statBounds(draft, 'str'), statBounds(draft, 'cha'), statBounds(draft, 'vit'), statBounds(newDraft(), 'vit')], [[3, 18], [3, 10], [3, 12], [3, 10]]);
+    const spent = readDraft({ ...draft, stats: { ...draft.stats, int: 10, luk: 10, dex: 8 } });
+    assert.equal(pointsLeft(spent), 3 - 3 + 2, 'INT +2, LUK +1 and DEX -2');
+    assert.equal(readDraft({ ...draft, stats: { ...draft.stats, vit: 15 } }).stats.vit, 12, 'a stat the file had at 12 does not go above it');
     const clamped = readDraft({ ...draft, stats: { ...draft.stats, str: 20, cha: 1 } });
     assert.deepEqual([clamped.stats.str, clamped.stats.cha], [18, 3], 'a hand-made draft is held to the bounds');
     assert.deepEqual(startStats(draft), file.stats, 'Reset goes back to the file\'s stats');
-    assert.deepEqual(startStats(newDraft()), Object.fromEntries(STATS.map(stat => [stat, 10])));
+    assert.deepEqual(startStats(newDraft()), Object.fromEntries(STATS.map(stat => [stat, 5])));
     // A rank is the file's: it survives reading the draft, a skill edit, and is not the one Adept a new skill may have.
     const edited = withSkillPatch(draft, 0, { name: 'Iron Lung', about: 'Better wind.' });
     assert.deepEqual([edited.skills[0].name, edited.skills[0].rank], ['Iron Lung', 2]);
@@ -225,12 +226,12 @@ test('Create writes the file\'s ranks into the Skills block, its points and Soul
     const { draft } = withImport({ ...typed(), name: 'Ren' }, good(sample()));
     const { character, skills } = buildDefinitions(readDraft(draft), { used: [] });
     const c = character.state, s = skills.state;
-    assert.deepEqual([c.who.default, c.about.default, c.level.default, c.points.default, c.xp.default, c.health.default, c.str.default, c.int.default], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 5, 14, 8], 'the file\'s Soul Class II is the level it stands for (15)');
+    assert.deepEqual([c.who.default, c.about.default, c.level.default, c.points.default, c.xp.default, c.health.default, c.str.default, c.int.default], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 6, 14, 8], 'the file\'s Soul Class II is the level it stands for (15)');
     assert.deepEqual([s.skill1.default, s.rank1.default, s.stat1.default, s.skill2.default, s.rank2.default, s.uses2.default, s.practice1.default, s.skill3.default, s.rank3.default], ['Iron Breath', 2, 'vit', 'Spark', 0, 'mana', 0, '', 0]);
     assert.equal(s.rank1.edit, false, 'rank is still a field only play moves');
     // Unspent points are what is left of the pool after the reader's changes.
-    const spent = readDraft({ ...draft, stats: { ...draft.stats, str: 15, vit: 13 } });
-    assert.equal(buildDefinitions(spent, { used: [] }).character.state.points.default, 1, 'STR +1 and VIT +1 out of 3');
+    const spent = readDraft({ ...draft, stats: { ...draft.stats, int: 9, luk: 10 } });
+    assert.equal(buildDefinitions(spent, { used: [] }).character.state.points.default, 1, 'INT +1 and LUK +1 out of 3');
 });
 
 test('a skill with no stat: written without the key, read from a missing key or null, refused for any other value, and never given one', () => {

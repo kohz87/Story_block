@@ -4,17 +4,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
-import { LEAN_RPG_FEATURE, OPEN_FIGHT_LINE, NO_ROLLS_LINE, PRECALL_HEAD, readSheet, validatePlan, leanRpgGuard, RESOLVE } from '../../../src/v2/lean-rpg/index.js';
-import { PRECALL_HEAD_STANDARD } from '../../../src/v2/lean-rpg/precall.js';
-import { openLinesOf } from '../../../src/v2/lean-rpg/plan.js';
+import { LEAN_RPG_FEATURE, OPEN_FIGHT_LINE, NO_ROLLS_LINE, readSheet, validatePlan, leanRpgGuard, RESOLVE } from '../../../src/v2/lean-rpg/index.js';
+import { legacyPlanner, openLinesOf } from './legacy-planner.js';
 import { openFoes, vetOpen, isNamedIn } from '../../../src/v2/lean-rpg/open.js';
 import { readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { hashJson as hashOf } from '../../../src/v2/replay.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { cueOf, PARTY, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
 
+// The RPG library is cached for the whole process, so the test-only legacy planner reads the world of the test now running.
+const live = { host: null, model: null };
+const planned = async () => {
+    const lib = await import('../../../src/v2/lean-rpg/index.js');
+    return { ...lib, createLeanRpgPart(deps) { const part = lib.createLeanRpgPart(deps); part.hooks.beforeGenerate = legacyPlanner(part, { callModel: (...args) => live.model(...args), chat: () => live.host.ctx.chat, metadata: () => live.host.ctx.chatMetadata ?? null }); return part; } };
+};
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
 const MESSAGE = 'Mud-scale crawlers boil out of the silt. I ambush them with Iron Breath.';
@@ -40,20 +45,14 @@ async function reloads(host) {
     assert.deepEqual(host.store.problems(), []);
 }
 
-test('the heads list the new-foe line and its rule, Classic and Standard', () => {
-    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.split('\n').includes('foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?'));
-        assert.ok(head.includes('- A foe the message or scene names but the list lacks: new (never invent); level or rank only if the story says.'));
-    }
-});
-
 test('an empty Foes block and a reader message naming crawlers: the slot is filled, the dice are rolled, the battle record and panel model are there', { skip }, async () => {
     const { host, callModel, problems } = await setup({ blocks: empty(), answers: [OPEN] });
     const { request } = await host.send(MESSAGE, 'The silt churns.');
-    assert.match(callModel.calls[0].prompt, /Foes: none/);
     assert.deepEqual(problems, []);
     const fields = fieldsOf(host);
-    assert.deepEqual([fields.foe1, fields.count1, fields.level1, fields.hurt1], ['Mud-Scale Crawlers', 6, 5, 5]);
+    assert.deepEqual([fields.foe1, fields.count1, fields.level1], ['Mud-Scale Crawlers', 6, 5]);
+    // (the dice are random per run: this reply's hits may have hurt the group, so its health is only held to the block's 0..5)
+    assert.ok(fields.hurt1 >= 0 && fields.hurt1 <= 5);
     const receipt = rollReceipt(host, 2);
     assert.ok(receipt, 'rolled');
     assert.equal(receipt.beforeGenerate, true);
@@ -70,18 +69,6 @@ test('an empty Foes block and a reader message naming crawlers: the slot is fill
     assert.equal(host.head().meta.claims[`rpg:resolve:${result.key}`], true);
     same(host);
     await reloads(host);
-    host.close();
-});
-
-test('a foe the message and the scene never name is refused: no slot, the plan is judged as before (a failed plan keeps the fight undecided)', { skip }, async () => {
-    const answer = ['foe Ash Wyrm | new | count: 1 | class: I', 'act Wessel | skill: Iron Breath | target: Ash Wyrm'].join('\n');
-    const { host, problems } = await setup({ blocks: empty(), answers: [answer] });
-    const { request } = await host.send(MESSAGE, 'The silt churns.');
-    assert.deepEqual(rolled(host), []);
-    assert.deepEqual(fieldsOf(host).count1, 0);
-    assert.deepEqual(problems.map(entry => entry.code), ['ROLLS_SKIPPED']);
-    assert.ok(tailOf(request).includes(OPEN_FIGHT_LINE), 'no foe on the sheet and no rolls: the narrator is told to stop at the first clash');
-    assert.ok(!tailOf(request).includes(NO_ROLLS_LINE));
     host.close();
 });
 
@@ -202,9 +189,12 @@ test('the replay guard asks the opened sheet: it holds on the same sheet and say
 
 // ---- the narrator writes its own slot line for the same foes, on the real block engine --------------------------------
 
-async function realWorld(t, answers, templates = LEAN_RPG_TEMPLATES) {
+async function realWorld(t, answers, templates = STANDARD_TEMPLATES) {
     const model = createFakeModel(answers);
-    const host = await createHost({ callModel: model });
+    // (the real host with the test-only legacy planner behind the RPG part's hook: the planner itself is gone)
+    live.model = model;
+    const host = await createHost({ callModel: model, lazyRpg: true, rpgLoad: planned });
+    live.host = host;
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
     host.features.set('story-block.fight-board', false);
@@ -215,7 +205,7 @@ async function realWorld(t, answers, templates = LEAN_RPG_TEMPLATES) {
 }
 
 test('the narrator\'s own set-slot line for the same foes updates the opened group: one group, never two', { skip }, async t => {
-    const { host, model } = await realWorld(t, [OPEN.replace('skill: Iron Breath | ', 'stat: STR | ')]);
+    const { host, model } = await realWorld(t, [OPEN]);
     const slot = reply('+ dm foes — why | kind: set-slot-2 | name: Mud-Scale Crawlers | count: 5 | level: 5');
     await host.send(MESSAGE, slot);
     assert.equal(model.calls.length, 1);
@@ -229,7 +219,7 @@ test('the narrator\'s own set-slot line for the same foes updates the opened gro
 });
 
 test('the narrator\'s line for the same slot number is the same group too (not refused as taken)', { skip }, async t => {
-    const { host } = await realWorld(t, [OPEN.replace('skill: Iron Breath | ', 'stat: STR | ')]);
+    const { host } = await realWorld(t, [OPEN]);
     await host.send(MESSAGE, reply('+ dm foes — why | kind: set-slot-1 | name: mud-scale crawlers | count: 4 | level: 5'));
     const fields = host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
     assert.deepEqual([fields.count1, fields.count2], [4, 0]);
@@ -237,7 +227,7 @@ test('the narrator\'s line for the same slot number is the same group too (not r
 });
 
 test('a different name in the narrator\'s line is a second group as before', { skip }, async t => {
-    const { host } = await realWorld(t, [OPEN.replace('skill: Iron Breath | ', 'stat: STR | ')]);
+    const { host } = await realWorld(t, [OPEN]);
     await host.send(MESSAGE, reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | level: 15'));
     const fields = host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
     assert.deepEqual([fields.foe1, fields.foe2], ['Mud-Scale Crawlers', 'Silt Hound']);

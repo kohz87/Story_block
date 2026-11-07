@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { boardSession } from '../../../../src/v2/lean-rpg/board/session.js';
 import { begin, makeBlocks, page, settle } from '../view/page.js';
 
@@ -13,7 +13,7 @@ async function world(t, { hero = { agi: 20, str: 20 }, foe = 'name: Rat | count:
     host.features.set(CORE_FEATURE.fightBoard, false);
     await begin(host);
     await makeBlocks(host, { character: hero });
-    const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    const foes = structuredClone(STANDARD_TEMPLATES.find(item => item.definition.role === 'foes').definition);
     assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
     await host.send('Foes appear.', `Foes appear.\n<Changes>\n+ dm foes — a fight starts | kind: set-slot-1 | ${foe}\n</Changes>`);
     host.features.set(CORE_FEATURE.fightBoard, true);

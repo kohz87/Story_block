@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFakeModel, createHost } from '../../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
@@ -19,7 +19,7 @@ for (const [label, otherCount] of [['real only', 1], ['mixed', 2]]) test(`NEW5: 
         host.features.set('story-block.fight-board', true);
         await host.send('Begin.', 'Opening.');
         for (const name of ['Character', 'Foes']) {
-            const definition = structuredClone(LEAN_RPG_TEMPLATES.find(template => template.name === name).definition);
+            const definition = structuredClone(STANDARD_TEMPLATES.find(template => template.name === name).definition);
             assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
         }
         for (const payload of [

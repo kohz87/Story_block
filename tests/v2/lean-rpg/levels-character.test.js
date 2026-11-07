@@ -1,21 +1,19 @@
-// Levels (2.17.0, stage 51 LV-A): the Character block's level / XP / cap and its rise rule, the roll term floor(level / divisor) on both formulas,
-// the Custom divisor, the planner's party list, the Level cap setting, and that a roll made before levels replays exactly as it was.
+// Levels (2.17.0, stage 51 LV-A): the Character block's level / XP / cap and its rise rule, the roll term floor(level / divisor) on the Standard rules,
+// the Custom divisor, the Level cap setting, and that a roll made before levels replays exactly as it was.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { DEFAULT_SETTINGS, EARLIER_RULES, LEVEL, LV_VERSION, STANDARD, STANDARD_FORMULA, classTerm, hasLevels, levelBonus, levelCapFor, levelOfClass, normalizeRules,
     oddsSubject, prepare, readSheet, rollPrepared, rulesFromSettings, subjectOdds } from '../../../src/v2/lean-rpg/index.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { buildDefinitions, newDraft } from '../../../src/v2/lean-rpg/view/wizard-data.js';
 import { readParty } from '../../../src/v2/lean-rpg/view/party-data.js';
 import { reply, success, view, rebuilt } from '../data-modules/helpers.js';
-import { sheetText } from '../../../src/v2/lean-rpg/precall.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { fakeState } from './view/helpers.js';
 import { hostAvailable } from '../../../testkit/index.js';
 import { PARTY, character, rollReceipt, setup, sheetDomain } from './helpers.js';
 
-const templates = formula => LEAN_RPG_TEMPLATES.filter(entry => entry.name === 'Character').map(entry => structuredClone(entry.definition));
+const templates = () => STANDARD_TEMPLATES.filter(entry => entry.name === 'Character').map(entry => structuredClone(entry.definition));
 const definition = () => templates()[0];
 const line = (slug, kind, extra = '') => `+ dm ${slug} — why | kind: ${kind}${extra}`;
 const sheet = (host, slug) => view(host, `pack.chat/${slug}`).chat;
@@ -31,7 +29,7 @@ const xp = (host, amount) => host.send('Fight.', reply(line('character', 'add-xp
 const seen = host => { const c = sheet(host, 'character'); return [c.level, c.xp, c.points]; };
 
 test('the templates have Level, XP and Level cap and no Soul Class; every other count is in names.js LEVEL', () => {
-    for (const entry of LEAN_RPG_TEMPLATES.filter(entry => entry.name === 'Character')) {
+    for (const entry of STANDARD_TEMPLATES.filter(entry => entry.name === 'Character')) {
         const { state, rules } = entry.definition;
         assert.equal(state.soul, undefined);
         assert.deepEqual([state.level.label, state.level.min, state.level.max, state.level.default], ['Level', 1, 99, 1]);
@@ -102,8 +100,8 @@ test('level-up: at the cap there is no rise, XP holds at 100 and no point; the c
     assert.deepEqual(seen(top), [99, 100, 3], 'level 99 (cap 99): the same');
 });
 
-test('the Standard and Classic templates carry the same rule', () => {
-    const all = LEAN_RPG_TEMPLATES.filter(entry => entry.definition.role === 'character').map(entry => JSON.stringify(entry.definition.rules.find(rule => rule.id === 'level-up')));
+test('the Standard templates carry the level-up rule', () => {
+    const all = STANDARD_TEMPLATES.filter(entry => entry.definition.role === 'character').map(entry => JSON.stringify(entry.definition.rules.find(rule => rule.id === 'level-up')));
     assert.ok(all.length >= 1);
     assert.ok(all.every(text => text === all[0]));
 });
@@ -113,16 +111,6 @@ test('the Standard and Classic templates carry the same rule', () => {
 const sheetOf = (fields = {}) => readSheet({ domains: { dataModules: sheetDomain({ ...PARTY(), wessel: { role: 'character', fields: character('Wessel', fields) } }) } });
 const plan = { pace: 'normal', acts: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats' }], foes: [], checks: [] };
 const bonusOf = (fields, rules) => prepare(plan, sheetOf(fields), rules).acts[0].pc;
-
-test('Classic: the roll adds floor(level / 5) in place of 2 × Soul Class', () => {
-    const rules = { ...STANDARD, levelDivisor: 5 };
-    for (const [level, expected] of [[1, 0], [4, 0], [5, 1], [14, 2], [40, 8], [99, 19]]) {
-        const pc = bonusOf({ level, soul: 9 }, rules);
-        assert.deepEqual([pc.classValue, pc.classBonus], [level, expected], `level ${level}`);
-    }
-    const old = bonusOf({ level: 40, soul: 2 }, STANDARD);
-    assert.deepEqual([old.classValue, old.classBonus], [2, 4], 'numbers with no divisor: the Soul Class, as before');
-});
 
 test('Standard: the same term, and the turn order uses it too', () => {
     const rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
@@ -151,7 +139,6 @@ test('rulesFromSettings: every new roll carries the divisor, 5 unless the Custom
     assert.equal(rulesFromSettings({}).levelDivisor, 5);
     assert.equal(rulesFromSettings({ rpgDifficulty: 'harsh' }).levelDivisor, 5);
     assert.equal(rulesFromSettings({ rpgDifficulty: 'custom', rpgStandard: { levelDivisor: 3 } }).levelDivisor, 3);
-    assert.equal(rulesFromSettings({ rpgDifficulty: 'custom', rpgFormula: 'classic', rpgCustom: { levelDivisor: 8 } }).levelDivisor, 8);
     assert.equal(rulesFromSettings({ rpgDifficulty: 'custom', rpgStandard: { levelDivisor: 12 } }).levelDivisor, 5, 'out of range: 5');
     assert.equal(rulesFromSettings({ rpgDifficulty: 'gentle', rpgStandard: { levelDivisor: 3 } }).levelDivisor, 5, 'only Custom reads it');
 });
@@ -177,8 +164,8 @@ test('a block made before levels (Soul Class, no level) reads at the level its c
 
 test('a roll with no level mark: the payload\'s numbers have no divisor, the Soul Class term, and rollPrepared gives the same lines', () => {
     const prepared = prepare(plan, sheetOf({ soul: 2, level: 77 }), EARLIER_RULES);
-    const dice = (...values) => () => values.shift();
-    const rolled = rollPrepared(plan, prepared, dice(14, 9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10), EARLIER_RULES);
+    const dice = Object.assign(() => () => 10, { positional: true });
+    const rolled = rollPrepared(plan, prepared, dice, EARLIER_RULES);
     const [first] = rolled.rounds[0].lines;
     assert.deepEqual([first.pc.classValue, first.pc.classBonus], [2, 4]);
     assert.equal(LV_VERSION, 1);
@@ -224,19 +211,12 @@ test('the Party tab prints the level where it printed the Soul Class: label "Lev
     assert.deepEqual([ren.soulLabel, ren.soulName, ren.soul, ren.level, ren.levelled], ['Soul Class', 'III', 3, 25, undefined]);
 });
 
-test('the planner\'s party list says "Astra (Lv 14)" for a block with a level and keeps the Soul Class words for an earlier block', () => {
-    const blocks = { ...PARTY(), astra: { role: 'character', fields: character('Astra', { level: 14, soul: undefined }) } };
-    const domain = sheetDomain(blocks);
-    domain.pins.h5.definition.state = { level: { type: 'int', min: 1, max: 99, default: 1, label: 'Level' } };
-    const text = sheetText(readSheet({ domains: { dataModules: domain } }));
-    assert.match(text, /^Astra \(Lv 14\): STR 14/m);
-    assert.match(text, /^Wessel \(class II\): STR 14/m);
-});
-
 // ---- the version mark through the real turn: a new roll says `lv: 1`, an old one has none and replays as it was ---------------------------------
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
+// (the dice are random per run: Ren may act first, or Wessel may open the fight, so his roll is looked for in every line)
+const wesselOf = result => [...(result.opening ?? []), ...result.rounds.flatMap(round => round.lines)].find(entry => entry.kind === 'act' && entry.pc.who === 'Wessel').pc;
 const levelled = () => { const blocks = PARTY(); blocks.wessel.fields = character('Wessel', { soul: 2, level: 40 }); return blocks; };
 
 const sameStory = async host => {
@@ -256,7 +236,7 @@ test('a new roll carries lv: 1 and the divisor in its numbers, rolls with floor(
     assert.equal(result.lv, LV_VERSION);
     assert.equal(result.rules.levelDivisor, 5);
     assert.equal(receipt.replan.payload.lv, LV_VERSION);
-    const pc = result.rounds[0].lines.find(entry => entry.kind === 'act').pc;
+    const pc = wesselOf(result);
     assert.deepEqual([pc.classValue, pc.classBonus], [40, 8], 'level 40 (the Soul Class 2 field is not the term any more): +8');
     const before = JSON.stringify(result);
     assert.equal((await host.turn.reread(2)).ok, true);
@@ -271,7 +251,7 @@ test('a roll made before levels (no lv, numbers with no divisor) replays exactly
     const result = rollReceipt(host, 2).data.v2.result;
     assert.equal(result.lv, undefined);
     assert.equal('levelDivisor' in result.rules, false);
-    const pc = result.rounds[0].lines.find(entry => entry.kind === 'act').pc;
+    const pc = wesselOf(result);
     assert.deepEqual([pc.classValue, pc.classBonus], [2, 4], 'Soul Class 2: 2 × 2, whatever the level is');
     const before = JSON.stringify(result);
     assert.equal((await host.turn.reread(2)).ok, true);

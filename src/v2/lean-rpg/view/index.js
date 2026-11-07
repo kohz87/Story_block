@@ -119,7 +119,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         fightStart.changed();
         if (info.reason !== 'fight-start') return;
         const waiting = fightStart.current();
-        if (waiting && waiting.mode !== 'working') openScreen(FIGHT_SCREEN_ID);
+        if (waiting) openScreen(FIGHT_SCREEN_ID);
     });
     start.attach();
     battleLog.refreshAll();

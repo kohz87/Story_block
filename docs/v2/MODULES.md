@@ -619,9 +619,8 @@ These settle questions agents raised; the host changes they need are made at int
     `~ trip` plans from the place and the mount pace the same reply sets). Every other line keeps its written order, and so do the moved ones.
     Words that are no kind are left out, and a reply with none of the named kinds runs as written. A Re-read runs the same order.
 129. **The fight board is the written exception to F95/F96's no story-action buttons** (feature
-    `story-block.fight-board`, on by default; the RPG Feature and Fight tab still gate it; with no staged fight, off keeps the ordinary planner
-    path unchanged). The Fight tab may offer one board button while a foe stands under Standard rules; Classic uses the planner.
-    A staged Standard fight must be restored to Standard or discarded before using Classic. On the board the reader chooses their own
+    `story-block.fight-board`, on by default; the RPG Feature and Fight tab still gate it; with the board off, no dice are rolled before a reply: the roll planner and the Classic formula are gone). The Fight tab may offer a board button while a foe stands; a reply that opens foes offers **Fight on the board** and **Auto-fight**,
+    and a typed attack on a standing foe is held with only those two choices. **Auto** plays up to `rpgAutoCap` exchanges of ordinary attacks and never flees. On the board the reader chooses their own
     character's exchange from lines the code validates: Attack, a usable skill (one target or every foe in reach), or Flee,
     for each standing party member. Automatic defence, foe actions, the dice and every bar change are settled by code, never
     by a button that asks the narrator to invent a story action. Unsent exchanges live in `chatMetadata.rpgFightBoard`; the

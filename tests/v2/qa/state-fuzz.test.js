@@ -22,7 +22,7 @@ import { HAPPENED } from '../../../src/v2/prompt.js';
 import { prng, seedCrypto } from './helpers/seeded.js';
 import { BONUS_CLAIM, probeModule } from './helpers/probe-module.js';
 import { carriers, checkInvariants, rebuildAt } from './helpers/oracle.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
 import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { boardSession, openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
@@ -186,7 +186,7 @@ async function fuzz(t, seed, steps) {
     // both the lone-foe and member paths are exercised. The blocks are pinned before any request, so the
     // static prompt still has one value (the fight stays open: not quiet).
     async function startBoardFight() {
-        const definitions = structuredClone(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
+        const definitions = structuredClone(STANDARD_TEMPLATES.filter(entry => ['character', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
         const hero = definitions.find(definition => definition.role === 'character'), foes = definitions.find(definition => definition.role === 'foes');
         hero.slug = 'fuzz-hero'; hero.name = 'Fuzz Hero';
         Object.assign(hero.state.who, { default: 'Astra' });
