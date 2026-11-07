@@ -135,7 +135,7 @@ test('a marker selects the native prefix at the logical boundary, even when publ
 
 test('clock marker identity, snapshot capture, validation and durability each have one source', async () => {
     const { readFile } = await import('node:fs/promises');
-    const commands = await readFile(new URL('../../src/v2/commands.js', import.meta.url), 'utf8');
+    const commands = sourceOf('src/v2/commands.js');
     const boundary = await readFile(new URL('../../src/v2/timeline/boundary.js', import.meta.url), 'utf8');
     const coordinator = sourceOf('src/v2/timeline/coordinator.js');
     assert.equal((commands.match(/clockBoundary\(input\)/g) ?? []).length, 1);
