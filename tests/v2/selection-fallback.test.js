@@ -159,7 +159,10 @@ test('selection walk: never moves to a newer point, an absent head, or an incomp
     assert.deepEqual(calls, ['ck-one']);
     calls.length = 0;
     const original = { ok: false, code: 'SNAPSHOT_UNAVAILABLE', message: 'gone' };
-    assert.equal(await fallback.walkSelectionFallback(MODULE, { from: descriptor('no-longer-on-head'), chain, prepare, failure: original }), original);
+    // (a point that left the head is not the original block: the unfinished selection is planned again)
+    const gone = await fallback.walkSelectionFallback(MODULE, { from: descriptor('no-longer-on-head'), chain, prepare, failure: original });
+    assert.equal(gone.replan, true);
+    assert.equal(gone.code, 'STALE');
     assert.deepEqual(calls, []);
     chain[1].schema = 2;
     const compatible = await fallback.walkSelectionFallback(MODULE, { from: descriptor('ck-two'), chain, prepare });

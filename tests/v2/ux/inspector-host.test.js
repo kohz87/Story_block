@@ -107,3 +107,17 @@ test('hud: the strip marks the side with more to scroll to, follows scrolling, a
     const css = read('view/mounts.css');
     for (const side of ['end', 'start', 'both']) assert.match(css, new RegExp(`\\.ss-hud\\[data-ss-more="${side}"\\] \\{[^}]*mask-image`), side);
 });
+
+test('the notice that dossiers fell to an earlier saved point shows in the Inspector for any reply, not tied to one', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const { st, ui, runtime } = setup({ features: { 'story-block.inspector': true } });
+    await runtime.turn.onChatChanged();
+    runtime.turn.install({ globalName: null });
+    st.interceptor = runtime.turn.interceptor;
+    await st.send('Look.', { reply: 'Rope.' });
+    const message = 'Dossiers were restored to the nearest saved point (reply 18). 3 later changes are being read again from the chat.';
+    runtime.turn.report({ module: 'npc-state-delta', code: 'SELECTION_FELL', quiet: true, message });
+    const reply = st.ctx.chat.length - 1;
+    assert.ok(ui.inspector.reply(reply).problems.some(p => p.code === 'SELECTION_FELL' && p.message === message), JSON.stringify(ui.inspector.reply(reply).problems));
+    assert.ok(ui.inspector.reply(0).problems.some(p => p.message === message), 'shown on another reply too');
+});

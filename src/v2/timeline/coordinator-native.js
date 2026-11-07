@@ -131,6 +131,13 @@ export function createNative(s, deps) {
                 const prepared = await callParticipant(module, 'prepare', { return: entry.id, checkpoint: target.checkpoint, hash: target.hash });
                 if (!prepared.ok && canFallback(prepared.code)) {
                     const fell = await fallBack(entry, module, target, prepared);
+                    if (fell.replan) {
+                        // The head moved while the first prepare waited and the point dropped out of the chain: this selection is
+                        // closed with nothing selected, and the head is planned again (no permanent block).
+                        archive.patch(entry.id, { phase: 'complete', replanned: true, why: fell.message });
+                        await durable();
+                        return selectHead();
+                    }
                     if (!fell.ok) return block.note(module, fell);
                     target = fell.target;
                     slot = fell.slot;
@@ -156,6 +163,11 @@ export function createNative(s, deps) {
         await durable();
         for (const fell of [].concat(entry.fell ?? [], entry.fellOthers ?? [])) {
             const chosen = withWholePrefixes(() => fallback.fallbackChain(fell.module).find(item => item.checkpoint === fell.to.checkpoint && item.hash === fell.to.hash));
+            // The participant is told once, now that the selection is durable, to read the replies it missed (same catch-up as a reader restore).
+            if (typeof participants.get(fell.module)?.restored === 'function') {
+                const told = await callParticipant(fell.module, 'restored', { from: fell.from, to: fell.to });
+                if (!told.ok) try { problem?.({ module: fell.module, code: 'SELECTION_FELL_SCAN', quiet: true, message: `${LABELS[fell.module] ?? fell.module} could not start reading the replies it missed: ${told.message}` }); } catch { /* a listener is not the timeline's business */ }
+            }
             const message = fellNotice(LABELS[fell.module] ?? registry.module?.(fell.module)?.name ?? fell.module, { index: chosen?.index, replies: fell.replies });
             try { problem?.({ module: fell.module, code: 'SELECTION_FELL', quiet: true, message }); } catch { /* a listener is not the timeline's business */ }
         }

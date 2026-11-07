@@ -85,7 +85,8 @@ export function createSelectionFallback({ archive, store, witnessStateHash = sta
         // The selected point may have left the current head while its prepare was waiting. Do not
         // mistake a newer point on the changed head for an earlier fallback in that case.
         const start = from ? chain.findIndex(target => sameTarget(from, target)) : -1;
-        if (from && start < 0) return failure ?? { ok: false, code: 'STALE', message: 'The selected point is no longer on this head.' };
+        // (the head moved: the unfinished selection is planned again by the caller, not blocked for good)
+        if (from && start < 0) return { ok: false, code: 'STALE', replan: true, message: 'The selected point is no longer on this head.' };
         for (const target of chain.slice(start + 1)) {
             if (sameTarget(from, target)) continue;
             if (from && target.schema !== from.schema) continue;

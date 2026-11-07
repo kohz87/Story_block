@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHost } from '../../testkit/index.js';
-import { nativeModule, rulesModule, clone, reload, restore, NATIVE } from './helpers/timeline.js';
+import { nativeModule, rulesModule, clone, reload, restore, pause, NATIVE } from './helpers/timeline.js';
 import { createParticipants } from '../../src/v2/timeline/participants.js';
 import { fellNotice } from '../../src/v2/timeline/selection-fallback.js';
 
@@ -219,4 +219,81 @@ test('only the head selection falls back: restore and save points never import t
         const source = await readFile(new URL(`../../src/v2/timeline/${file}`, import.meta.url), 'utf8');
         assert.doesNotMatch(source, /selection-fallback|fallBack|walkSelectionFallback/);
     }
+});
+
+test('after a fallback is durable the participant is told { from, to } once, and a reload does not tell it again', async t => {
+    const told = [];
+    const { host, native, modules, after } = await setup(t, { customize: native => {
+        native.def.participant.restored = input => { told.push(input); return { ok: true }; };
+    } });
+    native.missing.add(after.checkpoint);
+    await host.st.deleteMessage(6);
+    assert.equal(told.length, 1);
+    assert.equal(told[0].from.checkpoint, after.checkpoint);
+    const done = selections(host).find(entry => entry.fell);
+    assert.deepEqual(told[0].to, done.fell.to);
+    assert.equal(done.phase, 'complete', 'told after the selection completed');
+    await host.sdk.timeline.status();
+    assert.equal(told.length, 1, 'looking again does not tell it again');
+    const image = { chat: clone(host.ctx.chat), metadata: clone(host.ctx.chatMetadata) };
+    const fresh = await reload(createHost, image, modules);
+    t.after(() => fresh.close());
+    await fresh.timeline.host.recover();
+    assert.equal(told.length, 1, 'replay is the journal: nothing is told on reload');
+});
+
+test('a fallback that is not activated yet does not tell the participant; the retry does, once', async t => {
+    const told = [];
+    const { host, native, after } = await setup(t, { customize: native => {
+        native.def.participant.restored = input => { told.push(input); return { ok: true }; };
+    } });
+    native.missing.add(after.checkpoint);
+    native.fail.add('activate');
+    await host.st.deleteMessage(6);
+    assert.equal(told.length, 0);
+    native.fail.delete('activate');
+    await host.timeline.host.recover();
+    assert.equal(told.length, 1);
+});
+
+test('a participant whose restored fails does not undo the fallback and leaves a quiet problem', async t => {
+    const { host, native, after } = await setup(t, { customize: native => {
+        native.def.participant.restored = () => ({ ok: false, code: 'FAILED', message: 'nope' });
+    } });
+    native.missing.add(after.checkpoint);
+    await host.st.deleteMessage(6);
+    assert.equal((await host.sdk.timeline.status()).state, 'idle');
+    assert.equal(told(host).length, 1);
+    assert.equal(host.turn.problems(NATIVE).filter(item => item.code === 'SELECTION_FELL_SCAN').length, 1);
+});
+
+test('register refuses a restored that is not a function and keeps a function', () => {
+    const base = { module: 'm-two', schema: 1, checkpoint() {}, prepare() {}, activate() {}, abort() {}, status() {} };
+    const registry = createParticipants();
+    assert.equal(registry.register({ ...base, restored: 3 }).code, 'INVALID');
+    assert.equal(registry.register({ ...base, restored() {} }).ok, true);
+    assert.equal(typeof registry.get('m-two').restored, 'function');
+});
+
+test('the head moving while the first prepare waits re-plans the selection instead of keeping a permanent block', async t => {
+    // (the head moves inside the first prepare: the wanted point's mapping no longer matches, so it drops out of the chain)
+    const { host, native, after } = await setup(t, { customize: native => {
+        native.def.participant.prepare = (original => input => {
+            const mapping = native.moved ? null : host.timeline.archive.prefixes(NATIVE).find(item => item.after.checkpoint === after.checkpoint);
+            if (mapping) {
+                native.moved = true;
+                const { key, ...rest } = mapping;
+                host.timeline.archive.putPrefix(NATIVE, key, { ...rest, boundary: { ...rest.boundary, stateHash: 'sha256:0'.padEnd(71, '0') } });
+            }
+            return original(input);
+        })(native.def.participant.prepare);
+    } });
+    native.missing.add(after.checkpoint);
+    await host.st.deleteMessage(6);
+    const status = await host.sdk.timeline.status();
+    assert.equal(status.state, 'idle', JSON.stringify(status.blockedBy));
+    const all = selections(host);
+    assert.ok(all.some(entry => entry.replanned === true && entry.phase === 'complete'), 'the unfinished selection was closed');
+    assert.ok(all.every(entry => entry.phase === 'complete'), 'no unfinished selection is left');
+    assert.equal(host.timeline.block?.current?.() ?? null, null);
 });
