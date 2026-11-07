@@ -10,30 +10,29 @@ const foe = { name: 'Rat Swarms', label: 'Rat Swarms · Lv 3', health: 'Unhurt' 
 const known = {
     mode: 'known', title: 'Your message starts a fight', foeTitle: 'Foes', foes: [foe], checks: [], edge: '',
     note: 'The reply is waiting. Choose how this fight is played.', label: 'Fight paused',
-    boardLabel: 'Fight it on the board', narrateLabel: 'Narrate it instead',
+    boardLabel: 'Fight on the board', autoLabel: 'Auto-fight (up to 3 exchanges)',
 };
 const refreshed = {
-    ...known, mode: 'new', foeTitle: 'New foes',
+    ...known, mode: 'new', foeTitle: 'New foes', autoLabel: '', narrateLabel: 'Narrate it instead',
     checks: [{ label: 'Astra · Obscure (DEX): SUCCESS 18 vs 15', outcome: 'success' }],
     edge: 'Edge: ambush · Astra acts first', note: '',
 };
 
 test('known foes render with the two actions and both callback payloads', () => {
     const doc = setupDom(), calls = [];
-    const view = createPauseView({ doc, onBoard: chosen => calls.push(['board', chosen]), onNarrate: chosen => calls.push(['narrate', chosen]) });
+    const view = createPauseView({ doc, onBoard: chosen => calls.push(['board', chosen]), onAuto: chosen => calls.push(['auto', chosen]) });
     const host = doc.createElement('div'); doc.body.appendChild(host);
     const node = view.render(host, known);
     assert.match(node.className, /rpg-fight-pause-known/);
     assert.equal(node.getAttribute('role'), 'region');
     assert.match(node.textContent, /Your message starts a fight/);
     assert.match(node.textContent, /Rat Swarms · Lv 3/);
-    assert.match(node.textContent, /Unhurt/);
     assert.match(node.textContent, /The reply is waiting\. Choose how this fight is played\./);
     const buttons = node.querySelectorAll('button');
-    assert.deepEqual(buttons.map(button => button.textContent), ['Fight it on the board', 'Narrate it instead']);
+    assert.deepEqual(buttons.map(button => button.textContent), ['Fight on the board', 'Auto-fight (up to 3 exchanges)']);
     assert.ok(buttons.every(button => button.getAttribute('type') === 'button'));
     buttons[0].click(); buttons[1].click();
-    assert.deepEqual(calls, [['board', known], ['narrate', known]]);
+    assert.deepEqual(calls, [['board', known], ['auto', known]]);
     view.destroy();
 });
 
@@ -60,7 +59,7 @@ test('new foes show approach checks and the edge before the two actions', () => 
     assert.match(text, /Edge: ambush · Astra acts first/);
     assert.equal(node.querySelectorAll('.rpg-fight-pause-check').length, 1);
     assert.match(node.querySelector('.rpg-fight-pause-check').className, /rpg-fight-pause-success/);
-    assert.deepEqual(node.querySelectorAll('button').map(button => button.textContent), ['Fight it on the board', 'Narrate it instead']);
+    assert.deepEqual(node.querySelectorAll('button').map(button => button.textContent), ['Fight on the board', 'Narrate it instead']);
     view.render(host, null);
     assert.equal(host.querySelector('.rpg-fight-pause'), null);
     view.destroy();

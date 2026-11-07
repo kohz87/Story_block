@@ -7,13 +7,13 @@ import { pendingStart } from '../../turn/fight-start.js';
 import { readSheet } from '../read.js';
 import { boardSession, clearSend, markSend } from './session.js';
 
-export function createStartController({ doc, chat, meta, state, preview, board, on, save, refresh, generate, show = () => {}, close = () => {} } = {}) {
+export function createStartController({ doc, chat, meta, state, preview, board, on, save, refresh, generate, cap = () => 3, show = () => {}, close = () => {} } = {}) {
     const listeners = new Set();
     let sending = false, error = '';
     const current = () => on() ? pendingStart(meta(), chat()) : null;
     const tell = () => { for (const draw of [...listeners]) draw(); refresh?.(); };
     const persist = () => { try { save?.(); } catch { /* kept in this page */ } };
-    const begin = () => {
+    const begin = (auto = false) => {
         const pending = current();
         if (!pending || pending.choice) return;
         const opened = pending.opening ? preview?.() : null;
@@ -26,6 +26,8 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
         }
         error = '';
         pending.choice = 'board';
+        // Auto-fight plays the cap's exchanges at once; the reader then sends with the fight or takes over by hand.
+        if (auto === true) board()?.auto?.();
         persist(); tell();
     };
     const send = () => {
@@ -55,7 +57,7 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
         persist(); tell();
         if (pending.mode !== 'working') send();
     };
-    const pause = createPauseView({ doc, onBoard: begin, onNarrate: narrate });
+    const pause = createPauseView({ doc, onBoard: () => begin(false), onAuto: () => begin(true), onNarrate: narrate });
     // The original message is already in the chat. A second Send must not append another one while it waits.
     const stopSend = event => {
         if (!current()) return;
@@ -77,7 +79,7 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
         if (!pending || pending.choice) { error = ''; pause.clear(); return false; }
         const live = state(), sheet = readSheet(live);
         const fight = { groups: sheet.foes.filter(foe => foe.filled && foe.hurt > 0).map(foe => foe.slot) };
-        const data = pauseViewData({ fight, opening: pending.result, state: live, waiting: pending.mode === 'working' });
+        const data = pauseViewData({ fight, opening: pending.result, state: live, waiting: pending.mode === 'working', cap: cap() });
         if (!data) return false;
         pause.render(root, error ? { ...data, note: error } : data);
         return true;

@@ -38,6 +38,9 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/noroll.js`: records a per-reply receipt when a live fight's roll planner gives no usable plan.
 - `src/v2/lean-rpg/open.js`: checks and fills new foes that the roll planner opens during a fight.
 - `src/v2/lean-rpg/quiet.js`: trims combat and foe prompt grammar on replies where rolls cannot be used.
+- `src/v2/lean-rpg/board/auto.js`: chooses deterministic Auto-fight actions by the party policy and decides why Auto stops.
+- `src/v2/lean-rpg/board/auto-run.js`: plays Auto exchanges on the staged board fight until the cap, a won or lost fight or a badly hurt hero, and words why it stopped.
+- `src/v2/lean-rpg/board/resume.js`: finds the last ended board fight's exact foe bars when the collapsed Foes block still matches them.
 - `src/v2/lean-rpg/resolve.js`: prepares and rolls planned checks, acts and foe attacks into a replayable RPG receipt.
 - `src/v2/lean-rpg/soul.js`: reads a renamed Soul Class field label and names, with stock fallbacks.
 - `src/v2/lean-rpg/tail.js`: writes compact prompt-tail summaries for RPG role blocks.
