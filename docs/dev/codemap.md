@@ -120,3 +120,7 @@ Last checked: 2026-11-07.
 - `src/v2/view/bind.js` → `view/bind/`: `paths.js` path syntax and reads; `scope.js` scopes; `expressions.js` compiled expressions; `helpers.js` helpers and formatters; `text.js` text and interpolation; `changes.js` change checks.
 - `src/v2/view/css.js` → `view/css/`: `parse.js` limits and tokenizing; `names.js` scope names; `selectors.js` selector scoping; `values.js` value filtering and theme properties; `scoping.js` the scoper.
 - `src/v2/view/widgets/map.js` → `view/widgets/map/data.js`: map data cleaning and layer visibility.
+- `src/v2/view/widgets/editable/props.js`: the editable widget's prop schema and line-cutting helper.
+- `src/v2/view/widgets/editable/fields.js`: the editable widget's field boxes, grouped layout, live refresh and readback.
+- `src/v2/domains/inventory/commands/wallet.js`: the purse commands and the narrator's edit wording.
+- `src/v2/timeline/coordinator-prepare/finish.js`: the participant activation and acknowledgement phase of a committed restore.
