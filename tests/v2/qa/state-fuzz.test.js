@@ -24,6 +24,7 @@ import { BONUS_CLAIM, probeModule } from './helpers/probe-module.js';
 import { carriers, checkInvariants, rebuildAt } from './helpers/oracle.js';
 import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
+import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { boardSession, openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
 
 // QA_FUZZ_SEEDS=200 QA_FUZZ_STEPS=200 runs a longer hunt locally (QA_FUZZ_SEED=n one seed); CI runs the fixed list.
@@ -116,6 +117,10 @@ function uiCommand(r, host) {
         if (own) choices.push(['inventory.drop', { stack: own.id, qty: own.qty }]);
     }
     choices.push(['inventory.drop', { stack: 'it_00000000', qty: 1 }]);
+    // A skill rename's flag carry (rpg.boardSkillCarry, no feature gate): a real skill of the sheet when there is one, else a name the sheet lacks (refused).
+    const actor = readSheet(head ?? {}).characters?.find(entry => entry.skills?.length);
+    const skill = actor && r.pick(actor.skills);
+    choices.push(['rpg.boardSkillCarry', skill ? { module: actor.module, slot: skill.slot, from: r.pick(['Old Name', skill.name]), name: skill.name } : { module: 'fuzz-hero', slot: 1, from: 'Old Name', name: 'New Name' }]);
     const offers = Object.keys(head?.domains?.inventory?.loot ?? {}).sort();
     if (offers.length) choices.push(['inventory.lootTake', { sid: r.pick(offers), pick: [0, r.int(0, 1)] }]);
     return r.pick(choices);
