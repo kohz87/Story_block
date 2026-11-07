@@ -116,6 +116,16 @@ Last checked: 2026-11-07.
 - `src/v2/ui-host/panel.js`: panel creation, opening, closing and live tab-host access.
 - `src/v2/ui-host/settings.js`: settings overlay, diagnostics and theme inputs.
 - `src/v2/ui-host/events.js`: runtime and chat listeners with their teardown callbacks.
+- `src/v2/commands/shared.js`: limits, error helpers, reply and ID helpers; `commands.js` re-exports the public names.
+- `src/v2/commands/state.js`: drafts, frozen reads, queries, Source, cursor and proof.
+- `src/v2/commands/guards.js`: replay guards and their mark.
+- `src/v2/commands/ctx.js`: the command handler's context.
+- `src/v2/commands/transact.js`: one transaction.
+- `src/v2/store/write/saving.js`: touch, lifecycle changed and the idle/late saves.
+- `src/v2/store/write/story.js`: append and before.
+- `src/v2/store/write/replace.js`: replaceStory and reconcile.
+- `src/v2/store/write/records.js`: narrated, practice rule, receipts, truncate, untold and work.
+- `src/v2/store/write/lifecycle.js`: rebuild, archive, batch and renamed.
 - `src/v2/data-modules/part.js` → `data-modules/part/`: `factory.js` wires the data-module part; `core.js` shared lifecycle helpers; `shared.js` state access, caches and checked definitions; `views.js` read-only views; `blocks.js` Setup actions; `fields.js` field and host-step actions; `act.js` story and reader actions; `skills.js` the Skills block's slot rules; `party.js` companions; `prompt.js` prompt tail and reply cards; `timing.js` timer and reply-end costs.
 - `src/v2/domains/gear.js` → `domains/gear/`: `stats.js` slots, rarity, stat budgets and story-made definitions; `conditions.js` condition words and prices; `carry.js` carry rules and the carry query; `views.js` query answers and the screen picture.
 - `src/v2/domains/scene.js` → `domains/scene/`: `constants.js` name, presence, weather and look limits and feature names; `shared.js` the told rule, name lists, the edit mark and the letter test; `present.js` who is present and their changes; `place.js` the place and its moves; `weather.js` the weather line and the `scene.weather` command; `you.js` {{user}}'s look, its Rank label and the look ask.
