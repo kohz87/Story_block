@@ -120,3 +120,24 @@ Last checked: 2026-11-07.
 - `src/v2/view/bind.js` → `view/bind/`: `paths.js` path syntax and reads; `scope.js` scopes; `expressions.js` compiled expressions; `helpers.js` helpers and formatters; `text.js` text and interpolation; `changes.js` change checks.
 - `src/v2/view/css.js` → `view/css/`: `parse.js` limits and tokenizing; `names.js` scope names; `selectors.js` selector scoping; `values.js` value filtering and theme properties; `scoping.js` the scoper.
 - `src/v2/view/widgets/map.js` → `view/widgets/map/data.js`: map data cleaning and layer visibility.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/constants.js`: battle words, panel ids, marker line and fold/recent constants.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/util.js`: record checks, list reads and word cutting.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/read.js`: Classic and Standard recorded rolls as panel lines, and receipt lookup.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/model.js`: consequence arrows, turn-order levels, Status rows and the Foes line.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/draw.js`: the panel, its line nodes and the no-rolls note.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/marker.js`: marker finding and hiding, panel release and marker placement.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/follow.js`: the fold store and the live chat controller.
+- `src/v2/lean-rpg/view/settings.js` → `settings/constants.js`: shared words, ids, card search words and Custom fields.
+- `src/v2/lean-rpg/view/settings.js` → `settings/controls.js`: cards, chips, fields, number rows and pack notes.
+- `src/v2/lean-rpg/view/settings.js` → `settings/sections.js`: Formula, Rolls, Levels, Companions and Gear.
+- `src/v2/lean-rpg/view/settings.js` → `settings/difficulty.js`: Difficulty, Custom numbers and odds.
+- `src/v2/lean-rpg/view/settings.js` → `settings/combat.js`: the Combat box, saves and reset.
+- `src/v2/lean-rpg/view/settings.js` → `settings/planner.js`: the planner note and prompt preview.
+- `src/v2/lean-rpg/view/settings.js` → `settings/page.js`: the live page closure and card order.
+- `src/v2/view/mounts/card.js` → `card/summary.js`: the closed-line summary helpers and recent-carrier default.
+- `src/v2/view/mounts/card.js` → `card/context.js`: document lookup, carrier readers, caches, sets and observer.
+- `src/v2/view/mounts/card.js` → `card/follow.js`: keeping the newest reply's card in view.
+- `src/v2/view/mounts/card.js` → `card/build.js`: the reply card, its sections, mounts and open state.
+- `src/v2/view/mounts/card.js` → `card/draw.js`: card drawing, cache reuse, strip sync and carrier passes.
+- `src/v2/view/mounts/card.js` → `card/events.js`: open/close, story and SillyTavern event wiring.
+- `src/v2/view/mounts/card.js` → `card/mount.js`: wires the parts into the public controller.
