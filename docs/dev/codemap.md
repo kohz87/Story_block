@@ -120,3 +120,20 @@ Last checked: 2026-11-07.
 - `src/v2/view/bind.js` → `view/bind/`: `paths.js` path syntax and reads; `scope.js` scopes; `expressions.js` compiled expressions; `helpers.js` helpers and formatters; `text.js` text and interpolation; `changes.js` change checks.
 - `src/v2/view/css.js` → `view/css/`: `parse.js` limits and tokenizing; `names.js` scope names; `selectors.js` selector scoping; `values.js` value filtering and theme properties; `scoping.js` the scoper.
 - `src/v2/view/widgets/map.js` → `view/widgets/map/data.js`: map data cleaning and layer visibility.
+- `src/v2/persist/carrier.js`: carrier identities, record keys and the record shape check.
+- `src/v2/persist/marks.js`: swipe marks, opening hashes and the evidence payload text.
+- `src/v2/persist/copies.js`: the kept `swipe_info` record copy and swipe-delete loading checks.
+- `src/v2/persist/records.js`: reading, restamping and writing the shown swipe's record.
+- `src/v2/persist/receipts.js`: receipt retention and the guarded `data.v2` exception.
+- `src/v2/persist/carry.js`: carrying a rescued record to the same message read from its file.
+- `src/v2/persist/saver/constants.js`: save batching and timed-out-save read-back intervals.
+- `src/v2/persist/saver/io.js`: the save timeout wrapper and one-write-at-a-time gate.
+- `src/v2/persist/saver/suspects.js`: the suspect-chat watch, read-backs, rename and resume.
+- `src/v2/persist/saver/api.js`: the saver's public methods in their original order.
+- `src/v2/persist/saver/core.js`: the saver's live state, timers, save loop and rescue flow.
+- `src/v2/domains/core/constants.js`: the core module id, static text, features, settings and gear grammar.
+- `src/v2/domains/core/kinds.js`: the core change-line kinds and the `~ you` grammar line.
+- `src/v2/domains/core/part.js`: the core part's domains, commands, queries, kinds, context and tabs.
+- `src/v2/domains/core/merge.js`: merging module parts, hooks and settings without changing part order.
+- `src/v2/domains/core/extra.js`: the Inner chatter tail and `scene.moved` helpers.
+- `src/v2/domains/core/module.js`: the core module assembly, host-owned replay guard and queries.
