@@ -61,15 +61,16 @@ export function createSession(s, deps) {
     // It is said once; when the checker lands the chat is read again as usual.
     function held() {
         const why = initial.hold?.();
-        if (!why) { s.heldStart = false; return false; }
+        if (!why) { s.heldStart = false; return ''; }
+        const message = why === 'failed'
+            ? 'The pack checker could not be loaded, so this chat\'s story state was not started. Reload the page to try again.'
+            : 'The pack checker is still loading, so this chat\'s story state is not started yet. It starts when the packs are checked.';
         if (!s.heldStart) {
             s.heldStart = true;
-            problem({ code: why === 'failed' ? 'FAILED' : 'LOADING', message: why === 'failed'
-                ? 'The pack checker could not be loaded, so this chat\'s story state was not started. Reload the page to try again.'
-                : 'The pack checker is still loading, so this chat\'s story state is not started yet. It starts when the packs are checked.' });
+            problem({ code: why === 'failed' ? 'FAILED' : 'LOADING', message });
             Promise.resolve(initial.landed?.()).then(ok => { if (ok === true && s.heldStart && !initial.hold?.()) rebuild({ reason: 'packs' }); }, () => {});
         }
-        return true;
+        return message;   // → '' when nothing is held, else the words (the interceptor stops the reply with them)
     }
     function ensureInitial() {
         if (held()) return;
@@ -141,5 +142,5 @@ export function createSession(s, deps) {
         }
     }
 
-    return { markBusy, markIdle, setPrompt, setPrompts, clearPrompts, problem, trySave, ensureInitial, repairActions, repair, startOver, rebuild, planAgain, reconcileNow };
+    return { markBusy, markIdle, setPrompt, setPrompts, clearPrompts, problem, trySave, ensureInitial, held, held, repairActions, repair, startOver, rebuild, planAgain, reconcileNow };
 }

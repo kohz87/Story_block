@@ -72,3 +72,34 @@ test('seed() waits for the checker, then starts the state', async () => {
     assert.ok(host.ctx.chat[0].extra.storySuite);
     host.close();
 });
+
+test('the interceptor sends no prompt and starts no state while the packs are unchecked; after landing the reply goes out', async () => {
+    const state = { now: 'loading' };
+    const { host, release } = await pending(state);
+    let aborted = 0;
+    const send = () => host.turn.interceptor([], 8192, () => { aborted += 1; }, 'normal');
+    await send();
+    assert.equal(aborted, 1, 'the reply is stopped');
+    assert.equal(host.head(), null, 'no state started');
+    assert.equal(host.ctx.chat[0].extra.storySuite, undefined, 'nothing persisted');
+    assert.ok(host.turn.problems().some(p => p.code === 'LOADING'), 'said');
+    release();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.ok(host.head(), 'the chat reads normally on landing');
+    await send();
+    assert.equal(aborted, 1, 'the next reply is not stopped');
+    host.close();
+});
+
+test('the interceptor with a checker that failed: stopped, Problem FAILED, nothing written', async () => {
+    const host = await createHost({ st: { chat: [] } });
+    host.ctx.chat.push(greeting());
+    host.packs.packs.unchecked = () => 'failed';
+    host.packs.packs.ready = () => Promise.resolve(false);
+    let aborted = 0;
+    await host.turn.interceptor([], 8192, () => { aborted += 1; }, 'normal');
+    assert.equal(aborted, 1);
+    assert.equal(host.head(), null);
+    assert.ok(host.turn.problems().some(p => p.code === 'FAILED' && /could not be loaded/.test(p.message)));
+    host.close();
+});
