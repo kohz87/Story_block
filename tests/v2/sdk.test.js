@@ -229,3 +229,29 @@ test('a query gets (state, args, tools) and can ask other queries over the same 
     assert.equal(view.query('tally.double'), 8);
     assert.equal(view.query('tally.double', { times: 3 }), 12);
 });
+
+test('query { asOf } answers from the state after that reply and never moves the head', async () => {
+    const seen = [];
+    const module = counter();
+    module.queries['tally.reply'] = (state, args, tools) => { seen.push(tools.reply?.index ?? null); return state.domains.tally.n; };
+    const host = await createHost({ core: false, modules: [module] });
+    await host.send('One.', 'First reply.');
+    await host.sdk.command('tally.add', { by: 1 });
+    const first = host.store.headIndex();
+    await host.send('Two.', 'Second reply.');
+    await host.sdk.command('tally.add', { by: 2 });
+    const head = host.store.headIndex();
+    assert.ok(head > first);
+    const before = JSON.stringify(host.store.head());
+    assert.equal(host.sdk.query('tally.value').n, 3);
+    assert.equal(host.sdk.query('tally.value', { asOf: first }).n, 1, 'as of the first reply');
+    assert.equal(host.sdk.query('tally.value', { asOf: head }).n, 3, 'as of the head reply');
+    assert.equal(host.sdk.query('tally.reply', { asOf: first }), 1);
+    assert.equal(seen.at(-1), first, 'tools.reply is the reply asked about');
+    assert.equal(JSON.stringify(host.store.head()), before, 'the head did not move');
+    assert.equal(host.store.headIndex(), head);
+    assert.throws(() => host.sdk.query('tally.value', { asOf: -1 }), RangeError);
+    assert.throws(() => host.sdk.query('tally.value', { asOf: 'x' }), RangeError);
+    assert.throws(() => host.sdk.query('tally.value', { asOf: 9999 }), /no message/);
+    host.close();
+});
