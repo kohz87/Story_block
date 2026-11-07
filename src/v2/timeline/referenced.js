@@ -46,8 +46,7 @@ export function collectCheckpointReferences(timeline) {
         if (!isRecord(value)) return;
         if (seen.has(value)) return;
         seen.add(value);
-        for (const [key, item] of Object.entries(value)) {
-            if (checkpointKey(key)) found.add(String(key).trim());
+        for (const item of Object.values(value)) {
             stringsUnder(item);
         }
     };
@@ -119,7 +118,7 @@ function chatFileId(file) {
 }
 
 /** The chat list of this install: character chat files, then group chat files. */
-async function siltyTavernChatList({ context, fetchFn }) {
+async function sillyTavernChatList({ context, fetchFn }) {
     const chats = [];
     const unreadable = [];
     const seen = new Set();
@@ -200,30 +199,21 @@ export async function referencedCheckpoints({ context = liveContext, fetchFn = f
     if (!ctx) unreadable.push({ chat: 'SillyTavern', reason: 'its context is not available' });
     const listed = typeof list === 'function'
         ? await list({ context: ctx, fetchFn })
-        : await siltyTavernChatList({ context: ctx, fetchFn });
-    if (Array.isArray(listed)) {
-        for (const chat of listed) {
-            try {
-                const payload = await (typeof read === 'function' ? read(chat, { context: ctx, fetchFn }) : readSillyTavernChat(chat, { context: ctx, fetchFn }));
-                const timeline = timelineOfChat(payload);
-                if (timeline) for (const id of collectCheckpointReferences(timeline)) found.add(id);
-            } catch (error) {
-                unreadable.push({ chat: chat?.label ?? chat?.id ?? 'chat', reason: reasonOf(error) });
-            }
-        }
-    } else if (listed && typeof listed === 'object') {
+        : await sillyTavernChatList({ context: ctx, fetchFn });
+    let chats = null;
+    if (Array.isArray(listed)) chats = listed;
+    else if (listed && typeof listed === 'object') {
         if (Array.isArray(listed.unreadable)) unreadable.push(...listed.unreadable);
-        for (const chat of Array.isArray(listed.chats) ? listed.chats : []) {
-            try {
-                const payload = await (typeof read === 'function' ? read(chat, { context: ctx, fetchFn }) : readSillyTavernChat(chat, { context: ctx, fetchFn }));
-                const timeline = timelineOfChat(payload);
-                if (timeline) for (const id of collectCheckpointReferences(timeline)) found.add(id);
-            } catch (error) {
-                unreadable.push({ chat: chat?.label ?? chat?.id ?? 'chat', reason: reasonOf(error) });
-            }
+        chats = Array.isArray(listed.chats) ? listed.chats : [];
+    } else unreadable.push({ chat: 'chat list', reason: 'the chat list could not be read' });
+    for (const chat of chats ?? []) {
+        try {
+            const payload = await (typeof read === 'function' ? read(chat, { context: ctx, fetchFn }) : readSillyTavernChat(chat, { context: ctx, fetchFn }));
+            const timeline = timelineOfChat(payload);
+            if (timeline) for (const id of collectCheckpointReferences(timeline)) found.add(id);
+        } catch (error) {
+            unreadable.push({ chat: chat?.label ?? chat?.id ?? 'chat', reason: reasonOf(error) });
         }
-    } else {
-        unreadable.push({ chat: 'chat list', reason: 'the chat list could not be read' });
     }
     // The open chat can be newer than its file (an unsaved turn); never leave its live references out.
     if (ctx?.chatMetadata && typeof ctx.chatMetadata === 'object') {
