@@ -226,3 +226,25 @@ test('K2: an open member fight carries its exact bars through replies, swipe, Re
         assert.equal(callModel.calls.length, 0);
     } finally { host.close(); restore(); }
 });
+
+test('deleting the reply that changed the sheet takes a later board fight back and says so in the Problems', async () => {
+    const restore = seedCrypto(91);
+    const blocks = { hero: { role: 'character', fields: character('Astra', { str: 5 }) }, foes: { role: 'foes', fields: foeBlock([['Rats', 2, 1, 5]]) } };
+    const { host } = await setup({ blocks, board: true });
+    try {
+        await host.send('Older.', 'An older reply.');
+        const set = await host.sdk.command('test.set', { slug: 'hero', field: 'str', value: 9 });
+        assert.equal(set.ok, true, set.message);
+        open(host);
+        assert.equal(stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]).error, undefined);
+        await host.send('Strike.', 'Fight.');
+        assert.ok(rollReceipt(host, 4), 'the fight is settled on the reply');
+        host.turn.clearProblems();
+        await host.st.deleteMessage(2);
+        await host.st.deleteMessage(1);
+        const named = host.turn.problems().filter(item => item.code === 'FIGHT_TAKEN_BACK');
+        assert.equal(rollReceipt(host, 2), undefined, 'the fight no longer stands');
+        assert.equal(named.length, 1, 'one Problem names the fight that was taken back');
+        assert.match(named[0].message, /fight on the board was taken back/u);
+    } finally { host.close(); restore(); }
+});
