@@ -49,6 +49,13 @@ async function open(options = {}) {
     const win = openSettingsWindow({ registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk, tabs: tabsControl(), openState: new Map(), ...(options.window ?? {}) });
     return { doc, host, win, root: win.root };
 }
+// The Diagnostics page's code is fetched when the page is first shown (bodies.js): show it (back to the page it was on) and wait until it has drawn.
+async function diagnosticsDrawn(root, win = null) {
+    const before = win?.section?.();
+    if (win) win.select('diagnostics');
+    for (let waited = 0; waited < 200 && !page(root, 'diagnostics').querySelector('.ss-diagnostics'); waited += 1) await new Promise(resolve => setTimeout(resolve, 5));
+    if (win && before) win.select(before);
+}
 const page = (root, id) => root.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === id);
 const foldsOf = (root, id) => page(root, id).querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
 const foldAt = (root, key) => root.querySelectorAll('details.story-suite-fold, details.story-suite-subfold').find(node => node.dataset.fold === key);
@@ -169,7 +176,8 @@ test('the rail: aria-current on the chosen section, one Tab stop, arrow keys mov
 });
 
 test('each section holds what it should: every section is the form engine\'s', async () => {
-    const { root, host } = await open();
+    const { root, host, win } = await open();
+    await diagnosticsDrawn(root, win);
     assert.deepEqual(foldsOf(root, 'look'), [], 'no folds: the form engine');
     assert.deepEqual(foldsOf(root, 'features'), [], 'no folds: the form engine');
     assert.equal(root.querySelector('details[data-fold="story-suite-features"]'), null, 'the old Features fold is gone');
@@ -313,6 +321,7 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
             continue;
         }
         if (section === 'diagnostics') {
+            await diagnosticsDrawn(root);
             // Events is a fold card on the Diagnostics page: opened, its summary focused.
             const card = page(root, 'diagnostics').querySelector('.ss-diagnostics-fold[data-fold="story-block/events"]');
             assert.ok(card, `${fold} is drawn`);

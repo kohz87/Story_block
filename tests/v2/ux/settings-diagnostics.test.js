@@ -24,7 +24,12 @@ async function open(source = null, options = {}) {
     const win = openSettingsWindow({ registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk, diagnostics: source, openState: options.openState ?? new Map(), ...(options.window ?? {}) });
     win.select('diagnostics');
     const page = win.root.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === 'diagnostics');
+    await pageLoaded(page);
     return { doc, host, win, root: win.root, page };
+}
+// The Diagnostics page's code is fetched when the page is first shown (bodies.js): wait until it has drawn.
+async function pageLoaded(page) {
+    for (let waited = 0; waited < 200 && !page.querySelector('.ss-diagnostics'); waited += 1) await new Promise(resolve => setTimeout(resolve, 5));
 }
 const search = (root, text) => {
     const input = root.querySelector('.ss-search-input');
@@ -142,6 +147,25 @@ test('"Show the UI sample" only when the page offers it; a failure is said in th
     failing.page.querySelector('.story-suite-diagnostics-sample').click();
     assert.equal(failing.page.querySelector('.story-suite-diagnostics-status').textContent, 'The UI sample could not be shown: no sample');
     failing.host.close();
+    // A sample that is fetched when asked for (ui-host/settings.js) says its failure the same way when the load is refused.
+    const refused = await open({ report: async () => 'R', sample: () => Promise.reject(new Error('no file')) });
+    refused.page.querySelector('.story-suite-diagnostics-sample').click();
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(refused.page.querySelector('.story-suite-diagnostics-status').textContent, 'The UI sample could not be shown: no file');
+    refused.host.close();
+});
+
+test('the Diagnostics page is a stand-in until it is first shown: has() answers for the report fold, the page is fetched on show, a search or an open', async () => {
+    const doc = setupDom();
+    const host = await createHost({ modules: [probe()] });
+    const win = openSettingsWindow({ registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk, diagnostics: { report: async () => 'R' }, openState: new Map() });
+    const page = win.root.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === 'diagnostics');
+    assert.equal(page.querySelector('.ss-diagnostics'), null, 'not drawn while another page is shown');
+    // a search finds the page after it has landed (the window searches again by itself)
+    search(win.root, 'report');
+    for (let waited = 0; waited < 200 && !page.querySelector('.ss-diagnostics'); waited += 1) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.ok(page.querySelector('.ss-diagnostics'), 'drawn once the search asked for it');
+    host.close();
 });
 
 test('Events: a fold card on the page, below the report, folded, with its note; not in Story Block\'s Modules card', async () => {

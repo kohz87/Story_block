@@ -293,6 +293,7 @@ test('the block menu exports a checked pack through the shared download helper',
     const screen = blocksPage(ui)();
     input(screen, fill(P.menuFor, { name: 'Pack notes' })).click();
     button(screen, S.exportPack).click();
+    await new Promise(resolve => setTimeout(resolve, 20));   // (the pack checker is fetched on the first export)
     assert.deepEqual(filenames, ['pack-notes.pack.json']);
     assert.equal(blobs[0].type, 'application/json;charset=utf-8');
     assert.equal(JSON.parse(blobs[0].parts[0]).content.dataModules[0].state.mood.default, 'calm');

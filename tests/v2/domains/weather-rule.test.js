@@ -10,7 +10,8 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { WEATHER_KEY_CHARS, validateScene } from '../../../src/v2/domains/scene.js';
 import { currencyOf, foreignCoin, parseAmount } from '../../../src/v2/domains/money.js';
-import { validatePack, weatherOf } from '../../../src/v2/packs/index.js';
+import { weatherOf } from '../../../src/v2/packs/index.js';
+import { validatePack } from '../../../src/v2/packs/validate.js';
 import { checkInvariants } from '../qa/helpers/oracle.js';
 
 const block = (story, lines) => `${story}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
