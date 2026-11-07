@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { LIMITS, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
+import { LIMITS, STANDARD_FORMULA as RULES, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { cueTokens } from '../../../src/v2/lean-rpg/cue.js';
 import { assemble } from '../../../src/v2/prompt.js';
 import { cueOf, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock, tailOf } from './helpers.js';
@@ -59,7 +59,7 @@ function maxPlan() {
     const sheet = readSheet({ domains: { dataModules: sheetDomain(blocks) } });
     const who = n => sheet.characters[n].who, foe = n => sheet.foes[n].name;
     const plan = {
-        pace: 'all',
+        formula: 'standard', pace: 'all',
         acts: [0, 1, 2, 3, 4, 5].map(n => ({ who: who(n), skill: 'Arcane Surge of Great Moment', target: foe(n % 4) })),
         foes: [0, 1, 2, 3].map(n => ({ slot: n + 1, target: who(n), defend: 'agi' })),
         checks: [0, 1, 2, 3].map(n => ({ who: who(n), skill: 'Arcane Surge of Great Moment', difficulty: 'very hard' })),
@@ -69,13 +69,13 @@ function maxPlan() {
 
 test('B4: the largest valid plan (six acts, four foes, four checks with an Empty skill) stays within the 600-token cue cap', () => {
     const { sheet, plan } = maxPlan();
-    const prepared = prepare(plan, sheet);
+    const prepared = prepare(plan, sheet, RULES);
     assert.equal(prepared.acts.length, 6);
     assert.equal(prepared.checks.length, 4);
     assert.ok(prepared.refused.length >= 4, 'the Empty skill is said');
     // Dice that never end the fight early, so as many rounds as the pace gives are drawn.
-    for (const dice of [() => 10, (() => { let n = 0; return () => 8 + (n++ % 5); })()]) {
-        const rolled = rollPrepared(plan, prepared, dice);
+    for (const dice of [() => () => 10, () => { let n = 0; return () => 8 + (n++ % 5); }]) {
+        const rolled = rollPrepared(plan, prepared, dice, RULES);
         assert.ok(cueTokens(rolled.text) <= LIMITS.cueTokens, `${cueTokens(rolled.text)} tokens`);
         assert.ok(rolled.rounds.length >= 1, 'at least one round is told');
         assert.ok(rolled.text.startsWith('[Rolls]'));
@@ -85,9 +85,9 @@ test('B4: the largest valid plan (six acts, four foes, four checks with an Empty
 
 test('B4: shortening goes by fewer rounds first, then compact checks and refusals, and a small plan is left whole', () => {
     const { sheet, plan } = maxPlan();
-    const small = { pace: 'normal', acts: plan.acts.slice(0, 1), foes: [], checks: [] };
-    const prepared = prepare(small, sheet);
-    const rolled = rollPrepared(small, prepared, () => 10);
+    const small = { formula: 'standard', pace: 'normal', acts: plan.acts.slice(0, 1), foes: [], checks: [] };
+    const prepared = prepare(small, sheet, RULES);
+    const rolled = rollPrepared(small, prepared, () => () => 10, RULES);
     assert.ok(rolled.text.includes('Arcane Surge of Great Moment'), 'not shortened when it fits');
     assert.equal(rolled.rounds.length, 5);
 });

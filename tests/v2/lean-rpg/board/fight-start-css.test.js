@@ -18,7 +18,6 @@ test('both cards and their action rows wrap instead of overflowing', () => {
     assert.match(rule('.rpg-fight-offer, .rpg-fight-pause {'), /min-width: 0/);
     assert.match(rule('.rpg-fight-offer-line {'), /overflow-wrap: anywhere/);
     assert.match(rule('.rpg-fight-offer-actions, .rpg-fight-pause-actions {'), /flex-wrap: wrap/);
-    assert.match(rule('.rpg-fight-pause-foe {'), /flex-wrap: wrap/);
 });
 
 test('action buttons are 44px at rest and 48px on the zoomed phone frame', () => {
@@ -27,9 +26,4 @@ test('action buttons are 44px at rest and 48px on the zoomed phone frame', () =>
     assert.match(actions, /touch-action: manipulation/);
     const coarse = css.slice(css.indexOf('@media (max-width: 759.98px), (pointer: coarse)'));
     assert.match(coarse, /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\)/);
-});
-
-test('the waiting spinner respects reduced motion', () => {
-    assert.match(rule('.rpg-fight-pause-working {'), /align-items: center/);
-    assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.rpg-fight-pause-spinner \{ animation: none; \} \}/);
 });

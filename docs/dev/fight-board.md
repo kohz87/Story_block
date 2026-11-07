@@ -2,8 +2,7 @@
 
 The fight board lets the reader choose each exchange in a Lean RPG fight. The Feature
 `story-block.fight-board` is on by default when the RPG is on. The board is offered only under Standard
-rules; Classic uses the existing planner. A staged fight must be restored to Standard or discarded before
-using Classic. When the board is off and no fight is staged, the ordinary planner path is unchanged.
+rules, the only formula; the roll planner and Classic are gone. With the board off, no dice are rolled before a reply.
 
 ## Files
 
@@ -38,16 +37,19 @@ using Classic. When the board is off and no fight is staged, the ordinary planne
 - `src/v2/lean-rpg/board/action-gate.js`: holds only explicit attacks on a standing known foe.
 - `src/v2/lean-rpg/board/settings.js`: draws the shared switch inside the Rolls card.
 - `src/v2/lean-rpg/board/narrated-grammar.js`: supplies manual foe changes to the reply grammar.
-- `src/v2/lean-rpg/precall.js`: selects a board segment or the planner and checks whether generation may proceed.
+- `src/v2/lean-rpg/precall.js`: selects a board segment (no model call) and checks whether generation may proceed; with no board fight the reply goes out with the 'no fight' tail line.
+- `src/v2/lean-rpg/board/auto.js`, `auto-run.js`: Auto plays up to `rpgAutoCap` exchanges (1 to 8, 9 = until the end) and stops on a win, a loss, a badly hurt hero (2+ Health blocks in one exchange) or the cap; it never flees.
+- `src/v2/lean-rpg/board/resume.js`: a fight against foes a fled or lost fight left starts from their exact bars (`openBoard({records})`).
 - `src/v2/turn/prompt-build.js`, `capture-flow.js`, `events.js`, `held-board.js` and `src/v2/commands.js`: preview, protect, capture and recover the prelude.
 - `src/v2/lean-rpg/practice.js` and `fight.js`: award practice and win XP from recorded results.
 
+New board fight records carry a scoped guard witness (`board/commit.js`: the domain with `perReply` emptied; a guard accepts either form) so another reply's scratch cannot drop a later fight; old records keep the old witness. Foe grammar: while a foes block exists and none stands, the tail says a fight starts when you set a foe slot; while foes stand only clear-N kinds are offered.
+
 ## Data flow
 
-Before step 1, an explicit attack against a known standing foe holds the send without a planner call; ambiguous actions continue normally. With no foes, a planner opening is previewed with a
-saved seed; its foes and checks are shown on the pause. **Narrate it instead** reuses that plan and seed. **Fight it on the board**
-opens on the private post-approach sheet. Narration remains selectable while the planner is working, without starting another call. The saved opening prelude runs before the board prelude on the single narrated reply;
-the approach checks earn practice and a successful ambush applies to the first exchange. Both previews and capture verify the inputs.
+Before step 1, an explicit attack against a known standing foe holds the send (title 'This is an attack on <foes>') with only **Fight on the board** and **Auto-fight**; ambiguous actions continue normally. No model call is made and nothing waits.
+The offer under a reply that opens foes has the same two choices. **Auto** stages ordinary exchanges through the same path as a chosen exchange, then **Auto again** and **Send with this fight** are offered. `openBoard({records})` resumes
+foes a fled or lost fight left, with the note 'These foes are as you left them: N of M standing, with their bars from the last fight.' Both previews and capture verify the inputs.
 
 1. `openBoard` uses the opening carrier's `sid`, discard count, current Standard rules, gear and weapons. The
    seed is `fightSeed(sid, attempt)`, fixed before a reply exists.
@@ -121,7 +123,7 @@ the approach checks earn practice and a successful ambush applies to the first e
   reader edits in flight, and held-reply restore/discard after reload. `view.test.js` covers the hold notice.
 - `dice.test.js`, `engine.test.js`, `plan.test.js` and `rules.test.js` cover seeds, final exchanges, flee,
   action validation, resources, weapon stats and automatic defence.
-- `feature.test.js` covers planner and prompt identity, rules switches and receipt replay under Classic.
+- `feature.test.js` covers prompt identity, rules switches and receipt replay.
 - `flags.test.js` covers wording defaults and keyed identity. `overrides.test.js` covers explicit and inferred
   flags on rename, replay, and deletion of either edit.
 - `flow.test.js` and `replay.test.js` cover continuation, swipe, regenerate, reload, rewind and middle deletion.
@@ -137,7 +139,7 @@ the approach checks earn practice and a successful ambush applies to the first e
 - A swipe changes the fight: `priorBoard`, `rpgFightLast` and `reconcileBoard` in `session.js`.
 - An exchange changes: `fightSeed`, the session offset, `boardWitness` and `equipmentForBoard`.
 - A middle delete skips the fight: `boardGuard` and the receipt's `replan.payload`.
-- A send is held or a planner runs: `canGenerate` and `beforeGenerate` in `precall.js`, then `prompt-build.js`.
+- A send is held: `canGenerate` and `beforeGenerate` in `precall.js`, then `prompt-build.js`.
 - XP or practice is wrong: `fight.js`, `boardWin` and `practice.js`.
 - A choice or flag is wrong: `flags.js`, `plan.js`, `overrides.js` and `view-data.js`.
 - A phone tap or layout is wrong: `board.css`, `view.js` and `touch.test.js`; `host.css` and
@@ -156,24 +158,22 @@ the approach checks earn practice and a successful ambush applies to the first e
 
 ### Fight start fixes (round 15, 6 Nov)
 - The Fight screen opens at 'fight-start' only while a pause is really waiting for this message (`view/index.js`, `fightStart.current()`).
-  The planner wait opens it (the working pause); when the planner finds no fight the screen that wait opened is closed again.
   Where to look when "the Fight page opens on an old fight": the `events.on('head')` block in `view/index.js`, `onPlanning` in `runtime.js`.
-- Engage words: `fight-start.js` `ACTION` (starts the planner wait) and `ENGAGE`/`engagesFight` (a planner answer with new foes and approach
-  checks but no act still opens the pause, `precall.js` beforeGenerate); `board/action-gate.js` `ATTACK` for known foes.
+- Engage words: `fight-start.js` `ACTION` and `ENGAGE`/`engagesFight`; `board/action-gate.js` `ATTACK` for known foes.
   Where to look when "engage/pounce/… did not start the fight".
 - The pause edge (`board/start-view-data.js` `edgeText`) claims an ambush only when an ambush check succeeded and says "acts first (initiative)"
   for a turn-order lead; every approach check is listed with its real result. The Fight log's lead line (`strings.js` `quickStartLine`) says
   the same and is left out when the ambush worked (`view/battle-log.js`).
 - A board exchange records the quick-start lead but rolls no opening action (`standard/roll.js` opening loop, `board` option); the reader's own
-  action is the first roll. "Narrate it instead" keeps the planner's plan and its opening action.
+  action is the first roll.
 - Tests: `tests/v2/lean-rpg/board/start-fixes.test.js`.
 
 ### Send carries the staged fight (round 16, 6 Nov)
 - "Send with this fight" (`board/start-controller.js` `send`) copies the staged session beside the waiting message (`board/session.js` `markSend`, metadata key `rpgFightSend`: anchor reply, message hash, board payload) and
   refuses the send with a reason when it cannot (anchor or exchanges missing). `precall.js` `canGenerate`/`beforeGenerate` take the board from the live session, else from this copy (`readSend`), so the
-  planner can never stand in for a staged fight; `afterReceive`, Narrate and Discard clear the copy.
-  Where to look when "the reply shows one planner round instead of my exchanges": `readSend`, `markSend`, the board branch of `beforeGenerate`.
-- The planner wait ("Working out the fight…") opens no screen; it shows on the Fight tab dot (`view/index.js` 'fight-start' handler opens only for a ready pause).
+  a staged fight is never replaced by a no-fight reply; `afterReceive` and Discard clear the copy.
+  Where to look when "the reply ignores my exchanges": `readSend`, `markSend`, the board branch of `beforeGenerate`.
+- Removed: the planner wait ("Working out the fight…"), the working mode and "Narrate it instead".
 - Tests: `tests/v2/lean-rpg/board/send-board.test.js` (replaces the round-15 F1 close logic; its test and two start-ui tests were changed to the no-pop rule).
 
 ## Send carries every staged exchange (round 17)
@@ -188,6 +188,6 @@ the approach checks earn practice and a successful ambush applies to the first e
 
 - `precall.js` `canGenerate` held the waiting reply only while the board had no exchange, so the first staged exchange released it: the narrator got "Exchange 1" only
   while the reader kept playing. Now, with the reader's choice 'board' on this anchor, every commit attempt (regenerate or normal) stays held unless `rpgFightSend`
-  (written by "Send with this fight", `markSend`) holds a copy with as many exchanges as the board now has. Narrate / Discard follow the normal rules.
+  (written by "Send with this fight", `markSend`) holds a copy with as many exchanges as the board now has. Discard follows the normal rules.
 - Where to look when "the reply went out after the first exchange": `canGenerate` (hold) in `precall.js`, `send()` in `board/start-controller.js`, `markSend` in `board/session.js`.
 - Test: `send-board.test.js` "one exchange on the board does not release the waiting reply".

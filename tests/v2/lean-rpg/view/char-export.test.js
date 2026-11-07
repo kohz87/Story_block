@@ -327,6 +327,9 @@ test('a good file fills the stats, the unspent points, the level and the skills;
     assert.match(stats.textContent, /These are the saved character's stats\. Spend the 3 points from the file/);
     const inc = (stat, n = 1) => { for (let at = 0; at < n; at += 1) wizardOf(dialog).querySelector(`.rpg-stat-step[data-stat="${stat}"] .ss-w-stepper-inc`).click(); };
     inc('int', 3);
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 1', 'INT stops at 10, the most a new character gets');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="int"] .ss-w-stepper-inc').disabled, true);
+    inc('luk');
     assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 0');
     assert.equal(wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="luk"] .ss-w-stepper-inc').disabled, true, 'no points left');
     click(wizardOf(dialog), 'Reset');
@@ -381,8 +384,8 @@ test('Undo import puts the wizard back as it was before, and Import file is offe
     const who = wizardOf(dialog);
     assert.ok(who.querySelector('.rpg-import'), 'Import file is back');
     assert.equal(who.querySelector('[data-wiz="import-done"]'), null);
-    assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 4', 'the two points spent before the import are back as they were');
-    assert.match(who.querySelector('.rpg-wiz-sum').textContent, /STR 12 · VIT 10/);
+    assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 8', 'the two points spent before the import are back as they were');
+    assert.match(who.querySelector('.rpg-wiz-sum').textContent, /STR 7 · VIT 5/);
     assert.equal(who.querySelector('.rpg-wiz-sub').textContent, 'Companion · Lv 1');
     assert.equal(who.querySelector('[data-wiz="name"]').value, 'Ren');
     const skills = await goTo(dialog, 'skills');
@@ -530,8 +533,8 @@ test('Create makes the Character and Skills blocks from the file, adds the thing
     assert.deepEqual(names(ctx.host), [...blocksBefore, 'pack.chat/combat-rules', 'pack.chat/foes', 'pack.chat/ren', 'pack.chat/ren-skills'].sort());
 
     const ren = fieldsOf(ctx.host, 'pack.chat/ren'), skills = fieldsOf(ctx.host, 'pack.chat/ren-skills');
-    assert.deepEqual([ren.who, ren.about, ren.level, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 5, 4, 4, true],
-        'the file\'s level and points; the reader\'s name and who they are; XP 0 and full bars');
+    assert.deepEqual([ren.who, ren.about, ren.level, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 6, 4, 5, true],
+        'the file\'s level and points; the reader\'s name and who they are; XP 0 and full bars (they grow with VIT, INT and AGI)');
     assert.deepEqual(STATS.map(stat => ren[stat]), [14, 12, 11, 10, 8, 9, 10]);
     assert.deepEqual([skills.who, skills.skill1, skills.about1, skills.stat1, skills.uses1, skills.rank1, skills.practice1, skills.skill2, skills.rank2, skills.skill3], ['Ren', 'Iron Breath', 'Steadies the lungs in a long fight.', 'vit', 'stamina', 2, 0, 'Short blade', 0, '']);
     assert.deepEqual(carried(ctx.host), ['Bedroll', 'Oilskin Coat', 'Torch ×2']);
@@ -649,7 +652,7 @@ test('an import closed without Create leaves nothing behind: the next wizard sta
     dialog.close();
     dialog = await wizardWith(ctx);
     assert.ok(wizardOf(dialog).querySelector('.rpg-import'), 'the row is back');
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 6');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 10');
     assert.deepEqual([carried(ctx.host), purseOf(ctx.host)], [[], 0]);
     dialog.close();
 });

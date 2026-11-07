@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success, view, rebuilt, reload } from '../data-modules/helpers.js';
 
 const IAI = ' | name: Iaijutsu | about: Drawing cuts. | stat: dex | uses: stamina';
@@ -21,7 +21,7 @@ async function story(t, templates = STANDARD_TEMPLATES) {
 }
 const told = host => host.turn.problems().map(problem => problem.message);
 
-for (const [label, templates] of [['Standard', STANDARD_TEMPLATES], ['Classic', LEAN_RPG_TEMPLATES]]) {
+for (const [label, templates] of [['Standard', STANDARD_TEMPLATES], ['Classic']]) {
     test(`${label}: the USER's sequence: learn-1 of a new name goes to slot 2; practice-1 naming it goes to slot 2; learn-1 of the old name updates slot 1`, async t => {
         const host = await story(t, templates);
         await host.send('Learn.', reply(learn(1, SHADOW)));
@@ -91,12 +91,9 @@ test('receipts say which skill was learned or practised; a swipe, a Re-read and 
     rebuilt(host);
 });
 
-test('the Standard Skills template guards learn-N itself (a filled slot refuses); Classic\'s definition is unchanged', () => {
+test('the Standard Skills template guards learn-N itself (a filled slot refuses)', () => {
     const standard = STANDARD_TEMPLATES.find(entry => entry.name === 'Skills').definition;
-    const classic = LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Skills').definition;
     for (const n of [1, 2, 3, 4, 5]) {
         assert.deepEqual(standard.kinds[`learn-${n}`].when, ['eq', ['get', [`skill${n}`]], '']);
-        assert.equal(classic.kinds[`learn-${n}`].when, undefined);
-        assert.deepEqual(standard.kinds[`practice-${n}`], classic.kinds[`practice-${n}`]);
     }
 });

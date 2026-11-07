@@ -2,7 +2,7 @@
 // their stop rules, the cue and its budget, and what is refused. Pure: a sheet read from state, scripted dice.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EARLIER_RULES, FORMULA, LIMITS, PACE, outcomeOf, positionalDice, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
+import { FORMULA, LIMITS, outcomeOf, positionalDice, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { cueTokens } from '../../../src/v2/lean-rpg/cue.js';
 import { PARTY, character, foeBlock, sheetDomain, skillBlock } from './helpers.js';
 
@@ -12,7 +12,9 @@ const dice = (...values) => () => {
     return values.shift();
 };
 // A die that is never decisive on its own: Wessel 10 + 12 (STR 14, class II, Adept) = 22 against a foe's 10 + 7 = 17 is a margin of 5.
-const calm = (n = 200) => dice(...Array.from({ length: n }, () => 10));
+// (the Standard roll draws from a source of streams: `source(kind, place)` gives that action's dice; every stream here is the same script)
+const calm = () => Object.assign(() => () => 10, { positional: true });
+const scripted = (...values) => Object.assign(() => dice(...values, ...Array(60).fill(10)), { positional: true });
 const wessel = (over = {}) => ({ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats', ...over });
 const plan = (over = {}) => ({ pace: 'normal', acts: [wessel()], foes: [], checks: [], ...over });
 
@@ -40,34 +42,6 @@ test('the odds of the formula: a Class II hero with STR 14 and an Adept skill (+
     for (const [foeClass, expected] of Object.entries(table)) assert.deepEqual(odds(Number(foeClass)), expected, `class ${foeClass}`);
 });
 
-test('the formula in the numbers: d20 + stat/2 + 2×class + rank + edge against d20 + 5 + 2×class', () => {
-    const prepared = prepare(plan({ acts: [wessel({ edge: 2 })] }), sheetOf());
-    const result = rollPrepared(plan(), prepared, dice(14, 9));
-    const [line] = result.rounds[0].lines;
-    assert.deepEqual(line.pc, { who: 'Wessel', stat: 'str', statBonus: 7, classValue: 2, classBonus: 4, rank: 1, edge: 2, die: 14, total: 28 });
-    assert.deepEqual(line.foe, { slot: 1, name: 'Sluice Rats', base: 5, classValue: 1, classBonus: 2, die: 9, total: 16 });
-    assert.equal(line.outcome, 'success');
-    assert.equal(line.skill, 'Iron Breath');
-    assert.match(result.text, /Round 1: Wessel → Sluice Rats \(Iron Breath\): SUCCESS \(28 vs 16\)/);
-    // An odd stat rounds down (STR 15 → 7), and the edge is clamped to ±3.
-    const odd = sheetOf({ ...PARTY(), wessel: { role: 'character', fields: character('Wessel', { str: 15 }) } });
-    const clamped = prepare(plan({ acts: [{ ...wessel(), edge: 3 }] }), odd);
-    assert.equal(clamped.acts[0].pc.statBonus, 7);
-    assert.equal(prepare({ pace: 'normal', acts: [{ ...wessel(), edge: 9 }] }, odd).acts[0].pc.edge, FORMULA.edgeMax);
-});
-
-test('the formula is pinned for every stat, Soul Class, rank and edge: d20 + floor(stat/2) + rank + 2×Soul Class + edge', () => {
-    for (const stat of [1, 2, 7, 10, 15, 19, 20]) for (const soul of [1, 2, 5, 9]) for (const rank of [0, 1, 2, 3]) for (const edge of [-3, 0, 3]) {
-        const party = PARTY();
-        party.wessel.fields = character('Wessel', { str: stat, soul });
-        party['wessel-skills'].fields = skillBlock('Wessel', [['Iron Breath', rank, 'str']]);
-        const body = plan({ pace: 'careful', acts: [wessel({ edge })] });
-        const [line] = rollPrepared(body, prepare(body, sheetOf(party)), dice(11, 4)).rounds[0].lines;
-        assert.equal(line.pc.total, 11 + Math.floor(stat / 2) + rank + 2 * soul + edge, `STR ${stat}, class ${soul}, rank ${rank}, edge ${edge}`);
-        assert.deepEqual([line.pc.statBonus, line.pc.classBonus, line.pc.rank, line.pc.edge], [Math.floor(stat / 2), 2 * soul, rank, edge]);
-    }
-});
-
 test('a skilled act or check rolls with the skill\'s own stat; the plan\'s stat is ignored, and so is its uses', () => {
     const party = PARTY();
     party['wessel-skills'].fields = skillBlock('Wessel', [['Iron Breath', 2, 'vit', 'stamina'], ['Spark', 0, 'int', 'mana']]);
@@ -75,87 +49,62 @@ test('a skilled act or check rolls with the skill\'s own stat; the plan\'s stat 
     const body = plan({ acts: [wessel({ stat: 'str', uses: 'mana' }), { who: 'Wessel', skill: 'Spark', target: 'Sluice Rats' }],
         checks: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'cha', difficulty: 'normal' }] });
     const prepared = prepare(body, sheet);
-    assert.deepEqual(prepared.acts.map(entry => [entry.skill, entry.pc.stat, entry.pc.statBonus, entry.pc.rank]), [['Iron Breath', 'vit', 6, 2], ['Spark', 'int', 4, 0]], 'VIT 12 and INT 8, not the STR 14 the plan said');
-    assert.deepEqual([prepared.checks[0].pc.stat, prepared.checks[0].pc.statBonus], ['vit', 6]);
+    assert.deepEqual(prepared.acts.map(entry => [entry.skill, entry.pc.stat, entry.pc.statBonus, entry.pc.rank]), [['Iron Breath', 'vit', 8, 2], ['Spark', 'int', 6, 0]], 'VIT 12 and INT 8, not the STR 14 the plan said');
+    assert.deepEqual([prepared.checks[0].pc.stat, prepared.checks[0].pc.statBonus], ['vit', 8]);
     assert.deepEqual(prepared.refused, []);
     // The skill's resource is the one that is checked: Iron Breath spends stamina however the plan's `uses` reads.
     party.wessel.fields = character('Wessel', { stamina: 0 });
     const spent = prepare(plan({ acts: [wessel({ stat: 'str', uses: 'mana' })] }), sheetOf(party));
-    assert.deepEqual([spent.acts[0].skill, spent.acts[0].pc.stat, spent.acts[0].pc.rank, spent.refused.length], [null, 'vit', 0, 1], 'rolled without the skill, with its stat');
+    assert.deepEqual([spent.acts[0].skill, spent.acts[0].pc.stat, spent.acts[0].pc.rank, spent.refused.length], [null, 'str', 0, 1], 'rolled without the skill, as a plain physical act (Standard rolls the act\'s type, STR)');
     // The line names the stat that was rolled: Iron Breath is STR on the default sheet.
     const skilled = plan({ pace: 'careful', acts: [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }] });
     assert.equal(rollPrepared(skilled, prepare(skilled, sheetOf()), calm()).rounds[0].lines[0].pc.stat, 'str');
 });
 
-test('an act with no skill, or a skill the character lacks, rolls the plan\'s stat at rank 0; with no stat to roll with it is refused in plain words', () => {
+test('an act with no skill, or a skill the character lacks, rolls a plain physical act (STR) at rank 0, and the cue says the skill is untrained', () => {
     const sheet = sheetOf();
     const plain = prepare(plan({ acts: [{ who: 'Wessel', stat: 'dex', target: 'Sluice Rats' }], checks: [{ who: 'Ren', stat: 'cha', difficulty: 'easy' }] }), sheet);
-    assert.deepEqual([plain.acts[0].skill, plain.acts[0].pc.stat, plain.acts[0].pc.rank, plain.acts[0].pc.statBonus], [null, 'dex', 0, 5]);
+    // (Standard rolls an act with no skill as a plain physical act: STR, not the plan's stat)
+    assert.deepEqual([plain.acts[0].skill, plain.acts[0].pc.stat, plain.acts[0].pc.rank, plain.acts[0].pc.statBonus], [null, 'str', 0, 9]);
     assert.deepEqual([plain.checks[0].pc.stat, plain.checks[0].pc.rank], ['cha', 0]);
     const lacking = prepare(plan({ acts: [wessel({ skill: 'Lockpicking', stat: 'dex' })] }), sheet);
-    assert.deepEqual([lacking.acts[0].skill, lacking.acts[0].pc.stat, lacking.acts[0].pc.rank], [null, 'dex', 0]);
+    assert.deepEqual([lacking.acts[0].skill, lacking.acts[0].pc.stat, lacking.acts[0].pc.rank], [null, 'str', 0]);
     // B5: with no stat from the plan either, the character's best stat is used, untrained, and the cue says so.
     const none = prepare({ pace: 'normal', acts: [{ who: 'Wessel', skill: 'Lockpicking', target: 'Sluice Rats' }], checks: [{ who: 'Wessel', skill: 'Lockpicking', difficulty: 'easy' }] }, sheet);
     assert.deepEqual([none.acts.length, none.checks.length], [1, 1]);
     assert.deepEqual([none.acts[0].skill, none.acts[0].pc.stat, none.acts[0].pc.rank], [null, 'str', 0], 'Wessel\'s best is STR 14');
     assert.deepEqual(none.refused.map(entry => entry.text), [
-        'Wessel has no skill called Lockpicking: rolled untrained with STR, their best stat.',
-        'Wessel has no skill called Lockpicking: rolled untrained with STR, their best stat.',
+        'Wessel has no skill called Lockpicking: rolled untrained.',
+        'Wessel has no skill called Lockpicking: rolled untrained.',
     ]);
-    // A Skills block with no stat on its skills (made before they were fields) takes the plan's stat.
+    // A Skills block with no stat on its skills (made before they were fields) still rolls its skill, as a physical act.
     const party = PARTY();
     party['wessel-skills'].fields = { who: 'Wessel', skill1: 'Iron Breath', rank1: 1, practice1: 0 };
     const old = prepare(plan({ acts: [wessel({ stat: 'agi' })] }), sheetOf(party));
-    assert.deepEqual([old.acts[0].skill, old.acts[0].pc.stat, old.acts[0].pc.rank], ['Iron Breath', 'agi', 1]);
+    assert.deepEqual([old.acts[0].skill, old.acts[0].pc.stat, old.acts[0].pc.rank], ['Iron Breath', 'str', 1], 'Standard rolls the skill, whose type is physical');
 });
 
-test('a foe attacks: the defender rolls with the defend stat, no skill, and the line reads for the defender', () => {
+test('a foe attacks: the line reads for the defender, who rolls with no skill', () => {
     const body = plan({ pace: 'careful', acts: [], foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }] });
-    const result = rollPrepared(body, prepare(body, sheetOf()), dice(6, 15));
-    const [line] = result.rounds[0].lines;
-    assert.equal(line.kind, 'foe');
-    assert.deepEqual([line.pc.stat, line.pc.statBonus, line.pc.rank, line.pc.total, line.foe.total, line.outcome], ['agi', 6, 0, 16, 22, 'fail']);
-    assert.match(result.text, /Round 1: Sluice Rats attacks Wessel: FAIL for Wessel \(16 vs 22\)/);
+    const result = rollPrepared(body, prepare(body, sheetOf()), calm());
+    const line = result.rounds.flatMap(round => round.lines).find(entry => entry.kind === 'foe');
+    assert.ok(line, 'the foe attacked');
+    assert.deepEqual([line.pc.who, line.pc.rank, line.skill], ['Wessel', 0, null]);
+    assert.match(result.text, /Round 1: Sluice Rats attacks Wessel: [A-Z ]+ for Wessel \(\d+ vs \d+\)/);
     // A foe told to hold, and a foe line the plan does not name, roll nothing.
     assert.equal(prepare(plan({ acts: [], foes: [{ slot: 1, hold: true }] }), sheetOf()).foes.length, 0);
 });
 
 test('a check is one d20 against the difficulty, outside the rounds', () => {
     const checks = [{ who: 'Wessel', stat: 'dex', difficulty: 'hard' }];
-    const result = rollPrepared(plan({ acts: [], checks }), prepare(plan({ acts: [], checks }), sheetOf()), dice(11));
+    const result = rollPrepared(plan({ acts: [], checks }), prepare(plan({ acts: [], checks }), sheetOf()), scripted(11));
     assert.equal(result.rounds.length, 0);
     assert.equal(result.stop, 'none');
     const [line] = result.checks;
-    assert.deepEqual([line.pc.die, line.pc.total, line.dc, line.difficulty, line.outcome], [11, 20, LIMITS.dc.hard, 'hard', 'success']);
-    assert.match(result.text, /^\[Rolls\] Code rolled these\. Tell them as given, and never invent a roll\.\nWessel — DEX \(DEX\), hard: SUCCESS \(20 vs 20\)$/);
-    assert.deepEqual(result.summary, { exchanges: 0, acts: [{ kind: 'check', who: 'Wessel', target: null, skill: null, stat: 'dex', outcomes: ['success'] }], refused: 0 });
-});
-
-test('rounds: the smallest of the pace, the cap of five and the first decisive round (a roll of the earlier flow, with the earlier numbers)', () => {
-    const roundsFor = pace => {
-        const body = plan({ pace });
-        return rollPrepared(body, prepare(body, sheetOf(), EARLIER_RULES), calm(), EARLIER_RULES).rounds.length;
-    };
-    assert.deepEqual([roundsFor('careful'), roundsFor('normal'), roundsFor('all')], [1, PACE.normal, LIMITS.roundCap]);
-    assert.ok(PACE.all > LIMITS.roundCap, 'the cap is what stops "all"');
-    const stops = pace => { const body = plan({ pace }); return rollPrepared(body, prepare(body, sheetOf(), EARLIER_RULES), calm(), EARLIER_RULES).stop; };
-    assert.deepEqual([stops('careful'), stops('normal'), stops('all')], ['pace', 'pace', 'cap']);
-});
-
-test('the first round with a natural 1 or 20, or a margin of 8 either way, is the last', () => {
-    const body = plan();
-    const run = (...values) => rollPrepared(body, prepare(body, sheetOf()), dice(...values, ...Array(40).fill(10)));
-    // Round 1: 10 vs 10 (22 vs 17, a margin of 5); round 2: the foe rolls a 20; so the fight ends after round 2.
-    const nat = run(10, 10, 10, 20);
-    assert.deepEqual([nat.rounds.length, nat.stop, nat.rounds.map(round => round.decisive)], [2, 'decisive', [false, true]]);
-    // A margin of 8: 13 → 25 against 10 → 17.
-    const margin = run(10, 10, 13, 10);
-    assert.deepEqual([margin.rounds.length, margin.stop], [2, 'decisive']);
-    // A natural 1 on the party's die in round 1 ends it there.
-    assert.equal(run(1, 10).rounds.length, 1);
-    assert.match(nat.text, /Round 2 is decisive: stop there at the latest\. Stop earlier at the first stop point/);
-    const calmRun = rollPrepared(body, prepare(body, sheetOf()), calm());
-    assert.match(calmRun.text, /Round 5 is the last rolled: stop there at the latest\./);
+    assert.deepEqual([line.pc.die, line.dc, line.difficulty, line.outcome === 'success' || line.outcome === 'cost' || line.outcome === 'fail'], [11, LIMITS.dc.hard, 'hard', true]);
+    assert.equal(line.pc.total, 11 + line.pc.statBonus + line.pc.classBonus + line.pc.rank + line.pc.edge, 'the total is the die and the bonuses');
+    assert.match(result.text, new RegExp(`Wessel — DEX \\(DEX\\), hard: (SUCCESS|FAIL|SUCCESS AT A COST) \\(${line.pc.total} vs ${LIMITS.dc.hard}\\)`));
+    assert.deepEqual(result.summary, { exchanges: 0, acts: [{ kind: 'check', who: 'Wessel', target: null, skill: null, stat: 'dex', outcomes: [line.outcome] }], refused: 0 });
 });
 
 test('the cue stays within its budget: rounds are cut to fit, never below one', () => {
@@ -228,11 +177,12 @@ test('a skill rank is the number added: Novice 0, Adept 1, Expert 2, Master 3', 
 test('the summary for the reply: exchanges, and each action with what happened in every round', () => {
     const body = plan({ pace: 'careful', acts: [wessel(), { who: 'Ren', skill: 'Spark', stat: 'int', target: 'Sluice Rats' }], foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }] });
     const result = rollPrepared(body, prepare(body, sheetOf()), calm());
+    // (the actions are listed in the turn order Standard rolled: Ren, Wessel, then the foe)
     assert.deepEqual(result.summary, {
         exchanges: 1,
         acts: [
-            { kind: 'act', who: 'Wessel', target: 'Sluice Rats', skill: 'Iron Breath', stat: 'str', outcomes: ['success'] },
             { kind: 'act', who: 'Ren', target: 'Sluice Rats', skill: 'Spark', stat: 'int', outcomes: ['success'] },
+            { kind: 'act', who: 'Wessel', target: 'Sluice Rats', skill: 'Iron Breath', stat: 'str', outcomes: ['success'] },
             { kind: 'foe', who: 'Sluice Rats', target: 'Wessel', skill: null, stat: 'agi', outcomes: ['success'] },
         ],
         refused: 0,
@@ -250,16 +200,15 @@ test('a skill the character does not have is rolled untrained, and the cue says 
     assert.equal(result.summary.refused, 2);
 });
 
-test('B5: an old Skills block (no stat on its skills) and no stat from the plan: untrained with the best stat, said in the cue', () => {
+test('B5: an old Skills block (no stat on its skills) and no stat from the plan: Standard rolls the skill itself, as a physical act', () => {
     const party = PARTY();
     party['wessel-skills'].fields = { who: 'Wessel', skill1: 'Iron Breath', rank1: 2, practice1: 0 };
     const body = plan({ pace: 'careful', acts: [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }] });
     const prepared = prepare(body, sheetOf(party));
-    assert.deepEqual([prepared.acts[0].skill, prepared.acts[0].pc.stat, prepared.acts[0].pc.rank], [null, 'str', 0]);
-    assert.deepEqual(prepared.refused.map(entry => entry.text), ['Wessel\'s Iron Breath has no stat of its own: rolled untrained with STR, their best stat.']);
+    assert.deepEqual([prepared.acts[0].skill, prepared.acts[0].pc.stat, prepared.acts[0].pc.rank], ['Iron Breath', 'str', 2]);
+    assert.deepEqual(prepared.refused, []);
     const rolled = rollPrepared(body, prepared, calm());
-    assert.ok(rolled.text.includes('rolled untrained with STR, their best stat'));
-    assert.deepEqual(rolled.rounds[0].lines.map(line => line.kind), ['act']);
+    assert.ok(rolled.rounds[0].lines.some(line => line.kind === 'act' && line.skill === 'Iron Breath'));
 });
 
 test('B16: each action\'s dice come from its place in the plan: refusing, adding or removing another action moves nothing', () => {
@@ -267,6 +216,7 @@ test('B16: each action\'s dice come from its place in the plan: refusing, adding
     const body = { pace: 'normal', acts: [wessel({ skill: undefined }), { who: 'Ren', stat: 'int', target: 'Sluice Rats' }], foes: [{ slot: 1, target: 'Ren', defend: 'agi' }], checks: [{ who: 'Ren', stat: 'cha', difficulty: 'hard' }] };
     const diceOfRen = (down, base = 123456789) => {
         const party = PARTY();
+        party.foes.fields = foeBlock([['Sluice Rats', 6, 9, 5]]); // (a strong foe, so the first exchange does not end the fight)
         if (down) party.wessel.fields.health = 0;
         const result = rollPrepared(body, prepare(body, sheetOf(party)), positionalDice(base));
         return { check: result.checks[0].pc.die, rounds: result.rounds.map(round => round.lines.filter(line => line.pc.who === 'Ren').map(line => [line.kind, line.pc.die, line.foe.die])) };

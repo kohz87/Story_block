@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../testkit/index.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
-import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { pack } from './packs/helpers/fixtures.js';
 import { createHarness } from './domains/helpers/fake-ctx.js';
 import { core, stocked } from './domains/fixtures.js';
@@ -36,7 +36,7 @@ async function world(t, { gear = true } = {}) {
     t.after(() => host.close());
     host.packId = built.pack.id;
     await host.send('Begin.', 'Opening.');
-    const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
+    const defs = Object.fromEntries(STANDARD_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = 'wessel'; defs.character.name = 'Wessel'; defs.character.state.who.default = 'Wessel';
     defs.skills.slug = 'wessel-skills'; defs.skills.name = 'Wessel skills'; defs.skills.state.who.default = 'Wessel';
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);

@@ -63,8 +63,8 @@ test('Edit first opens the New character window filled in: name, about, class, t
     assert.equal(who.querySelector('[data-wiz="name"]').value, 'Mara');
     assert.equal(who.querySelector('[data-wiz="about"]').value, 'a hedge-witch from Kvildal');
     assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^Companion · Lv 35$/);
-    assert.match(who.querySelector('.rpg-wiz-sum').textContent, /INT 14/);
-    assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 2');
+    assert.match(who.querySelector('.rpg-wiz-sum').textContent, /INT 15/);
+    assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 0');
     assert.match(who.textContent, /Starts at Lv 35 with 0 XP/);
     assert.equal(who.querySelector('[data-wiz="persona-note"]').hidden, true);
     dialog.goTo(3);
@@ -73,7 +73,7 @@ test('Edit first opens the New character window filled in: name, about, class, t
     wizardOf(dialog).querySelector('.rpg-wiz-create').click();
     await settle();
     const mara = ctx.host.sdk.query('dataModules.view', { module: 'pack.chat/mara' }).chat;
-    assert.deepEqual([mara.who, mara.level, mara.int, mara.points], ['Mara', 35, 14, 2], 'the wizard\'s own rules: the reader\'s two points are still theirs to spend, the class as written');
+    assert.deepEqual([mara.who, mara.level, mara.int, mara.points], ['Mara', 35, 15, 0], 'the Standard companion: the best stat and the points for the level are spent, the class as written');
     ctx.ui.mounts.card.refresh(ctx.host.ctx.chat.length - 1, { force: true });
     await settle();
     assert.equal(cardOf(ctx), null, 'in the party: nothing to offer');

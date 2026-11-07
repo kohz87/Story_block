@@ -1,4 +1,4 @@
-// The pause screen: known foes, the planner wait, new foes with approach checks, both callbacks and touch sizing.
+// The pause screen: a typed attack on standing foes with its two choices, both callbacks and touch sizing.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,59 +8,32 @@ import { setupDom } from '../../view/mounts/helpers.js';
 
 const foe = { name: 'Rat Swarms', label: 'Rat Swarms · Lv 3', health: 'Unhurt' };
 const known = {
-    mode: 'known', title: 'Your message starts a fight', foeTitle: 'Foes', foes: [foe], checks: [], edge: '',
+    mode: 'known', title: 'Your message starts a fight', foes: [foe],
     note: 'The reply is waiting. Choose how this fight is played.', label: 'Fight paused',
-    boardLabel: 'Fight it on the board', narrateLabel: 'Narrate it instead',
+    boardLabel: 'Fight on the board', autoLabel: 'Auto-fight (up to 3 exchanges)',
 };
-const refreshed = {
-    ...known, mode: 'new', foeTitle: 'New foes',
-    checks: [{ label: 'Astra · Obscure (DEX): SUCCESS 18 vs 15', outcome: 'success' }],
-    edge: 'Edge: ambush · Astra acts first', note: '',
-};
-
 test('known foes render with the two actions and both callback payloads', () => {
     const doc = setupDom(), calls = [];
-    const view = createPauseView({ doc, onBoard: chosen => calls.push(['board', chosen]), onNarrate: chosen => calls.push(['narrate', chosen]) });
+    const view = createPauseView({ doc, onBoard: chosen => calls.push(['board', chosen]), onAuto: chosen => calls.push(['auto', chosen]) });
     const host = doc.createElement('div'); doc.body.appendChild(host);
     const node = view.render(host, known);
     assert.match(node.className, /rpg-fight-pause-known/);
     assert.equal(node.getAttribute('role'), 'region');
     assert.match(node.textContent, /Your message starts a fight/);
-    assert.match(node.textContent, /Rat Swarms · Lv 3/);
-    assert.match(node.textContent, /Unhurt/);
     assert.match(node.textContent, /The reply is waiting\. Choose how this fight is played\./);
     const buttons = node.querySelectorAll('button');
-    assert.deepEqual(buttons.map(button => button.textContent), ['Fight it on the board', 'Narrate it instead']);
+    assert.deepEqual(buttons.map(button => button.textContent), ['Fight on the board', 'Auto-fight (up to 3 exchanges)']);
     assert.ok(buttons.every(button => button.getAttribute('type') === 'button'));
     buttons[0].click(); buttons[1].click();
-    assert.deepEqual(calls, [['board', known], ['narrate', known]]);
+    assert.deepEqual(calls, [['board', known], ['auto', known]]);
     view.destroy();
 });
 
-test('the working state offers narration while the planner runs', () => {
+test('the pause has only the two choices: no narration, no planner wait', () => {
     const doc = setupDom(), view = createPauseView({ doc }), host = doc.createElement('div');
-    const node = view.render(host, { mode: 'working', status: 'Working out the fight…', foes: [], checks: [], actions: [] });
-    assert.match(node.className, /rpg-fight-pause-working/);
-    const status = node.querySelector('[role="status"]');
-    assert.equal(status.getAttribute('aria-live'), 'polite');
-    assert.match(status.textContent, /Working out the fight…/);
-    assert.deepEqual(node.querySelectorAll('button').map(button => button.textContent), ['Narrate it instead']);
-    view.update(refreshed);
-    assert.match(host.textContent, /New foes/);
-    assert.equal(host.querySelectorAll('button').length, 2);
-    view.destroy();
-});
-
-test('new foes show approach checks and the edge before the two actions', () => {
-    const doc = setupDom(), view = createPauseView({ doc }), host = doc.createElement('div');
-    const node = view.render(host, refreshed);
-    const text = node.textContent;
-    assert.match(text, /New foes/);
-    assert.match(text, /Astra · Obscure \(DEX\): SUCCESS 18 vs 15/);
-    assert.match(text, /Edge: ambush · Astra acts first/);
-    assert.equal(node.querySelectorAll('.rpg-fight-pause-check').length, 1);
-    assert.match(node.querySelector('.rpg-fight-pause-check').className, /rpg-fight-pause-success/);
-    assert.deepEqual(node.querySelectorAll('button').map(button => button.textContent), ['Fight it on the board', 'Narrate it instead']);
+    const node = view.render(host, { ...known, narrateLabel: 'Narrate it instead' });
+    assert.deepEqual(node.querySelectorAll('button').map(button => button.textContent), ['Fight on the board', 'Auto-fight (up to 3 exchanges)']);
+    assert.equal(node.querySelector('[role="status"]'), null);
     view.render(host, null);
     assert.equal(host.querySelector('.rpg-fight-pause'), null);
     view.destroy();

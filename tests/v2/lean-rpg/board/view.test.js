@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { STAGES, stageWord } from '../../../../src/v2/lean-rpg/names.js';
 import { usesOf } from '../../../../src/v2/lean-rpg/practice.js';
@@ -21,7 +21,7 @@ import { aiMessage } from '../../../../testkit/fake-st.js';
 const BOARD_CSS = readFileSync(new URL('../../../../src/v2/lean-rpg/board/board.css', import.meta.url), 'utf8');
 
 async function defineFoes(host, entries) {
-    const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    const foes = structuredClone(STANDARD_TEMPLATES.find(item => item.definition.role === 'foes').definition);
     entries.forEach(([name, count, level, hurt], at) => {
         Object.assign(foes.state[`foe${at + 1}`], { default: name });
         Object.assign(foes.state[`count${at + 1}`], { default: count });
@@ -258,25 +258,6 @@ test('a refused exchange keeps its reason on the board after the redraw', async 
     boardSession(meta).setup.witness.offset += 1;
     fight().querySelector('[data-choice="1"]').click();
     assert.match(fight().querySelector('.rpg-board-error')?.textContent ?? '', /cannot be checked/, 'the reason survives the redraw');
-});
-
-test('Classic offers no board and the normal planner still runs', async t => {
-    const { doc, host, ui } = await page(t, { formula: 'classic' });
-    await begin(host);
-    await makeBlocks(host);
-    await defineFoes(host, [['Rats', 1, 1, 5]]);
-    ui.mounts.screen.open('story-block/fight');
-    await settle();
-    assert.equal(doc.querySelector('.rpg-board-open'), null);
-    assert.equal(doc.querySelector('.rpg-board-log'), null);
-    const ordinary = await setup({ board: true, settings: { rpgFormula: 'classic' }, blocks: {
-        hero: { role: 'character', fields: character('Astra') }, foes: { role: 'foes', fields: levelFoeBlock([['Rats', 1, 1, 5]]) },
-    } });
-    try {
-        await ordinary.host.send('I strike.', 'A clash.');
-        assert.equal(ordinary.callModel.calls.length, 1);
-        assert.equal(boardSession(ordinary.host.ctx.chatMetadata), null);
-    } finally { ordinary.host.close(); }
 });
 
 test('the board checks current and saved rules, including a stale offer', async t => {

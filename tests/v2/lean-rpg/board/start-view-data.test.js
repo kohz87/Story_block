@@ -1,10 +1,10 @@
-// The pure start-view mapping: a staged fight's sheet labels, the planner's opened foes and checks, and the wait text.
+// The pure start-view mapping: a staged fight's sheet labels, and the two-choice attack hold.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { openBoard } from '../../../../src/v2/lean-rpg/board/session.js';
-import { WORKING_TEXT, offerLineData, pauseViewData } from '../../../../src/v2/lean-rpg/board/start-view-data.js';
+import { offerLineData, pauseViewData } from '../../../../src/v2/lean-rpg/board/start-view-data.js';
 import { character, levelFoeBlock, sheetDomain } from '../helpers.js';
 
 function state() {
@@ -27,7 +27,7 @@ test('the offer line names the staged fight and hides for this fight when asked'
     assert.equal(shown.visible, true);
     assert.deepEqual(shown.foes.map(foe => foe.name), ['Sluice Rats', 'Eels']);
     assert.equal(shown.text, 'A fight started: Sluice Rats, Eels.');
-    assert.deepEqual([shown.boardLabel, shown.narrateLabel].filter(Boolean), ['Fight on the board', 'Keep narrating']);
+    assert.deepEqual([shown.boardLabel, shown.autoLabel].filter(Boolean), ['Fight on the board', 'Auto-fight']);
     const hidden = offerLineData(fight, { state: value, hidden: true });
     assert.equal(hidden.visible, false);
     assert.equal(hidden.text, shown.text, 'hiding keeps the same fight wording');
@@ -38,39 +38,19 @@ test('the known pause reads foe groups from the sheet with level and health', ()
     const { fight, state: value } = openedFight();
     const data = pauseViewData({ fight, state: value });
     assert.equal(data.mode, 'known');
-    assert.match(data.foes[0].label, /^Sluice Rats ×3 · Lv 1$/);
-    assert.match(data.foes[0].health, /Unhurt|Fresh/);
-    assert.match(data.note, /The reply is waiting/);
-    assert.deepEqual([data.boardLabel, data.narrateLabel].filter(Boolean), ['Fight it on the board', 'Narrate it instead']);
+    assert.match(data.title, /^This is an attack on Sluice Rats \(3\)/);
+    assert.equal(data.note, 'Your message waits while the fight is played on the board.');
+    assert.deepEqual([data.boardLabel, data.autoLabel].filter(Boolean), ['Fight on the board', 'Auto-fight (up to 3 exchanges)'], 'two choices, no narration');
+    assert.equal(pauseViewData({ fight, state: value, cap: 1 }).autoLabel, 'Auto-fight (up to 1 exchange)');
+    assert.equal(pauseViewData({ fight, state: value, cap: 9 }).autoLabel, 'Auto-fight (until the end)');
 });
 
-test('the planner opening shows new foes, the rolled approach checks and the ambush edge', () => {
-    const opening = { data: { v2: { result: {
-        opened: [{ name: 'Rat Swarms', count: 3, level: 3 }], order: [{ name: 'Astra', party: true }, { name: 'Rat Swarms', party: false }],
-        checks: [{ kind: 'check', skill: 'Obscure', ambush: true, pc: { who: 'Astra', stat: 'dex', total: 18 }, dc: 15, outcome: 'success' }],
-        ambush: { who: 'Astra', skill: 'Obscure', outcome: 'success', success: true, total: 18, dc: 15 },
-    } } } };
-    const data = pauseViewData({ opening });
-    assert.equal(data.mode, 'new');
-    assert.equal(data.title, 'Your message starts a fight');
-    assert.equal(data.foeTitle, 'New foes');
-    assert.match(data.foes[0].label, /^Rat Swarms ×3 · Lv 3$/);
-    assert.equal(data.checks[0].label, 'Astra · Obscure (DEX): SUCCESS 18 vs 15');
-    assert.equal(data.edge, 'Edge: ambush · Astra acts first');
-    assert.deepEqual([data.boardLabel, data.narrateLabel].filter(Boolean), ['Fight it on the board', 'Narrate it instead']);
-});
-
-test('the waiting pause is the exact planner text and the helpers do not change their inputs', () => {
+test('the helpers do not change their inputs, and with no standing foe there is no pause', () => {
     const { fight, state: value } = openedFight();
-    const opening = { opened: [{ name: 'Rat Swarms', count: 3, level: 3 }], checks: [{ kind: 'check', skill: 'Hide', ambush: true, pc: { who: 'Astra', stat: 'dex', total: 18 }, dc: 15, outcome: 'success' }] };
-    const before = JSON.stringify({ fight, value, opening });
+    const before = JSON.stringify({ fight, value });
     offerLineData(fight, { state: value });
-    pauseViewData({ fight, opening, state: value });
-    assert.equal(JSON.stringify({ fight, value, opening }), before);
-    const data = pauseViewData({ waiting: true });
-    assert.equal(data.mode, 'working');
-    assert.equal(data.status, WORKING_TEXT);
-    assert.equal(data.status, 'Working out the fight…');
-    assert.equal(data.narrateLabel, 'Narrate it instead');
+    pauseViewData({ fight, state: value });
+    assert.equal(JSON.stringify({ fight, value }), before);
     assert.equal(pauseViewData({}), null);
+    assert.equal(pauseViewData({ waiting: true }), null, 'there is no planner wait any more');
 });

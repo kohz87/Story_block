@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHost, hostAvailable } from '../../testkit/index.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
-import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { skillSlots } from '../../src/v2/skill-slots.js';
 import { partyLines } from '../../src/v2/lean-rpg/view/changes-lines.js';
 import { joinCard, joinDraft, joinOffers } from '../../src/v2/lean-rpg/join.js';
@@ -27,16 +27,16 @@ const SKILLS = [
 ];
 const person = (extra = {}) => ({ id: 'mara', name: 'Mara', aliases: [], about: 'Runs the night ferry.', look: 'Wiry.', start: { place: 'Docks', goal: 'Keep the ferry running.' }, ...extra });
 const rawPack = list => ({ id: 'mini', version: '1.0.0', requires: { storyBlock: '^2' }, content: { cast: list } });
-const settingsFor = (list, { join = 'auto', formula = 'classic' } = {}) => {
+const settingsFor = (list, { join = 'auto', formula = 'standard' } = {}) => {
     const raw = rawPack(list);
     const built = validatePack(raw);
     assert.equal(built.ok, true, JSON.stringify(built.errors));
-    return { features: { 'story-block.rpg': true }, modules: { 'story-block': { rpgJoin: join, rpgFormula: formula } },
+    return { features: { 'story-block.rpg': true }, modules: { 'story-block': { rpgJoin: join } },
         packs: [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] };
 };
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 // A chat written by 2.21.0, opened here. `skills`: the pack now gives Mara signature skills (it did not when the chat was written).
-async function opened(t, name, { skills = false, formula = 'classic' } = {}) {
+async function opened(t, name, { skills = false, formula = 'standard' } = {}) {
     t.mock.method(console, 'warn', () => {});
     const saved = fixture(name);
     const host = await createHost({ st: { chatMetadata: saved.metadata ?? {} }, settings: settingsFor([person(skills ? { skills: SKILLS } : {})], { formula }) });
@@ -53,7 +53,7 @@ const receiptsAt = (host, index) => host.ctx.chat[index].extra.storySuite.receip
 
 // ---- B1, B2: a reply made before the extra slots, read again ------------------------------------------------------------------------------------
 
-for (const [formula, name] of [['classic', 'skills-2210-join-then-learns.json'], ['standard', 'skills-2210-join-then-learns-standard.json']]) {
+for (const [formula, name] of [['standard', 'skills-2210-join-then-learns-standard.json']]) {
     test(`B1 (${formula}): a Re-read of a join made before the extra slots keeps the block, its pin and the skills learned later`, { skip }, async t => {
         const { host, saved } = await opened(t, name, { skills: true, formula });
         const before = snapshot(host, 'mara-skills');
@@ -77,25 +77,6 @@ for (const [formula, name] of [['classic', 'skills-2210-join-then-learns.json'],
     });
 }
 
-test('B2: a Re-read of a join or a return that also had learn lines keeps the learn receipts and invents no signature skills', { skip }, async t => {
-    const { host } = await opened(t, 'skills-2210-join-learn-same-reply.json', { skills: true });
-    const before = snapshot(host, 'mara-skills');
-    assert.equal(fieldsOf(host, 'mara-skills').skill1, 'Rope Haul');
-    assert.equal(fieldsOf(host, 'mara-skills').skill3, 'Net Throw');
-    for (const at of [4, 10]) {
-        assert.equal((await host.turn.reread(at)).ok, true, `Re-read of ${at}`);
-        const records = receiptsAt(host, at);
-        assert.equal(records.some(entry => 'sigSkills' in (entry.data ?? {})), false, `no signature tiles on ${at}`);
-        assert.equal(records.some(entry => /Signature skills/.test(entry.summary ?? '')), false, `no signature words on ${at}`);
-        assert.equal(snapshot(host, 'mara-skills'), before, `the block after ${at}`);
-        assert.deepEqual(host.store.problems(), [], `store ${at}`);
-        assert.deepEqual(told(host).filter(message => /signature/i.test(message)), [], `no refused learn line on ${at}`);
-    }
-    assert.equal(receiptsAt(host, 4).filter(entry => /learn-/.test(entry.summary ?? '')).length, 2, 'both learn lines of the join reply kept their receipts');
-    assert.equal(receiptsAt(host, 10).filter(entry => /learn-3/.test(entry.summary ?? '')).length, 1, 'the learn line of the return reply too');
-    assert.equal('sig' in fieldsOf(host, 'mara-skills'), false);
-});
-
 // ---- B3: the pencil on a join reply ----------------------------------------------------------------------------------------------------------------
 
 async function world(t, { list = [person({ skills: SKILLS })], join = 'auto' } = {}) {
@@ -103,7 +84,7 @@ async function world(t, { list = [person({ skills: SKILLS })], join = 'auto' } =
     const host = await createHost({ settings: settingsFor(list, { join }) });
     t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
-    const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
+    const defs = Object.fromEntries(STANDARD_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = 'wessel'; defs.character.name = 'Wessel'; defs.character.state.who.default = 'Wessel';
     defs.skills.slug = 'wessel-skills'; defs.skills.name = 'Wessel skills'; defs.skills.state.who.default = 'Wessel';
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
@@ -225,7 +206,7 @@ test('F2: a character file keeps up to eight skills when its level has dropped b
 // ---- F3: the tail's room -------------------------------------------------------------------------------------------------------------------------------
 
 test('F3: the tail reserves room only for skills held past five, and the documents give the measured number', { skip }, async t => {
-    const empty = LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === 'skills').definition;
+    const empty = STANDARD_TEMPLATES.find(entry => entry.definition.role === 'skills').definition;
     assert.equal(tailRoom(empty, true, {}), DM_LIMITS.roleTailTokens, 'eight slots, none filled');
     assert.equal(tailRoom(empty, true, { skill1: 'A', skill2: 'B', skill3: 'C', skill4: 'D', skill5: 'E' }), DM_LIMITS.roleTailTokens, 'five held');
     assert.equal(tailRoom(empty, true, { skill1: 'A', skill2: 'B', skill3: 'C', skill4: 'D', skill5: 'E', skill6: 'F', skill8: 'H' }), DM_LIMITS.roleTailTokens + 2 * DM_LIMITS.skillTailTokens);

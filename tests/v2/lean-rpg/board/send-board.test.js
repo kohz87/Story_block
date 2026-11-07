@@ -1,26 +1,29 @@
 // Round 16: the staged board fight is what the reply carries at Send (never a planner re-roll).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { boardSession } from '../../../../src/v2/lean-rpg/board/session.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { begin, makeBlocks, page, settle } from '../view/page.js';
 
-const MSG = 'I hide with Obscure until the boars appear and approach as I attack and engage them.';
-const PLAN = ['foe Bristle-boar | new | count: 1 | level: 1', 'check Wessel | skill: Obscure | type: check | difficulty: normal | ambush', 'act Wessel | skill: Obscure | target: Bristle-boar | type: physical', 'foe Bristle-boar | target: Wessel'].join('\n');
+const MSG = 'I attack the boar.';
+const SET = 'The boar charges out.\n<Changes>\n+ dm foes — a fight starts | kind: set-slot-1 | name: Bristle-boar | count: 1 | level: 3\n</Changes>';
 
+// A fight against a foe already on the Foes block: the message pauses the send and the reader opens the board (no model is asked).
 async function start(t, seed) {
     const restore = seedCrypto(seed);
     t.after(restore);
     const calls = [];
-    const callModel = async (...args) => { calls.push(args); return PLAN; };
+    const callModel = async (...args) => { calls.push(args); return 'none'; };
     const app = await page(t, { formula: 'standard', callModel });
     const { host, doc } = app;
     await begin(host);
     await makeBlocks(host, { character: { str: 8, agi: 8, dex: 2, vit: 20 }, skills: { skill1: 'Obscure', stat1: 'dex', about1: 'hide before a fight' } });
-    const foes = structuredClone(LEAN_RPG_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    const foes = structuredClone(STANDARD_TEMPLATES.find(item => item.definition.role === 'foes').definition);
     assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
+    host.ctx.chatMetadata.rpgFightOffer = undefined;
+    await host.send('A boar is near.', SET);
     assert.equal((await host.send(MSG, 'Not yet.')).aborted, true);
     await settle();
     doc.querySelector('.rpg-fight-pause-board').click();
@@ -43,14 +46,14 @@ async function play(app, count, pick = () => true) {
 
 const roll = (host, index) => host.ctx.chat[index].extra.storySuite.receipts.findLast(item => item.type === 'rpg.resolve' && item.replan?.payload?.board);
 const stagedRounds = host => {
-    const session = boardSession(host.ctx.chatMetadata), opening = host.turn.fightStartPreview();
-    return structuredClone(playBoard(opening.state, session.setup, session.exchanges).result);
+    const session = boardSession(host.ctx.chatMetadata);
+    return structuredClone(playBoard(host.head(), session.setup, session.exchanges).result);
 };
 const promptOf = sent => sent.request.chat.filter(m => m.role === 'system').map(m => m.content).join('\n');
 const sender = host => { const out = {}; host.ctx.generate = type => { out.generation = host.st.generate(type, { reply: 'Told.' }); return out.generation; }; return out; };
 
-// seeds chosen so that the fight takes 4+ exchanges (801: 7, 805/806: 4) and the approach check fails or succeeds
-for (const seed of [801, 806]) for (const reload of [false, true]) test(`seed ${seed}: Send with this fight carries every staged exchange, byte for byte, no planner call${reload ? ' (after a reload)' : ''}`, async t => {
+// seeds chosen so that the fight takes 4+ exchanges (802: 6, 806: 7) and the approach check fails or succeeds
+for (const seed of [802, 806]) for (const reload of [false, true]) test(`seed ${seed}: Send with this fight carries every staged exchange, byte for byte, no model call${reload ? ' (after a reload)' : ''}`, async t => {
     const app = await start(t, seed);
     const { host, doc, calls, draw } = app;
     await play(app, 12);
@@ -70,10 +73,10 @@ for (const seed of [801, 806]) for (const reload of [false, true]) test(`seed ${
     doc.querySelector('.rpg-board-send').click();
     const sent = await out.generation;
     assert.equal(sent.aborted, undefined);
-    assert.equal(calls.length, 1, 'the planner ran once, for the opening, and not at Send');
+    assert.equal(calls.length, 0, 'no model call at Send');
     const result = roll(host, sent.index).data.v2.result;
     assert.deepEqual(result.rounds, staged.rounds, 'committed rounds == staged rounds (dice and lines)');
-    assert.deepEqual(result.checks, staged.checks);
+    assert.deepEqual(result.checks ?? [], staged.checks ?? []);
     assert.equal(result.stop, 'won');
     assert.equal((promptOf(sent).match(/Exchange \d+/g) ?? []).length, session.exchanges.length, 'every exchange is told');
     // replay == live; swipe and Re-read keep the same rounds
@@ -84,11 +87,11 @@ for (const seed of [801, 806]) for (const reload of [false, true]) test(`seed ${
     assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
     await host.swipe('Again.');
     assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 0);
 });
 
 test('a vanished session and waiting choice at Send: the copy made at the press still carries the staged fight', async t => {
-    const app = await start(t, 801);
+    const app = await start(t, 802);
     const { host, doc, calls } = app;
     await play(app, 12);
     const staged = stagedRounds(host);
@@ -100,13 +103,13 @@ test('a vanished session and waiting choice at Send: the copy made at the press 
     doc.querySelector('.rpg-board-send').click();
     const sent = await out.generation;
     assert.equal(sent.aborted, undefined);
-    assert.equal(calls.length, 1, 'no planner call');
+    assert.equal(calls.length, 0, 'no model call');
     assert.deepEqual(roll(host, sent.index).data.v2.result.rounds, staged.rounds);
     assert.equal(host.ctx.chatMetadata.rpgFightSend, undefined, 'the copy goes once the reply is received');
 });
 
 test('a fight that cannot be attached refuses the send with a reason and calls nothing', async t => {
-    const app = await start(t, 801);
+    const app = await start(t, 802);
     const { host, doc, calls } = app;
     await play(app, 12);
     let generated = 0;
@@ -116,13 +119,13 @@ test('a fight that cannot be attached refuses the send with a reason and calls n
     doc.querySelector('.rpg-board-send').click();
     await settle();
     assert.equal(generated, 0, 'nothing is sent');
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 0);
     assert.equal(host.ctx.chat.length, chat);
     assert.match(doc.body.textContent, /cannot be attached|no longer matches/);
 });
 
-test('a fled fight is carried the same way: staged == committed, no planner call', async t => {
-    const app = await start(t, 801);
+test('a fled fight is carried the same way: staged == committed, no model call', async t => {
+    const app = await start(t, 802);
     const { host, doc, calls } = app;
     await play(app, 25, label => /flee|run|retreat/i.test(label));
     const session = boardSession(host.ctx.chatMetadata);
@@ -133,7 +136,7 @@ test('a fled fight is carried the same way: staged == committed, no planner call
     doc.querySelector('.rpg-board-send').click();
     const sent = await out.generation;
     assert.equal(sent.aborted, undefined);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 0);
     const result = roll(host, sent.index).data.v2.result;
     assert.deepEqual(result.rounds, staged.rounds);
     assert.equal(result.stop, 'fled');
@@ -141,7 +144,7 @@ test('a fled fight is carried the same way: staged == committed, no planner call
 
 // Round 17: Send is a 'regenerate'; a stale cached payload (rpgFightLast, same anchor) must never beat the staged session.
 for (const exchanges of [1, 2]) test(`a stale cached payload with ${exchanges} exchange(s) does not replace the ${'staged'} fight at Send (path c)`, async t => {
-    const app = await start(t, 801);
+    const app = await start(t, 802);
     const { host, doc, calls } = app;
     await play(app, 12);
     const session = boardSession(host.ctx.chatMetadata);
@@ -155,7 +158,7 @@ for (const exchanges of [1, 2]) test(`a stale cached payload with ${exchanges} e
     doc.querySelector('.rpg-board-send').click();
     const sent = await out.generation;
     assert.equal(sent.aborted, undefined);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 0);
     const result = roll(host, sent.index).data.v2.result;
     assert.deepEqual(result.rounds, staged.rounds, 'every staged exchange is committed');
     assert.equal(result.stop, 'won');
@@ -171,7 +174,7 @@ for (const exchanges of [1, 2]) test(`a stale cached payload with ${exchanges} e
 
 // Round 17b: the waiting reply is released only by "Send with this fight", never by the board holding an exchange.
 test('one exchange on the board does not release the waiting reply; only Send with this fight does (path c)', async t => {
-    const app = await start(t, 801);
+    const app = await start(t, 802);
     const { host, doc } = app;
     let chatLength = host.ctx.chat.length;
     const choice = [...doc.querySelectorAll('.rpg-board-choice')].find(item => !item.disabled);

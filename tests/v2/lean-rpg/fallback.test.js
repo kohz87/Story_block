@@ -3,9 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { parsePlanAnswer, prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
+import { prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
+import { parsePlanAnswer } from './legacy-planner.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
-import { PRECALL_HEAD_STANDARD } from '../../../src/v2/lean-rpg/precall.js';
 import { cueOfResult, cueText, lineText } from '../../../src/v2/lean-rpg/cue.js';
 import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
 import { character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
@@ -55,7 +55,7 @@ test('2/3: with the Mana already empty at the start the action goes on with its 
     assert.deepEqual(actLines(old).slice(0, 2).map(line => [line.skill ?? null, line.type, line.area === true]), [[null, 'magic', true], [null, 'magic', true]]);
 });
 
-test('3: `else:` parses and validates; a backup the character lacks is dropped; the Standard head asks for it in few words', () => {
+test('3: `else:` parses and validates; a backup the character lacks is dropped', () => {
     const s = sheet();
     const { plan } = parsePlanAnswer(['pace: all', `${CUT} | else: Iaijutsu`].join('\n'), s, { formula: 'standard' });
     assert.deepEqual(plan.acts, [{ who: 'Astra', skill: 'Shadow Cut', else: 'Iaijutsu', type: 'magic', area: true, target: 'Rats' }]);
@@ -63,7 +63,6 @@ test('3: `else:` parses and validates; a backup the character lacks is dropped; 
     assert.equal(validatePlan({ ...plan, acts: [{ ...plan.acts[0], else: '' }] }).ok, false);
     assert.equal('else' in parsePlanAnswer(['pace: all', `${CUT} | else: Nothing Known`].join('\n'), s, { formula: 'standard' }).plan.acts[0], false);
     assert.equal('else' in parsePlanAnswer('pace: all\nact Astra | type: physical | target: Rats | else: Iaijutsu', s, { formula: 'standard' }).plan.acts[0], false, 'no skill, no backup');
-    assert.ok(PRECALL_HEAD_STANDARD.includes('- else: the skill to use when the first runs out of Mana or Stamina.'));
 });
 
 test('3: with `else: Iaijutsu` rounds 3+ are named Iaijutsu (its own type and stat, spending Stamina), practice goes only to the skill rolled; the cue names the backup', () => {
@@ -86,7 +85,7 @@ test('3: with `else: Iaijutsu` rounds 3+ are named Iaijutsu (its own type and st
 
 test('3 on the real host: the `else` roll, its practice step and a rebuild, a Re-read and a reload agree', { skip }, async () => {
     const answer = ['pace: all', `${CUT} | else: Iaijutsu`].join('\n');
-    const { host } = await setup({ blocks: blocks(), answers: [answer], settings: { rpgFormula: 'standard' } });
+    const { host } = await setup({ blocks: blocks(), answers: [answer] });
     await host.send('I cut them down.', 'Steel flashes.');
     const at = host.ctx.chat.length - 1;
     const result = rollReceipt(host, at).data.v2.result;

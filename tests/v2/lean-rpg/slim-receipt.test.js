@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
 import { FIX_VERSION } from '../../../src/v2/lean-rpg/open.js';
-import { PRESETS, RESOLVE, STANDARD_FORMULA, DICE_VERSION, FLOW_VERSION, prepare, readSheet, resolve, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
+import { RESOLVE, STANDARD_FORMULA, DICE_VERSION, FLOW_VERSION, prepare, readSheet, resolve, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { cueOfResult, receiptCue } from '../../../src/v2/lean-rpg/cue.js';
 import { fieldMax, positionalDice } from '../../../src/v2/lean-rpg/resolve.js';
 import { hashJson } from '../../../src/v2/replay.js';
@@ -63,13 +63,8 @@ function run({ blocks, plan, rules, dice, flow, seed }) {
 }
 
 const CASES = [
-    ['Classic, dice by position, the flow of stage 49', { blocks: party(), plan: SMALL, rules: PRESETS.standard, dice: true, flow: true }],
-    ['Classic, dice by position, the earlier stop', { blocks: party(), plan: SMALL, rules: PRESETS.standard, dice: true, flow: false }],
-    ['Classic, the earliest dice', { blocks: party(), plan: SMALL, rules: PRESETS.standard, dice: false, flow: false }],
-    ['Classic with refusals', { blocks: party(), plan: REFUSING, rules: PRESETS.standard, dice: true, flow: true }],
     ['Standard', { blocks: party(), plan: SMALL, rules: STANDARD_FORMULA, dice: true, flow: true }],
     ['Standard with refusals', { blocks: party(), plan: REFUSING, rules: STANDARD_FORMULA, dice: true, flow: true }],
-    ['Classic, long names (the cue is shortened)', { blocks: longParty(), plan: longPlan(longParty()), rules: PRESETS.standard, dice: true, flow: true }],
     ['Standard, long names (the cue is shortened)', { blocks: longParty(), plan: longPlan(longParty()), rules: STANDARD_FORMULA, dice: true, flow: true }],
 ];
 
@@ -100,7 +95,7 @@ test('a receipt stored before still carries its text and is read unchanged; a te
 });
 
 test('[Happened] and the Inspector tell the rebuilt cue of a roll that stores none, and the old text as it was', () => {
-    const { text, result } = run({ ...CASES[4][1], seed: 9 });
+    const { text, result } = run({ ...CASES[0][1], seed: 9 });
     const registry = { contexts: () => [] };
     const slim = { id: 'rc1', type: RESOLVE, narrate: true, summary: '', data: { v2: { result } } };
     const old = { id: 'rc2', type: RESOLVE, narrate: true, summary: text, data: { v2: { result } } };
@@ -112,8 +107,8 @@ test('[Happened] and the Inspector tell the rebuilt cue of a roll that stores no
 });
 
 test('a fight through the real turn: the stored receipt has no text, the cue in the request is the rebuilt one, and a Re-read, a rebuild and a reload agree', { skip }, async () => {
-    for (const formula of ['classic', 'standard']) {
-        const { host } = await setup({ settings: { rpgFormula: formula } });
+    for (const formula of ['standard']) {
+        const { host } = await setup();
         const { request } = await host.send('I hit the lead rat.', 'The rats scatter.');
         const receipt = rollReceipt(host, 2);
         assert.equal(receipt.summary, '', `${formula}: no cue text stored`);

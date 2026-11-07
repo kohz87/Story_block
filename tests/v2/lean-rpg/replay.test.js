@@ -4,13 +4,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { CUSTOM_SETTING, DIFFICULTY_SETTING, PRESETS, RESOLVE, ROLLS_QUERY, STANDARD, claimKey, leanRpgGuard, prepare, readSheet, rollsOf } from '../../../src/v2/lean-rpg/index.js';
+import { DIFFICULTY_SETTING, RESOLVE, ROLLS_QUERY, STANDARD, STANDARD_PRESETS as PRESETS, STANDARD_SETTING, claimKey, leanRpgGuard, prepare, readSheet, rollsOf } from '../../../src/v2/lean-rpg/index.js';
+import { fieldMax } from '../../../src/v2/lean-rpg/resolve.js';
 import { hashJson as hashOf } from '../../../src/v2/replay.js';
-import { cueOf, OWNER, PLAN_ANSWER, rollReceipt, setup, tailOf } from './helpers.js';
+import { cueOf, OWNER, PARTY, PLAN_ANSWER, foeBlock, rollReceipt, setup, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
-const ONE = 'act Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats';
+// One careful exchange a reply, against rats tough enough (class IX, 7 blocks) to last the replies a test sends, whatever the dice.
+const ONE = 'pace: careful\nact Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats';
+const tough = () => ({ ...PARTY(), foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 9, 7]]) } });
 const lines = receipt => cueOf(receipt).split('\n').filter(line => line.startsWith('Round'));
 
 function same(host, label = 'a rebuild') {
@@ -78,7 +81,7 @@ test('a Re-read keeps the dice; a swipe and a regenerate draw new ones with a ne
 });
 
 test('deleting the reply removes its dice (and the claim, so the message can be rolled for again)', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE] });
+    const { host } = await setup({ blocks: tough(), answers: [ONE] });
     await host.send('I hit the lead rat.', 'The rats scatter.');
     const key = rollReceipt(host, 2).data.v2.result.key;
     assert.equal(host.head().meta.claims[claimKey(key)], true);
@@ -89,14 +92,14 @@ test('deleting the reply removes its dice (and the claim, so the message can be 
 });
 
 test('an earlier change to the sheet goes: the roll is planned again with the same dice on the numbers that are there now', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE] });
+    const { host } = await setup({ blocks: tough(), answers: [ONE] });
     await host.send('First.', 'One.');
-    // Wessel's STR goes from 14 to 20 on the first reply (his +7 becomes +10), and the second roll is made on that.
+    // Wessel's STR goes from 14 to 20 on the first reply (his +9 becomes +12), and the second roll is made on that.
     assert.equal((await host.bus.command('test.set', { slug: 'wessel', field: 'str', value: 20 }, { cause: 'system' })).ok, true);
     await host.send('Second.', 'Two.');
     const second = rollReceipt(host, 4);
     const [round] = second.data.v2.result.rounds;
-    assert.equal(round.lines[0].pc.statBonus, 10);
+    assert.equal(round.lines[0].pc.statBonus, 12);
     const dieAt = receipt => receipt.data.v2.result.rounds[0].lines[0].pc.die;
     const seed = second.seed;
     const die = dieAt(second);
@@ -107,7 +110,7 @@ test('an earlier change to the sheet goes: the roll is planned again with the sa
     const planned = rollReceipt(host, at);
     assert.equal(planned.seed, seed, 'the same dice');
     assert.equal(dieAt(planned), die);
-    assert.equal(planned.data.v2.result.rounds[0].lines[0].pc.statBonus, 7);
+    assert.equal(planned.data.v2.result.rounds[0].lines[0].pc.statBonus, 9);
     assert.equal(planned.data.v2.result.rounds[0].lines[0].pc.total, total - 3);
     assert.deepEqual(host.store.problems(), [], 'nothing is left inactive');
     same(host);
@@ -116,7 +119,7 @@ test('an earlier change to the sheet goes: the roll is planned again with the sa
 });
 
 test('the guard asks the sheet before the block: it holds while the numbers are the same and says so when they are not', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE] });
+    const { host } = await setup({ blocks: tough(), answers: [ONE] });
     await host.send('First.', 'One.');
     const span = host.ctx.chat[2].extra.storySuite.spans.find(entry => entry.guard?.predicate?.kind === RESOLVE);
     const before = host.store.before(2);
@@ -135,7 +138,7 @@ test('the guard asks the sheet before the block: it holds while the numbers are 
 });
 
 test('a second roll for the same message is refused (one claim per message), and a bad payload stores nothing', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE] });
+    const { host } = await setup({ blocks: tough(), answers: [ONE] });
     await host.send('First.', 'One.');
     const state = JSON.stringify(host.head());
     const { key } = rollReceipt(host, 2).data.v2.result;
@@ -169,7 +172,7 @@ test('the query hands a reply\'s rolls to the battle log: the record, the summar
 });
 
 test('a Re-read of a reply whose rolls were made keeps them when the feature is turned off afterwards', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE] });
+    const { host } = await setup({ blocks: tough(), answers: [ONE] });
     await host.send('First.', 'One.');
     const first = rollReceipt(host, 2);
     host.features.set('story-block.rpg', false);
@@ -184,15 +187,15 @@ test('a Re-read of a reply whose rolls were made keeps them when the feature is 
 const baseOf = receipt => receipt.data.v2.result.rounds[0].lines.find(line => line.kind === 'act').foe.base;
 const setDifficulty = (host, name, custom) => {
     host.settings.set(OWNER, DIFFICULTY_SETTING, name);
-    if (custom) host.settings.set(OWNER, CUSTOM_SETTING, custom);
+    if (custom) host.settings.set(OWNER, STANDARD_SETTING, custom);
 };
 
 test('REPLAY RULE: a roll records the numbers in force, and a Re-read, a rebuild and a reload roll again with those, never the current settings', { skip }, async () => {
-    const { host, callModel } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
+    const { host, callModel } = await setup({ blocks: tough(), answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
     await host.send('First.', 'One.');
     const first = rollReceipt(host, 2);
     assert.deepEqual(first.data.v2.result.rules, { ...PRESETS.harsh, levelDivisor: 5 }, 'the numbers are in the result');
-    assert.equal(baseOf(first), 7);
+    assert.equal(baseOf(first), 6);
     const span = host.ctx.chat[2].extra.storySuite.spans.find(entry => entry.guard?.predicate?.kind === RESOLVE);
     assert.deepEqual(span.recorded.rules, { ...PRESETS.harsh, levelDivisor: 5 }, 'and in the replay inputs');
     assert.equal(span.guard.predicate.rules, hashOf({ ...PRESETS.harsh, levelDivisor: 5 }));
@@ -205,7 +208,7 @@ test('REPLAY RULE: a roll records the numbers in force, and a Re-read, a rebuild
     assert.equal(reread.ok, true);
     assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'a Re-read keeps the harsh numbers (the same dice, the same totals)');
     assert.equal(cueOf(rollReceipt(host, 2)), summary);
-    setDifficulty(host, 'custom', { foeBase: 0, classWeight: 3, statDivisor: 3, costMargin: 5, decisiveMargin: 4, roundCap: 1 });
+    setDifficulty(host, 'custom', { foeBase: 0, classWeight: 3, costMargin: 5, decisiveMargin: 4, roundCap: 1 });
     await host.turn.reread(2);
     assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'and again under Custom');
     same(host, 'a rebuild');
@@ -217,7 +220,7 @@ test('REPLAY RULE: a roll records the numbers in force, and a Re-read, a rebuild
     // New rolls use the settings of their own moment, and the old one still keeps its own.
     await host.send('Second.', 'Two.');
     const second = rollReceipt(host, 4);
-    assert.deepEqual(second.data.v2.result.rules, { foeBase: 0, classWeight: 3, statDivisor: 3, costMargin: 5, decisiveMargin: 4, roundCap: 1, levelDivisor: 5 });
+    assert.deepEqual(second.data.v2.result.rules, { ...STANDARD, foeBase: 0, classWeight: 3, costMargin: 5, decisiveMargin: 4, roundCap: 1, levelDivisor: 5 });
     assert.equal(baseOf(second), 0);
     assert.equal(second.data.v2.result.rounds.length, 1, 'a cap of one exchange');
     assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept);
@@ -230,7 +233,7 @@ test('REPLAY RULE: a roll records the numbers in force, and a Re-read, a rebuild
 });
 
 test('REPLAY RULE: a roll planned again after an earlier reply goes keeps its own numbers, with the same dice, whatever the settings say now', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'gentle' } });
+    const { host } = await setup({ blocks: tough(), answers: [ONE], settings: { rpgDifficulty: 'gentle' } });
     await host.send('First.', 'One.');
     setDifficulty(host, 'harsh');
     await host.send('Second.', 'Two.');
@@ -239,19 +242,19 @@ test('REPLAY RULE: a roll planned again after an earlier reply goes keeps its ow
     await host.send('Third.', 'Three.');
     const third = rollReceipt(host, 6), seed = third.seed;
     assert.deepEqual(third.data.v2.result.rules, { ...PRESETS.harsh, levelDivisor: 5 });
-    assert.equal(third.data.v2.result.rounds[0].lines[0].pc.statBonus, 10);
+    assert.equal(third.data.v2.result.rounds[0].lines[0].pc.statBonus, 12);
     const dieAt = receipt => receipt.data.v2.result.rounds[0].lines[0].pc.die;
     const die = dieAt(third);
 
-    setDifficulty(host, 'custom', { foeBase: 15, classWeight: 1, statDivisor: 2, costMargin: 0, decisiveMargin: 15, roundCap: 8 });
+    setDifficulty(host, 'custom', { foeBase: 15, classWeight: 1, costMargin: 0, decisiveMargin: 15, roundCap: 8 });
     await host.st.deleteMessage(2);
     const at = host.ctx.chat.findLastIndex(message => !message.is_user);
     const planned = rollReceipt(host, at);
     assert.equal(planned.seed, seed, 'the same dice');
     assert.equal(dieAt(planned), die);
     assert.deepEqual(planned.data.v2.result.rules, { ...PRESETS.harsh, levelDivisor: 5 }, 'the numbers it was rolled with, not Custom\'s');
-    assert.equal(baseOf(planned), 7);
-    assert.equal(planned.data.v2.result.rounds[0].lines[0].pc.statBonus, 10);
+    assert.equal(baseOf(planned), 6);
+    assert.equal(planned.data.v2.result.rounds[0].lines[0].pc.statBonus, 12);
     // The reply before it was rolled Harsh too, and stays so.
     const earlier = host.ctx.chat.findIndex((message, index) => index > 0 && !message.is_user);
     assert.deepEqual(rollReceipt(host, earlier).data.v2.result.rules, { ...PRESETS.harsh, levelDivisor: 5 });
@@ -262,13 +265,13 @@ test('REPLAY RULE: a roll planned again after an earlier reply goes keeps its ow
 });
 
 test('a swipe is a new roll and takes the settings of that moment; the swiped-away roll is gone with its numbers', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
+    const { host } = await setup({ blocks: tough(), answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
     await host.send('First.', 'One.');
     assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, { ...PRESETS.harsh, levelDivisor: 5 });
     setDifficulty(host, 'gentle');
     await host.swipe('Another telling.');
     assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, { ...PRESETS.gentle, levelDivisor: 5 }, 'a swipe plans anew, with what the settings say now');
-    assert.equal(baseOf(rollReceipt(host, 2)), 3);
+    assert.equal(baseOf(rollReceipt(host, 2)), 2);
     await host.turn.reread(2);
     assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, { ...PRESETS.gentle, levelDivisor: 5 });
     same(host);
@@ -276,18 +279,19 @@ test('a swipe is a new roll and takes the settings of that moment; the swiped-aw
 });
 
 test('the numbers are in the prompt\'s cue: a harsher fight tells harsher totals', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
+    const { host } = await setup({ blocks: tough(), answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
     const { request } = await host.send('I hit the lead rat.', 'The rats scatter.');
     const receipt = rollReceipt(host, 2);
     assert.ok(tailOf(request).includes(cueOf(receipt)));
     const line = receipt.data.v2.result.rounds[0].lines[0];
     // (From the Levels rules a foe adds floor(level / 5): the rats' class I stands for level 5, so +1.)
-    assert.equal(line.foe.total, line.foe.die + 7 + 1);
+    assert.equal(line.foe.base, 6);
+    assert.equal(line.foe.total, line.foe.die + line.foe.base + line.foe.classBonus);
     host.close();
 });
 
 test('a roll recorded before the numbers were kept stands as it was made, with Standard\'s; damaged numbers do not', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE] });
+    const { host } = await setup({ blocks: tough(), answers: [ONE] });
     await host.send('First.', 'One.');
     const span = host.ctx.chat[2].extra.storySuite.spans.find(entry => entry.guard?.predicate?.kind === RESOLVE);
     const before = host.store.before(2);
@@ -298,7 +302,7 @@ test('a roll recorded before the numbers were kept stands as it was made, with S
     // (and made before the flow of stage 49 and the Levels rules, so without its `flow` or `lv` either)
     const { rules: _a, flow: _c, lv: _e, ...plain } = span.recorded;
     const { rules: _b, flow: _d, lv: _f, ...predicate } = span.guard.predicate;
-    const witness = prepare(plain.plan, readSheet(before), STANDARD).witness;
+    const witness = prepare(plain.plan, readSheet(before), STANDARD, { maxOf: fieldMax(before.domains.dataModules), flow: 1, lv: false, fix: true, then: true }).witness;
     const oldOne = { ...span.guard, predicate, inputHash: hashOf({ source: span.source, predicate, witness }) };
     assert.deepEqual(ask(oldOne, plain), { ok: true }, 'it stands, on Standard\'s numbers');
     assert.equal(ask(oldOne, { ...plain, rules: { ...STANDARD, foeBase: 9 } }).ok, false, 'numbers added to an old roll are not believed');
@@ -313,7 +317,7 @@ test('a roll recorded before the numbers were kept stands as it was made, with S
 });
 
 test('with no Difficulty ever chosen a roll is made with Standard\'s numbers and says so', { skip }, async () => {
-    const { host } = await setup({ answers: [ONE] });
+    const { host } = await setup({ blocks: tough(), answers: [ONE] });
     await host.send('First.', 'One.');
     assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, { ...STANDARD, levelDivisor: 5 });
     host.close();
@@ -325,7 +329,7 @@ const TWO = 'act Wessel | stat: STR | target: Sluice Rats\nact Ren | stat: INT |
 const renDice = receipt => receipt.data.v2.result.rounds.map(round => round.lines.filter(line => line.pc.who === 'Ren').map(line => [line.pc.die, line.foe?.die]));
 
 test('B16: refusing one action never moves another action\'s dice; deleting the reply that made Wessel Down keeps Ren\'s dice', { skip }, async () => {
-    const { host } = await setup({ answers: ['none', TWO] });
+    const { host } = await setup({ blocks: tough(), answers: ['none', TWO] });
     await host.send('First.', 'One.');
     // Wessel goes Down on the first reply, so the second reply's plan refuses his action and Ren acts first in the rounds.
     assert.equal((await host.bus.command('test.set', { slug: 'wessel', field: 'health', value: 0 }, { cause: 'system' })).ok, true);
@@ -347,15 +351,4 @@ test('B16: refusing one action never moves another action\'s dice; deleting the 
     same(host);
     await reloads(host);
     host.close();
-});
-
-test('B16: a roll of the earlier scheme (no dice version in its payload) is still drawn in one sequence, so old records re-read as they were', async () => {
-    const { prepare, rollPrepared, readSheet } = await import('../../../src/v2/lean-rpg/index.js');
-    const { PARTY, sheetDomain } = await import('./helpers.js');
-    const sheet = readSheet({ domains: { dataModules: sheetDomain(PARTY()) } });
-    const plan = { pace: 'careful', acts: [{ who: 'Wessel', stat: 'str', target: 'Sluice Rats' }, { who: 'Ren', stat: 'int', target: 'Sluice Rats' }], foes: [], checks: [] };
-    const drawn = [];
-    const sequence = () => { const die = (drawn.length * 7) % 20 + 1; drawn.push(die); return die; };
-    const rolled = rollPrepared(plan, prepare(plan, sheet), sequence);
-    assert.deepEqual(rolled.rounds[0].lines.flatMap(line => [line.pc.die, line.foe.die]), drawn.slice(0, 4));
 });

@@ -15,7 +15,7 @@ import { prng, seedCrypto } from './helpers/seeded.js';
 import { checkInvariants } from './helpers/oracle.js';
 import { displayLines } from '../../../src/v2/extras.js';
 import { readRecord } from '../../../src/v2/persist.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
 import { memberXp } from '../../../src/v2/lean-rpg/fight.js';
 import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
@@ -153,7 +153,7 @@ for (const seed of SEEDS) {
         await host.send('Hello.', 'The road.');
         await host.send('We set out.', reply('Supplies.', ['+ coin 300', '+ item Torch | qty: 40', '~ place Bluewatch Village | kind: settlement']));
         // The sheets live in the permanent setup; board fights are made among the deletable replies below.
-        const definitions = structuredClone(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
+        const definitions = structuredClone(STANDARD_TEMPLATES.filter(entry => ['character', 'skills', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
         const hero = definitions.find(definition => definition.role === 'character'), skills = definitions.find(definition => definition.role === 'skills'), foes = definitions.find(definition => definition.role === 'foes');
         hero.slug = 'delete-fuzz-hero'; hero.name = 'Delete Fuzz Hero';
         Object.assign(hero.state.who, { default: 'Astra' });
@@ -174,6 +174,9 @@ for (const seed of SEEDS) {
             const made = await host.sdk.command('dm.define', { definition });
             assert.equal(made.ok, true, `seed ${seed}: the board sheet is made: ${made.message}`);
         }
+        // The first reply after a sheet is made settles its derived numbers (sizes, max health); a fight rolled on a sheet that had not settled yet
+        // would legitimately see another sheet once that reply is gone. So one permanent quiet reply settles the sheets before any deletable one.
+        await host.send('Rest.', reply('The camp is quiet.', ['+ coin 1']));
         let boardFights = 0, memberWins = 0, packWins = 0, boardDeletes = 0, memberDeletes = 0, packDeletes = 0, boardReplays = 0, packReplays = 0;
         const base = { coin: coin(host), torches: qty(host, 'Torch') };
         const setup = host.store.headIndex();

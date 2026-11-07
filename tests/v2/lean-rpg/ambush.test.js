@@ -3,10 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { parsePlanAnswer, prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
+import { prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
+import { parsePlanAnswer } from './legacy-planner.js';
 import { EARLIER_RULES } from '../../../src/v2/lean-rpg/rules.js';
 import { STANDARD_FORMULA as STANDARD } from '../../../src/v2/lean-rpg/rules.js';
-import { carriedDrop, PRECALL_HEAD, PRECALL_HEAD_STANDARD, sheetText } from '../../../src/v2/lean-rpg/precall.js';
 import { carriedFrom, dropOf } from '../../../src/v2/lean-rpg/ambush.js';
 import { cueOfResult } from '../../../src/v2/lean-rpg/cue.js';
 import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
@@ -28,13 +28,11 @@ const dice = (table = {}, fallback = 10) => Object.assign((kind, at) => { const 
 const AMBUSH = 'check Wessel | skill: Shadow Step | difficulty: normal | ambush';
 const ACT = 'act Wessel | skill: Iron Breath | target: Sluice Rats';
 
-test('an ambush check parses (Classic and Standard), validates, and a plan keeps the flag', () => {
+test('an ambush check parses, validates, and a plan keeps the flag', () => {
     const answer = ['pace: normal', AMBUSH, ACT, 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n');
-    for (const formula of ['classic', 'standard']) {
-        const { plan } = parsePlanAnswer(answer, sheet(), { formula });
-        assert.deepEqual(plan.checks, [{ who: 'Wessel', skill: 'Shadow Step', difficulty: 'normal', ambush: true }], formula);
-        assert.equal(validatePlan(plan).ok, true, formula);
-    }
+    const { plan } = parsePlanAnswer(answer, sheet());
+    assert.deepEqual(plan.checks, [{ who: 'Wessel', skill: 'Shadow Step', difficulty: 'normal', ambush: true }]);
+    assert.equal(validatePlan(plan).ok, true);
     const plain = parsePlanAnswer(['pace: normal', 'check Wessel | skill: Shadow Step | difficulty: normal', ACT].join('\n'), sheet()).plan;
     assert.equal('ambush' in plain.checks[0], false);
     assert.match(validatePlan({ ...plain, checks: [{ ...plain.checks[0], ambush: 'yes' }] }).errors[0], /ambush must be true/);
@@ -50,7 +48,7 @@ test('a plan with no ambush check gives no ambush edge: an act\'s own "+2 ambush
     assert.equal(parsePlanAnswer(['pace: normal', 'act Wessel | skill: Iron Breath | target: Sluice Rats | edge: -2 trap'].join('\n'), sheet()).plan.acts[0].edge, -2);
 });
 
-test('Classic: a successful ambush check gives round-1 acts +2 and not round 2; a failed one gives nothing; the record, the cue and the panel tell it', () => {
+test('a successful ambush check gives round-1 acts +2 and not round 2; a failed one gives nothing; the record, the cue and the panel tell it', () => {
     const plan = parsePlanAnswer(['pace: normal', AMBUSH, ACT, 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n'), sheet()).plan;
     const prepared = prepare(plan, sheet(), EARLIER_RULES);
     assert.equal(prepared.checks[0].ambush, true);
@@ -106,28 +104,10 @@ test('without an ambush check the roll has no ambush record and no edge (a plan 
     assert.ok(result.rounds[0].lines.every(line => line.pc.edge === 0));
 });
 
-test('the planner heads carry the ambush rule (any skill that sets up a fight, judged from its description) and the shorter stat wording', () => {
-    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.includes('is a check with that skill and ambush, in the same plan as the attack. No ambush edge without one.'));
-        assert.ok(head.includes('lure, distract, slip behind; judge by its description'));
-        assert.ok(!head.includes('edge: ambush +2'));
-        assert.ok(head.includes('| ambush?'));
-    }
-    assert.ok(PRECALL_HEAD_STANDARD.includes('A skill brings its own stat; leave the stat out.'));
-    assert.ok(!PRECALL_HEAD_STANDARD.includes('A skill brings its stat: write none.'));
-});
-
-test('the planner sees a skill\'s own description, so a non-stealth skill ("slips through shadow to reappear behind a foe") can be judged an ambush', () => {
-    assert.match(sheetText(sheet()), new RegExp(`Shadow Step \\(Adept, AGI: ${SHADOW}\\)`));
-    const long = readSheet({ domains: { dataModules: sheetDomain({ ...blocks(), 'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', [['Long', 0, 'str', 'stamina', 'x'.repeat(200)]]) } }) } });
-    assert.ok(sheetText(long).includes(`Long (Novice, STR: ${'x'.repeat(69)}…)`), 'cut at 70 characters');
-});
-
 test('on the real host: a planner answer with an ambush check for the shadow skill is rolled, recorded and told', { skip }, async () => {
     const answer = ['pace: normal', AMBUSH, ACT, 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n');
-    const { host, callModel } = await setup({ blocks: blocks(), answers: [answer] });
+    const { host } = await setup({ blocks: blocks(), answers: [answer] });
     await host.send('I slip behind the rats with Shadow Step, then strike.', 'The rats turn.');
-    assert.match(callModel.calls[0].prompt, new RegExp(SHADOW));
     const result = rollReceipt(host, 2).data.v2.result;
     assert.equal(result.checks[0].ambush, true);
     assert.equal(typeof result.ambush.success, 'boolean');
@@ -163,11 +143,9 @@ test('A2: a successful ambush check in a roll with no act is kept as a drop (the
     assert.match(cueOfResult(record), /; ambush works: you have the drop/);
     assert.doesNotMatch(cueOfResult(record), /strikes first/);
     assert.match(panelText(readResolve(record)), /Ambush: Wessel's Shadow Step check — Success \(\d+ vs \d+\): you have the drop; \+2 on the next reply's fight/);
-    // the pre-call reads it from the previous reply's receipt into the payload
-    const carried = carriedDrop({ query: (name, args) => (args.index === 4 ? { result: record } : null) }, 5);
+    // the next reply's pre-call (the legacy stand-in) carries it from the receipt
+    const carried = dropOf(record);
     assert.deepEqual(carried, { who: 'Wessel', skill: 'Shadow Step', total: first.ambush.total, dc: first.ambush.dc });
-    assert.equal(carriedDrop({ query: () => ({ result: record }) }, 9) !== null, true);
-    assert.equal(carriedDrop({ query: () => null }, 5), null, 'no roll in the reply before: gone');
     // the next reply's roll with acts spends it
     const attack = parsePlanAnswer(['pace: normal', ACT, 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n'), sheet()).plan;
     const second = rollPrepared(attack, prepare(attack, sheet(), EARLIER_RULES), dice(), EARLIER_RULES, { drop: carried });
