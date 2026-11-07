@@ -67,16 +67,19 @@ export function createHostSetup({ runtime, ctx, doc, registry, store, sdk, openS
     });
     // Home's rebuild banner and the Inspector's Problem-row button share one widget and one last result (the timeline's `host.rebuild`).
     let rebuilt = null;
+    const rebuildScope = () => liveCtx()?.chatMetadata ?? null;
     const rebuildBlocked = () => runtime.timeline?.blocked?.() ?? null;
     const rebuildBanner = createRebuildBannerWidget({
         blocked: rebuildBlocked,
+        scope: rebuildScope,
         rebuild: async (module, input) => {
+            const holder = rebuildScope();
             const result = await runtime.timeline.host.rebuild(module, input);
-            if (result?.ok) rebuilt = result;
+            if (result?.ok && rebuildScope() === holder) rebuilt = { holder, result };
             return result;
         },
-        last: () => rebuilt,
-        dismiss: () => { rebuilt = null; },
+        last: () => (rebuilt?.holder === rebuildScope() ? rebuilt.result : null),
+        dismiss: () => { if (rebuilt?.holder === rebuildScope()) rebuilt = null; },
     });
     const hostWidgets = {
         ...blockWidgets.widgets,

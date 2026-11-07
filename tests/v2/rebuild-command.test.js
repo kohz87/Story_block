@@ -45,7 +45,7 @@ function harness({ blocked = null, call = null, fallbackEmpty = null, release = 
     const deps = {
         archive,
         block,
-        participants: { get: module => (module === MOD ? { schema: 1 } : null) },
+        participants: { get: module => (module === MOD ? { schema: 1, rebuild() {} } : null) },
         callParticipant: async (module, name, input) => {
             calls.push({ module, name, input, selectionAtCall: Object.keys(archive.selection()) });
             if (pending.call) return pending.call(module, name, input, archive);
@@ -108,6 +108,21 @@ test('a permanent CONFLICT or DEPENDENCY_UNAVAILABLE is rebuildable; a non-empty
     const h = harness({ blocked: permanent('SNAPSHOT_UNAVAILABLE'), fallbackEmpty: () => false, seed: false });
     assert.equal((await h.rebuild(MOD)).code, 'REFUSED');
     assert.equal(h.meta.storySuite, undefined);
+});
+
+test('rebuild preserves the pending selection when support or fallback confirmation is missing', async () => {
+    for (const missing of ['callback', 'fallback', 'unknown-fallback']) {
+        const h = harness({ blocked: permanent() });
+        if (missing === 'callback') h.deps.participants = { get: () => ({ schema: 1 }) };
+        if (missing === 'fallback') h.deps.fallbackEmpty = null;
+        if (missing === 'unknown-fallback') h.deps.fallbackEmpty = () => undefined;
+        const before = JSON.stringify(h.meta);
+        const answer = await createRebuild(h.s, h.deps).rebuild(MOD);
+        assert.equal(answer.code, missing === 'callback' ? 'UNSUPPORTED' : 'REFUSED');
+        assert.equal(JSON.stringify(h.meta), before, 'the journal and selected checkpoints are unchanged');
+        assert.equal(h.calls.length, 0);
+        assert.equal(h.barriers.length, 0);
+    }
 });
 
 test('the default reads 40; the callback sees the fresh journal entry and the selected checkpoint is already dropped', async () => {

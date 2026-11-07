@@ -47,7 +47,7 @@ export function rebuildTarget(blocked) {
  */
 export function createRebuildBannerWidget({
     blocked = () => null, rebuild = async () => ({ ok: false, code: 'FAILED', message: REBUILD_TEXT.failed }),
-    progress = () => null, last = () => null, dismiss = () => {},
+    progress = () => null, last = () => null, dismiss = () => {}, scope = () => null,
 } = {}) {
     return Object.freeze({
         props: {},
@@ -66,6 +66,20 @@ export function createRebuildBannerWidget({
             let dismissed = null;
             let drawn = 0;
             let gone = false;
+            const currentScope = () => { try { return scope(); } catch { return null; } };
+            let owner = currentScope();
+            let scopeEpoch = 0;
+
+            function resetForChat() {
+                const current = currentScope();
+                if (current === owner) return false;
+                owner = current;
+                scopeEpoch += 1;
+                phase = 'idle'; dialogTarget = null; choice = REBUILD_READ_LAST;
+                working = null; done = null; failure = null; dismissed = null;
+                drawn += 1;
+                return true;
+            }
 
             const paint = nodes => {
                 if (gone) return;
@@ -120,6 +134,7 @@ export function createRebuildBannerWidget({
                     phase = failure ? 'failed' : 'idle';
                     dialogTarget = null;
                     choice = REBUILD_READ_LAST;
+                    if (inline && typeof props?.onCancel === 'function') { props.onCancel(); return; }
                     draw();
                 });
                 buttons.append(start, cancel);
@@ -181,6 +196,7 @@ export function createRebuildBannerWidget({
                 : null);
 
             function openDialog(target) {
+                if (resetForChat()) { draw(); return; }
                 dialogTarget = target;
                 choice = REBUILD_READ_LAST;
                 phase = 'dialog';
@@ -189,6 +205,9 @@ export function createRebuildBannerWidget({
             }
 
             async function begin(module, read) {
+                if (resetForChat()) { draw(); return; }
+                const startedIn = owner;
+                const startedEpoch = scopeEpoch;
                 phase = 'working';
                 dialogTarget = null;
                 working = { module, read };
@@ -198,6 +217,7 @@ export function createRebuildBannerWidget({
                 let result;
                 try { result = await rebuild(module, { read }); } catch (error) { result = { ok: false, code: 'FAILED', message: error?.message ?? String(error) }; }
                 if (gone) return;
+                if (currentScope() !== startedIn || owner !== startedIn || scopeEpoch !== startedEpoch) { resetForChat(); draw(); return; }
                 working = null;
                 if (!result || result.ok === false) {
                     failure = { module, message: typeof result?.message === 'string' && result.message ? result.message : REBUILD_TEXT.failed };
@@ -214,6 +234,7 @@ export function createRebuildBannerWidget({
             }
 
             async function draw() {
+                resetForChat();
                 const mine = ++drawn;
                 if (gone) return;
                 if (phase === 'dialog') { paint([dialog()]); return; }
@@ -236,7 +257,7 @@ export function createRebuildBannerWidget({
 
             const offs = [];
             if (typeof api?.on === 'function') {
-                for (const name of ['head', 'committed', 'turn', 'feature', 'timeline']) {
+                for (const name of ['head', 'committed', 'turn', 'feature', 'timeline', 'modules']) {
                     try {
                         const off = api.on(name, () => { draw(); });
                         if (typeof off === 'function') offs.push(off);

@@ -170,6 +170,50 @@ test('a result already recorded is drawn as the done note; destroy removes the w
     assert.equal(host.children.length, 0);
 });
 
+test('the note and a late rebuild result do not appear in another chat', async () => {
+    const a = {}, b = {};
+    let current = a, finish;
+    const { host, handle } = mount({
+        scope: () => current,
+        blocked: () => current === a ? block() : null,
+        rebuild: () => new Promise(resolve => { finish = resolve; }),
+    });
+    await tick();
+    host.querySelector('.rebuild-start').click();
+    host.querySelector('.rebuild-confirm').click();
+    current = b;
+    handle.update();
+    await tick();
+    finish({ ok: true, read: REBUILD_READ_LAST });
+    await tick();
+    assert.equal(host.querySelector('.rebuild-note'), null);
+    current = a;
+    handle.update();
+    await tick();
+    assert.ok(host.querySelector('.rebuild-start'));
+    host.querySelector('.rebuild-start').click();
+    host.querySelector('.rebuild-confirm').click();
+    finish({ ok: true, read: REBUILD_READ_LAST });
+    await tick();
+    assert.ok(host.querySelector('.rebuild-note'));
+    current = b;
+    handle.update();
+    await tick();
+    assert.equal(host.querySelector('.rebuild-note'), null);
+});
+
+test('a module lifecycle event redraws the permanent-block banner', async () => {
+    const doc = setupDom(), host = doc.createElement('div'), handlers = {};
+    let held = null;
+    createRebuildBannerWidget({ blocked: () => held }).render(host, {}, { on: (name, fn) => { handlers[name] = fn; } });
+    await tick();
+    assert.equal(host.children.length, 0);
+    held = block();
+    handlers.modules();
+    await tick();
+    assert.ok(host.querySelector('.rebuild-start'));
+});
+
 // ---- Step 2: strings, Home, the Inspector's Problem row, the timeline's host command ------------------
 
 test('the words live in strings/screens.js and match the approved mockup', () => {
@@ -216,6 +260,20 @@ test('the Inspector Problem row has the button while the block is permanent: its
     await tick();
     assert.deepEqual(calls, [['npc-state-delta', { read: REBUILD_READ_LAST }]]);
     assert.ok(row.querySelector('.rebuild-note'));
+});
+
+test('Cancel in the Inspector restores the Problem-row button', async () => {
+    const { el, calls } = inspectorWith(block(), []);
+    const button = el.querySelector('.sb-insp-rebuild');
+    button.click();
+    await tick();
+    el.querySelector('.rebuild-cancel').click();
+    assert.equal(button.hidden, false);
+    assert.equal(el.querySelector('.rebuild-dialog'), null);
+    button.click();
+    await tick();
+    assert.ok(el.querySelector('.rebuild-dialog'));
+    assert.deepEqual(calls, []);
 });
 
 test('the button goes on the reply row that carries the cause (once); a retrying or free chat has none', () => {

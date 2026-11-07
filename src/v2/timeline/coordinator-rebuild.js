@@ -89,14 +89,16 @@ export function createRebuild(s, deps) {
         if (!plan.ok) return plan;
         const blockedNow = permanentFor(module);
         if (!blockedNow) return fail('REFUSED', 'This branch is not blocked by a permanent dossier failure, so there is nothing to rebuild.');
-        if (participants && typeof participants.get === 'function' && !participants.get(module)) {
-            return fail('SNAPSHOT_UNAVAILABLE', `The participant ${module} is not registered.`);
+        if (participants && typeof participants.get === 'function') {
+            const participant = participants.get(module);
+            if (!participant) return fail('SNAPSHOT_UNAVAILABLE', `The participant ${module} is not registered.`);
+            // Do not discard a selection before learning whether this participant can rebuild it.
+            if (typeof participant.rebuild !== 'function') return fail('UNSUPPORTED', `The participant ${module} cannot rebuild its dossiers.`);
         }
-        if (typeof fallbackEmpty === 'function') {
-            let empty;
-            try { empty = await fallbackEmpty(module); } catch { empty = false; }
-            if (empty === false) return fail('REFUSED', 'An earlier saved point can still be checked for this branch, so it is not rebuilt yet.');
-        }
+        // Until the fallback coordinator confirms its candidates are exhausted, keep the old selection intact.
+        let empty = false;
+        try { if (typeof fallbackEmpty === 'function') empty = await fallbackEmpty(module); } catch { /* fail closed */ }
+        if (empty !== true) return fail('REFUSED', 'Earlier saved points have not all been checked for this branch, so it is not rebuilt yet.');
         const now = headNow();
         if (!now) return fail('NOT_FOUND', 'This chat has no story state yet.');
         const reply = replyNumberAt(now.boundary, chat());

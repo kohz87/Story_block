@@ -352,7 +352,7 @@ export function createInspectorWidget(source, { enabled = () => true, rebuild = 
                     go.type = 'button';
                     go.addEventListener('click', () => {
                         go.hidden = true;
-                        rebuild.widget.render(slot, { inline: true, open: true }, {});
+                        const widget = rebuild.widget.render(slot, { inline: true, open: true, onCancel: () => { widget.destroy(); go.hidden = false; } }, {});
                     });
                     row.append(go, slot);
                 };
@@ -420,7 +420,7 @@ export function createInspectorWidget(source, { enabled = () => true, rebuild = 
 
             const offs = [];
             if (typeof api?.on === 'function') {
-                for (const name of ['head', 'committed', 'turn']) {
+                for (const name of ['head', 'committed', 'turn', 'modules']) {
                     try {
                         const off = api.on(name, () => redraw());
                         if (typeof off === 'function') offs.push(off);

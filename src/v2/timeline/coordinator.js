@@ -41,10 +41,10 @@ const settled = entry => (ENDS[entry.kind] ?? []).includes(entry.phase);
  * * `query(name, args, state)`: a registered query over `state` (the clock, the atlas, the journal), or throws when there is none;
  * * `problem(entry)`: told of a Problem the host reader should see (faded messages that could not be hidden); `redraw(index, message)`: told when a
  *   message's hidden flag changed, so the page can draw it;
- * * `fallbackEmpty(module)`: whether no earlier saved point can still be checked for that module (the fallback chain is empty); rebuild needs it. Without a fallback chain it is always true;
+ * * `fallbackEmpty(module)`: whether earlier saved points have all been checked for that module; rebuild fails closed without this confirmation;
  * * `faults`: `{ at(phase) }`, awaited at every phase boundary (tests simulate a crash by throwing `crash()` there).
  */
-export function createTimeline({ store, registry, metadata, chat = () => [], barrier = () => {}, announce = null, query = null, settings = () => ({}), faults = null, problem = null, redraw = null, fallbackEmpty = () => true }) {
+export function createTimeline({ store, registry, metadata, chat = () => [], barrier = () => {}, announce = null, query = null, settings = () => ({}), faults = null, problem = null, redraw = null, fallbackEmpty = () => false }) {
     // The timeline's state: one object, so the parts of the timeline can share it (`s.name`).
     const s = {
         // The chat the running operation began in (operations run one at a time): every write and every clean-up of it is bound to that

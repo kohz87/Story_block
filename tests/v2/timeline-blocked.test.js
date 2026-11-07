@@ -114,6 +114,17 @@ test('status and head carry the reason, the code and who blocks', async t => {
     assert.match(host.registry.restore().reason, /backup.*open the original chat/);
 });
 
+test('a blocked participant without rebuild support keeps its journal and barrier intact', async t => {
+    const { host, native } = await setup(t);
+    for (const id of Object.keys(native.checkpoints)) native.missing.add(id);
+    await host.st.deleteMessage(4);
+    const before = JSON.stringify(host.ctx.chatMetadata);
+    assert.equal((await host.timeline.host.rebuild(NATIVE)).code, 'UNSUPPORTED');
+    assert.equal(JSON.stringify(host.ctx.chatMetadata), before);
+    assert.equal(host.registry.restore().state, 'pending');
+    assert.equal(host.timeline.blocked().blockedBy.code, 'SNAPSHOT_UNAVAILABLE');
+});
+
 test('a callback that runs out of time is STALE (retry shortly), not a lost snapshot, and the late call stays quarantined', async t => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const native = nativeModule();
