@@ -15,15 +15,15 @@ const list = store => store.problems().map(problem => [problem.index, problem.bl
 function uncheckpointed(chat) {
     const h = harness([guarded()], NONE);
     const copy = clone(chat);
-    for (const message of copy) {
+    copy.forEach((message, at) => {
         const record = message.extra?.storySuite;
-        if (!record) continue;
-        delete record.checkpoint;
+        if (!record) return;
+        if (at > 0) delete record.checkpoint;      // (the first record is the story's base: it keeps its state)
         delete record.covers;
         delete record.coverHash;
         delete record.prefix;
         delete record.carried;
-    }
+    });
     h.chat.splice(0, h.chat.length, ...copy);
     h.store.rebuild();
     return h;

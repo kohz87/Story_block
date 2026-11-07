@@ -120,7 +120,14 @@ export function createWalk(s, deps) {
                 if (refusing.length) throw new Error(`A later change (message ${i}) depends on this reply's old story changes: ${refusing[0].why}`);
                 const snapshot = packProblems(acc, sidAtNow);      // (before this record: what a checkpoint here carries)
                 // A block that stays skipped is passed over without a try: its Problem is the one it had.
-                for (const old of known) if (old.index === i && broken.has(`${old.index}:${old.block}`) && !failed.some(problem => problem.block === old.block)) failed.push(old);
+                // It is numbered as the rewritten record numbers it (`out.placed`), and dropped when its block went with the rewrite.
+                for (const old of known) {
+                    if (old.index !== i || !broken.has(`${old.index}:${old.block}`)) continue;
+                    if (out.placed && !out.placed.has(old.block)) continue;
+                    const block = out.placed ? out.placed.get(old.block) : old.block;
+                    if (!failed.some(problem => problem.block === block && problem.why === old.why)) failed.push(block === old.block ? old : { ...old, block });
+                }
+                failed.sort((x, y) => x.block - y.block);      // (as a full replay lists them: by block)
                 acc.push(...failed);
                 const { planned: made = 0, removed: gone = 0, ...fields } = out.fields ?? {};
                 if (out.fields) {
