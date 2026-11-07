@@ -151,9 +151,11 @@ export function createRebuild(s, deps) {
                 return released;
             }
         }
-        try { problem?.({ module, code: REBUILD_PROBLEM_CODE, message: rebuildMessage(reply) }); } catch { /* the reader's list is optional */ }
+        // A participant that reads on after answering (`started: true`, with its `progress()`) records nothing yet: the banner's note tells when it is done.
+        const started = answer.started === true;
+        if (!started) try { problem?.({ module, code: REBUILD_PROBLEM_CODE, message: rebuildMessage(reply) }); } catch { /* the reader's list is optional */ }
         await point('rebuild.completed');
-        return { ok: true, module, reply, read: plan.read, replies: plan.replies, rebuilt: entry.id };
+        return { ok: true, module, reply, read: plan.read, replies: plan.replies, rebuilt: entry.id, started };
     }
 
     return { rebuild };

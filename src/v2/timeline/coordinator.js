@@ -29,7 +29,7 @@ import { crashing, fail, isNotDurable, isObject, isStaleChat, makeId, notDurable
 
 export { MANUAL_LIMIT } from './coordinator-prepare.js';
 // The phases a journal entry ends in, by kind; any other is work to recover.
-const ENDS = Object.freeze({ make: ['committed', 'discarded', 'aborted'], restore: ['complete', 'aborted', 'retracted'], 'native-mutation': ['done', 'aborted'], 'native-event': ['done', 'aborted'], selection: ['complete'] });
+const ENDS = Object.freeze({ make: ['committed', 'discarded', 'aborted'], restore: ['complete', 'aborted', 'retracted'], 'native-mutation': ['done', 'aborted'], 'native-event': ['done', 'aborted'], selection: ['complete', 'rebuilt'] });
 const settled = entry => (ENDS[entry.kind] ?? []).includes(entry.phase);
 
 /**
@@ -41,15 +41,18 @@ const settled = entry => (ENDS[entry.kind] ?? []).includes(entry.phase);
  * * `query(name, args, state)`: a registered query over `state` (the clock, the atlas, the journal), or throws when there is none;
  * * `problem(entry)`: told of a Problem the host reader should see (faded messages that could not be hidden); `redraw(index, message)`: told when a
  *   message's hidden flag changed, so the page can draw it;
- * * `fallbackEmpty(module)`: whether earlier saved points have all been checked for that module; rebuild fails closed without this confirmation;
+ * * `fallbackEmpty(module)`: whether earlier saved points have all been checked for that module; rebuild fails closed without this confirmation
+ *   (by default: the head-selection fallback walked every earlier point of that module in this chat and none could be used, `s.exhausted`);
  * * `faults`: `{ at(phase) }`, awaited at every phase boundary (tests simulate a crash by throwing `crash()` there).
  */
-export function createTimeline({ store, registry, metadata, chat = () => [], barrier = () => {}, announce = null, query = null, settings = () => ({}), faults = null, problem = null, redraw = null, fallbackEmpty = () => false }) {
+export function createTimeline({ store, registry, metadata, chat = () => [], barrier = () => {}, announce = null, query = null, settings = () => ({}), faults = null, problem = null, redraw = null, fallbackEmpty = null }) {
     // The timeline's state: one object, so the parts of the timeline can share it (`s.name`).
     const s = {
         // The chat the running operation began in (operations run one at a time): every write and every clean-up of it is bound to that
         // chat, and when another one is open it touches nothing there (`staleChat`, answered STALE).
         scope: null,
+        // module -> the chat (archive holder) whose head selection walked every earlier saved point without finding one that holds (rebuild's confirmation)
+        exhausted: new Map(),
         capability: Object.freeze({ timeline: 'story-block' }),
         handles: new Map(),
         broken: new Map(),  // module -> why its participant declaration was not registered
@@ -172,7 +175,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     const isHost = auth => auth === s.capability || auth?.capability === s.capability;
     // A change that is outstanding: a restore committed and not complete, a native change prepared and not done (`ignore`: the one being settled).
     const pendingEntry = (ignore = null) => archive.entries().find(entry => entry.id !== ignore && entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
-        ?? archive.entries().find(entry => entry.id !== ignore && entry.kind === 'selection' && entry.phase !== 'complete')
+        ?? archive.entries().find(entry => entry.id !== ignore && entry.kind === 'selection' && !['complete', 'rebuilt'].includes(entry.phase))
         ?? archive.entries().find(entry => entry.id !== ignore && ['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared')
         ?? null;
     const pendingNow = () => {
@@ -211,7 +214,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     const { complete, activate, abort, recover, unmaterializedMarkers } = createRestore(s, { store, registry, announce, problem, archive, participants, block, abortEntry, availability, durable, finish, finishNative, finishSelection, headNow, here, makeNow, owe, pendingEntry, pendingNow, point, pointsOf, publishRestore, raise, release, selectionNeeded, session, stillHere, syncHidden, withWholePrefixes });
 
     // The rebuild half (coordinator-rebuild.js): a permanently blocked branch starts its dossiers again from the chat.
-    const { rebuild } = createRebuild(s, { archive, block, callParticipant, durable, headNow, here, point, release: id => release(id), barrier, raise, problem, chat, fallbackEmpty, participants });
+    const { rebuild } = createRebuild(s, { archive, block, callParticipant, durable, headNow, here, point, release: id => release(id), barrier, raise, problem, chat, fallbackEmpty: fallbackEmpty ?? (module => s.exhausted.get(module) === archive.holder()), participants });
 
     // ---- the API -----------------------------------------------------------------------------------------------
 
@@ -254,8 +257,15 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         /** The participant prefix map entry for a participant and the cursor and prefix hash of a head, or null. */
         prefix: (participant, cursor, prefixHash) => structuredClone(archive.prefix(participant, prefixKey(cursor, prefixHash))),
         participants: () => participants.modules(),
-        /** Starts a permanently blocked module's dossiers again from the chat: rebuild(module, { read: 'last-40' | 'all' }). Host only (a button), never a module. */
-        rebuild: (module, input) => guarded(() => rebuild(module, input)),
+        /** Starts a permanently blocked module's dossiers again from the chat: rebuild(module, { read: 'last-40' | 'all' }), run one at a time like every operation. Host only (a button), never a module. */
+        rebuild: (module, input) => exclusive(() => guarded(() => rebuild(module, input))),
+        /** The catch-up the banner shows: the first participant that is reading, else the first with an ended outcome, else null (a synchronous read). */
+        progress: () => {
+            const all = participants.modules().map(module => participants.progress(module)).filter(Boolean);
+            return all.find(item => item.active) ?? all.find(item => item.outcome) ?? null;
+        },
+        /** Skip (after the reader confirmed): stops the module's running catch-up and keeps what is installed. Not an operation of the journal. */
+        skip: module => guarded(() => participants.skip(module)),
     });
 
     return Object.freeze({

@@ -74,7 +74,10 @@ export function createNative(s, deps) {
             countReplies: index => Number.isInteger(headIndex) ? replyIndexes.filter(at => at > (index ?? -1) && at <= headIndex).length : null,
             prepare: input => callParticipant(module, 'prepare', { return: entry.id, ...input }),
         });
+        // The whole chain was walked and none held (the original failure comes back unchanged, with no candidate): nothing is left to fall back to.
+        if (!walked.ok && !walked.target && !walked.replan && canFallback(walked.code)) s.exhausted.set(module, archive.holder());
         if (!walked.ok) return walked;
+        s.exhausted.delete(module);
         const to = { module, checkpoint: walked.target.checkpoint, hash: walked.target.hash, schema: walked.target.schema };
         const slot = { prepared: walked.prepared.prepared, ack: false };
         const previous = archive.get(entry.id);

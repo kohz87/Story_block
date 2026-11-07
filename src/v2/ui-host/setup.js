@@ -16,6 +16,7 @@ import { createInspectorSource } from '../inspect.js';
 import { createSavePoints } from '../rewind.js';
 import { createInspectorWidget, INSPECTOR_WIDGET } from '../screens/inspector.js';
 import { createSavePointsWidget, SAVEPOINTS_WIDGET } from '../screens/savepoints.js';
+import { replyNumberAt } from '../timeline/coordinator-rebuild.js';
 import { createRebuildBannerWidget, REBUILD_BANNER_WIDGET } from '../screens/rebuild-banner.js';
 import { createReadyHintWidget, READY_HINT_WIDGET } from '../screens/ready-hint.js';
 import { RPG_START_WIDGET } from '../screens/home.js';
@@ -75,9 +76,14 @@ export function createHostSetup({ runtime, ctx, doc, registry, store, sdk, openS
         rebuild: async (module, input) => {
             const holder = rebuildScope();
             const result = await runtime.timeline.host.rebuild(module, input);
-            if (result?.ok && rebuildScope() === holder) rebuilt = { holder, result };
+            // A participant that reads on (`started`) is followed through `catchUp()`; only an instant rebuild leaves a result to show.
+            if (result?.ok && !result.started && rebuildScope() === holder) rebuilt = { holder, result };
             return result;
         },
+        catchUp: () => runtime.timeline?.host?.progress?.() ?? null,
+        skip: module => runtime.timeline.host.skip(module),
+        // The scan marker is a message position; the reader counts replies (the story replies through it).
+        replyOf: index => replyNumberAt({ index }, ctx.chat ?? []) ?? index + 1,
         last: () => (rebuilt?.holder === rebuildScope() ? rebuilt.result : null),
         dismiss: () => { if (rebuilt?.holder === rebuildScope()) rebuilt = null; },
     });

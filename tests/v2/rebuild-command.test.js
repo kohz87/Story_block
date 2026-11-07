@@ -133,7 +133,7 @@ test('the default reads 40; the callback sees the fresh journal entry and the se
         return { ok: true };
     } });
     const answer = await h.rebuild(MOD);
-    assert.deepEqual(answer, { ok: true, module: MOD, reply: 3, read: REBUILD_READ_LAST, replies: 40, rebuilt: 'hs_select01' });
+    assert.deepEqual(answer, { ok: true, module: MOD, reply: 3, read: REBUILD_READ_LAST, replies: 40, rebuilt: 'hs_select01', started: false });
     assert.deepEqual(h.calls[0].input, { return: 'hs_select01', read: REBUILD_READ_LAST, replies: 40 });
     assert.equal(h.calls[0].name, 'rebuild');
     assert.equal(h.calls[0].module, MOD);

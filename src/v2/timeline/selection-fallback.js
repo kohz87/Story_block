@@ -127,6 +127,13 @@ export function createSelectionFallback({ archive, store, witnessStateHash = sta
 export function settledPlan(plan, selection, entries) {
     let result = plan;
     for (const entry of entries) {
+        // A module whose dossiers were started again from the chat has no selected checkpoint until it publishes the new one: the old plan is not a selection to make.
+        if (entry.kind === 'selection' && entry.phase === 'rebuilt') {
+            for (const [module, slot] of Object.entries(entry.slots ?? {})) {
+                if (slot?.rebuilt === true && !selection[module] && result[module]) { result = { ...result }; delete result[module]; }
+            }
+            continue;
+        }
         if (entry.kind !== 'selection' || entry.phase !== 'complete') continue;
         for (const fell of [].concat(entry.fell ?? [], entry.fellOthers ?? [])) {
             const { module, from, to } = fell;
