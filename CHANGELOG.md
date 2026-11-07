@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.25.0
+- **Fights happen on the fight board, by hand or with Auto.** Classic rules and the roll planner are gone: Standard is the only rule set, and no model call is made before a reply.
+  - **Auto** plays exchanges for the party: it finishes the weakest foe, heals an ally below half Health, defends when hurt, and never flees. It stops at the cap, when the fight is won or lost, or when a hero is badly hurt.
+  - **The cap** is a slider in Settings → RPG → Fight board: 1–8 exchanges, or "Until the end". The default is 3.
+  - **When the story brings in foes,** the offer line under that reply gets **Fight on the board** and **Auto-fight**. Nothing is held: you start the fight when you choose.
+  - **A typed attack on a standing foe** holds the send with just those two choices. "Narrate it instead" is gone. To get away, open the board and pick Flee.
+  - **The narrator opens foes** through the board's foe lines.
+  - **Fights recorded before this version** (planner rolls, board fights) replay, Re-read and draw exactly as before.
+  - A pack that asks for `formula: 'classic'` is refused with a clear message.
+- **Foes you fled from come back as you left them.** The next board fight against the same foes starts from their exact bars ("↺ These foes are as you left them…"), unless the story changed them since.
+- **When a branch's newest saved point can't be restored, Story Block falls back to the nearest earlier one** that the modules can verify. "Return here" and save points stay exact. The Inspector says "Dossiers were restored to the nearest saved point (reply N)…".
+  - Modules are told through a new optional `restored({ from, to, reason })` callback, and can read Story Block's state as of any reply with `sdk.query(name, { asOf })`.
+  - **The Home banner** shows the dossiers catching up (reply N of M, with Skip), and offers "Start this branch's dossiers from the chat" when nothing can be restored.
+- **Re-read keeps a broken block's Problem after the record is renumbered.** The head's Problems could drift from a full replay (fuzz seed 137); the replay fuzz now passes all 320 runs.
+- **Lighter page start:** the pack checker, the Diagnostics page and the UI sample load on first use (412 → 404 files at start). Nothing is written and no reply is sent from a read made before the checker lands.
+- The battle log's cap hint names the setting's real place (Difficulty → Custom).
+- Board fight records now fingerprint only what the fight depends on (older records verify as before).
+- A board fight taken back because an earlier reply it depended on was deleted now shows a Problem naming it.
+
 ## 2.24.0
 - **Long chats no longer freeze on each send.** Every timeline read replayed the chat from its start, so the cost grew with the chat. Story Block now keeps the state after each part of the chat it has already read (up to 512, keyed by exactly what that state depends on), and a new reply replays at most one step. Guarded history, rewind previews and fresh checks still replay in full. The state and the prompts are unchanged: a 320-run replay fuzz and 80 captured requests give the same bytes as 2.23.0.
 - **The battle log says why the rolls stopped.** One muted line after the last round: every foe down, the party down, a hero badly hurt, careful pace allows 1 exchange (with where to allow more), the most exchanges per reply, rolls trimmed to fit the cue size, the party fled, or "Fight continues: you pick the next exchange." for an open fight-board fight. A folded **Receipt** row shows the exact text the narrator was told and the rules in force. Fights recorded before this version draw as before.
