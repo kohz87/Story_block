@@ -106,6 +106,16 @@ Last checked: 2026-11-07.
 - `docs/dev/codemap.md`: map of `src/` files not already covered by the existing docs.
 
 ## Split files (7 Nov: files over 450 lines split into small parts; each original keeps its path and public exports)
+- `src/v2/store/chains.js`: cached hashes of record bodies, replay chains and checkpoint windows.
+- `src/v2/ui-host/shared.js`: shared DOM helpers, reader choices and public UI checks.
+- `src/v2/ui-host/setup.js`: widgets, renderer and screen-registry setup for the page host.
+- `src/v2/ui-host/screens.js`: synchronization of module, pack and pinned-block screens.
+- `src/v2/ui-host/replies.js`: reply-card scopes, scans, rendering and actions.
+- `src/v2/ui-host/mounts.js`: screen, card, HUD and dialog mount wiring.
+- `src/v2/ui-host/navigation.js`: tab source and Settings navigation controls.
+- `src/v2/ui-host/panel.js`: panel creation, opening, closing and live tab-host access.
+- `src/v2/ui-host/settings.js`: settings overlay, diagnostics and theme inputs.
+- `src/v2/ui-host/events.js`: runtime and chat listeners with their teardown callbacks.
 - `src/v2/data-modules/part.js` → `data-modules/part/`: `factory.js` wires the data-module part; `core.js` shared lifecycle helpers; `shared.js` state access, caches and checked definitions; `views.js` read-only views; `blocks.js` Setup actions; `fields.js` field and host-step actions; `act.js` story and reader actions; `skills.js` the Skills block's slot rules; `party.js` companions; `prompt.js` prompt tail and reply cards; `timing.js` timer and reply-end costs.
 - `src/v2/domains/gear.js` → `domains/gear/`: `stats.js` slots, rarity, stat budgets and story-made definitions; `conditions.js` condition words and prices; `carry.js` carry rules and the carry query; `views.js` query answers and the screen picture.
 - `src/v2/events/condition.js` → `events/condition-tokenizer.js` the tokenizer; `condition-parser.js` the parser (a frozen AST); `condition-errors.js` size limits and error values.

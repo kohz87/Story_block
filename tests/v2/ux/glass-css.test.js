@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { FONT_STACKS, ROOT_SELECTOR, themeTokens } from '../../../src/v2/view/theme.js';
+import { sourceOf } from '../../helpers/split-source.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
 const css = read('view/glass.css');
@@ -136,7 +137,10 @@ test('Nunito is bundled: fonts.css points at files that exist, with the licence;
     }
     assert.match(readFileSync(new URL('../../../assets/fonts/nunito/OFL.txt', import.meta.url), 'utf8'), /SIL OPEN FONT LICENSE Version 1\.1/);
     assert.ok(!/https?:\/\//.test(fonts.replace(/\/\*[\s\S]*?\*\//g, '')), 'no external URL');
-    for (const file of ['view/theme.js', 'view/fonts.css', 'view/glass.css', 'ui-host.js']) assert.ok(!/googleapis|gstatic/.test(read(file)), `${file} fetches nothing from Google`);
+    for (const file of ['view/theme.js', 'view/fonts.css', 'view/glass.css', 'ui-host.js']) {
+        const source = file === 'ui-host.js' ? sourceOf('src/v2/ui-host.js') : read(file);
+        assert.ok(!/googleapis|gstatic/.test(source), `${file} fetches nothing from Google`);
+    }
     assert.match(themeFontStack(), /^'Nunito', system-ui/);
 });
 
