@@ -12,7 +12,7 @@ import { hashJson } from '../replay.js';
 import { payloadHashOf } from './digest.js';
 
 export function createMemo(s, deps) {
-    const { KEPT_ASIDE, WHY, api, appliedOf, archive, blocksBefore, chain, chainHash, chatId, checkpointBytes, checkpointEvery, checkpointState, headKey, list, markNow, marked, metadata, packOwners, packProblems, preservedAt, proofBefore, proofsBefore, rawKind, rawSidAt, recordId, replay, replayEnv, replayRecord, sameKey, settleBehind, sourceFor, spineBefore, stillHolds, windowHash } = deps;
+    const { KEPT_ASIDE, WHY, api, appliedOf, archive, blocksBefore, chain, chainHash, chatId, checkpointBytes, checkpointEvery, checkpointState, headKey, list, markNow, marked, metadata, packOwners, packProblems, preservedAt, proofBefore, proofsBefore, rawKind, rawSidAt, recordId, replay, replayEnv, replayRecord, sameKey, settleBehind, sourceFor, spineBefore, stateAfterPrefix, stillHolds, windowHash } = deps;
 
     // Memos of what a reply reads over the whole chat (docs/v2/PERFORMANCE.md, "Long chats"): the stored
     // receipts and the untold ones, each kept until a record is written or the store rebuilds (`epoch`) or
@@ -100,6 +100,7 @@ export function createMemo(s, deps) {
         s.lineMemo = null;
         s.atMemo = new Map();
         s.witnessGen = null;
+        s.prefixes.clear();      // a rebuild that is not a plain append (an append writes and never comes here)
     }
 
     // The timeline asks for the witness of every archived boundary on every read (sdk.query → settle → selectionPlan), and each
@@ -177,7 +178,12 @@ export function createMemo(s, deps) {
 
     function stateBefore(arr, index) {
         const prev = lastCarrier(arr, index);
-        return prev < 0 ? null : replay(arr, prev).state;
+        if (prev < 0) return null;
+        if (s.applying || s.staged) return replay(arr, prev).state;
+        // The prefix memo (store/prefix-memo.js) keeps the state after each carrier; inside a witness scope the spine run is shared.
+        const scope = s.scopeSpines;
+        const spines = scope && scope.arr === arr && scope.epoch === s.epoch ? scope.run : null;
+        return stateAfterPrefix(arr, prev, spines);
     }
 
     // Does a new record on carrier `index` need a checkpoint? Counts the carriers and the op JSON since
