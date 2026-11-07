@@ -53,8 +53,8 @@ test('board on trims the stock lines, keeps flavour and has the same static text
     } finally { host.close(); }
 });
 
-test('Classic and Rolls off keep manual foe changes in the per-reply text', async () => {
-    for (const values of [{ rpgFormula: 'classic' }, { rpgFormula: 'standard', rpgRolls: 'off' }]) {
+test('Rolls off keeps manual foe changes in the per-reply text', async () => {
+    for (const values of [{ rpgFormula: 'standard', rpgRolls: 'off' }]) {
         const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': values } } });
         try {
             host.features.set(CORE_FEATURE.leanRpg, true);

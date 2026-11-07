@@ -4,12 +4,15 @@ import assert from 'node:assert/strict';
 const { OWNER, PARTY, PLAN_ANSWER, fakeModel, sheetDomain } = await import('../../../tests/v2/lean-rpg/helpers.js');
 const { createHost } = await import('../../../testkit/index.js');
 const { LEAN_RPG_FEATURE, RESOLVE, createLeanRpgPart } = await import('../../../src/v2/lean-rpg/index.js');
+const { legacyPlanner } = await import('../../../tests/v2/lean-rpg/legacy-planner.js');
 const { CORE_FEATURE } = await import('../../../src/v2/features.js');
 
 test('a query run from a command sees the roll cue as the receipt summary, as sdk.query does', async () => {
     const callModel = fakeModel(PLAN_ANSWER);
     let host = null;
-    const part = createLeanRpgPart({ callModel, chat: () => host.ctx.chat, chatId: () => host.ctx.chatId, metadata: () => host.ctx.chatMetadata ?? null, problem: () => {}, moduleId: OWNER });
+    const part = createLeanRpgPart({ chat: () => host.ctx.chat, chatId: () => host.ctx.chatId, metadata: () => host.ctx.chatMetadata ?? null, problem: () => {}, moduleId: OWNER });
+    // (the test-only legacy planner behind the RPG part's hook: the planner itself is gone)
+    part.hooks.beforeGenerate = legacyPlanner(part, { callModel, chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null, moduleId: OWNER });
     const rolls = (_state, _args, tools) => (tools.receipts() ?? []).map(e => e.receipt).filter(r => r.type === RESOLVE).map(r => r.summary);
     const module = {
         id: OWNER, name: 'probe', version: '0.0.1',
@@ -20,7 +23,7 @@ test('a query run from a command sees the roll cue as the receipt summary, as sd
         hooks: { ...part.hooks, replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },
     };
-    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { rpgFormula: 'classic' } } } });
+    host = await createHost({ core: false, modules: [module] });
     host.features.set(LEAN_RPG_FEATURE, true);
     await host.send('I hit the lead rat.', 'The rats scatter.');
     const viaSdk = host.sdk.query('probe.rolls', {});

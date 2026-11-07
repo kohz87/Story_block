@@ -1,12 +1,11 @@
 // The Standard formula's blocks as the block engine runs them: Health 0..8, Stamina 0..7 and Mana 0..7 count the blocks left (the bar's size
 // comes from the stats), the story writes stage words and the kinds turn them into blocks, a bar that grows gains its new block full (a Down
 // character stays Down), one that shrinks holds at most its new size and never knocks anyone Down, a Foes group's Health follows its class, the
-// tail and the sheet reader say it in words, and live = reload = rebuild. Classic's templates are byte-for-byte what they were.
+// tail and the sheet reader say it in words, and live = reload = rebuild.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { createHost } from '../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES, COMBAT_PROMPT_STANDARD, templatesFor } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, COMBAT_PROMPT_STANDARD } from '../../../src/v2/lean-rpg/templates.js';
 import { STAGES } from '../../../src/v2/lean-rpg/names.js';
 import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { blocksFor, foeHealthBlocks } from '../../../src/v2/lean-rpg/formula.js';
@@ -29,32 +28,8 @@ async function story(t, ...names) {
 }
 const bars = host => { const c = sheet(host, 'character'); return [c.health, c.stamina, c.mana]; };
 
-// Classic: the checked definitions the block engine pins, hashed. These were computed on the build's base (2.13.0) before any change.
-const CLASSIC_HASHES = {
-    // (2.17.0: the Character block moved on purpose, Level / XP / Level cap and the level-up rule in place of the Soul Class; the other three are the same bytes.)
-    Character: 'f606ded47bcf986ce150fd7bfa29807ed7e16629452b43b063af691d9c554e23', // (and the XP carry: the xp field to 9999, the hidden `rise`, the xp-cap rule)
-    // (pinned change, extra skill slots: the Skills template has eight slots and the signature mark; blocks already in a chat keep the pin they were made with)
-    Skills: '925e094cb288f01dc68c1e7cc931f22e690eb13ab7834e2e4351fd6e65443678',
-    // (Foes changed on purpose in the Levels release: level1…level4, 1 to 99, replace class1…class4; the other three are as they were.)
-    Foes: 'd9e0260b748561a22ebbc9424aeb5c1efe18ed6ba643fb7c398790671b67103e',
-    'Combat rules': 'ca4d225eb36b9951e3b360ceb7702fb8370fc6abab2ff4fc1d11ddf759ff4267', // (2.17.0: the text says Level where it said Soul Class)
-};
-
-test('Classic stays exactly as it was: the four templates and the hash of each checked definition are unchanged, and a Classic chat gets them', () => {
-    assert.deepEqual(LEAN_RPG_TEMPLATES.map(entry => entry.name), ['Character', 'Skills', 'Foes', 'Combat rules']);
-    for (const { name, definition } of LEAN_RPG_TEMPLATES) {
-        const checked = validateDataModules([structuredClone(definition)], CHECK);
-        assert.equal(createHash('sha256').update(JSON.stringify(checked.definitions[0])).digest('hex'), CLASSIC_HASHES[name], name);
-    }
-    assert.equal(templatesFor('classic'), LEAN_RPG_TEMPLATES);
-    assert.equal(templatesFor('standard'), STANDARD_TEMPLATES);
-    assert.equal(templatesFor(undefined), STANDARD_TEMPLATES, 'Standard is the default');
-    assert.equal(LEAN_RPG_TEMPLATES[0].definition.state.health.max, 5);
-    assert.equal(LEAN_RPG_TEMPLATES[0].definition.state.health.blocks, undefined);
-});
-
 test('the Standard templates are the same four blocks, version 2, each passing the checker and the limits', () => {
-    assert.deepEqual(STANDARD_TEMPLATES.map(entry => entry.name), LEAN_RPG_TEMPLATES.map(entry => entry.name));
+    assert.deepEqual(STANDARD_TEMPLATES.map(entry => entry.name), ['Character', 'Skills', 'Foes', 'Combat rules']);
     assert.deepEqual(STANDARD_TEMPLATES.map(entry => entry.definition.role), ['character', 'skills', 'foes', 'rules']);
     for (const { name, definition } of STANDARD_TEMPLATES) {
         const checked = validateDataModules([structuredClone(definition)], CHECK);
@@ -220,16 +195,6 @@ test('the sheet reader gives the blocks left and each bar\'s size for a Standard
     assert.ok(wessel.hidden.includes('health-blocks'), 'the sizes the rules keep are hidden fields');
     assert.deepEqual([read.foes[0].hurt, read.foes[0].size], [5, 5]);
     assert.equal(read.foes[1].size, 4);
-    // Classic: no `size` anywhere
-    const classic = await createHost(); t.after(() => classic.close());
-    await classic.send('Begin.', 'Opening.');
-    for (const entry of LEAN_RPG_TEMPLATES.slice(0, 3)) success(await classic.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
-    await set(classic, 'character', { who: 'Wessel' });
-    await classic.send('A rat.', reply('+ dm foes — why | kind: set-slot-1 | name: Rat | count: 1 | level: 5'));
-    const old = readSheet(classic.head());
-    assert.equal('size' in old.characters[0], false);
-    assert.equal('size' in old.foes[0], false);
-    assert.deepEqual([old.characters[0].health, old.foes[0].hurt], [5, 5]);
     assert.deepEqual(STAGES.health.length, 6);
 });
 

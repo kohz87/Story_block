@@ -1,9 +1,11 @@
 // Stand-ins for the RPG tests: a party sheet written straight into the data-module state (the Character, Skills
-// and Foes blocks as the RPG reads them), a scripted pre-call model, and a host that has the RPG part on it.
+// and Foes blocks as the RPG reads them), a scripted stand-in for the retired roll planner (legacy-planner.js: tests that replay planner rolls use it to
+// make the records; `planner: false` is the real hook, which asks no model), and a host that has the RPG part on it.
 import { createHost } from '../../../testkit/index.js';
 import { LEAN_RPG_FEATURE, ROLLS_SETTING, createLeanRpgPart } from '../../../src/v2/lean-rpg/index.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { receiptCue } from '../../../src/v2/lean-rpg/cue.js';
+import { legacyPlanner } from './legacy-planner.js';
 
 export const OWNER = 'story-block';
 
@@ -76,14 +78,13 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, board = false, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {}, bare = false } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, board = false, settings = {}, timer, timeoutMs, planner = true, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {}, bare = false } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
-    const part = createLeanRpgPart({
-        callModel, chat: () => host.ctx.chat, chatId: () => host.ctx.chatId, metadata: () => host.ctx.chatMetadata ?? null,
-        problem: entry => problems.push(entry), moduleId: OWNER, timer, timeoutMs, plannerValues: () => host?.settings(OWNER) ?? {},
-    });
+    const part = createLeanRpgPart({ chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null, moduleId: OWNER });
+    // The hook the module gets: the real one, or the real one with the scripted planner behind it.
+    if (planner) part.hooks.beforeGenerate = legacyPlanner(part, { callModel, chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null, moduleId: OWNER, timer, ...(timeoutMs !== undefined ? { timeoutMs } : {}) });
     const module = {
         id: OWNER, name: 'Story Block (RPG test)', version: '0.0.1',
         features: [{ id: LEAN_RPG_FEATURE, label: 'RPG', describe: 'Test.', default: false }, { id: CORE_FEATURE.fightBoard, label: 'Fight board', describe: 'Test.', default: false }],
@@ -103,16 +104,15 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
             // (`bare`: what the hook answered before the no-rolls note existed: the lines, no commands, when the planner gave nothing)
             const out = await part.hooks.beforeGenerate(view, info);
             return out?.lines && !out.commands?.some(command => command.type === 'rpg.resolve') ? { lines: out.lines } : out;
-        }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), ...(earlier || flowless || levelless || lvless ? { beforeGenerate: Object.assign(async (view, info) => {
+        }) } : {}), ...(earlier || flowless || levelless || lvless ? { beforeGenerate: Object.assign(async (view, info) => {
             const out = await part.hooks.beforeGenerate(view, info);
             // (every variant is a roll planned before the Levels rules: no `lv` in the payload and no `levelDivisor` in its numbers)
             return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow, lv: _lv, rules: { levelDivisor: _d, ...rules }, ...payload }, ...command }) => ({ ...command,
                 payload: earlier ? { ...payload, rules } : levelless || lvless ? { ...payload, rules, dice, flow } : { ...payload, rules, dice } })) } : out;
-        }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), replayGuard: part.guard },
+        }) } : {}), replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },
     };
-    // (The stat formula is Classic here unless a test asks otherwise: these tests pin Classic's numbers.)
-    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { rpgFormula: board ? 'standard' : 'classic', ...settings } } } });
+    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { ...settings } } } });
     host.features.set(LEAN_RPG_FEATURE, feature);
     host.features.set(CORE_FEATURE.fightBoard, board);
     return { host, callModel, problems, part };

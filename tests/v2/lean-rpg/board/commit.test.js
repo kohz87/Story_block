@@ -10,7 +10,7 @@ import { character, foeBlock, setup } from '../helpers.js';
 import { boardSession, discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { planGear } from '../../../../src/v2/lean-rpg/gear.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { createFakeModel, createHost } from '../../../../testkit/index.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { gearAnswer } from '../../../../src/v2/domains/gear.js';
@@ -94,7 +94,7 @@ async function gearHost() {
     host.features.set('story-block.rpg', true);
     host.features.set('story-block.fight-board', true);
     await host.send('Begin.', 'Opening.');
-    for (const name of ['Character', 'Foes']) await host.sdk.command('dm.define', { definition: structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition) });
+    for (const name of ['Character', 'Foes']) await host.sdk.command('dm.define', { definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition) });
     await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', str: 3, dex: 12, agi: 10, vit: 20 } });
     await host.send('Set.', 'Fight.\n<Changes>\n+ dm foes — why | kind: set-slot-1 | name: Rats | count: 6 | level: 60\n+ item Cane Sword | kind: weapon | rarity: rare | DEX: +2 | equipped: weapon\n</Changes>');
     return host;
@@ -335,7 +335,7 @@ test('a board reply applies its fight and its own sheet and equipment lines', as
         assert.deepEqual(turn.problems, [], JSON.stringify(turn.problems));
         assert.equal(turn.receipts.filter(item => item.cause === 'story').length, lines.length);
         const sheet = host.head().domains.dataModules.instances['pack.chat/character'].chat.fields;
-        assert.equal(sheet.health, 3, JSON.stringify(sheet));
+        assert.equal(sheet.health, 5, JSON.stringify(sheet)); // 'Hurt' is stage 3 of 8 health blocks
         assert.equal(sheet.xp, 1);
         const items = host.sdk.query('inventory.items');
         assert.equal(items.some(item => item.name === 'Cane Sword'), false);
@@ -408,7 +408,7 @@ test('after reload a held reply cannot read story lines before its fight', async
         const receipts = host.ctx.chat[index].extra.storySuite.receipts;
         assert.deepEqual(receipts.find(item => item.type === 'rpg.resolve').data.v2.result.rounds, staged.preview.result.rounds);
         assert.equal(receipts.filter(item => item.cause === 'story').length, 1);
-        assert.equal(host.head().domains.dataModules.instances['pack.chat/character'].chat.fields.health, 2);
+        assert.equal(host.head().domains.dataModules.instances['pack.chat/character'].chat.fields.health, 3);
         const live = JSON.stringify(host.head());
         host.store.rebuild();
         assert.equal(JSON.stringify(host.head()), live);

@@ -6,8 +6,8 @@ import { makeMessage } from '../../../ui-fake-dom.js';
 import { setupDom } from '../../view/mounts/helpers.js';
 import { mountUi } from '../../../../src/v2/ui-host.js';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
-import { LEAN_RPG_TEMPLATES as EARLIER_TEMPLATES } from '../fixtures/templates-2.16.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES as EARLIER_TEMPLATES } from '../fixtures/templates-2.16.js';
 
 export const settle = async () => { for (let n = 0; n < 8; n += 1) await new Promise(resolve => setImmediate(resolve)); };
 export const PARTY = 'story-block/party';
@@ -44,7 +44,7 @@ export async function begin(host) { await host.send('Begin.', 'Opening.'); }
 export async function makeBlocks(host, { who = 'Wessel', character = {}, skills = {} } = {}) {
     const slug = who.toLowerCase();
     // (A test that sets a Soul Class asks for a block made before levels, 2.17.0: it is made from the 2.16.10 template, which must go on working.)
-    const source = Object.hasOwn(character, 'soul') ? EARLIER_TEMPLATES : LEAN_RPG_TEMPLATES;
+    const source = Object.hasOwn(character, 'soul') ? EARLIER_TEMPLATES : STANDARD_TEMPLATES;
     const defs = Object.fromEntries(source.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = slug; defs.character.name = who; defs.character.state.who.default = who;
     defs.skills.slug = `${slug}-skills`; defs.skills.name = `${who}'s skills`; defs.skills.state.who.default = who;

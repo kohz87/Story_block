@@ -7,7 +7,7 @@ import { CORE_FEATURE } from '../../../../src/v2/features.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, foeBlock, rollReceipt, setup } from '../helpers.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
-import { boardSession, discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 
 const blocks = {
     hero: { role: 'character', fields: character('Astra', { str: 14 }) },
@@ -17,7 +17,7 @@ const ANSWER = 'act Astra | stat: STR | target: Rats\nfoe Rats | target: Astra |
 
 async function planned(board) {
     const restore = seedCrypto(71);
-    const { host, callModel } = await setup({ blocks, answers: [ANSWER], board, feature: true, settings: { rpgFormula: 'classic' } });
+    const { host, callModel } = await setup({ blocks, answers: [ANSWER], board, feature: true });
     try {
         const result = await host.send('I strike.', 'The rat falls back.');
         const statics = result.request.chat.filter(message => message.role === 'system').map(message => message.content).join('\n');
@@ -44,56 +44,17 @@ test('with no board open, turning the fight board on leaves the planner request 
     assert.equal(on.statics, off.statics, 'the static prompt is the same');
 });
 
-test('a switch to Classic holds a staged fight until discarded, then uses the planner', async () => {
-    const restore = seedCrypto(73), { host, callModel } = await setup({ blocks, board: true, answers: [ANSWER] });
-    try {
-        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
-        openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        assert.equal(stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]).error, undefined);
-        host.settings.set('story-block', 'rpgFormula', 'classic');
-        const blocked = await host.send('I strike.', 'The fight.');
-        assert.equal(blocked.aborted, true);
-        assert.match(host.st.notices.at(-1).reason, /Standard.*discard.*Classic/i);
-        assert.equal(boardSession(meta).exchanges.length, 1);
-        assert.equal(callModel.calls.length, 0);
-        discardBoard(meta);
-        const sent = await host.st.generate('normal', { reply: 'The fight.' });
-        assert.notEqual(sent.aborted, true);
-        assert.equal(callModel.calls.length, 1);
-        assert.equal(rollReceipt(host, 2)?.replan?.payload?.board, undefined);
-    } finally { host.close(); restore(); }
-});
-
-test('a narrated board swipe keeps its recorded Standard fight after switching to Classic', async () => {
+test('a narrated board swipe keeps its recorded Standard fight', async () => {
     const restore = seedCrypto(74), { host, callModel } = await setup({ blocks, board: true });
     try {
         const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
         const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
         await host.send('I strike.', 'The fight.');
-        host.settings.set('story-block', 'rpgFormula', 'classic');
         const swiped = await host.swipe('Another telling.');
         assert.notEqual(swiped.aborted, true);
         assert.deepEqual(rollReceipt(host, 2).data.v2.result.rounds, staged.preview.result.rounds);
         assert.equal(callModel.calls.length, 0);
-    } finally { host.close(); restore(); }
-});
-
-test('a pack changing to Classic holds a staged board fight', async () => {
-    const restore = seedCrypto(75);
-    let formula = 'standard';
-    const { host } = await setup({ blocks, board: true, settings: { rpgFormula: '' }, queries: {
-        'packs.content': () => [{ slug: 'formula', formula }],
-    } });
-    try {
-        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
-        openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
-        stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
-        formula = 'classic';
-        const blocked = await host.send('I strike.', 'The fight.');
-        assert.equal(blocked.aborted, true);
-        assert.match(host.st.notices.at(-1).reason, /Standard.*discard.*Classic/i);
-        assert.equal(boardSession(meta).exchanges.length, 1);
     } finally { host.close(); restore(); }
 });
 

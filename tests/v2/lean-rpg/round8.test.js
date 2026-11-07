@@ -1,24 +1,20 @@
-// RPG round 8: a skill can count when you defend (B), "Stat adds: full above 10" (A), and the Soul Class field's own name (C).
+// RPG round 8: a skill can count when you defend (B) and the Soul Class field's own name (C). (A, "Stat adds: full above 10", went with the Classic rules.)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
 import { setupDom } from '../view/mounts/helpers.js';
-import {
-    STANDARD, STAT_ABOVE, normalizeRules, parsePlanAnswer, prepare, readSheet, rollPrepared, statShare, validatePlan,
-} from '../../../src/v2/lean-rpg/index.js';
-import { PRECALL_HEAD, precallPrompt } from '../../../src/v2/lean-rpg/precall.js';
+import { STANDARD, prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
 // (The Character block here is one made before levels, 2.17.0: it has the Soul Class field a pack may rename.)
-import { LEAN_RPG_TEMPLATES } from './fixtures/templates-2.16.js';
-import { oddsFor, subjectOdds } from '../../../src/v2/lean-rpg/rules.js';
+import { STANDARD_TEMPLATES } from './fixtures/templates-2.16.js';
 import { readJoin, soulNaming, joinCard } from '../../../src/v2/lean-rpg/join.js';
 import { soulReading } from '../../../src/v2/lean-rpg/soul.js';
 import { readParty } from '../../../src/v2/lean-rpg/view/party-data.js';
 import { createPartyWidget } from '../../../src/v2/lean-rpg/view/party.js';
+import { renderRpgSettings } from '../../../src/v2/lean-rpg/view/settings.js';
 import { renderSkills } from '../../../src/v2/lean-rpg/view/skills.js';
 import { rpgReplyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { buildPanel, panelModel, readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
 import { oddsView, soulLabelFor } from '../../../src/v2/lean-rpg/view/settings-data.js';
-import { renderRpgSettings } from '../../../src/v2/lean-rpg/view/settings.js';
 import { cueOf, PARTY, PLAN_ANSWER, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 import { fakeState, roleOf as viewRoleOf } from './view/helpers.js';
 
@@ -26,12 +22,10 @@ const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
 
 const sheetOf = (blocks = PARTY()) => readSheet({ domains: { dataModules: sheetDomain(blocks) } });
-const dice = (...values) => () => {
-    if (!values.length) throw new Error('the script ran out of dice');
-    return values.shift();
-};
+// Scripted dice for the Standard roll: every action's stream gives these values in turn, then 10.
+const dice = (...values) => () => { const list = [...values]; return () => (list.length ? list.shift() : 10); };
 const defend = (over = {}) => ({ slot: 1, target: 'Wessel', defend: 'agi', ...over });
-const plan = (foes, over = {}) => ({ pace: 'careful', acts: [], foes, checks: [], ...over });
+const plan = (foes, over = {}) => ({ formula: 'standard', pace: 'careful', acts: [], foes, checks: [], ...over });
 const roll = (foes, sheet = sheetOf(), rules = STANDARD, ...values) => {
     const p = plan(foes);
     return rollPrepared(p, prepare(p, sheet, rules), dice(...values), rules);
@@ -40,13 +34,13 @@ const roll = (foes, sheet = sheetOf(), rules = STANDARD, ...values) => {
 // ---- B: a skill can count when you defend -------------------------------------------------------------------------------
 
 test('B: a defending skill brings its own stat and rank; the line names it in the cue', () => {
-    // Wessel (soul II, STR 14, AGI 12) defends with Iron Breath (Adept, STR): 10 + 7 + 4 + 1 against 10 + 5 + 2.
+    // Wessel (soul II, STR 14, AGI 12) defends with Iron Breath (Adept, STR, a block): the skill's stat with half of AGI, the class, the rank.
     const [line] = roll([defend({ skill: 'Iron Breath' })], sheetOf(), STANDARD, 10, 10).rounds[0].lines;
-    assert.deepEqual(line.pc, { who: 'Wessel', stat: 'str', statBonus: 7, classValue: 2, classBonus: 4, rank: 1, edge: 0, die: 10, total: 22 });
+    assert.deepEqual(line.pc, { who: 'Wessel', type: 'defence', stat: 'str', second: 'agi', mainValue: 14, secondValue: 12, statBonus: 10, style: 'block', classValue: 2, classBonus: 4, rank: 1, window: { min: -1, max: 3 }, situation: 0, edge: 0, die: 10, total: 25 });
     assert.equal(line.skill, 'Iron Breath');
     assert.equal(line.outcome, 'success');
     const cue = roll([defend({ skill: 'Iron Breath' })], sheetOf(), STANDARD, 10, 10).text;
-    assert.match(cue, /Sluice Rats attacks Wessel \(Iron Breath\): SUCCESS for Wessel \(22 vs 17\)/);
+    assert.match(cue, /Sluice Rats attacks Wessel \(Iron Breath\): SUCCESS for Wessel \(25 vs 17\)/);
 });
 
 test('B: no skill rolls the defend stat at rank 0, exactly as it always did (and an old plan has no skill key)', () => {
@@ -54,12 +48,12 @@ test('B: no skill rolls the defend stat at rank 0, exactly as it always did (and
     assert.equal(validatePlan(plan(old)).ok, true);
     const result = roll(old, sheetOf(), STANDARD, 10, 10);
     const [line] = result.rounds[0].lines;
-    assert.deepEqual(line.pc, { who: 'Wessel', stat: 'agi', statBonus: 6, classValue: 2, classBonus: 4, rank: 0, edge: 0, die: 10, total: 20 });
+    assert.deepEqual(line.pc, { who: 'Wessel', type: 'defence', stat: 'agi', second: 'vit', mainValue: 12, secondValue: 12, statBonus: 9, style: 'dodge', classValue: 2, classBonus: 4, rank: 0, window: { min: -1, max: 3 }, situation: 0, edge: 0, die: 10, total: 23 });
     assert.equal(line.skill, null);
-    assert.match(result.text, /Sluice Rats attacks Wessel: SUCCESS for Wessel \(20 vs 17\)/);
+    assert.match(result.text, /Sluice Rats attacks Wessel: SUCCESS for Wessel \(23 vs 17\)/);
     assert.ok(!/attacks Wessel \(/.test(result.text));
     const prepared = prepare(plan(old), sheetOf());
-    assert.deepEqual(prepared.witness.foes[0], { kind: 'foe', skill: null, pc: { who: 'Wessel', stat: 'agi', statBonus: 6, classValue: 2, classBonus: 4, rank: 0, edge: 0 }, foe: prepared.foes[0].foe });
+    assert.deepEqual(prepared.witness.foes[0], { kind: 'foe', actor: 'c:wessel', type: 'defence', skill: null, pc: { who: 'Wessel', type: 'defence', stat: 'agi', second: 'vit', mainValue: 12, secondValue: 12, statBonus: 9, style: 'dodge', classValue: 2, classBonus: 4, rank: 0, window: { min: -1, max: 3 }, situation: 0, edge: 0 }, foe: prepared.foes[0].foe });
 });
 
 test('B: a defending skill whose resource is Empty is rolled without it, with the plain note', () => {
@@ -68,7 +62,7 @@ test('B: a defending skill whose resource is Empty is rolled without it, with th
     const prepared = prepare(plan([defend({ skill: 'Iron Breath' })]), sheetOf(blocks));
     assert.equal(prepared.foes[0].skill, null);
     assert.equal(prepared.foes[0].pc.rank, 0);
-    assert.equal(prepared.foes[0].pc.stat, 'str', 'the skill\'s stat is kept, as for an act');
+    assert.equal(prepared.foes[0].pc.stat, 'agi', 'the defend stat of the plan stands in for the skill\'s');
     assert.deepEqual(prepared.refused.map(entry => entry.text), ['Wessel cannot use Iron Breath (Stamina Empty): rolled without it.']);
 });
 
@@ -85,7 +79,7 @@ test('B: a hidden skill stat on defence counts for the rules and is never named;
     const sheet = readSheet({ domains: { dataModules: domain } });
     const prepared = prepare(plan([defend({ skill: 'Iron Breath' })]), sheet);
     assert.equal(prepared.foes[0].pc.statHidden, true);
-    assert.equal(prepared.foes[0].pc.statBonus, 7, 'the hidden STR 14 still counts');
+    assert.equal(prepared.foes[0].pc.statBonus, 10, 'the hidden STR 14 still counts');
     assert.equal('statHidden' in prepared.witness.foes[0].pc, false);
     // The character lacks the hidden stat: the refusal does not name it, and the measuring refusal does.
     const blocks = PARTY();
@@ -99,22 +93,10 @@ test('B: a hidden skill stat on defence counts for the rules and is never named;
     assert.match(refused.plainRefused[0], /has no STR on the sheet/);
 });
 
-test('B: the planner may write skill: on a foe line; the plan keeps it only when written, and "none" is no skill', () => {
-    const sheet = sheetOf();
-    const read = text => parsePlanAnswer(text, sheet).plan.foes[0];
-    assert.deepEqual(read('foe Sluice Rats | target: Wessel | defend: AGI | skill: Iron Breath'), { slot: 1, target: 'Wessel', defend: 'agi', skill: 'Iron Breath' });
-    assert.deepEqual(read('foe Sluice Rats | target: Wessel | defend: AGI | skill: iron breath drill'), { slot: 1, target: 'Wessel', defend: 'agi', skill: 'Iron Breath' });
-    assert.deepEqual(read('foe Sluice Rats | target: Wessel | defend: AGI | skill: Parry'), { slot: 1, target: 'Wessel', defend: 'agi', skill: 'Parry' }, 'a skill they lack is kept, to be rolled untrained');
-    assert.deepEqual(read('foe Sluice Rats | target: Wessel | defend: AGI | skill: none'), { slot: 1, target: 'Wessel', defend: 'agi' });
-    assert.deepEqual(read('foe Sluice Rats | target: Wessel | defend: AGI'), { slot: 1, target: 'Wessel', defend: 'agi' }, 'an answer from before: unchanged');
+test('B: a foe line may carry a skill of up to 60 characters; other keys are still refused', () => {
+    assert.equal(validatePlan(plan([{ slot: 1, target: 'Wessel', defend: 'agi', skill: 'Iron Breath' }])).ok, true);
     assert.equal(validatePlan(plan([{ slot: 1, target: 'Wessel', defend: 'agi', skill: 'x'.repeat(61) }])).ok, false);
     assert.equal(validatePlan(plan([{ slot: 1, target: 'Wessel', defend: 'agi', why: 'x' }])).ok, false, 'other keys are still refused');
-});
-
-test('B: the planner is told the foe line takes a skill, and when', () => {
-    assert.match(PRECALL_HEAD, /\nfoe <foe> \| target: <who> \| defend: <stat> \| skill: <skill>\?\n/);
-    // (PINNED CHANGE: only when the message asks to defend with the skill)
-    assert.match(PRECALL_HEAD, /Defending with a skill \(evade, dodge, parry, block\): guard: that skill on the act; else leave it out\./);
 });
 
 test('B: the battle log names the defending skill; a foe line recorded before it reads as it did', () => {
@@ -133,10 +115,21 @@ test('B: the battle log names the defending skill; a foe line recorded before it
     assert.ok(!/Expert|Adept/.test(model.rounds[0].lines[1].breakdown));
 });
 
+// The roll's seed is fixed (the dice come from it), so the foe acts in the fight the same way every time.
+async function seeded(options) {
+    const real = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
+    globalThis.crypto.getRandomValues = array => (array instanceof Uint32Array ? array.fill(SEED) : real(array));
+    try {
+        const game = await setup(options);
+        await game.host.send('I hit the lead rat.', 'The rats scatter.');
+        return game;
+    } finally { globalThis.crypto.getRandomValues = real; }
+}
+const SEED = 12;
+
 test('B: through the turn, the plan\'s defending skill is rolled, stored and told', { skip }, async () => {
     const answer = [PLAN_ANSWER.replace('defend: AGI', 'defend: AGI | skill: Iron Breath')].join('\n');
-    const { host } = await setup({ answers: [answer] });
-    await host.send('I hit the lead rat.', 'The rats scatter.');
+    const { host } = await seeded({ answers: [answer] });
     const receipt = rollReceipt(host, 2);
     const lines = receipt.data.v2.result.rounds.flatMap(round => round.lines).filter(line => line.kind === 'foe');
     assert.ok(lines.length >= 1);
@@ -147,8 +140,7 @@ test('B: through the turn, the plan\'s defending skill is rolled, stored and tol
 });
 
 test('B: a payload made before (no skill on its foe lines) rolls and tells as it did', { skip }, async () => {
-    const { host } = await setup();
-    await host.send('I hit the lead rat.', 'The rats scatter.');
+    const { host } = await seeded({});
     const receipt = rollReceipt(host, 2);
     const lines = receipt.data.v2.result.rounds.flatMap(round => round.lines).filter(line => line.kind === 'foe');
     assert.ok(lines.length >= 1);
@@ -160,73 +152,9 @@ test('B: a payload made before (no skill on its foe lines) rolls and tells as it
     host.close();
 });
 
-// ---- A: "Stat adds: full above 10" --------------------------------------------------------------------------------------
-
-test('A: full above 10 adds the stat − 5 (10 → +5, 14 → +9, 20 → +15, 8 → +3); half and a third are as they were', () => {
-    const full = { ...STANDARD, statDivisor: STAT_ABOVE };
-    assert.deepEqual([10, 14, 20, 8].map(value => statShare(value, full)), [5, 9, 15, 3]);
-    assert.deepEqual([10, 15, 7].map(value => statShare(value, STANDARD)), [5, 7, 3]);
-    assert.deepEqual([10, 15, 7].map(value => statShare(value, { ...STANDARD, statDivisor: 3 })), [3, 5, 2]);
-    assert.deepEqual(normalizeRules(full), full, 'the choice is kept as it is');
-    assert.deepEqual(Object.keys(normalizeRules(full)), Object.keys(STANDARD), 'the same six keys');
-});
-
-test('A: checks, attacks and defence all roll with it, and the line records the rule it used', () => {
-    const rules = normalizeRules({ ...STANDARD, statDivisor: STAT_ABOVE });
-    const p = { pace: 'careful', acts: [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }], foes: [defend()], checks: [{ who: 'Ren', stat: 'int', difficulty: 'normal' }] };
-    const result = rollPrepared(p, prepare(p, sheetOf(), rules), dice(10, 10, 10, 10, 10), rules);
-    const [act, against] = result.rounds[0].lines;
-    assert.equal(act.pc.statBonus, 9, 'STR 14');
-    assert.equal(against.pc.statBonus, 7, 'AGI 12');
-    assert.equal(result.checks[0].pc.statBonus, 11, 'INT 16');
-    assert.equal(act.pc.total, 10 + 9 + 4 + 1);
-});
-
-test('A: rolls made with the old rules replay with their own numbers; a recorded set with a half or a third reads as before', () => {
-    for (const statDivisor of [2, 3]) {
-        const recorded = { foeBase: 5, classWeight: 2, statDivisor, costMargin: 2, decisiveMargin: 8, roundCap: 5 };
-        assert.deepEqual(normalizeRules(recorded), recorded);
-        const [line] = roll([defend()], sheetOf(), normalizeRules(recorded), 10, 10).rounds[0].lines;
-        assert.equal(line.pc.statBonus, Math.floor(12 / statDivisor));
-    }
-    assert.equal(normalizeRules({ foeBase: 5, classWeight: 2, costMargin: 2, decisiveMargin: 8, roundCap: 5 }).statDivisor, 2, 'a set without it is Standard\'s half');
-    assert.equal(normalizeRules({ ...STANDARD, statDivisor: 1 }).statDivisor, 2, 'a number that is not a choice is held');
-});
-
-test('A: the odds use the chosen option', () => {
-    const subject = { who: 'W', stat: 'str', statValue: 14, soul: 2, rank: 1, foeClass: 2 };
-    assert.equal(subjectOdds(STANDARD, subject).bonus, 7 + 4 + 1);
-    const full = subjectOdds({ ...STANDARD, statDivisor: STAT_ABOVE }, subject);
-    assert.equal(full.bonus, 9 + 4 + 1);
-    assert.deepEqual({ success: full.success, cost: full.cost, fail: full.fail }, oddsFor(STANDARD, { bonus: 14, foeClass: 2 }));
-});
-
-test('A: Settings → RPG offers it in Custom, keeps it as 0 and moves the odds bar; the presets stay at half', () => {
-    const doc = setupDom();
-    const stored = { rpgFormula: 'classic' };
-    const settings = Object.assign(id => ({ ...stored }), { set: (_id, key, value) => { stored[key] = value; } });
-    const state = fakeState([{ definition: viewCharacter(), fields: { who: 'Wessel', str: 14, soul: 2 } }]);
-    const parent = doc.createElement('div');
-    doc.body.appendChild(parent);
-    stored.rpgDifficulty = 'custom';
-    stored.rpgCustom = { ...STANDARD };
-    renderRpgSettings(parent, { settings, doc, headState: () => state, readerName: () => 'Wessel', roleOf: viewRoleOf });
-    const select = parent.querySelector('[data-rule="statDivisor"]');
-    assert.deepEqual(select.querySelectorAll('option').map(node => node.textContent), ['half the stat', 'a third of the stat', 'full above 10']);
-    const bar = () => parent.querySelector('.rpg-odds-legend').textContent;
-    const half = bar();
-    select.value = '0';
-    select.dispatch('change');
-    assert.equal(stored.rpgCustom.statDivisor, STAT_ABOVE);
-    assert.notEqual(bar(), half, 'the odds bar follows');
-    const subject = { statValue: 14, soul: 2, rank: 0, foeClass: 2 };
-    const expected = subjectOdds({ ...STANDARD, statDivisor: STAT_ABOVE }, subject);
-    assert.equal(bar(), `Success ${expected.success}%At a cost ${expected.cost}%Fail ${expected.fail}%`);
-});
-
 // ---- C: the Soul Class field's own name -------------------------------------------------------------------------------
 
-const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
+const template = role => structuredClone(STANDARD_TEMPLATES.find(entry => entry.definition.role === role).definition);
 const NINE = Object.fromEntries(Array.from({ length: 9 }, (_, n) => [String(n + 1), String(n + 1)]));
 function viewCharacter(renamed = false) {
     const definition = template('character');
@@ -240,7 +168,7 @@ const world = (renamed, { soul = 3, before = false } = {}) => fakeState([
 ]);
 const roleOf = definition => definition.role ?? null;
 
-test('C (Levels): a block made before levels (its Soul Class III stands for level 25): the Party card, the roll line and the rise note read it whatever the field is called; the planner keeps the field\'s own words', () => {
+test('C (Levels): a block made before levels (its Soul Class III stands for level 25): the Party card, the roll line and the rise note read it whatever the field is called', () => {
     for (const [renamed, label, word] of [[false, 'Soul Class', 'III'], [true, 'Level', '3']]) {
         const state = world(renamed);
         const [first] = readParty(state, { own: 'Wessel', roleOf });
@@ -259,9 +187,6 @@ test('C (Levels): a block made before levels (its Soul Class III stands for leve
         const lines = rpgReplyLines({ state, before: world(renamed, { soul: 2, before: true }), record: { receipts: [] }, roleOf });
         const wording = [`Wessel: ${label} ${renamed ? '2' : 'II'} → ${word}`, `${label} ${word} (+3 points)`];   // (a block made before levels keeps its class rise wording)
         assert.deepEqual([lines[0].text, lines[0].summary], wording);
-        // the planner's sheet text
-        const prompt = precallPrompt({ sheet: readSheet(state), message: 'hi' });
-        assert.match(prompt, renamed ? /^Wessel \(Level 3\): /m : /^Wessel \(class III\): /m);
     }
 });
 
@@ -270,14 +195,14 @@ test('C: the odds line and the "adds" label follow the player\'s Character block
     assert.equal(soulLabelFor(renamed, 'Wessel'), 'Level');
     assert.equal(soulLabelFor(plain, 'Wessel'), 'Soul Class');
     assert.equal(soulLabelFor(fakeState([]), 'Wessel'), 'Soul Class', 'no character: the default');
-    assert.match(oddsView(renamed, 'Wessel', STANDARD).label, /^Wessel \(VIT 10, Level 3, Adept\) against a Level 3 foe$/);
-    assert.match(oddsView(plain, 'Wessel', STANDARD).label, /^Wessel \(VIT 10, Soul Class III, Adept\) against a Class III foe$/);
+    assert.match(oddsView(renamed, 'Wessel', STANDARD).label, /^Wessel \(VIT 5 with DEX 5, Level 3, Adept\) against a Level 3 foe$/);
+    assert.match(oddsView(plain, 'Wessel', STANDARD).label, /^Wessel \(VIT 5 with DEX 5, Soul Class III, Adept\) against a Class III foe$/);
     const doc = setupDom();
     const parent = doc.createElement('div');
     doc.body.appendChild(parent);
-    const settings = Object.assign(() => ({ rpgFormula: 'classic', rpgDifficulty: 'custom', rpgCustom: { ...STANDARD } }), { set: () => {} });
+    const settings = Object.assign(() => ({ rpgDifficulty: 'custom', rpgStandard: { ...STANDARD } }), { set: () => {} });
     renderRpgSettings(parent, { settings, doc, headState: () => renamed, readerName: () => 'Wessel', roleOf });
-    assert.deepEqual(parent.querySelector('[data-card="difficulty"]').querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level divisor'], 'the row that was "Soul Class adds" is the Level divisor');
+    assert.deepEqual(parent.querySelector('[data-card="difficulty"]').querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 3), ['Foe\'s base', 'Foe adds per class', 'Level divisor'], 'the row that was "Soul Class adds" is the Level divisor');
 });
 
 test('C: the battle log says "Class II" by default and the field\'s own word when it is renamed', () => {
@@ -302,10 +227,4 @@ test('C: a companion\'s class is read with the story\'s own names, and the refus
     const card = joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], world(true));
     assert.equal(card.rows[0].text, 'Level 25', 'F12: the card says the level the class stands for');
     assert.equal(joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], fakeState([])).rows[0].text, 'Level 25');
-});
-
-test('C: the planner text is byte-identical with the default names', () => {
-    const sheet = sheetOf();
-    assert.match(precallPrompt({ sheet, message: 'hi' }), /^Wessel \(class II\): STR 14 /m);
-    assert.equal(sheet.characters[0].soulLabel, 'Soul Class');
 });

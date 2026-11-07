@@ -2,14 +2,14 @@
 // but a staged fight with exchanges still is (it cannot silently leave the story).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPlanHold, createPrecall } from '../../../../src/v2/lean-rpg/index.js';
+import { createPrecall } from '../../../../src/v2/lean-rpg/index.js';
 import { LEAN_RPG_FEATURE } from '../../../../src/v2/lean-rpg/names.js';
 
 const BOARD = 'story-block.fight-board';
 const remembered = { key: 'b:x:a:0', board: { id: 'x', anchor: 'a', setup: { offset: 0 }, exchanges: [] } };
 const make = meta => {
     const messages = [{ is_user: false, mes: 'The rats close in.' }, { is_user: true, mes: 'I hit the lead rat.', extra: { rpgFightLinks: { [remembered.key]: true } } }];
-    return createPrecall({ callModel: async () => 'none', chat: () => messages, chatId: () => 'c', metadata: () => meta, hold: createPlanHold({ metadata: () => meta }) });
+    return createPrecall({ chat: () => messages, metadata: () => meta });
 };
 const viewOf = board => ({ feature: id => id === LEAN_RPG_FEATURE || (board && id === BOARD), query: () => null, state: { domains: {} } });
 const regenerate = { commit: true, type: 'regenerate' };

@@ -1,5 +1,5 @@
 // Stage 49: a reply's exchanges run until something happens (resolve.js FLOW_VERSION), and a won fight pays the party its XP by code (fight.js).
-//   - rolls: a decisive result no longer ends the reply; the rolls stop on won, lost, heavy, the cap, the budget or the careful pace, Standard and Classic;
+//   - rolls: a decisive result no longer ends the reply; the rolls stop on won, lost, heavy, the cap, the budget or the careful pace;
 //   - past rolls: a payload with no `flow` stops exactly as it did (Re-read keeps the record);
 //   - XP: won by the dice and by the narrator's own foe lines, once per fight, to every party member who has not Left, never twice with the narrator's XP
 //     line, a rise at 100, and swipe, Re-read, middle delete, rebuild and reload all agree.
@@ -7,9 +7,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
-import { FIGHT, FIGHT_XP, FIGHT_XP_HELD, FLOW_VERSION, LEAN_RPG_FEATURE, LIMITS, PRESETS, RESOLVE, STANDARD_FORMULA, FORMULA_SETTING, fightOf, memberXp, DEFAULT_SETTINGS, scaleXp, xpRateFrom, xpRateOf, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
+import { FIGHT, FIGHT_XP, FIGHT_XP_HELD, FLOW_VERSION, LEAN_RPG_FEATURE, LIMITS, RESOLVE, STANDARD_FORMULA, fightOf, memberXp, DEFAULT_SETTINGS, scaleXp, xpRateFrom, xpRateOf, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { fightLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { cueOf, character, foeBlock, levelFoeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 
@@ -34,12 +34,6 @@ const std = (over = {}) => ({ ...STANDARD_FORMULA, ...over });
 const planOf = (over = {}) => ({ formula: 'standard', pace: 'all', acts: [], foes: [], checks: [], ...over });
 const hit = { who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' };
 const roll = (plan, { blocks = party(), rules = std(), source = dice(), flow = FLOW_VERSION } = {}) => rollPrepared(plan, prepare(plan, sheetOf(blocks), rules, { flow }), source, rules, { flow });
-// Classic (the narrator sets the bars; the rolls keep a count of their own to know when to stop): Wessel STR 14, rats class I.
-const classic = (plan, { blocks, source = dice(), rules = PRESETS.standard, flow = FLOW_VERSION } = {}) => {
-    const sheet = sheetOf(blocks ?? { ...party({ foes: [['Sluice Rats', 6, 1, 5]] }), wessel: { role: 'character', fields: character('Wessel') } });
-    return rollPrepared(plan, prepare(plan, sheet, rules, { flow }), source, rules, { flow });
-};
-const cplan = (over = {}) => ({ pace: 'all', acts: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats' }], foes: [], checks: [], ...over });
 
 test('Standard: a decisive hit no longer ends the reply; the rolls go on until the foes are Down (won)', () => {
     // Round 1: a natural 20 takes 2 of the 4 blocks; rounds 2 and 3 take one each.
@@ -54,18 +48,7 @@ test('Standard: a decisive hit no longer ends the reply; the rolls go on until t
     assert.deepEqual([earlier.rounds.length, earlier.stop], [1, 'decisive']);
 });
 
-test('Classic: a decisive result no longer ends the reply; a hit takes 1 stage, a decisive one 2, and the rolls stop when the foes are Down', () => {
-    const result = classic(cplan(), { source: dice({ act0: [20, 10] }) });
-    assert.deepEqual(result.rounds.map(round => round.decisive), [true, false, false, false]);
-    assert.equal(result.stop, 'won');
-    assert.equal(result.rounds.length, 4, '5 stages: 2 + 1 + 1 + 1');
-    assert.match(result.text, /Round 4 ends the rolls: every foe is Down/);
-    assert.deepEqual(result.summary.acts.map(act => act.outcomes.length), [4]);
-    const earlier = classic(cplan(), { source: dice({ act0: [20, 10] }), flow: 1 });
-    assert.deepEqual([earlier.rounds.length, earlier.stop], [1, 'decisive']);
-});
-
-test('lost: every party member is Down (Standard and Classic)', () => {
+test('lost: every party member is Down', () => {
     const alone = { wessel: party().wessel, 'wessel-skills': party()['wessel-skills'], foes: party({ foes: [['Sluice Rats', 6, 6, 8]] }).foes };
     // The foe's natural 20 is a decisive hit: 2 blocks a round, from 6 blocks, so Wessel is Down in round 3 (and heavy in round 1: the first stop that happens is lost only when no one stands).
     const foe = { slot: 1, target: 'Wessel' };
@@ -74,13 +57,9 @@ test('lost: every party member is Down (Standard and Classic)', () => {
     assert.equal(result.stop, 'lost');
     assert.equal(result.rounds.length, 1, 'Wessel, the only one, is Down in round 1');
     assert.match(result.text, /everyone on your side is Down/);
-    const cl = classic({ pace: 'all', acts: [], foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }], checks: [] }, {
-        blocks: { wessel: { role: 'character', fields: character('Wessel', { health: 1 }) }, foes: party({ foes: [['Sluice Rats', 6, 6, 5]] }).foes }, source: dice({ foe0: [1, 20] }) });
-    assert.equal(cl.stop, 'lost');
-    assert.equal(cl.rounds.length, 1);
 });
 
-test('heavy: a party member who lost 2 Health blocks (Standard) or 2 stages (Classic) in this reply, or went Down, ends the rolls', () => {
+test('heavy: a party member who lost 2 Health blocks in this reply, or went Down, ends the rolls', () => {
     const foe = { slot: 1, target: 'Wessel' };
     const strong = party({ foes: [['Sluice Rats', 6, 6, 8]], ren: {} });
     // A decisive foe hit takes 2 blocks at once.
@@ -94,11 +73,6 @@ test('heavy: a party member who lost 2 Health blocks (Standard) or 2 stages (Cla
     assert.equal(plain.stop, 'heavy');
     assert.ok(plain.rounds.reduce((total, round) => total + lost(round), 0) >= 2);
     assert.ok(plain.rounds.slice(0, -1).reduce((total, round) => total + lost(round), 0) < 2, 'it stopped at the first round that made it two');
-    // Classic
-    const cl = classic({ pace: 'all', acts: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats' }], foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }], checks: [] },
-        { blocks: { wessel: { role: 'character', fields: character('Wessel') }, 'wessel-skills': party()['wessel-skills'], foes: party({ foes: [['Sluice Rats', 6, 6, 5]] }).foes }, source: dice({ foe0: [1, 20] }) });
-    assert.equal(cl.stop, 'heavy');
-    assert.equal(cl.rounds.length, 1);
 });
 
 test('cap: the rules\' most exchanges per reply ends the rolls; careful still rolls one exchange', () => {
@@ -109,9 +83,7 @@ test('cap: the rules\' most exchanges per reply ends the rolls; careful still ro
     assert.deepEqual([normal.rounds.length, normal.stop], [8, 'cap'], 'the normal pace is no longer five: the cap decides');
     const careful = roll(planOf({ pace: 'careful', acts: [hit] }), { blocks: big, rules: std({ roundCap: 8 }) });
     assert.deepEqual([careful.rounds.length, careful.stop], [1, 'pace']);
-    const cl = classic(cplan({ pace: 'careful' }));
-    assert.deepEqual([cl.rounds.length, cl.stop], [1, 'pace']);
-    assert.equal(PRESETS.standard.roundCap, LIMITS.roundCapDefault);
+    assert.equal(STANDARD_FORMULA.roundCap, LIMITS.roundCapDefault);
     assert.equal(LIMITS.roundCapDefault, 8);
 });
 
@@ -119,9 +91,9 @@ test('budget: the cue that no longer fits is cut to fewer rounds, never fewer th
     const names = ['Adalbert the Unwavering', 'Brunhilde of the Marches', 'Cornelius Featherstone', 'Dorothea Nightingale', 'Everard Longstride', 'Fenella of the Reeds'];
     const blocks = party({ foes: [['Sluice Rat Vanguard of the Lower Drain', 20, 9, 5], ['Sluice Rat Chieftain of the Lower Drain', 2, 9, 5], ['Sluice Rat Sappers of the Lower Drain', 3, 9, 5], ['Sluice Rat Archers of the Lower Drain', 3, 9, 5]] });
     for (const name of names) blocks[name] = { role: 'character', fields: character(name, { health: 5 }) };
-    const acts = names.map(who => ({ who, stat: 'str', target: 'Sluice Rat Vanguard of the Lower Drain' }));
-    const foes = [1, 2, 3, 4].map(slot => ({ slot, target: names[slot], defend: 'agi' }));
-    const result = classic({ pace: 'all', acts, foes, checks: [] }, { blocks, source: dice({}, 20) });
+    const acts = names.map(who => ({ who, target: 'Sluice Rat Vanguard of the Lower Drain' }));
+    const foes = [1, 2, 3, 4].map(slot => ({ slot, target: names[slot] }));
+    const result = roll(planOf({ acts, foes }), { blocks, source: dice({}, 20) });
     assert.ok(result.rounds.length >= 1 && result.rounds.length < 8, `${result.rounds.length} rounds`);
     assert.equal(result.stop, 'budget');
     assert.match(result.text, /is the last rolled/);
@@ -164,7 +136,7 @@ async function reloads(host) {
 }
 
 test('a payload with no flow (a roll made before) keeps its stop rule and its record; a Re-read, a rebuild and a reload give it back byte for byte', { skip }, async () => {
-    const { host } = await setup({ blocks: blocksStd(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard' }, flowless: true });
+    const { host } = await setup({ blocks: blocksStd(), answers: [ANSWER], flowless: true });
     await host.send('I hit the lead rat.', 'The rats scatter.');
     const receipt = rollReceipt(host, 2);
     assert.equal('flow' in receipt.replan.payload, false);
@@ -180,7 +152,7 @@ test('a payload with no flow (a roll made before) keeps its stop rule and its re
 });
 
 test('a new roll carries the flow: Re-read, swipe, middle delete, rebuild and reload agree, and the stop is one of the new words', { skip }, async () => {
-    const { host } = await setup({ blocks: blocksStd(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard' } });
+    const { host } = await setup({ blocks: blocksStd(), answers: [ANSWER] });
     await host.send('I hit the lead rat.', 'The rats scatter.');
     const first = rollReceipt(host, 2);
     assert.equal(first.replan.payload.flow, FLOW_VERSION);
@@ -209,7 +181,7 @@ test('a fight won by the dice pays every party member who has not Left, once; th
     weak.foes.fields = levelFoeBlock([['Sluice Rats', 6, 1, 1]]);
     weak.ren.fields.health = 0;                      // Ren is Down: paid all the same
     weak.left = { role: 'character', fields: character('Orsolya', { left: true }) };
-    const { host } = await setup({ blocks: weak, answers: [ONE_SIDED], settings: { [FORMULA_SETTING]: 'standard' } });
+    const { host } = await setup({ blocks: weak, answers: [ONE_SIDED] });
     const { request } = await host.send('I hit the lead rat.', 'The rats are beaten.');
     const result = resultOf(host, 2);
     assert.equal(result.stop, 'won');
@@ -247,7 +219,7 @@ test('a fight won by the dice pays every party member who has not Left, once; th
 test('B4: a fight won on blocks made before levels (Soul Class, class{n} foes) is paid by the levels they stand for, and its witness and receipt have no level, so a rebuild, a Re-read and a reload agree', { skip }, async () => {
     const old = party({ foes: [['Sluice Rats', 6, 1, 1]], ren: {} });     // class I foes (level 5), Soul Class II members (level 15)
     old.ren.fields.health = 0;
-    const { host } = await setup({ blocks: old, answers: [ONE_SIDED], settings: { [FORMULA_SETTING]: 'standard' }, levelless: true });
+    const { host } = await setup({ blocks: old, answers: [ONE_SIDED], levelless: true });
     await host.send('I hit the lead rat.', 'The rats are beaten.');
     assert.equal(resultOf(host, 2).stop, 'won');
     const [step] = fightReceipts(host, 2);
@@ -300,11 +272,12 @@ test('each member\'s XP: count × max(1, ceil(foe level / 10)) × 2, times 100 %
 
 async function world(t, { answers = ['none'], party = ['Astra'], xp = 0, rate } = {}) {
     const model = createFakeModel(answers);
-    const host = await createHost({ callModel: model, settings: { modules: { 'story-block': { rpgFormula: 'classic', ...(rate === undefined ? {} : { rpgXpRate: rate }) } } } });
+    const host = await createHost({ callModel: model, settings: { modules: { 'story-block': { ...(rate === undefined ? {} : { rpgXpRate: rate }) } } } });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
+    host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
-    const definitionOf = name => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition);
+    const definitionOf = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
     for (const who of party) {
         const definition = definitionOf('Character');
         if (who !== party[0]) { definition.slug = who.toLowerCase(); definition.name = who; }
@@ -438,30 +411,6 @@ test('a member whose XP comes to 0 gets none and no receipt line; another member
 
 // ---- a fight opened and won in the same reply -------------------------------------------------------------------------------
 
-const AMBUSH = 'Mud-scale crawlers boil out of the silt. I ambush them.';
-const OPENING = ['pace: normal', 'foe Mud-Scale Crawlers | new | count: 6 | level: 1', 'act Astra | stat: STR | target: Mud-Scale Crawlers', 'foe Mud-Scale Crawlers | target: Astra | defend: AGI'].join('\n');
-
-test('a fight opened by the pre-call and won in the same reply is paid once; a swipe that opens it and does not win pays nothing; Re-read, rebuild and reload agree', { skip }, async t => {
-    const { host } = await world(t, { answers: [OPENING, OPENING, 'none'] });
-    await host.send(AMBUSH, reply(DOWN));
-    assert.equal(host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields.count1, 6, 'the pre-call opened the crawlers');
-    assert.equal(fields(host, 'Astra').xp, 10, 'level 2 against six level 1 crawlers');
-    assert.equal(host.ctx.chat[4].extra.storySuite.receipts.filter(receipt => receipt.type === FIGHT).length, 1);
-    assert.deepEqual(fightLines(host.ctx.chat[4].extra.storySuite).map(line => line.text), ['Astra +10 XP (fight won)']);
-    same(host);
-    const head = JSON.stringify(host.head());
-    assert.equal((await host.turn.reread(4)).ok, true);
-    assert.equal(JSON.stringify(host.head()), head, 'a Re-read gives the same story');
-    await reloads(host);
-    await host.swipe(reply('~ dm foes — why | kind: hurt-1 | to: 3'));
-    assert.equal(host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields.count1, 6, 'the swipe opened the crawlers again');
-    assert.equal(fields(host, 'Astra').xp, 0, 'opened, hurt, not won');
-    assert.equal(host.ctx.chat[4].extra.storySuite.receipts.filter(receipt => receipt.type === FIGHT).length, 0);
-    same(host);
-    await host.send('I finish them.', reply(DOWN));
-    assert.equal(fields(host, 'Astra').xp, 10, 'won in the next reply: paid then');
-    same(host);
-});
 
 test('a fight the narrator opens with its own set-slot line and wins in the same reply is paid once', { skip }, async t => {
     const { host } = await world(t);
@@ -470,23 +419,6 @@ test('a fight the narrator opens with its own set-slot line and wins in the same
     same(host);
     await host.send('We rest.', reply(XP(0)));
     assert.equal(fields(host, 'Astra').xp, 10, 'the beaten group does not pay again');
-});
-
-test('Standard dice: a fight opened by the pre-call and won by the dice in the same reply is paid', { skip }, async t => {
-    const answer = ['foe Mud-Scale Crawlers | new | count: 2 | level: 1', 'act Astra | type: physical | target: Mud-Scale Crawlers'].join('\n');
-    const model = createFakeModel([answer]);
-    const host = await createHost({ callModel: model });
-    t.after(() => host.close());
-    host.features.set(LEAN_RPG_FEATURE, true);
-    host.features.set('story-block.fight-board', false);
-    await host.send('Begin.', 'Opening.');
-    for (const entry of STANDARD_TEMPLATES.slice(0, 3)) success(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
-    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 2, str: 20, dex: 20 } }));
-    await host.send(AMBUSH, 'The crawlers are beaten.');
-    const result = rollReceipt(host, 4).data.v2.result;
-    assert.equal(result.stop, 'won');
-    assert.equal(fields(host, 'Astra').xp, 3, '2 × 1 × 2 = 4, level 2 against level 1: 90 % = 3.6, rounded down');
-    same(host);
 });
 
 // ---- the XP rate (rpgXpRate) ----------------------------------------------------------------------------------------------------

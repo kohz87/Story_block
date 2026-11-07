@@ -5,9 +5,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
-import { PRESETS, STANDARD_FORMULA, DICE_VERSION, FLOW_VERSION, LV_VERSION, leanRpgGuard, readSheet, resolve } from '../../../src/v2/lean-rpg/index.js';
+import { STANDARD_FORMULA, DICE_VERSION, FLOW_VERSION, LV_VERSION, leanRpgGuard, readSheet, resolve } from '../../../src/v2/lean-rpg/index.js';
 import { cueOfResult, cueTokens, entriesWithCue, fitCue, wearLine } from '../../../src/v2/lean-rpg/cue.js';
 import { ENCUMBERED, STAT_MAX, applyGear, earnedLegend, gearOf, gearValid, isDecisive, noteGear, planGear } from '../../../src/v2/lean-rpg/gear.js';
 import { readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
@@ -15,6 +15,7 @@ import { oddsView } from '../../../src/v2/lean-rpg/view/settings-data.js';
 import { atLimit, condWord, loadLevel } from '../../../src/v2/domains/gear.js';
 import { hashJson } from '../../../src/v2/replay.js';
 import { rng, roll } from '../../../src/v2/rng.js';
+import { legacyPlanner } from './legacy-planner.js';
 import { character, levelFoeBlock, sheetDomain, skillBlock } from './helpers.js';
 
 const blocks = (over = {}, foe = ['Sluice Rats', 6, 40, 5]) => ({
@@ -23,8 +24,8 @@ const blocks = (over = {}, foe = ['Sluice Rats', 6, 40, 5]) => ({
     foes: { role: 'foes', fields: levelFoeBlock([foe]) },
 });
 const sheetOf = b => readSheet({ domains: { dataModules: sheetDomain(b) } });
-const RULES = { classic: { ...PRESETS.standard, levelDivisor: 5 }, standard: { ...STANDARD_FORMULA, levelDivisor: 5 } };
-const PLAN = { pace: 'all', acts: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats' }], foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }], checks: [] };
+const RULES = { standard: { ...STANDARD_FORMULA, levelDivisor: 5 } };
+const PLAN = { formula: 'standard', pace: 'all', acts: [{ who: 'Wessel', skill: 'Iron Breath', type: 'physical', target: 'Sluice Rats' }], foes: [{ slot: 1, target: 'Wessel' }], checks: [] };
 const GEAR = { v: 1, who: { wessel: { own: ['party'], add: { str: 2, vit: 1 }, items: [{ name: 'Cane Sword', stats: { str: 2 } }, { name: 'Iron Cap', stats: { vit: 1 } }] } } };
 
 // A stand-in inventory: what Wessel wears (owner `party`), each piece with a condition; `gear.wear` goes one condition word down. Given a gear record
@@ -54,7 +55,7 @@ function inventory(pieces = { weapon: ['Cane Sword', 100], body: ['Boiled Leathe
     };
 }
 
-function run({ b = blocks(), plan = PLAN, rules = RULES.classic, gear, seed = 1, inv = inventory(undefined, gear) } = {}) {
+function run({ b = blocks(), plan = PLAN, rules = RULES.standard, gear, seed = 1, inv = inventory(undefined, gear) } = {}) {
     const domain = sheetDomain(b), random = rng(seed);
     const ctx = { cause: 'system', caller: null, module: 'story-block', epoch: 1, source: {}, fail: (code, message) => { throw new Error(`${code}: ${message}`); },
         read: () => domain, draft: () => structuredClone(domain), claim: () => true, rng: random, roll: expression => roll(random, expression), hash: hashJson,
@@ -103,17 +104,17 @@ test('planGear: the worn pieces\' bonus (broken ones give none), the party actor
     assert.equal(gearValid(plan), true);
 });
 
-test('a roll with gear: the bonus is in the stat the roll reads (Classic), the record carries it, the line names the gear, and the guard keeps it', () => {
+test('a roll with gear: the bonus is in the stat the roll reads (Standard), the record carries it, the line names the gear, and the guard keeps it', () => {
     const plain = run({ seed: 7 }), geared = run({ seed: 7, gear: GEAR });
     const act = result => result.rounds[0].lines.find(line => line.kind === 'act');
-    assert.equal(act(plain.result).pc.statBonus, 7, 'STR 14: half');
-    assert.equal(act(geared.result).pc.statBonus, 8, 'STR 14 + 2: half of 16');
+    assert.equal(act(plain.result).pc.statBonus, 9, 'STR 14 and DEX 10');
+    assert.equal(act(geared.result).pc.statBonus, 10, 'STR 14 + 2: 16 and DEX 10');
     assert.deepEqual(act(geared.result).pc.gear, [{ name: 'Cane Sword', stat: 'str', n: 2 }]);
     assert.deepEqual(geared.result.gear, GEAR, 'the record is in the result');
     assert.deepEqual(geared.ctx.guard.recorded.gear, GEAR, 'and in what the guard is given');
     assert.equal(act(geared.result).pc.die, act(plain.result).pc.die, 'the same dice');
-    // the foe's line is the defender's: AGI here (no gear on AGI), VIT bonus is not used by AGI
-    assert.equal(geared.result.rounds[0].lines.find(line => line.kind === 'foe').pc.gear, undefined);
+    // the foe's line is the defender's: Standard defence reads VIT (the Iron Cap's) and AGI, not the sword's STR
+    assert.deepEqual(geared.result.rounds[0].lines.find(line => line.kind === 'foe').pc.gear, [{ name: 'Iron Cap', stat: 'vit', n: 1 }]);
     // the receipt's cue is what the record gives back
     assert.equal(cueOfResult(geared.result), geared.text);
 });
@@ -138,12 +139,12 @@ test('encumbered: AGI and DEX less 2 in the roll, recorded like the bonus, named
     const gear = { v: 1, who: { wessel: { own: ['party'], enc: ENCUMBERED } } };
     const plan = { pace: 'all', acts: [], foes: [], checks: [{ who: 'Wessel', stat: 'dex', difficulty: 'hard' }] };
     const plain = run({ plan, seed: 4 }), heavy = run({ plan, seed: 4, gear });
-    assert.equal(plain.result.checks[0].pc.statBonus, 5, 'DEX 10');
-    assert.equal(heavy.result.checks[0].pc.statBonus, 4, 'DEX 8');
+    assert.equal(plain.result.checks[0].pc.statBonus, 7, 'DEX 10');
+    assert.equal(heavy.result.checks[0].pc.statBonus, 6, 'DEX 8');
     assert.deepEqual(heavy.result.checks[0].pc.gear, [{ name: 'Encumbered', stat: 'dex', n: -2 }]);
     assert.equal(heavy.result.gear.who.wessel.enc, -2);
-    // STR is not touched
-    assert.equal(run({ plan: { ...plan, checks: [{ who: 'Wessel', stat: 'str', difficulty: 'hard' }] }, seed: 4, gear }).result.checks[0].pc.gear, undefined);
+    // STR is not touched (a STR check pairs it with DEX, which the load does cut)
+    assert.deepEqual(run({ plan: { ...plan, checks: [{ who: 'Wessel', stat: 'str', difficulty: 'hard' }] }, seed: 4, gear }).result.checks[0].pc.gear.map(piece => piece.stat), ['dex']);
 });
 
 test('from 100 %: at the capacity is encumbered, under it is not; the Carry card bands are red from 100 % and yellow from 80 % (74 of 74)', () => {
@@ -154,8 +155,8 @@ test('from 100 %: at the capacity is encumbered, under it is not; the Carry card
 test('gear off (no `gear` in the payload) is the roll as it was: no gear, wear or legend in the record, nothing asked of the inventory', () => {
     const inv = inventory(), asked = [];
     const guarded = { ...inv, query: (...args) => { asked.push(args); return inv.query(...args); }, call: (...args) => { asked.push(args); return inv.call(...args); } };
-    for (const rules of [RULES.classic, RULES.standard]) {
-        const made = run({ rules, seed: 11, inv: guarded, plan: rules === RULES.standard ? { ...PLAN, formula: 'standard' } : PLAN });
+    for (const rules of [RULES.standard]) {
+        const made = run({ rules, seed: 11, inv: guarded });
         assert.deepEqual(Object.keys(made.result).filter(key => ['gear', 'wear', 'legend'].includes(key)), []);
         assert.equal(made.ctx.guard.recorded.gear, undefined);
         assert.equal('gear' in made.ctx.guard.guard.predicate, false);
@@ -239,7 +240,7 @@ test('legend: a won fight against a group 10 or more levels above the party\'s h
 
 test('the odds in Settings are for the stats the character rolls with', () => {
     const state = { domains: { dataModules: sheetDomain(blocks({ str: 8, dex: 8 })) } };
-    const rules = RULES.classic;
+    const rules = RULES.standard;
     const bare = oddsView(state, 'Wessel', rules), geared = oddsView(state, 'Wessel', rules, { v: 1, who: { wessel: { own: ['party'], add: { str: 4, dex: 4 } } } });
     assert.ok(geared.now.success >= bare.now.success);
     assert.notDeepEqual(geared.now, bare.now);
@@ -258,24 +259,27 @@ test('noteGear writes each line\'s gear once and leaves a line with none alone',
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
-const PLAN_TEXT = 'pace: all\nact Astra | target: Mud Crawlers\nfoe Mud Crawlers | target: Astra | defend: AGI';
+const PLAN_TEXT = 'pace: all\nact Astra | target: Mud Crawlers\nfoe Mud Crawlers | target: Astra';
 const SET = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | level: 60';
 const GEAR_LINES = ['+ item Cane Sword | kind: weapon | rarity: rare | DEX: +2 | equipped: weapon', '+ item Jerkin | kind: armour | rarity: uncommon | VIT: +1 | equipped: body'];
 
-async function world(t, { gear = true, standard = false, fields = { level: 5 }, foeLevel = 60 } = {}) {
-    const plan = standard ? PLAN_TEXT.replace('act Astra |', 'act Astra | type: physical |') : PLAN_TEXT;
-    const templates = standard ? STANDARD_TEMPLATES : LEAN_RPG_TEMPLATES;
-    const host = await createHost({ callModel: createFakeModel(Array(40).fill(plan)), settings: { features: gear ? { 'story-block.gear': true } : {}, modules: { 'story-block': { rpgFormula: standard ? 'standard' : 'classic' } } } });
+async function world(t, { gear = true, fields = { level: 5 }, foeLevel = 60, quiet = false } = {}) {
+    const plan = quiet ? 'none' : PLAN_TEXT.replace('act Astra |', 'act Astra | type: physical |');
+    const model = createFakeModel(Array(40).fill(plan));
+    // (the real host with the test-only legacy planner behind the RPG part's hook: the planner itself is gone)
+    const rpgLoad = async () => { const lib = await import('../../../src/v2/lean-rpg/index.js'); return { ...lib, createLeanRpgPart(deps) { const part = lib.createLeanRpgPart(deps); part.hooks.beforeGenerate = legacyPlanner(part, { callModel: model, chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null }); return part; } }; };
+    const host = await createHost({ callModel: model, lazyRpg: true, rpgLoad, settings: { features: gear ? { 'story-block.gear': true } : {} } });
     t.after(() => host.close());
     host.features.set('story-block.rpg', true);
     host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
-    for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(templates.find(entry => entry.name === name).definition) }));
+    for (const name of ['Character', 'Foes']) success(await host.sdk.command('dm.define', { definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition) }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', ...fields } }));
     await host.send('Set.', reply(SET.replace('level: 60', `level: ${foeLevel}`), ...GEAR_LINES));
     return host;
 }
 const resultOf = host => host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve')?.data?.v2?.result;
+const bonusOf = host => Object.fromEntries(Object.entries(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus).filter(([, n]) => n).map(([stat, n]) => [stat.toLowerCase(), n]));
 const slotsOf = host => host.sdk.query('inventory.gear', { owner: 'party' })?.slots;
 const stable = host => JSON.stringify(host.head());
 function rebuilt(host) {
@@ -291,16 +295,17 @@ async function reloaded(host) {
 }
 
 test('a fight with a bonus, a wear step and a break: the record, the bonus going with the broken piece, and live = rebuild = reload = Re-read = middle delete', { skip }, async t => {
-    const host = await world(t);
+    fixedSeeds(t);
+    const host = await world(t, { fields: { level: 5, vit: 20 }, foeLevel: 99 });
     const steps = [], order = ['good', 'worn', 'torn', 'broken'];
     let n = 0;
-    while (slotsOf(host).body.cond > 0 && n < 14) {
-        const before = slotsOf(host).body.cond;
-        await host.send(`I strike ${n}.`, 'The fight.');
+    while (slotsOf(host).body.cond > 0 && n < 40) {
+        const before = slotsOf(host).body.cond, worn = bonusOf(host);
+        await host.send(`I strike ${n}.`, reply('~ dm foes — why | kind: hurt-1 | to: Unhurt', '~ dm character — why | kind: set-health | to: Unhurt'));   // (both sides are mended after each roll, so the fight goes on)
         n += 1;
         const result = resultOf(host), body = slotsOf(host).body.cond;
-        assert.deepEqual(result.gear.who.astra.add, { vit: 1, dex: 2 }, 'the bonus recorded is what was worn when the roll was made');
-        for (const event of result.wear ?? []) { steps.push(`${event.from} > ${event.to}`); assert.equal(order.indexOf(event.to) - order.indexOf(event.from), 1, 'one step'); }
+        assert.deepEqual(result.gear.who.astra.add, worn, 'the bonus recorded is what was worn when the roll was made');
+        for (const event of (result.wear ?? []).filter(item => item.item === 'Jerkin')) { steps.push(`${event.from} > ${event.to}`); assert.equal(order.indexOf(event.to) - order.indexOf(event.from), 1, 'one step'); }
         assert.ok(body <= before);
         assert.equal(body < before, (result.wear ?? []).some(event => event.item === 'Jerkin'), 'the wear in the record is the wear in the inventory');
     }
@@ -308,8 +313,8 @@ test('a fight with a bonus, a wear step and a break: the record, the bonus going
     assert.deepEqual(steps, ['good > worn', 'worn > torn', 'torn > broken']);
     // the broken piece gives nothing: the next roll's record has no VIT bonus, and its stored roll above still says what it was
     assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.VIT, 0);
-    await host.send('Again.', 'The fight goes on.');
-    assert.deepEqual(resultOf(host).gear.who.astra.add, { dex: 2 });
+    const left = bonusOf(host);
+    await host.send('Again.', 'The fight goes on.'); assert.deepEqual(resultOf(host).gear?.who.astra.add ?? {}, left);
     assert.equal(resultOf(host).wear, undefined, 'a broken piece wears no further');
     const first = host.ctx.chat.map(message => message.extra?.storySuite?.receipts?.find(receipt => receipt.type === 'rpg.resolve')).find(Boolean);
     assert.deepEqual(first.data.v2.result.gear.who.astra.add, { vit: 1, dex: 2 }, 'a stored roll keeps its bonus');
@@ -355,7 +360,7 @@ test('gear off: no gear in the payload or the record, no wear, the same roll', {
 
 test('ruin: with gear on one ruin breaks the piece; scuff and tear are as they were; with gear off a ruin is as it was (100 to 60)', { skip }, async t => {
     for (const gear of [true, false]) {
-        const host = await world(t, { gear });
+        const host = await world(t, { gear, quiet: true });
         const stack = () => host.sdk.query('inventory.items').find(item => item.name === 'Cane Sword').stack;
         const cond = () => host.sdk.query('inventory.condition', { stack: stack() }).cond;
         await host.send('A scuff.', reply('~ item Cane Sword — nicked | wear: scuff'));
@@ -378,7 +383,7 @@ function fixedSeeds(t, start = 1) {
 
 test('the legendary mark: the narrator\'s legendary line is held to epic, unless the same reply\'s roll won a fight against a group 10 levels above the party', { skip }, async t => {
     fixedSeeds(t);
-    const host = await world(t, { standard: true, fields: { level: 1, str: 20, dex: 20, vit: 20, agi: 20 }, foeLevel: 3 });
+    const host = await world(t, { fields: { level: 1, str: 20, dex: 20, vit: 20, agi: 20 }, foeLevel: 3 });
     const rarity = n => host.sdk.query('inventory.definitions').find(def => def.name === `Blade ${n}`).rarity;
     const group = level => `+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 1 | level: ${level}`;
     const fresh = '~ dm foes — why | kind: hurt-1 | to: 4';
@@ -399,7 +404,7 @@ test('the legendary mark: the narrator\'s legendary line is held to epic, unless
 
 test('G6: the wear lines count inside the cue budget (fitCue wearOf), and the cue a reader gets (receipts) has them', () => {
     const wearing = made => made.result.wear?.length >= 1 && made.result.rounds.length >= 2;
-    const seed = seedWhere(wearing, { gear: GEAR, rules: RULES.classic });
+    const seed = seedWhere(wearing, { gear: GEAR, rules: RULES.standard });
     assert.ok(seed, 'a seed with wear');
     const made = run({ gear: GEAR, seed });
     const parts = { checks: made.result.checks, rounds: made.result.rounds, refused: [], decisive: false };
@@ -425,7 +430,7 @@ test('G6: the wear lines count inside the cue budget (fitCue wearOf), and the cu
 test('G3: a re-planned roll wears by its stored record, so switching gear off never removes the wear an old roll made', { skip }, async t => {
     const host = await world(t);
     let n = 0;
-    while (!resultOf(host)?.wear && n < 14) { await host.send(`I strike ${n}.`, 'The fight.'); n += 1; }
+    while (!resultOf(host)?.wear && n < 40) { await host.send(`I strike ${n}.`, reply('~ dm foes — why | kind: hurt-1 | to: Unhurt', '~ dm character — why | kind: set-health | to: Unhurt'));; n += 1; }   // (both sides are mended after each roll, so the fight goes on)
     const made = resultOf(host);
     assert.ok(made?.wear?.length, 'a roll that wore something');
     const worn = JSON.stringify(slotsOf(host));

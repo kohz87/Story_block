@@ -4,15 +4,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
-import { LEAN_RPG_FEATURE, PRECALL_HEAD, readSheet, validatePlan } from '../../../src/v2/lean-rpg/index.js';
-import { PRECALL_HEAD_STANDARD, sheetText } from '../../../src/v2/lean-rpg/precall.js';
+import { LEAN_RPG_FEATURE, readSheet, validatePlan } from '../../../src/v2/lean-rpg/index.js';
 import { openFoes, openErrors, vetOpen } from '../../../src/v2/lean-rpg/open.js';
 import { divisorOf } from '../../../src/v2/lean-rpg/rules.js';
 import { FOE_LEVEL, LV_VERSION, averageLevel, bandOfRank, classOfLevel, foeBlocksByLevel, foeLabel, foeRandom, levelBonus, foeLevelCap, levelOf, levelOfClass, partyLevels, pickLevel, settleOpen } from '../../../src/v2/lean-rpg/foes.js';
 import { sizeOf } from '../../../src/v2/lean-rpg/blocks.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { success, reply } from '../data-modules/helpers.js';
-import { PARTY, foeBlock, rollReceipt, setup, tailOf } from './helpers.js';
+import { PARTY, foeBlock, levelFoeBlock, rollReceipt, setup } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -153,22 +152,8 @@ test('a plan\'s open list: level, rank with its band, nothing, or an old class; 
     assert.ok(openErrors([{ name: 'A', count: 2, level: 7, extra: 1 }]).length);
 });
 
-test('the planner is asked for a level or a rank, and the foes are listed with their level (and rank when a pack names them)', () => {
-    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.split('\n').includes('foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?'));
-        assert.ok(!head.includes('class: <I-V>'));
-    }
-    const blocks = empty();
-    blocks.foes.fields = { ...blocks.foes.fields, foe1: 'Sluice Rats', count1: 6, level1: 14, foe2: 'Ghoul', count2: 1, level2: 40 };
-    const sheet = sheetOf(blocks);
-    assert.match(sheetText(sheet), /1\. Sluice Rats x6 \(Lv 14, Unhurt\)\n2\. Ghoul \(Lv 40, Unhurt\)/);
-    assert.match(sheetText(sheet, { rankAt }), /1\. Sluice Rats x6 \(Rank E · Lv 14, Unhurt\)\n2\. Ghoul \(Lv 40, Unhurt\)/);
-    // A group of the earlier rules is listed by the level its class stands for.
-    assert.match(sheetText(sheetOf(PARTY())), /1\. Sluice Rats x6 \(Lv 5, Unhurt\)/);
-});
-
 test('the Foes templates: level1..4 from 1 to 99 (default 1), no Soul Class; the set-slot kind takes a level; Standard Health follows 4 + level/30', () => {
-    for (const templates of [LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES]) {
+    for (const templates of [STANDARD_TEMPLATES]) {
         const { state, kinds, prompt } = templates.find(entry => entry.name === 'Foes').definition;
         for (const n of [1, 2, 3, 4]) {
             assert.deepEqual([state[`level${n}`].min, state[`level${n}`].max, state[`level${n}`].default, state[`level${n}`].names], [1, 99, 1, undefined]);
@@ -201,7 +186,7 @@ test('a level the plan gives is kept: the slot holds it, the roll adds floor(lev
     assert.equal(result.lv, LV_VERSION);
     assert.deepEqual(result.opened, [{ slot: 1, module: 'pack.chat/foes', name: 'Mud-Scale Crawlers', count: 3, level: 20 }]);
     const foe = result.rounds[0].lines.find(line => line.foe).foe;
-    assert.deepEqual([foe.classValue, foe.classBonus, foe.total - foe.die], [20, 4, 5 + 4]);
+    assert.deepEqual([foe.classValue, foe.classBonus, foe.total - foe.die], [20, 4, 4 + 4]);
     host.close();
 });
 
@@ -226,7 +211,6 @@ test('a rank gives a level inside its band (the rank query names the ranks); wit
     await ranked.host.send(MESSAGE, 'The silt churns.');
     const level = fieldsOf(ranked.host).level1;
     assert.ok(level >= 10 && level <= 19, `Rank E is 10..19, got ${level}`);
-    assert.match(ranked.callModel.calls[0].prompt, /Wessel \(class II\)/, 'the party is listed as it is for now');
     const open = rollReceipt(ranked.host, 2).data.v2.result.opened[0];
     assert.equal(open.level, level);
     ranked.host.close();
@@ -290,13 +274,13 @@ test('the replay guard asks again on the levels the roll recorded: damaged level
     host.close();
 });
 
-test('a roll made before the Levels rules (no lv) replays and rolls exactly as it did: the foe adds 2 x class', { skip }, async () => {
+test('a roll made before the Levels rules (no lv) replays and rolls exactly as it did: the foe adds 3 x class (a record with no formula replays as Standard)', { skip }, async () => {
     const { host } = await setup({ answers: [['pace: normal', 'act Wessel | skill: Iron Breath | target: Sluice Rats', 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n')], levelless: true });
     await host.send('I strike the rats.', 'They scatter.');
     const result = rollReceipt(host, 2).data.v2.result;
     assert.equal(result.lv, undefined);
     const foe = result.rounds[0].lines.find(line => line.foe).foe;
-    assert.deepEqual([foe.classValue, foe.classBonus], [1, 2], 'class I, 2 x 1');
+    assert.deepEqual([foe.classValue, foe.classBonus], [1, 3], 'class I, replayed as Standard: 3 x 1');
     const before = JSON.stringify(host.head());
     assert.equal((await host.turn.reread(2)).ok, true);
     assert.deepEqual(rollReceipt(host, 2).data.v2.result, result);
@@ -390,7 +374,7 @@ test('the narrator\'s set-slot line with a rank: the level is drawn inside the r
 });
 
 test('the narrator\'s line for a group already there updates its level, Classic and Standard', { skip }, async t => {
-    for (const templates of [LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES]) {
+    for (const templates of [STANDARD_TEMPLATES]) {
         const host = await world(t, { answers: ['none'], templates });
         await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 20'));
         await host.send('More.', reply('+ dm foes — why | kind: set-slot-2 | name: weir-drake | count: 3 | level: 44'));
@@ -411,20 +395,19 @@ test('F1: a group named again with no level and no rank keeps the level it has; 
     assert.equal(sheetNow(host).foes[0].level, 25, 'live = rebuild');
 });
 
-test('a Standard fight on real blocks: the foe adds floor(level / 5) and the group has 4 + floor(level / 30) blocks', { skip }, async t => {
+test('a Standard fight on a level 62 group: the foe adds floor(level / 5) to its roll and to its turn-order roll', { skip }, async () => {
     const answer = ['pace: all', 'act Wessel | skill: Iron Breath | type: physical | target: Warlord', 'foe Warlord | target: Wessel'].join('\n');
-    const host = await world(t, { answers: [answer], templates: STANDARD_TEMPLATES });
-    await host.send('A warlord.', reply('+ dm foes — why | kind: set-slot-1 | name: Warlord | count: 1 | level: 62'));
-    assert.equal(sheetNow(host).foes[0].size, 6);
+    const blocks = { ...PARTY(), foes: { role: 'foes', fields: levelFoeBlock([['Warlord', 1, 62, 6]]) } };
+    const { host } = await setup({ blocks, answers: [answer] });
     await host.send('I strike.', 'Steel rings.');
-    const result = (() => { const receipts = host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === 'rpg.resolve'); return receipts.at(-1).data.v2.result; })();
+    const result = rollReceipt(host, 2).data.v2.result;
     assert.equal(result.lv, LV_VERSION);
     const foe = result.rounds[0].lines.find(line => line.foe).foe;
     assert.deepEqual([foe.classValue, foe.classBonus], [62, 12]);
     // The foe's turn-order roll is d20 + floor(level / 5) (no AGI term for a foe).
     const lead = result.order.find(entry => !entry.party);
     assert.deepEqual([lead.bonus, lead.total - lead.die], [12, 12]);
-    assert.ok(tailOf((await host.send('Again.', 'Steel rings.')).request).includes('Lv 62'), 'the tail says the level');
+    host.close();
 });
 
 test('the narrator\'s set-slot line holds a new foe\'s level to the party\'s highest + 10 (Soul Class II is level 15: 25)', { skip }, async t => {

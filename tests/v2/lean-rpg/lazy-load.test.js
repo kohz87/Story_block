@@ -11,7 +11,7 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { createLeanRpgPart } from '../../../src/v2/lean-rpg/index.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { createLazyRpgPart, createRpgLoader, holdsRpg, rpgLib, setRpgLib } from '../../../src/v2/rpg-lazy.js';
 
 const available = await hostAvailable();
@@ -122,7 +122,7 @@ test('before the library is there the stand-in does nothing, and a roll asked of
 // ---- through the real host ---------------------------------------------------------------------------------------------------------------
 
 async function make(host, who, soul = 1) {
-    const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
+    const defs = Object.fromEntries(STANDARD_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = who.toLowerCase(); defs.character.name = who; defs.character.state.who.default = who; (defs.character.state.level ?? defs.character.state.soul).default = soul;
     defs.skills.slug = `${who.toLowerCase()}-skills`; defs.skills.name = `${who}'s skills`; defs.skills.state.who.default = who;
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);

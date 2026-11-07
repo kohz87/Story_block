@@ -4,20 +4,19 @@ import assert from 'node:assert/strict';
 const { createHost } = await import('../../../testkit/index.js');
 const { createFakeModel } = await import('../../../testkit/model.js');
 const { LEAN_RPG_FEATURE } = await import('../../../src/v2/lean-rpg/index.js');
-const { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } = await import('../../../src/v2/lean-rpg/templates.js');
+const { STANDARD_TEMPLATES } = await import('../../../src/v2/lean-rpg/templates.js');
 const { reply, success } = await import('../../../tests/v2/data-modules/helpers.js');
 
 const SLOT = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | level: 1';
 const DOWN = '~ dm foes — why | kind: hurt-1 | to: 0';
 const XP = amount => `+ dm character — why | kind: add-xp | amount: ${amount}`;
 
-async function world(t, { level = 2, xp = 0, rate, formula = 'classic', cap } = {}) {
-    const host = await createHost({ callModel: createFakeModel(['none']), settings: { modules: { 'story-block': { rpgFormula: formula, ...(rate === undefined ? {} : { rpgXpRate: rate }) } } } });
+async function world(t, { level = 2, xp = 0, rate, cap } = {}) {
+    const host = await createHost({ callModel: createFakeModel(['none']), settings: { modules: { 'story-block': { ...(rate === undefined ? {} : { rpgXpRate: rate }) } } } });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
     await host.send('Begin.', 'Opening.');
-    const T = formula === 'standard' ? STANDARD_TEMPLATES : LEAN_RPG_TEMPLATES;
-    const def = name => structuredClone(T.find(e => e.name === name).definition);
+    const def = name => structuredClone(STANDARD_TEMPLATES.find(e => e.name === name).definition);
     success(await host.sdk.command('dm.define', { definition: def('Character') }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level, xp, ...(cap ? { cap } : {}) } }));
     success(await host.sdk.command('dm.define', { definition: def('Foes') }));
@@ -32,9 +31,9 @@ const same = async host => {
     assert.equal(JSON.stringify(host.head()), live, 'reload');
 };
 
-for (const formula of ['classic', 'standard']) {
-    test(`${formula}: narrator +80 (rise 2->3, +1 point) in the winning reply is put back, code XP paid`, async t => {
-        const host = await world(t, { level: 2, xp: 90, formula });
+{
+    test(`narrator +80 (rise 2->3, +1 point) in the winning reply is put back, code XP paid`, async t => {
+        const host = await world(t, { level: 2, xp: 90 });
         await host.send('A swarm.', reply(SLOT));
         const before = { ...f(host) };
         await host.send('I finish them.', reply(XP(80), DOWN));

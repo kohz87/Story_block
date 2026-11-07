@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFakeModel, createHost } from '../../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { planGear } from '../../../../src/v2/lean-rpg/gear.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
@@ -62,7 +62,7 @@ test('the carried prompt includes recorded worn and broken gear at their exchang
     host.features.set('story-block.fight-board', true);
     await host.send('Begin.', 'Opening.');
     for (const name of ['Character', 'Foes']) {
-        const made = await host.sdk.command('dm.define', { definition: structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition) });
+        const made = await host.sdk.command('dm.define', { definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition) });
         assert.equal(made.ok, true, made.message);
     }
     assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', str: 3, vit: 20 } })).ok, true);

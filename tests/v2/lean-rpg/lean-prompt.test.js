@@ -1,16 +1,15 @@
 // The RPG's lean prompt (prompt diet step 2, 3 Nov): a numbered family of kinds is one template line, the health words are told once, the Standard
-// blocks' descriptions are shorter, and the combat text, the Foes grammar and the party line are told only while a fight is open or when the planner
-// returned rolls for this reply. Text only: every kind is still declared and every line is read as before, so a fight the narrator opens without a
+// blocks' descriptions are shorter, and the combat text, the Foes grammar and the party line are told only while a fight is open or when
+// rolls were made for this reply. Text only: every kind is still declared and every line is read as before, so a fight the narrator opens without a
 // plan parses, and the same reply rebuilt (a swipe that keeps its plan) tells the same prompt.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { LEAN_RPG_FEATURE, QUIET_GRAMMAR, fightIsOpen, isQuiet, readSheet } from '../../../src/v2/lean-rpg/index.js';
-import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { moduleGrammar } from '../../../src/v2/data-modules/grammar.js';
 import { reply, success } from '../data-modules/helpers.js';
-import { hashJson } from '../../../src/v2/replay.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 
 const available = await hostAvailable();
@@ -21,11 +20,6 @@ const BEFORE = {
     skills: "Up to five skills for one character. Each has a description, the stat it rolls with, what it uses (stamina or mana), a rank (Novice, Adept, Expert, Master) and practice from 0 to 100. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. At 100 practice the rank rises by one and practice starts again at 0; a Master stays at 100.",
     foes: "Up to four foe groups in the current fight. A group is one slot: its name, how many it has (count 0 means the slot is empty), its level from 1 to 99 and its health (words: a group of a higher level has more blocks of health). The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or has yielded.",
     rules: "[COMBAT SYSTEM]\nNo Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Level all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.\nExchanges: a fight is told exchange by exchange, each with clear cause, cost and consequence, in the order things happen. Most fights are short; never skip the moment that decides it.\nWeight & Risk: every strike, miss, wound and hesitation carries impact. Injury, fatigue, fear and pain carry into the next exchange and the next scene.\nBelievable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned; survival must be justified.\nRolls: attacks, spells, defence, talk and checks each pair a main stat with half of a second one. Health, stamina and mana are rows of blocks: a hit takes one, a Decisive hit two, and a foe of a higher Level has more. Tell the rolled result; code moves the bars for hits, heals, skill costs: never set those.\nXP guide: code gives XP for a won fight; write none for it. Other deeds 5 to 40. Code practises rolled skills.",
-};
-// Classic's definitions are never changed (their hashes are those of the 2.17.x templates).
-const CLASSIC_HASHES = {
-    character: '5f4a3ecd42fa4d4c0ef6dd9dfcf2f50001d611e5e2e0df026500160f6f0713dc', skills: 'bde5bf79b35ef2f88dc8c20c981651d3219bd3e4932afba9fefa2cd4092b7a55', // (pinned change, extra skill slots: eight slots and the signature mark)
-    foes: '8d2ad00f8019f5a9e3ab5c684010a95e1c6b23e144b0a529654f64978a508e20', rules: '00bc9f92c51b2623a32ae7ba2b622c50b43442877a799d3524fcd0865e805875',
 };
 const staticOf = request => request.chat[0].content;
 const definitionOf = (templates, role) => templates.find(entry => entry.definition.role === role).definition;
@@ -45,7 +39,7 @@ async function world(t, { answers = [], templates = STANDARD_TEMPLATES, settings
 }
 
 test('a numbered family is one template line with N, and a closing line says what N is', () => {
-    for (const [label, templates] of [['Standard', STANDARD_TEMPLATES], ['Classic', LEAN_RPG_TEMPLATES]]) {
+    for (const [label, templates] of [['Standard', STANDARD_TEMPLATES]]) {
         const skills = moduleGrammar(definitionOf(templates, 'skills'), 'skills');
         assert.equal(skills.split('\n').filter(line => line.includes('kind: learn-N')).length, 1, label);
         assert.equal(skills.split('\n').filter(line => line.includes('kind: practice-N')).length, 1, label);
@@ -75,12 +69,11 @@ test('a family needs three kinds numbered from 1; fewer, or a gap, are written k
     assert.match(moduleGrammar(odd, 'tiers'), /kind: tier-1[^]*kind: tier-2[^]*kind: tier-3/u);
 });
 
-test('the Standard descriptions are shorter, and Classic\'s blocks are the ones they were', () => {
+test('the Standard descriptions are shorter', () => {
     for (const role of ['character', 'skills', 'foes', 'rules']) {
         const lean = definitionOf(STANDARD_TEMPLATES, role).prompt;
         assert.ok(lean.length < BEFORE[role].length * 0.85, `${role}: ${lean.length} against ${BEFORE[role].length}`);
         assert.ok(lean.length <= 1200, `${role} fits the block's room`);
-        assert.equal(hashJson(definitionOf(LEAN_RPG_TEMPLATES, role)), CLASSIC_HASHES[role], `Classic ${role} is unchanged`);
     }
     for (const heading of ['No Plot Armor:', 'Exchanges:', 'Weight & Risk:', 'Believable Outcomes:', 'Rolls:', 'XP guide:']) assert.ok(definitionOf(STANDARD_TEMPLATES, 'rules').prompt.includes(heading), heading);
 });
@@ -127,19 +120,9 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     assert.match(text, /N = 1\.\.8 for learn-N\./u);
 });
 
-test('with Rolls off the quiet reply still offers practice-N and the Classic XP guide keeps its practice sentence', { skip }, async t => {
-    const { host } = await world(t, { templates: LEAN_RPG_TEMPLATES, settings: { modules: { 'story-block': { rpgRolls: 'off' } } } });
-    const { request } = await host.send('I walk on.', 'The road is quiet.');
-    const text = staticOf(request);
-    assert.match(text, /kind: practice-N/u);
-    assert.match(text, /N = 1\.\.8 for learn-N and practice-N\./u);
-    assert.match(text, /Practice a skill 5 to 20 per use\./u);
-    assert.match(text, /and adds practice/u);
-});
+test('the XP guide stays on a quiet reply (Standard), once, and the rest of the combat text does not', { skip }, async t => {
+    const expected = [[STANDARD_TEMPLATES, /XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\./u]];
 
-test('the XP guide stays on a quiet reply (Standard and Classic), once, and the rest of the combat text does not', { skip }, async t => {
-    const expected = [[STANDARD_TEMPLATES, /XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\./u],
-        [LEAN_RPG_TEMPLATES, /XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\.(?! Practice)/u]];
     for (const [templates, guide] of expected) {
         const { host } = await world(t, { templates });
         const { request } = await host.send('I walk on.', 'The road is quiet.');
@@ -153,7 +136,6 @@ test('the XP guide stays on a quiet reply (Standard and Classic), once, and the 
 
 test('a fight the narrator opens without a plan still parses; from the next reply the combat text and the whole grammar are told', { skip }, async t => {
     const { host } = await world(t);
-    // (the planner answers none: no rolls for this reply)
     const { request: first } = await host.send('A hound growls.', reply(FOES(2)));
     assert.doesNotMatch(staticOf(first), /\[COMBAT SYSTEM\]/u, 'the opening reply was quiet');
     assert.deepEqual(host.store.problems(), []);
@@ -192,22 +174,8 @@ test('every foe kind of every slot is read on a quiet reply, the same as with th
     assert.deepEqual(host.store.problems(), []);
 });
 
-test('rolls from the planner tell the full text for that reply, even with no foes', { skip }, async t => {
-    const { host, model } = await world(t, { answers: ['check Wessel | type: check | fit: STR | difficulty: normal'] });
-    const { request } = await host.send('I pick the lock on the stuck door.', 'It gives.');
-    assert.equal(model.calls.length, 1);
-    const text = staticOf(request);
-    assert.match(text, /\[COMBAT SYSTEM\]/u);
-    assert.match(text, /kind: hurt-N/u);
-    assert.match(text, /\+ party /u);
-    // The next reply plans nothing and the fight did not open: quiet again.
-    const { request: next } = await host.send('I go through.', 'The corridor.');
-    assert.doesNotMatch(staticOf(next), /\[COMBAT SYSTEM\]/u);
-});
-
 test('the same reply rebuilt tells the same prompt: a swipe that keeps its plan, a quiet one, an open fight', { skip }, async t => {
-    const plan = 'check Wessel | type: check | fit: STR | difficulty: normal';
-    const { host } = await world(t, { answers: [plan, plan, 'none', 'none'] });
+    const { host } = await world(t);
     const { request: rolled } = await host.send('I pick the lock on the door.', 'It gives.');
     const { request: swiped } = await host.swipe('It sticks.');
     assert.equal(staticOf(swiped), staticOf(rolled), 'rolls: swipe');

@@ -2,14 +2,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { validateDataModules } from '../../../src/v2/data-modules/check.js';
 import { blockCards, settleReserve } from '../../../src/v2/data-modules/part.js';
 import { ROLES } from '../../../src/v2/lean-rpg/index.js';
 import { createCoreModule } from '../../../src/v2/domains/index.js';
 import { pack, reload, rebuilt, reply, success, view } from '../data-modules/helpers.js';
 
-const template = name => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition);
+const template = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
 const check = definition => validateDataModules([definition], { packId: 'chat', capabilities: ['data-modules-v1'] });
 const line = (slug, kind, extra = '') => `~ dm ${slug} — why | kind: ${kind}${extra}`;
 const settles = host => host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === 'dm.settle');
@@ -67,7 +67,7 @@ test('B2: the visits held for settling are counted from the blocks\' own functio
     await host.send('Tick.', reply('~ dm ticker — why | kind: tick | tag: a'));
     assert.equal(view(host, 'pack.chat/ticker').chat.n, 1);
     assert.equal(settles(host).length, 5, 'the five settles all ran inside the reply\'s visits');
-    // the estimate is never less than what the settles really took, and a stock Character is a small share of it
+    // the estimate is never less than what the settles really took, and a stock Character (Standard's latch, about 400 visits) is a quarter of a flat share
     const reserve = settleReserve(host.head());
     const spent = Object.values(host.head().domains.dataModules.perReply).flatMap(reply => Object.values(reply.actions)).reduce((sum, action) => sum + action.visits, 0);
     assert.ok(reserve.visits >= spent - 1, `${reserve.visits} held for ${spent} spent (the tick is 1 or 2 of them)`);
@@ -75,7 +75,7 @@ test('B2: the visits held for settling are counted from the blocks\' own functio
     assert.ok(reserve.visits < 5 * 2048, 'less than a flat share for each');
     const stock = await story(t);
     await heroes(stock, 8);
-    assert.ok(settleReserve(stock.head()).visits < 8 * 200, `${settleReserve(stock.head()).visits} for eight stock Characters`);
+    assert.ok(settleReserve(stock.head()).visits < 8 * 512, `${settleReserve(stock.head()).visits} for eight stock Characters`);
 });
 
 // --- B3: the death card of a character always shows ---------------------------------------------------------------------------------

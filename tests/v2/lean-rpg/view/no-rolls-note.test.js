@@ -1,6 +1,6 @@
 // The no-rolls note on a reply (lean-rpg/view/battle-log.js buildNote; approved mockup rpg-no-rolls.html): where the battle log would stand
 // (at the narrator's `[battle]` marker, else a card under the reply), drawn from the reply's own `rpg.noroll` receipt, replaced by the log when the reply
-// has rolls, gone with the feature, the same after a redraw; and the Planner time limit field of Settings → RPG → Rolls.
+// has rolls, gone with the feature, the same after a redraw.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../../testkit/index.js';
@@ -113,30 +113,4 @@ test('the note\'s stylesheet: a dashed warn note, theme tokens only', async () =
     const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
     assert.match(css, /\.rpg-battle\.rpg-norolls \{[^}]*border: 1px dashed var\(--ss-warn/);
     assert.match(css, /\.rpg-norolls-dot \{[^}]*background: var\(--ss-warn/);
-});
-
-// ---- Settings → RPG → Rolls ----------------------------------------------------------------------------------------------
-
-test('Planner time limit: the field under Rolls with the mockup\'s help, 10 to 120 in steps of 5, 45 unset, held to its range and saved', async t => {
-    const ctx = await page(t, { feature: true, persona: 'Wessel' });
-    await begin(ctx.host);
-    await makeBlocks(ctx.host, { who: 'Wessel', character: { str: 12, soul: 1 }, skills: { skill1: 'Iron Breath', stat1: 'str', rank1: 1 } });
-    ctx.ui.openSettings().select('rpg');
-    await settle();
-    const box = ctx.doc.querySelector('[data-ss-section="rpg"] [data-card="rolls"]');
-    const input = box.querySelector('[data-setting="rpgPlannerSeconds"]');
-    assert.deepEqual([input.value, input.getAttribute('min'), input.getAttribute('max'), input.getAttribute('step')], ['45', '10', '120', '5']);
-    assert.deepEqual(box.querySelectorAll('.rpg-set-num > span').map(node => node.textContent), ['Planner time limit']);
-    const row = input.parentNode;
-    assert.equal(row.className, 'rpg-set-row', 'the input is in a row');
-    assert.deepEqual(row.children.map(node => node.textContent || node.tagName.toLowerCase()), ['input', 'seconds'], 'the unit is beside the input, on the same row');
-    assert.match(box.textContent, /How long the reply waits for the roll planner before it goes on without dice\. 10 to 120, default 45 \(it was a fixed 20\)\. A slow model in Settings → Assist needs more; a fast one answers in a few seconds\./);
-    const stored = () => ctx.host.settings('story-block').rpgPlannerSeconds;
-    for (const [typed, kept] of [['90', 90], ['5', 10], ['500', 120], ['62', 60], ['63', 65], ['12.4', 10]]) {
-        input.value = typed; input.dispatch('change');
-        assert.equal(stored(), kept, typed);
-        assert.equal(input.value, String(kept));
-    }
-    input.value = 'abc'; input.dispatch('change');
-    assert.equal(stored(), 10, 'not a number: put back');
 });

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHost } from '../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/index.js';
 import { validateDataModules } from '../../../src/v2/data-modules/check.js';
 import { blockCards, summaryOf } from '../../../src/v2/data-modules/part.js';
@@ -17,7 +17,7 @@ import { setupDom } from '../view/mounts/helpers.js';
 import { characterDefinition, fakeState, roleOf } from './view/helpers.js';
 import { reload, rebuilt, reply, success, view } from '../data-modules/helpers.js';
 
-const template = name => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition);
+const template = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
 const check = definition => validateDataModules([definition], { packId: 'chat', capabilities: ['data-modules-v1'] });
 const line = (slug, kind, extra = '') => `${/^(add-|practice-)/.test(kind) ? '+' : '~'} dm ${slug} — why | kind: ${kind}${extra}`;
 const sheet = (host, slug = 'character') => view(host, `pack.chat/${slug}`).chat;

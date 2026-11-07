@@ -2,9 +2,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { parsePlanAnswer, prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
+import { prepare, readSheet, rollPrepared, validatePlan } from '../../../src/v2/lean-rpg/index.js';
+import { parsePlanAnswer } from './legacy-planner.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
-import { PRECALL_HEAD, PRECALL_HEAD_STANDARD } from '../../../src/v2/lean-rpg/precall.js';
 import { FIX_VERSION } from '../../../src/v2/lean-rpg/names.js';
 import { cueOfResult, lineText } from '../../../src/v2/lean-rpg/cue.js';
 import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
@@ -29,7 +29,7 @@ const roll = (answer, { sheetArgs = [], fix = true, then = true } = {}) => {
 };
 const actLines = result => result.rounds.map(round => round.lines.find(line => line.kind === 'act')).filter(Boolean);
 
-test('then: parses and validates; a skill the character lacks, or the first skill again, is dropped; the heads order it in one line', () => {
+test('then: parses and validates; a skill the character lacks, or the first skill again, is dropped', () => {
     const s = sheet();
     const { plan } = parsePlanAnswer(['pace: all', `${CUT} | then: Iaijutsu`].join('\n'), s, { formula: 'standard' });
     assert.deepEqual(plan.acts, [{ who: 'Astra', skill: 'Shadow Cut', then: 'Iaijutsu', type: 'magic', area: true, target: 'Rats' }]);
@@ -37,9 +37,6 @@ test('then: parses and validates; a skill the character lacks, or the first skil
     assert.equal(validatePlan({ ...plan, acts: [{ ...plan.acts[0], then: '' }] }).ok, false);
     assert.equal('then' in parsePlanAnswer(['pace: all', `${CUT} | then: Nothing Known`].join('\n'), s, { formula: 'standard' }).plan.acts[0], false);
     assert.equal('then' in parsePlanAnswer(['pace: all', `${CUT} | then: shadow cut`].join('\n'), s, { formula: 'standard' }).plan.acts[0], false);
-    const classic = parsePlanAnswer('pace: all\nact Astra | skill: Shadow Cut | then: Iaijutsu | target: Rats', s, { formula: 'classic' });
-    assert.equal(classic.plan.acts[0].then, 'Iaijutsu');
-    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) assert.ok(head.includes('- Skills ordered "A, then B": skill: A, then: B (B from round 2).'));
 });
 
 test('then: round 1 and the opening action use the first skill, rounds 2+ the follow-up (its own type, stat and resource); practice counts each skill rolled', () => {
@@ -68,26 +65,6 @@ test('then: a spent follow-up goes on with the `else:` skill if its resource las
 test('then: the user\'s case: Mana emptied in round 1 by Shadow Cut, Iaijutsu follows in rounds 2-3 on Stamina', () => {
     const lines = actLines(roll(`${CUT} | then: Iaijutsu`, { sheetArgs: [1, 4] }).result);
     assert.deepEqual(lines.slice(0, 3).map(line => line.skill), ['Shadow Cut', 'Iaijutsu', 'Iaijutsu']);
-});
-
-test('then: Classic rolls rounds 2+ with the follow-up skill and its stat, on the same dice (both the plain and the stop-by-bars flow)', async () => {
-    const { PRESETS } = await import('../../../src/v2/lean-rpg/rules.js');
-    const s = readSheet({ domains: { dataModules: sheetDomain({ ...blocks(), 'astra-skills': { role: 'skills', fields: skillBlock('Astra', [['Shadow Cut', 1, 'agi', 'mana'], ['Iaijutsu', 1, 'str', 'stamina']]) }, foes: { role: 'foes', fields: foeBlock([['Rats', 12, 3, 5]]) } }) } });
-    const base = parsePlanAnswer('pace: all\nact Astra | skill: Shadow Cut | target: Rats', s, { formula: 'classic' }).plan;
-    const plan = parsePlanAnswer('pace: all\nact Astra | skill: Shadow Cut | then: Iaijutsu | target: Rats', s, { formula: 'classic' }).plan;
-    assert.equal(plan.acts[0].then, 'Iaijutsu');
-    for (const flow of [1, 2]) {
-        const dice = () => Object.assign(() => { let n = 0; return () => ((n += 1) % 2 ? 11 : 9); }, { positional: true });
-        const go = (p, then) => rollPrepared(p, prepare(p, s, PRESETS.standard, { fix: true, then, flow }), dice(), PRESETS.standard, { fix: true, then, flow });
-        const plain = go(base, true), follow = go(plan, true), unread = go(plan, false);
-        const lines = r => r.rounds.map(round => round.lines.find(line => line.kind === 'act'));
-        assert.ok(lines(follow).length >= 2, `flow ${flow}`);
-        assert.deepEqual([lines(follow)[0].skill, lines(follow)[0].pc.stat], ['Shadow Cut', 'agi']);
-        assert.ok(lines(follow).slice(1).every(line => line.skill === 'Iaijutsu' && line.pc.stat === 'str'));
-        assert.equal(JSON.stringify(unread.rounds), JSON.stringify(plain.rounds), 'without the mark `then:` is not read');
-        assert.equal(lines(follow)[0].pc.die, lines(plain)[0].pc.die, 'the same dice');
-        assert.equal(lines(follow)[1].pc.die, lines(plain)[1].pc.die, 'the same dice in round 2');
-    }
 });
 
 test('fix 2 replays exactly: a plan with `then:` rolled under the earlier mark is the roll without it, byte for byte; a current roll without `then:` differs only by the pool note', () => {
@@ -119,16 +96,12 @@ test('the spent note names what is spent and says the other pool is untouched; a
     assert.doesNotMatch(earlier.result.text, /is not;/, 'a roll of mark 2 keeps its earlier bytes');
 });
 
-test('a defender\'s skill goes on the foe line only when the message asks for it: the plan keeps what is written, the head says when', () => {
+test('a defender\'s skill goes on the foe line only when the message asks for it: the plan keeps what is written', () => {
     const s = sheet();
     const asked = parsePlanAnswer('pace: all\nact Astra | skill: Iaijutsu | type: physical | target: Rats\nfoe Rats | target: Astra | skill: Shadow Step', s, { formula: 'standard' }).plan;
     assert.equal(asked.foes[0].skill, 'Shadow Step', 'asked: "I Shadow Step past their bites" -> the line carries the skill');
     const plain = parsePlanAnswer('pace: all\nact Astra | skill: Iaijutsu | type: physical | target: Rats\nfoe Rats | target: Astra', s, { formula: 'standard' }).plan;
     assert.equal('skill' in plain.foes[0], false, 'not asked: no skill on the foe line');
-    for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
-        assert.ok(head.includes('- Defending with a skill (evade, dodge, parry, block): guard: that skill on the act; else leave it out.'));
-        assert.match(head, /\nfoe <foe> \| target: <who> \|[^\n]*skill: <skill>\?/, 'the foe line still takes a skill');
-    }
     // an old reply replays as it was made: its plan is recorded, so the roll of a plan that names a defender's skill is the same under both marks
     const withDefence = roll('act Astra | skill: Iaijutsu | type: physical | target: Rats\nfoe Rats | target: Astra | skill: Shadow Step', { then: true });
     const earlier = roll('act Astra | skill: Iaijutsu | type: physical | target: Rats\nfoe Rats | target: Astra | skill: Shadow Step', { then: false });
@@ -138,7 +111,7 @@ test('a defender\'s skill goes on the foe line only when the message asks for it
 
 test('then: on the real host, a 3-round fight "Shadow Cut then Iaijutsu" rolls Shadow Cut first and Iaijutsu after; the roll is marked 3, and a rebuild, a Re-read and a reload agree', { skip }, async () => {
     const answer = ['pace: all', `${CUT} | then: Iaijutsu`].join('\n');
-    const { host } = await setup({ blocks: blocks(1, 4), answers: [answer], settings: { rpgFormula: 'standard' } });
+    const { host } = await setup({ blocks: blocks(1, 4), answers: [answer], settings: {} });
     await host.send('Shadow Cut first, then follow up with Iaijutsu on the swarm.', 'Steel flashes.');
     const at = host.ctx.chat.length - 1;
     const result = rollReceipt(host, at).data.v2.result;

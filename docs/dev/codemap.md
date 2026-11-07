@@ -35,7 +35,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/cue.js`: writes compact narrator roll cues under the prompt budget.
 - `src/v2/lean-rpg/join.js`: reads party join and leave lines, then builds companion definitions and offer cards.
 - `src/v2/lean-rpg/levels.js`: level, rank, level-cap and XP-rate helpers plus the RPG rank query.
-- `src/v2/lean-rpg/noroll.js`: records a per-reply receipt when a live fight's roll planner gives no usable plan.
+- `src/v2/lean-rpg/noroll.js`: replay-only: shows and re-reads the per-reply receipt an old chat's retired roll planner left when it gave no usable plan.
 - `src/v2/lean-rpg/open.js`: checks and fills new foes that the roll planner opens during a fight.
 - `src/v2/lean-rpg/quiet.js`: trims combat and foe prompt grammar on replies where rolls cannot be used.
 - `src/v2/lean-rpg/resolve.js`: prepares and rolls planned checks, acts and foe attacks into a replayable RPG receipt.
@@ -131,7 +131,7 @@ Last checked: 2026-11-07.
 - `src/v2/domains/gear.js` → `domains/gear/`: `stats.js` slots, rarity, stat budgets and story-made definitions; `conditions.js` condition words and prices; `carry.js` carry rules and the carry query; `views.js` query answers and the screen picture.
 - `src/v2/domains/scene.js` → `domains/scene/`: `constants.js` name, presence, weather and look limits and feature names; `shared.js` the told rule, name lists, the edit mark and the letter test; `present.js` who is present and their changes; `place.js` the place and its moves; `weather.js` the weather line and the `scene.weather` command; `you.js` {{user}}'s look, its Rank label and the look ask.
 - `src/v2/events/condition.js` → `events/condition-tokenizer.js` the tokenizer; `condition-parser.js` the parser (a frozen AST); `condition-errors.js` size limits and error values.
-- `src/v2/lean-rpg/resolve.js` → `lean-rpg/resolve/classic.js`: Classic sheet preparation and the roll primitives shared with Standard.
+- `src/v2/lean-rpg/resolve.js` → `lean-rpg/resolve/dice.js`: the flow version, outcome rule and per-action dice streams shared by the Standard roll and its guard.
 - `src/v2/lean-rpg/strings.js` → `lean-rpg/strings/`: `character.js` sheets, party, gear, skills and the wizard; `story.js` saved characters, companions, first send, bars and the sheet; `fight.js` fights, change lines and RPG settings.
 - `src/v2/lean-rpg/view/wizard.js` → `wizard/`: `who.js` the Who step and import; `stats.js` the Stats step; `skills.js` the Skills step; `review.js` Review and Create.
 - `src/v2/registry.js` → `registry/`: `registration.js` registration checks and ownership; `commands.js` command, capture, context and initial-state lookups; `features.js` feature lookups; `lifecycle.js` peers, cycles and the restore barrier.
@@ -184,7 +184,6 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/view/settings.js` → `settings/sections.js`: Formula, Rolls, Levels, Companions and Gear.
 - `src/v2/lean-rpg/view/settings.js` → `settings/difficulty.js`: Difficulty, Custom numbers and odds.
 - `src/v2/lean-rpg/view/settings.js` → `settings/combat.js`: the Combat box, saves and reset.
-- `src/v2/lean-rpg/view/settings.js` → `settings/planner.js`: the planner note and prompt preview.
 - `src/v2/lean-rpg/view/settings.js` → `settings/page.js`: the live page closure and card order.
 - `src/v2/view/mounts/card.js` → `card/summary.js`: the closed-line summary helpers and recent-carrier default.
 - `src/v2/view/mounts/card.js` → `card/context.js`: document lookup, carrier readers, caches, sets and observer.

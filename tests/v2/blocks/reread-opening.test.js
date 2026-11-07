@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { createReplyNotes } from '../../../src/v2/reply-notes.js';
 import { setupDom } from '../view/mounts/helpers.js';
 
@@ -13,7 +13,7 @@ test('a Re-read of the opening reply, from its note, keeps the blocks the reader
     const host = await createHost({ settings: { features: { 'story-block.rpg': true }, modules: { 'story-block': { rpgJoin: 'auto', rpgFormula: 'classic' } } } });
     t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
-    const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
+    const defs = Object.fromEntries(STANDARD_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = 'wessel'; defs.character.name = 'Wessel'; defs.character.state.who.default = 'Wessel';
     defs.skills.slug = 'wessel-skills'; defs.skills.name = 'Wessel skills'; defs.skills.state.who.default = 'Wessel';
     for (const definition of [defs.character, defs.skills]) {

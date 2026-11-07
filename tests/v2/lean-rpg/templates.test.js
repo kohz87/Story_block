@@ -3,35 +3,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
-import { CREATION, ROLES, STATS, STAGES, USES } from '../../../src/v2/lean-rpg/index.js';
+import { STANDARD_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
+import { CREATION, ROLES, STATS, USES } from '../../../src/v2/lean-rpg/index.js';
 import { validateDataModules, DM_LIMITS as L } from '../../../src/v2/data-modules/check.js';
 
 const party = JSON.parse(readFileSync(new URL('fixtures/party.json', import.meta.url), 'utf8'));
-const template = name => LEAN_RPG_TEMPLATES.find(entry => entry.name === name).definition;
+const template = name => STANDARD_TEMPLATES.find(entry => entry.name === name).definition;
 const CHECK = { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'] };
 const COMBAT_HEADINGS = ['No Plot Armor:', 'Exchanges:', 'Weight & Risk:', 'Believable Outcomes:'];
 
 test('the four templates come in chooser order, each with a known role', () => {
-    assert.deepEqual(LEAN_RPG_TEMPLATES.map(entry => entry.name), ['Character', 'Skills', 'Foes', 'Combat rules']);
-    assert.deepEqual(LEAN_RPG_TEMPLATES.map(entry => entry.definition.role), ['character', 'skills', 'foes', 'rules']);
-    for (const { definition } of LEAN_RPG_TEMPLATES) assert.ok(ROLES.includes(definition.role), definition.role);
+    assert.deepEqual(STANDARD_TEMPLATES.map(entry => entry.name), ['Character', 'Skills', 'Foes', 'Combat rules']);
+    assert.deepEqual(STANDARD_TEMPLATES.map(entry => entry.definition.role), ['character', 'skills', 'foes', 'rules']);
+    for (const { definition } of STANDARD_TEMPLATES) assert.ok(ROLES.includes(definition.role), definition.role);
 });
 
-test('each template is a chat-scoped data module with a unique slug, schema 1 and state version 1, and fits the byte limit', () => {
-    const slugs = LEAN_RPG_TEMPLATES.map(entry => entry.definition.slug);
+test('each template is a chat-scoped data module with a unique slug, schema 1 and a state version, and fits the byte limit', () => {
+    const slugs = STANDARD_TEMPLATES.map(entry => entry.definition.slug);
     assert.equal(new Set(slugs).size, slugs.length);
-    for (const { definition } of LEAN_RPG_TEMPLATES) {
+    for (const { definition } of STANDARD_TEMPLATES) {
         assert.equal(definition.scope, 'chat');
         assert.equal(definition.schema, 1);
-        assert.equal(definition.stateVersion, 1);
+        assert.ok(Number.isSafeInteger(definition.stateVersion) && definition.stateVersion >= 1, definition.slug);
         assert.match(definition.slug, /^[a-z0-9][a-z0-9-]{0,39}$/);
         assert.ok(Buffer.byteLength(JSON.stringify(definition)) <= L.definitionBytes, definition.slug);
     }
 });
 
 test('every block stays inside the field, kind and text limits', () => {
-    for (const { definition } of LEAN_RPG_TEMPLATES) {
+    for (const { definition } of STANDARD_TEMPLATES) {
         // The block engine's limit is DM_LIMITS.fields (32), not 16. (Pinned change, extra skill slots: the Skills block's eight slots of six fields, its `who`
         // and the signature mark are 50, inside DM_LIMITS.skillsFields, the limit of a block with the role `skills`.)
         assert.ok(Object.keys(definition.state).length <= (definition.role === 'skills' ? L.skillsFields : L.fields), `${definition.slug} fields`);
@@ -45,17 +45,16 @@ test('every block stays inside the field, kind and text limits', () => {
 
 test('the Character block has the keys the RPG reads, with their ranges and stage names', () => {
     const { state, kinds } = template('Character');
-    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'level', 'xp', 'rise', 'cap', 'down', 'alive', 'left']);
+    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'level', 'xp', 'rise', 'cap', 'down', 'alive', 'left', 'health-blocks', 'stamina-blocks', 'mana-blocks']);
     assert.equal(state.who.type, 'text');
     assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
     assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');
     assert.equal(state.about.edit, undefined, 'and the reader can edit it');
-    assert.deepEqual([state.health.min, state.health.max], [0, 5]);
-    assert.deepEqual([state.mana.min, state.mana.max], [0, 4]);
-    assert.deepEqual([state.stamina.min, state.stamina.max], [0, 4]);
-    for (const [field, words] of [['health', STAGES.health], ['mana', STAGES.mana], ['stamina', STAGES.stamina]]) {
-        words.forEach((word, index) => assert.equal(state[field].names[String(index)], word, `${field} ${index}`));
-    }
+    // (the bars are rows of blocks: health up to 8, stamina and mana up to 7, each with a hidden field that remembers its size; no stage names)
+    assert.deepEqual([state.health.min, state.health.max, state.health.blocks], [0, 8, 'health']);
+    assert.deepEqual([state.mana.min, state.mana.max, state.mana.blocks], [0, 7, 'mana']);
+    assert.deepEqual([state.stamina.min, state.stamina.max, state.stamina.blocks], [0, 7, 'stamina']);
+    for (const key of ['health-blocks', 'stamina-blocks', 'mana-blocks']) assert.deepEqual([state[key].edit, state[key].prompt], [false, false], key);
     for (const stat of STATS) assert.deepEqual([state[stat].min, state[stat].max], [1, 20], stat);
     assert.deepEqual([state.points.min, state.points.max], [0, 60]);
     assert.deepEqual([state.level.min, state.level.max, state.level.default, state.level.label], [1, 99, 1, 'Level']);
@@ -97,15 +96,14 @@ test('the Skills block has eight slots of name, description, stat, resource, ran
     }
 });
 
-test('the Foes block has four slots of name, count, level (1 to 99) and health stage', () => {
+test('the Foes block has four slots of name, count, level (1 to 99) and health blocks', () => {
     const { state, kinds } = template('Foes');
     for (let n = 1; n <= 4; n++) {
         assert.equal(state[`foe${n}`].type, 'text');
         assert.deepEqual([state[`count${n}`].min, state[`count${n}`].max], [0, 99]);
         assert.deepEqual([state[`level${n}`].min, state[`level${n}`].max, state[`level${n}`].default], [1, 99, 1]);
         assert.equal(state[`class${n}`], undefined, 'no Soul Class on a foe');
-        assert.deepEqual([state[`hurt${n}`].min, state[`hurt${n}`].max], [0, 5]);
-        assert.deepEqual(Object.values(state[`hurt${n}`].names), STAGES.health);
+        assert.deepEqual([state[`hurt${n}`].min, state[`hurt${n}`].max, state[`hurt${n}`].blocks], [0, 8, 'foe']);
         for (const kind of [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]) assert.ok(kinds[kind], kind);
     }
 });
@@ -142,13 +140,14 @@ test('death is a latch of two reply-end functions in that order, then a card tha
     assert.ok(card.text.length <= 240 && card.title.length <= 60);
 });
 
-test('the combat rules text is the [COMBAT SYSTEM] prompt with one line of XP guidance', () => {
+test('the combat rules text is the [COMBAT SYSTEM] prompt with a line on rolls and one of XP guidance', () => {
     const { prompt, state, kinds } = template('Combat rules');
     const lines = prompt.split('\n');
-    assert.equal(lines.length, 6);
+    assert.equal(lines.length, 7);
     assert.equal(lines[0], '[COMBAT SYSTEM]');
     COMBAT_HEADINGS.forEach((heading, index) => assert.ok(lines[index + 1].startsWith(heading), heading));
-    assert.match(lines[5], /^XP guide: code gives XP for a won fight; write none for it\. Other deeds 5 to 40\. Practice a skill 5 to 20 per use\.$/);
+    assert.match(lines[5], /^Rolls: tell the rolled result as given; code moves the bars for hits, heals, skill costs: never set those\.$/);
+    assert.match(lines[6], /^XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\.$/);
     assert.ok([...prompt].length <= 1200);
     assert.deepEqual(state, {});
     assert.deepEqual(kinds, {});
@@ -157,7 +156,7 @@ test('the combat rules text is the [COMBAT SYSTEM] prompt with one line of XP gu
 // Without the block-engine keys (role, names, prompt: false, replyEnd, cards), each definition is still a plain
 // 2.7 definition: the shapes the RPG adds sit only in those keys.
 test('without the new block-engine keys, each template passes the data-module checker', () => {
-    for (const { definition } of LEAN_RPG_TEMPLATES) {
+    for (const { definition } of STANDARD_TEMPLATES) {
         const legacy = structuredClone(definition);
         // (pinned change, extra skill slots: the Skills block's eight slots need the role's larger field limit, so its role stays)
         if (definition.role !== 'skills') delete legacy.role;
@@ -175,7 +174,7 @@ test('without the new block-engine keys, each template passes the data-module ch
 });
 
 test('the templates pass the data-module checker with the block-engine keys', () => {
-    const refused = LEAN_RPG_TEMPLATES.map(({ definition }) => [definition.slug, validateDataModules([definition], CHECK)])
+    const refused = STANDARD_TEMPLATES.map(({ definition }) => [definition.slug, validateDataModules([definition], CHECK)])
         .filter(([, result]) => !result.ok).map(([slug, result]) => `${slug}: ${JSON.stringify(result.errors)}`);
     assert.deepEqual(refused, []);
 });
@@ -184,8 +183,9 @@ test('the party fixture gives every block all of its template fields, inside the
     for (const block of party.blocks) {
         const { state } = template(block.template === 'Foes' ? 'Foes' : block.template);
         // (pinned change, extra skill slots: the fixture's Skills block is one made before them, with five slots and no signature mark: a subset of today's template)
-        if (block.template === 'Skills') assert.ok(Object.keys(block.fields).every(key => key in state), block.slug);
-        else assert.deepEqual(Object.keys(block.fields).sort(), Object.keys(state).sort(), block.slug);
+        // (and the Character and Foes blocks are ones made before the bars were rows of blocks: they hold no `*-blocks` fields)
+        assert.ok(Object.keys(block.fields).every(key => key in state), block.slug);
+        if (block.template !== 'Skills' && block.template !== 'Character') assert.deepEqual(Object.keys(block.fields).sort(), Object.keys(state).sort(), block.slug);
         for (const [key, value] of Object.entries(block.fields)) {
             const field = state[key];
             if (field.type === 'int') {
@@ -202,17 +202,10 @@ test('the party fixture gives every block all of its template fields, inside the
     }
 });
 
-test('the party fixture reads as mockup v3: Wessel is Level 15 with 3 points, Hurt, Fresh and Spent', () => {
+test('the party fixture reads as mockup v3: Wessel is Level 15 with 3 points, and his Skills block has Iron Breath at Expert', () => {
     const wessel = party.blocks.find(block => block.slug === 'wessel');
-    const word = (block, field) => block.fields[field] === undefined ? undefined
-        : template(block.template).state[field].names[String(block.fields[field])];
     assert.equal(wessel.fields.level, 15);
     assert.equal(wessel.fields.points, 3);
-    assert.equal(word(wessel, 'health'), 'Hurt');
-    assert.equal(word(wessel, 'mana'), 'Fresh');
-    assert.equal(word(wessel, 'stamina'), 'Spent');
-    assert.equal(word(party.blocks.find(block => block.slug === 'ren'), 'mana'), 'Low');
-    assert.equal(word(party.blocks.find(block => block.slug === 'tamsin'), 'health'), 'Badly wounded');
     const iron = party.blocks.find(block => block.slug === 'wessel-skills');
     assert.equal(iron.fields.skill1, 'Iron Breath');
     assert.equal(template('Skills').state.rank1.names[String(iron.fields.rank1)], 'Expert');

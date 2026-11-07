@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { RESOLVE, ROLLS_QUERY, STANDARD_FORMULA, STANDARD_PRESETS, PRESETS, FORMULA_SETTING, DIFFICULTY_SETTING } from '../../../src/v2/lean-rpg/index.js';
+import { RESOLVE, ROLLS_QUERY, STANDARD_FORMULA, STANDARD_PRESETS, DIFFICULTY_SETTING } from '../../../src/v2/lean-rpg/index.js';
 import { cueOf, OWNER, character, foeBlock, rollReceipt, setup, skillBlock, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
@@ -33,7 +33,7 @@ async function reloads(host) {
 }
 
 test('a Standard roll: the payload carries the formula and numbers, the narrator is told the rolls, and the bars they moved are on the sheet', { skip }, async () => {
-    const { host } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard' } });
+    const { host } = await setup({ blocks: blocks(), answers: [ANSWER] });
     const { request } = await host.send('I hit the lead rat.', 'The rats scatter.');
     const receipt = rollReceipt(host, 2), result = resultOf(host, 2);
     assert.deepEqual(result.rules, { ...STANDARD_FORMULA, levelDivisor: 5 });
@@ -56,7 +56,7 @@ test('a Standard roll: the payload carries the formula and numbers, the narrator
 });
 
 test('a Re-read keeps the dice, the order and the bars; a swipe rolls anew and puts the bars back first; a delete takes the rolls and their bars away', { skip }, async () => {
-    const { host, callModel } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard' } });
+    const { host, callModel } = await setup({ blocks: blocks(), answers: [ANSWER] });
     await host.send('I hit the lead rat.', 'The rats scatter.');
     const first = rollReceipt(host, 2), kept = JSON.stringify(first.data.v2.result), bars = JSON.stringify([fieldsOf(host, 'foes').hurt1, fieldsOf(host, 'wessel').health]);
     const head = JSON.stringify(host.head());
@@ -89,7 +89,7 @@ test('the turn order is rolled at the start of a fight and kept by the next repl
     // Plenty of health on both sides so the fight goes on; the planner asks for one careful exchange each time.
     const long = blocks({ foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 6, 8]]) }, wessel: { role: 'character', fields: character('Wessel', { health: 8, str: 10, vit: 20, agi: 10, dex: 6, soul: 2 }) } });
     const answer = ['pace: careful', 'act Wessel | skill: Iron Breath | type: physical | target: Sluice Rats', 'foe Sluice Rats | target: Wessel'].join('\n');
-    const { host } = await setup({ blocks: long, answers: [answer], settings: { [FORMULA_SETTING]: 'standard' } });
+    const { host } = await setup({ blocks: long, answers: [answer] });
     await host.send('I hit the rat.', 'One.');
     // A swipe of the reply that began the fight rolls the order again (new dice for everyone).
     const seenTotals = new Set([JSON.stringify(resultOf(host, 2).order.map(entry => entry.total))]);
@@ -119,34 +119,21 @@ test('the turn order is rolled at the start of a fight and kept by the next repl
 });
 
 test('REPLAY RULE: a Standard roll keeps its formula and numbers when the settings change to another preset or to Classic; a new roll takes the settings of its moment', { skip }, async () => {
-    const { host } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard', [DIFFICULTY_SETTING]: 'harsh' } });
+    const { host } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [DIFFICULTY_SETTING]: 'harsh' } });
     await host.send('First.', 'One.');
     const kept = JSON.stringify(resultOf(host, 2));
     assert.deepEqual(resultOf(host, 2).rules, { ...STANDARD_PRESETS.harsh, levelDivisor: 5 });
-    host.settings.set(OWNER, FORMULA_SETTING, 'classic');
     host.settings.set(OWNER, DIFFICULTY_SETTING, 'gentle');
     assert.equal((await host.turn.reread(2)).ok, true);
-    assert.equal(JSON.stringify(resultOf(host, 2)), kept, 'a Re-read under Classic keeps the Standard roll');
+    assert.equal(JSON.stringify(resultOf(host, 2)), kept, 'a Re-read under another preset keeps the Standard roll');
     same(host);
     await reloads(host);
     assert.equal(JSON.stringify(resultOf(host, 2)), kept);
-    // The next roll is a Classic one: the old planner prompt, no formula key, no typed lines, and no bars moved by code.
-    const classic = ['act Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats', 'foe Sluice Rats | target: Wessel | defend: AGI'].join('\n');
-    const { host: second, callModel } = await setup({ blocks: blocks(), answers: [classic], settings: { [FORMULA_SETTING]: 'classic' } });
-    await second.send('First.', 'One.');
-    const result = resultOf(second, 2);
-    assert.deepEqual(result.rules, { ...PRESETS.standard, levelDivisor: 5 });
-    assert.equal('formula' in result.rules, false);
-    for (const key of ['order', 'quickStart', 'opening', 'idle', 'hurts']) assert.equal(key in result, false, key);
-    assert.equal(fieldsOf(second, 'foes').hurt1, 4, 'Classic leaves the bars to the narrator');
-    assert.doesNotMatch(callModel.calls[0].prompt, /type: physical\|magic/);
-    assert.equal(rollReceipt(second, 2).replan.payload.order, undefined);
     host.close();
-    second.close();
 });
 
 test('a change to the sheet before a Standard roll plans it again with the same dice and the bars it now gives', { skip }, async () => {
-    const { host } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard' } });
+    const { host } = await setup({ blocks: blocks(), answers: [ANSWER] });
     await host.send('First.', 'One.');
     await host.send('Second, I hit again.', 'Two.');
     const seed = rollReceipt(host, 4).seed;
@@ -167,7 +154,7 @@ test('every rolled reply of an ongoing fight carries the fight\'s order, even on
     const long = blocks({ foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 6, 8]]) }, wessel: { role: 'character', fields: character('Wessel', { health: 8, str: 10, vit: 20, agi: 10, dex: 6, soul: 2 }) } });
     const fight = ['pace: careful', 'act Wessel | skill: Iron Breath | type: physical | target: Sluice Rats', 'foe Sluice Rats | target: Wessel'].join('\n');
     const check = 'check Wessel | type: check | fit: agi | difficulty: easy';
-    const { host } = await setup({ blocks: long, answers: [fight, check, 'none', check, fight], settings: { [FORMULA_SETTING]: 'standard' } });
+    const { host } = await setup({ blocks: long, answers: [fight, check, 'none', check, fight] });
     await host.send('I hit the rat.', 'One.');
     const order = resultOf(host, 2).order;
     await host.send('I leap over the barrel.', 'Two.');
