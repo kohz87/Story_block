@@ -332,7 +332,7 @@ export function createPromptBuild(s, deps) {
             } else await trySave('before the reply');
             // A Regenerate removes the old reply before this runs, without an event for it.
             if (store.headIndex() !== lastCarrier()) store.rebuild();
-            if (hasCarrier()) store.ensureInitial(initial());
+            if (hasCarrier() && !initial.hold?.()) store.ensureInitial(initial());
             // A pending barrier may need settling after a head change. Healthy sends do not settle here.
             if (registry.restore?.().state === 'pending') {
                 timeline?.settle();

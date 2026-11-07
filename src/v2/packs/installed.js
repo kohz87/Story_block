@@ -68,13 +68,13 @@ export function createInstalled({ settings, hostVersion = HOST_VERSION, capabili
     const listeners = new Set();
     // → a promise while the checker is to be fetched (it is wanted: packs are stored, or `force`), else undefined (nothing to wait for).
     // Never rejects: a load that failed leaves the packs unchecked (listed as loading) and asks again at the next call.
-    let announced = false;
+    let announced = false, failed = false;
+    // stored packs the checker has not yet looked at → 'loading' | 'failed' | null (the turn writes no pack-dependent state while this is set)
+    const stored = () => { try { const list = settings.read()?.packs; return Array.isArray(list) && list.some(entry => entry && typeof entry === 'object'); } catch { return false; } };
     const ensure = ({ force = false } = {}) => {
         if (validator) return undefined;
-        let stored = false;
-        try { const list = settings.read()?.packs; stored = Array.isArray(list) && list.some(entry => entry && typeof entry === 'object'); } catch { stored = false; }
-        if (!force && !stored) return undefined;
-        return loadChecker().then(() => { if (!announced) { announced = true; for (const fn of listeners) fn(); } return true; }, () => false);
+        if (!force && !stored()) return undefined;
+        return loadChecker().then(() => { failed = false; if (!announced) { announced = true; for (const fn of listeners) fn(); } return true; }, () => { failed = true; return false; });
     };
 
     const root = () => {
@@ -119,6 +119,9 @@ export function createInstalled({ settings, hostVersion = HOST_VERSION, capabili
 
         /** → a promise while the checker is being fetched (stored packs, or it was asked for), else undefined: the turn awaits it before a chat is read. */
         ready: (options = {}) => ensure(options),
+
+        /** → 'loading' | 'failed' while stored packs wait for the checker, else null: nothing that depends on the packs' start is written meanwhile. */
+        unchecked: () => (validator || !stored() ? null : failed ? 'failed' : 'loading'),
 
         /** The installed packs for the settings list, in order. */
         list() {

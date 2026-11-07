@@ -275,6 +275,9 @@ export function createRuntime({
         });
     }
     const initial = () => initialWithStart(registry);
+    // While stored packs wait for the checker the turn writes no state (their start would be missing): the turn asks `hold`, and `landed` says when to look again.
+    initial.hold = () => { try { return packPart?.packs?.unchecked?.() ?? null; } catch { return null; } };
+    initial.landed = () => { try { return packPart?.packs?.ready?.(); } catch { return undefined; } };
     // The RPG's code comes in before a chat that needs it is read (the turn awaits `prepare`), and the moment the reader switches the feature on.
     const rpgLoader = createRpgLoader({
         ...(rpgLoad ? { load: rpgLoad } : {}),
