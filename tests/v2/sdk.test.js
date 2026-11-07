@@ -90,6 +90,38 @@ test('query answers plain copies; an unknown query is a clear error', async () =
     host.close();
 });
 
+test('synchronous queries still return immediately and promised answers are copied on resolution', async t => {
+    let release;
+    const source = { nested: { value: 3 } };
+    const mod = {
+        id: 'query-check',
+        queries: {
+            'query-check.sync': (state, args) => ({ args, value: 1 }),
+            'query-check.async': (state, args) => new Promise(resolve => { release = () => resolve({ args, source }); }),
+            'query-check.undefined': () => Promise.resolve(undefined),
+            'query-check.error': () => Promise.reject(new Error('query failed')),
+        },
+    };
+    const host = await createHost({ fakes: true, core: false, modules: [mod] });
+    t.after(() => host.close());
+    const args = { nested: { value: 2 } };
+    const sync = host.sdk.query('query-check.sync', args);
+    assert.deepEqual(sync, { args, value: 1 });
+    assert.equal(typeof sync.then, 'undefined');
+    sync.args.nested.value = 99;
+    assert.equal(args.nested.value, 2);
+    const pending = host.sdk.query('query-check.async', args);
+    assert.equal(typeof pending.then, 'function');
+    args.nested.value = 9;
+    release();
+    const answer = await pending;
+    assert.equal(answer.args.nested.value, 2);
+    answer.source.nested.value = 12;
+    assert.equal(source.nested.value, 3);
+    assert.equal(await host.sdk.query('query-check.undefined'), undefined);
+    await assert.rejects(host.sdk.query('query-check.error'), /query failed/);
+});
+
 test('on: committed, head and turn; an unknown event is refused; a failing listener does not stop the others', () => {
     const events = createEvents();
     const got = [];

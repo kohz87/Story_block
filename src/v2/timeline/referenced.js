@@ -2,9 +2,9 @@
 //
 // The answer is deliberately conservative. Every character and group chat is listed through SillyTavern and read in
 // full; the timeline archive in each chat header is walked for checkpoint ids, and the open chat's live metadata is
-// read as well. If any list, read or parse fails, or a chat was written by a newer timeline schema, `complete` is
-// false: the caller must then keep every checkpoint file. A complete answer is still only the set of references the
-// chats carry; it never deletes anything itself.
+// read as well. SillyTavern's character and group lists can omit retained files, so the default scan cannot prove
+// completeness and must keep every checkpoint file. A complete answer from an exhaustive list is still only the set
+// of references the chats carry; it never deletes anything itself.
 //
 // The timeline fields that can name a native checkpoint include the journal (make, restore, native change and head
 // selection entries), the prefix map's before/after records, the selected and baseline records, snapshot and payload
@@ -72,6 +72,7 @@ function timelineOfChat(payload) {
     if (Array.isArray(payload)) {
         if (!payload.length) throw new Error('the chat file is empty');
         if (!isRecord(payload[0])) throw new Error('the chat file has no header');
+        if (!['chat_metadata', 'user_name', 'character_name'].some(key => Object.hasOwn(payload[0], key))) throw new Error('the chat file has no header');
         const metadata = payload[0].chat_metadata;
         if (metadata === undefined || metadata === null) return null;
         if (!isRecord(metadata)) throw new Error('the chat metadata is not an object');
@@ -169,8 +170,12 @@ async function sillyTavernChatList({ context, fetchFn }) {
     if (groups) {
         for (const group of groups) {
             const groupName = String(group?.name ?? group?.id ?? 'group');
+            if (!Array.isArray(group?.chats)) {
+                unreadable.push({ chat: `group ${groupName}`, reason: 'its chat list is not available' });
+                continue;
+            }
             const ids = [
-                ...(Array.isArray(group?.chats) ? group.chats : []),
+                ...group.chats,
                 group?.chat_id,
             ].map(value => String(value ?? '').replace(EXT, '').trim()).filter(Boolean);
             for (const id of new Set(ids)) add({ kind: 'group', label: `${groupName} / ${id}`, id });
@@ -180,10 +185,19 @@ async function sillyTavernChatList({ context, fetchFn }) {
 }
 
 async function readSillyTavernChat(chat, { context, fetchFn }) {
-    if (chat.kind === 'group') {
-        return postJson(fetchFn, context, '/api/chats/group/get', { id: chat.id });
+    // The normal get endpoints silently drop invalid JSONL rows. Read the raw file so a damaged header or
+    // message cannot turn an unreadable chat into a successful scan with its references missing.
+    const file = `${chat.id}.jsonl`;
+    const answer = await postJson(fetchFn, context, '/api/chats/export', {
+        file, exportfilename: file, format: 'jsonl', is_group: chat.kind === 'group',
+        ...(chat.kind === 'group' ? {} : { avatar_url: chat.avatar }),
+    });
+    if (typeof answer?.result !== 'string' || !answer.result.trim()) throw new Error('the chat file is empty or could not be read');
+    try {
+        return answer.result.split(/\r?\n/).filter(line => line.trim()).map(line => JSON.parse(line));
+    } catch {
+        throw new Error('the chat file could not be parsed');
     }
-    return postJson(fetchFn, context, '/api/chats/get', { ch_name: chat.name, file_name: chat.id, avatar_url: chat.avatar });
 }
 
 /**
@@ -196,16 +210,26 @@ export async function referencedCheckpoints({ context = liveContext, fetchFn = f
     const found = new Set();
     const unreadable = [];
     const ctx = typeof context === 'function' ? context() : context;
+    const initialMetadata = ctx?.chatMetadata;
     if (!ctx) unreadable.push({ chat: 'SillyTavern', reason: 'its context is not available' });
-    const listed = typeof list === 'function'
-        ? await list({ context: ctx, fetchFn })
-        : await sillyTavernChatList({ context: ctx, fetchFn });
+    let listed = null;
+    try {
+        listed = typeof list === 'function'
+            ? await list({ context: ctx, fetchFn })
+            : await sillyTavernChatList({ context: ctx, fetchFn });
+    } catch (error) {
+        unreadable.push({ chat: 'chat list', reason: reasonOf(error) });
+    }
+    // Character deletion may retain its chat directory, and corrupt group records are omitted from the group
+    // list. Neither visible list proves that all files on the install were included.
+    if (typeof list !== 'function') unreadable.push({ chat: 'chat list', reason: 'SillyTavern cannot verify every retained chat file' });
     let chats = null;
     if (Array.isArray(listed)) chats = listed;
     else if (listed && typeof listed === 'object') {
         if (Array.isArray(listed.unreadable)) unreadable.push(...listed.unreadable);
-        chats = Array.isArray(listed.chats) ? listed.chats : [];
-    } else unreadable.push({ chat: 'chat list', reason: 'the chat list could not be read' });
+        if (Array.isArray(listed.chats)) chats = listed.chats;
+        else unreadable.push({ chat: 'chat list', reason: 'the chat list could not be read' });
+    } else if (!unreadable.some(item => item.chat === 'chat list')) unreadable.push({ chat: 'chat list', reason: 'the chat list could not be read' });
     for (const chat of chats ?? []) {
         try {
             const payload = await (typeof read === 'function' ? read(chat, { context: ctx, fetchFn }) : readSillyTavernChat(chat, { context: ctx, fetchFn }));
@@ -216,9 +240,12 @@ export async function referencedCheckpoints({ context = liveContext, fetchFn = f
         }
     }
     // The open chat can be newer than its file (an unsaved turn); never leave its live references out.
-    if (ctx?.chatMetadata && typeof ctx.chatMetadata === 'object') {
+    let latest = ctx;
+    try { if (typeof context === 'function') latest = context(); } catch { latest = null; }
+    if (!latest || latest.chatMetadata !== initialMetadata) unreadable.push({ chat: 'open chat', reason: 'the open chat changed during the check' });
+    if (latest?.chatMetadata && typeof latest.chatMetadata === 'object') {
         try {
-            const timeline = timelineOfMetadata(ctx.chatMetadata);
+            const timeline = timelineOfMetadata(latest.chatMetadata);
             if (timeline) for (const id of collectCheckpointReferences(timeline)) found.add(id);
         } catch (error) {
             unreadable.push({ chat: 'open chat', reason: reasonOf(error) });
