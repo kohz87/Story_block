@@ -192,3 +192,7 @@ Last checked: 2026-11-07.
 - `src/v2/view/mounts/card.js` → `card/draw.js`: card drawing, cache reuse, strip sync and carrier passes.
 - `src/v2/view/mounts/card.js` → `card/events.js`: open/close, story and SillyTavern event wiring.
 - `src/v2/view/mounts/card.js` → `card/mount.js`: wires the parts into the public controller.
+- `src/v2/view/widgets/editable/props.js`: the editable widget's prop schema and line-cutting helper.
+- `src/v2/view/widgets/editable/fields.js`: the editable widget's field boxes, grouped layout, live refresh and readback.
+- `src/v2/domains/inventory/commands/wallet.js`: the purse commands and the narrator's edit wording.
+- `src/v2/timeline/coordinator-prepare/finish.js`: the participant activation and acknowledgement phase of a committed restore.
