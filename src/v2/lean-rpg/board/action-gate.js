@@ -1,5 +1,5 @@
 // Recognises only explicit attacks on a standing, already known foe.
-// Uncertain wording remains on the normal planner path instead of holding the reader's message.
+// Uncertain wording goes on with the normal send (no planner now) instead of holding the reader's message.
 const ATTACK = /\b(?:attack(?:s|ed|ing)?|strik(?:e|es|ing)|struck|stab(?:s|bed|bing)?|slash(?:es|ed|ing)?|swing(?:s|ing)?|swung|hit(?:s|ting)?|punch(?:es|ed|ing)?|kick(?:s|ed|ing)?|shoot(?:s|ing)?|shot|fight(?:s|ing)?|fought|battl(?:e|es|ing)|ambush(?:es|ed|ing)?|kill(?:s|ed|ing)?|slay(?:s|ing)?|grappl(?:e|es|ing)|tackl(?:e|es|ing)|lunge(?:s|d)?|thrust(?:s|ing)?|cut(?:s|ting)?|slic(?:e|es|ing)|cleav(?:e|es|ing)|hack(?:s|ed|ing)?|fire(?:s|d|ing)?|engag(?:e|es|ed|ing)|assault(?:s|ed|ing)?|charg(?:e|es|ed|ing)|pounc(?:e|es|ed|ing)|jump(?:s|ed|ing)?|leap(?:s|ed|ing)?|leapt|fall(?:s|ing)?\s+upon|fell\s+upon)\b/iu;
 const OFFENSIVE_SKILL = /\b(?:attack|strik\w*|cut|slash\w*|stab\w*|damage|wound\w*|hit|shoot\w*|blast\w*|ambush\w*|weapon|blade|sword|combat)\b/iu;
 const UNCERTAIN = /\b(?:not|never|no|avoid|avoidance|instead|if|unless|whether|would|could|might|maybe|consider|discuss|ask|tell|say|says|said|warn|threaten|talk|speak|don't|dont|won't|wont|cannot|can't|cant)\b/iu;

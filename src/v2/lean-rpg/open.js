@@ -1,4 +1,4 @@
-// A fight opened by the pre-call (stage 47): the planner may list foes that are not on the Foes block yet (`foe <name> | new |
+// Replay-only since 2.25.0 (old planner records). A fight opened by the pre-call (stage 47): the planner could list foes that are not on the Foes block yet (`foe <name> | new |
 // count: n | class: X`) when the reader's message starts a fight against them. Code checks each one (vetOpen) and, only
 // when the plan is rolled, fills a free foe slot through the block's own `set-slot-N` kind (openFoes), as part of the
 // `rpg.resolve` step on the reply, so a swipe plans again, a Re-read keeps it, deleting the reply takes it back and a
@@ -33,7 +33,7 @@ export function isNamedIn(name, texts) {
     return wanted.some(word => seen.has(word));
 }
 
-// A level as the planner wrote it: "14", "Lv 14" or "level 14". An old "class: III" (or 3) stands for the level of that class.
+// A level as an old planner record wrote it: "14", "Lv 14" or "level 14". An old "class: III" (or 3) stands for the level of that class.
 const levelWritten = value => {
     const word = oneLine(value).replace(/^(?:level|lv\.?)\s*/iu, '');
     return /^\d+$/u.test(word) ? levelOf(Number(word)) : null;

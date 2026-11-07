@@ -98,5 +98,5 @@ export function growthOf(stats, { statMax = 20 } = {}) {
     return { health: bar(size.health, 'vit'), stamina: bar(size.stamina, 'agi'), mana: bar(size.mana, 'int'), luck: { ...luckWindow(luk), stat: 'luk', current: luk, next: step } };
 }
 
-/** The stage word of `value` blocks left in a bar of `size` blocks, for a bar kind ('health' | 'stamina' | 'mana' | 'foe'): what the planner's sheet and the views say. */
+/** The stage word of `value` blocks left in a bar of `size` blocks, for a bar kind ('health' | 'stamina' | 'mana' | 'foe'): what the sheet text and the views say. */
 export const stageText = (bar, value, size) => spreadWord(wordsOf(bar), Math.max(0, whole(value)), size);

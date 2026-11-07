@@ -166,7 +166,7 @@ export function reconcileBoard(meta, hasReceipt) {
 
 /**
  * "Send with this fight": at the press the staged fight is copied, byte for byte, beside the reader's waiting message and its anchor reply.
- * The send takes the fight from this copy whenever the session itself is not there, so the planner can never stand in for a staged fight.
+ * The send takes the fight from this copy whenever the session itself is not there, so nothing else can stand in for a staged fight.
  */
 export function markSend(meta, pending, session) {
     if (!object(meta) || !object(pending) || !object(session) || !session.exchanges?.length || session.anchor !== pending.anchor) return false;

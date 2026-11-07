@@ -24,7 +24,7 @@
     .rpg-fight-pause-actions > button { flex-basis: auto; width: 100%; }
 }
 
-/* The board switch shares the Rolls card with the planner limit. */
+/* The board switch shares the Rolls card. */
 .rpg-board-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--ss-text) 16%, transparent); }
 .rpg-board-setting-copy { min-width: 0; }
 .rpg-board-setting .ss-switch { flex: 0 0 auto; }

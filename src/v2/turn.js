@@ -59,7 +59,7 @@ const ROLE_SYSTEM = 0;
 const MAX_PROBLEMS = 200;
 // How long a canGenerate or beforeGenerate hook may take before the reply goes on without it.
 export const HOOK_TIMEOUT_MS = 2500;
-// A hook may declare its own, longer limit (`fn.timeoutMs`): the RPG's planner makes a model call of up to 20 s.
+// A hook may declare its own, longer limit (`fn.timeoutMs`): the RPG's roll planner (removed in 2.25.0) was the one that made a model call of up to 20 s.
 export const hookTimeout = fn => (Number.isFinite(fn?.timeoutMs) && fn.timeoutMs > HOOK_TIMEOUT_MS ? fn.timeoutMs : HOOK_TIMEOUT_MS);
 // A reply that never ends (no MESSAGE_RECEIVED, GENERATION_ENDED or STOPPED) stops counting as in progress
 // after this long, so Story Suite's own model calls on the chat's connection are not held up for good.

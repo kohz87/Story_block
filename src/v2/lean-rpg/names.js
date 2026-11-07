@@ -11,7 +11,7 @@ export const RESOLVE = 'rpg.resolve';
 /** The reader's saved target, area and defence choices for one skill (board/overrides.js). */
 export const BOARD_SKILL = 'rpg.boardSkill';
 export const BOARD_SKILL_CARRY = 'rpg.boardSkillCarry';
-/** The prelude that records, with the reply, that a live fight's roll planner gave nothing usable (noroll.js): the note under the reply is drawn from it. */
+/** The prelude that records, with the reply, that a live fight's roll planner (gone; old records only) gave nothing usable (noroll.js): the note under the reply is drawn from it. */
 export const NOROLL = 'rpg.noroll';
 
 /** The step after a reply's lines that gives the party its XP for a won fight (fight.js); also the kind of its replay guard. */
@@ -49,7 +49,7 @@ export const STAGES = Object.freeze({
 
 /**
  * The stage word of a bar that holds `value` blocks of `size` (the Standard formula): the first word for none, the last for a full bar, every other
- * count the nearest word in between (blocks.js spreadWord, which the Party tab and the tail use too, so the planner's sheet, the cue and the story
+ * count the nearest word in between (blocks.js spreadWord, which the Party tab and the tail use too, so the sheet text, the cue and the story
  * all say the same word). `words` is one of STAGES.
  */
 export const stageWord = (words, value, size) => spreadWord(words, Number.isFinite(value) ? Math.trunc(value) : 0, size);
