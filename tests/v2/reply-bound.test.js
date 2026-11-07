@@ -165,6 +165,24 @@ test('deleting a later reply leaves a reply-bound pin alone', async t => {
     assert.equal(pinned(), 'a');
 });
 
+test('a detached rewind preview does not reuse the live reply-bound state', async t => {
+    const host = await createHost({ modules: [pinner({ bound: 'flag' })], core: false });
+    t.after(() => host.close());
+    assert.equal((await host.bus.command('pin.set', { choice: 'a' }, { cause: 'ui' })).ok, true);
+    await host.send('Continue.', 'A later reply.');
+    const index = host.store.headIndex();
+    host.store.append({ ops: [
+        { op: 'replace', path: '/domains/pin/choice', value: 'b' },
+        { op: 'replace', path: '/meta/rev', value: host.head().meta.rev + 1 },
+    ] });
+    assert.equal(host.store.before(index).domains.pin.choice, 'a', 'warm the live prefix');
+    assert.doesNotThrow(() => host.store.truncate(index, 999, { dryRun: true, chat: host.ctx.chat }));
+    const detached = structuredClone(host.ctx.chat);
+    assert.throws(() => host.store.truncate(index, 999, { dryRun: true, chat: detached }), /changes|apply|path|pointer/i,
+        'the copied reply is no longer in the live chat, so its pin cannot support the later change');
+    assert.equal(host.store.before(index).domains.pin.choice, 'a', 'the detached replay did not poison the live memo');
+});
+
 test('replyBound must be true or false', async t => {
     const host = await createHost({ modules: [pinner({ bound: 'none' })], core: false });
     t.after(() => host.close());

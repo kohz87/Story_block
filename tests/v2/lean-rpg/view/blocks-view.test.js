@@ -137,7 +137,7 @@ test('a line that carries its own breakdown text shows that instead', () => {
 
 test('a record without the new parts reads exactly as it did: names of the first round, no totals, no extra lines', () => {
     const old = readResolve({ v: 1, checks: [], refused: [], rounds: [{ n: 1, lines: [{ kind: 'act', outcome: 'success', skill: 'Short blade', pc: { who: 'Wessel', die: 10, stat: 'agi', statBonus: 5, classValue: 2, classBonus: 4, rank: 0, edge: 0, total: 24 }, foe: { slot: 1, name: 'Sluice Rat A', die: 9, base: 5, classValue: 1, classBonus: 2, total: 13 } }] }] });
-    assert.deepEqual(Object.keys(old), ['rounds', 'checks', 'refused', 'order', 'ended']);
+    assert.deepEqual(Object.keys(old), ['rounds', 'checks', 'refused', 'order', 'stop', 'pace', 'flow', 'cap', 'board']);
     assert.deepEqual(Object.keys(old.rounds[0]), ['n', 'lines']);
     assert.deepEqual(old.order, ['Wessel']);
     assert.equal(old.rounds[0].lines[0].breakdown, 'd20 10 + AGI 5 + Class II 4 = 24 vs d20 9 + 5 + Class I 2 = 13', 'a Classic line\'s breakdown is built as before');

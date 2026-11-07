@@ -1,6 +1,7 @@
 // The change-line grammar (docs/v2/SPEC.md §4.4) and the <Changes> block in a reply.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { strayLines } from '../../src/v2/capture/stray.js';
 import { extractBlock, hideBlock, parseChanges, stripBlock, withoutReasoning } from '../../src/v2/capture.js';
 
 const one = text => {
@@ -155,4 +156,35 @@ test('hiding leaves a draft inside reasoning where it is, so the hidden block is
     const hidden = hideBlock(mes);
     assert.equal(extractBlock(hidden), '+ item Rope');
     assert.ok(hidden.startsWith('<think>\n<Changes>'));
+});
+
+test('a leading ^ on a change line is ignored', () => {
+    const plain = parseChanges(['<Changes>', '+ item Rope | qty: 1', '- item Lantern', '</Changes>'].join('\n'));
+    const marked = parseChanges(['<Changes>', '^+ item Rope | qty: 1', '^ - item Lantern', '</Changes>'].join('\n'));
+    const bare = r => ({ ...r, lines: r.lines.map(({ raw, ...rest }) => rest) });
+    assert.deepEqual(bare(marked), bare(plain));
+    const doubled = parseChanges(['<Changes>', '^^+ item Rope | qty: 1', '</Changes>'].join('\n'));
+    assert.equal(doubled.lines[0].name, plain.lines[0].name);
+    assert.deepEqual(doubled.problems, []);
+});
+
+test('a ^ inside a name or sentence is kept', () => {
+    const { lines } = parseChanges('<Changes>\n+ item Hat^Box | note: a^b\n</Changes>');
+    assert.equal(lines[0].name, 'Hat^Box');
+    assert.equal(lines[0].labels.note, 'a^b');
+});
+
+test('a line starting with ^ but no op is a problem, not a change', () => {
+    const { lines, problems } = parseChanges('<Changes>\n^ just words\n</Changes>');
+    assert.deepEqual(lines, []);
+    assert.equal(problems.length, 1);
+});
+
+test('strayLines treats a ^ line like the plain line', () => {
+    const heads = new Set(['+ item']);
+    const mes = 'Story.\n^+ item Rope\nMore.';
+    const found = strayLines(mes, heads);
+    const plain = strayLines('Story.\n+ item Rope\nMore.', heads);
+    assert.equal(found.taken.length, plain.taken.length);
+    assert.deepEqual(strayLines('Story ^+ item Rope here.', heads).taken, [], 'a ^ mid-prose is never a change line');
 });

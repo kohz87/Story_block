@@ -72,6 +72,7 @@ Last checked: 2026-11-07.
 ## src/v2/timeline/
 - `src/v2/timeline/boundary.js`: hashes and checks logical clock markers against transactions and captured proofs.
 - `src/v2/timeline/coordinator-block.js`: classifies blocked timeline selections and schedules retries for temporary failures.
+- `src/v2/timeline/referenced.js`: the `timeline.referenced` query: checkpoint ids named by every chat SillyTavern lists (chats of deleted characters are not checked); any listed chat unreadable makes the answer incomplete. Not replay-safe.
 - `src/v2/timeline/util.js`: holds shared timeline ids, error codes, crash and stale-chat helpers.
 
 ## src/v2/ui/
@@ -223,3 +224,8 @@ Last checked: 2026-11-07.
 - `src/v2/domains/core/merge.js`: merging module parts, hooks and settings without changing part order.
 - `src/v2/domains/core/extra.js`: the Inner chatter tail and `scene.moved` helpers.
 - `src/v2/domains/core/module.js`: the core module assembly, host-owned replay guard and queries.
+- `testkit/matrix/run/host.js`: matrix host setup, seeded crypto, module keys, reply text, facts and peer queries.
+- `testkit/matrix/run/checks.js`: matrix state checks, cold replay, the fresh-host oracle, dormancy and registration.
+- `testkit/matrix/run/basics.js`: the matrix basic row, action, replay, prompt and dormancy cases.
+- `testkit/matrix/run/cases.js`: the matrix missing-query, malformed, feature, clock, disabled, late and duplicate cases.
+- `testkit/matrix/run/revisions.js`: the matrix swipe, re-read and delete cases.
