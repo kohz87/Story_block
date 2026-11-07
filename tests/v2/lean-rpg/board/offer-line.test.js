@@ -8,12 +8,12 @@ import { setupDom } from '../../view/mounts/helpers.js';
 
 const data = {
     visible: true, text: 'A fight started: Sluice Rats.', label: 'Fight offer: Sluice Rats',
-    boardLabel: 'Fight on the board', narrateLabel: 'Keep narrating',
+    boardLabel: 'Fight on the board', autoLabel: 'Auto-fight',
 };
 
 test('the offer line renders the sentence and exactly two callback actions', () => {
     const doc = setupDom(), calls = [];
-    const view = createOfferLineView({ doc, onFight: chosen => calls.push(['fight', chosen]), onNarrate: chosen => calls.push(['narrate', chosen]) });
+    const view = createOfferLineView({ doc, onFight: chosen => calls.push(['fight', chosen]), onAuto: chosen => calls.push(['auto', chosen]) });
     const reply = doc.createElement('div');
     doc.body.appendChild(reply);
     const node = view.render(reply, data);
@@ -23,14 +23,14 @@ test('the offer line renders the sentence and exactly two callback actions', () 
     assert.equal(reply.querySelector('.rpg-fight-offer-line').textContent, '⚔A fight started: Sluice Rats.');
     const buttons = reply.querySelectorAll('button');
     assert.equal(buttons.length, 2);
-    assert.deepEqual(buttons.map(button => button.textContent), ['Fight on the board', 'Keep narrating']);
+    assert.deepEqual(buttons.map(button => button.textContent), ['Fight on the board', 'Auto-fight']);
     assert.ok(buttons.every(button => button.getAttribute('type') === 'button'));
     assert.match(buttons[0].className, /rpg-fight-offer-fight/);
-    assert.match(buttons[1].className, /rpg-fight-offer-narrate/);
+    assert.match(buttons[1].className, /rpg-fight-offer-auto/);
     buttons[0].click(); buttons[1].click();
-    assert.deepEqual(calls, [['fight', data], ['narrate', data]]);
+    assert.deepEqual(calls, [['fight', data], ['auto', data]]);
     view.render(reply, { ...data, visible: false });
-    assert.equal(reply.querySelector('.rpg-fight-offer'), null, 'Keep narrating hides this fight\'s line');
+    assert.equal(reply.querySelector('.rpg-fight-offer'), null, 'choosing a fight hides the line');
     view.destroy();
 });
 

@@ -8,8 +8,8 @@ import { readSheet } from '../read.js';
 import { text as sentence } from '../../view/widgets/dom.js';
 
 export const OFFER_BOARD_LABEL = 'Fight on the board';
-export const OFFER_KEEP_LABEL = 'Keep narrating';
-export const PAUSE_BOARD_LABEL = 'Fight it on the board';
+export const OFFER_AUTO_LABEL = 'Auto-fight';
+export const PAUSE_BOARD_LABEL = 'Fight on the board';
 export const PAUSE_NARRATE_LABEL = 'Narrate it instead';
 export const WORKING_TEXT = 'Working out the fight…';
 
@@ -47,6 +47,10 @@ function foeFrom(source) {
     const levelText = level === null ? '' : ` · ${foeLabel(level)}`;
     return { name, count, level, hurt, size, health, label: `${name}${countText}${levelText}` };
 }
+
+/** "Auto-fight (up to 3 exchanges)" for a cap of 1..8 (9 = until the end). */
+export const autoFightLabel = cap => `Auto-fight (${cap >= 9 ? 'until the end' : `up to ${cap} exchange${cap === 1 ? '' : 's'}`})`;
+const countName = foe => `${foe.name}${foe.count > 1 ? ` (${foe.count})` : ''}`;
 
 /** The standing groups of a staged/opened fight, with the sheet's names, levels and health when `state` is given. */
 export function fightFoes(fight, state = null) {
@@ -129,7 +133,7 @@ export function offerLineData(fight, { state = null, hidden = false } = {}) {
         text: `A fight started: ${joined}.`,
         label: `Fight offer: ${joined}`,
         boardLabel: OFFER_BOARD_LABEL,
-        narrateLabel: OFFER_KEEP_LABEL,
+        autoLabel: OFFER_AUTO_LABEL,
     };
 }
 
@@ -138,7 +142,8 @@ export function offerLineData(fight, { state = null, hidden = false } = {}) {
  * show a staged/opened fight's known foes, or the waiting state while the planner call is out.
  * → { mode: 'new' | 'known' | 'working', title, foes, checks, edge, note, … } or null.
  */
-export function pauseViewData({ fight = null, opening = null, state = null, waiting = false } = {}) {
+export function pauseViewData({ fight = null, opening = null, state = null, waiting = false, cap = 3 } = {}) {
+    const autoLabel = autoFightLabel(cap);
     const newFoes = openingFoes(opening);
     const checks = approachChecks(opening);
     if (newFoes.length || checks.length) {
@@ -152,10 +157,10 @@ export function pauseViewData({ fight = null, opening = null, state = null, wait
     const known = fightFoes(fight, state);
     if (known.length) {
         return {
-            mode: 'known', title: 'Your message starts a fight', foeTitle: 'Foes',
-            foes: known, checks: [], edge: '', note: 'The reply is waiting. Choose how this fight is played.',
+            mode: 'known', title: `This is an attack on ${known.map(countName).join(', ')}`, foeTitle: '',
+            foes: [], checks: [], edge: '', note: 'Your message waits while the fight is played on the board.',
             label: 'Fight paused',
-            boardLabel: PAUSE_BOARD_LABEL, narrateLabel: PAUSE_NARRATE_LABEL,
+            boardLabel: PAUSE_BOARD_LABEL, autoLabel,
         };
     }
     if (waiting === true) {

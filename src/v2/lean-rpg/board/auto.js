@@ -156,12 +156,12 @@ export function autoPicks(boardState, rules) {
     return out;
 }
 
-// Whether the last exchange hurt a hero by 2 or more Health blocks.
-function badlyHurt(result) {
+// The heroes the last exchange hurt by 2 or more Health blocks (names; the id when a line has none).
+export function hurtHeroes(result) {
     const rounds = Array.isArray(result?.rounds) ? result.rounds : (Array.isArray(result) ? result : []);
     const last = rounds.at(-1);
     const lines = last?.lines ?? result?.lines ?? [];
-    const lost = new Map();
+    const lost = new Map(), names = new Map();
     for (const line of lines) {
         const damage = line?.damage;
         if (!damage) continue;
@@ -169,9 +169,11 @@ function badlyHurt(result) {
         if (!((damage.kind === 'char' || id.startsWith('c:')) && /^c:[^:]+$/u.test(id))) continue;
         const blocks = Number.isFinite(Number(damage.blocks)) ? Number(damage.blocks) : number(damage.from) - number(damage.to);
         lost.set(id, (lost.get(id) ?? 0) + Math.max(0, blocks));
+        if (line?.pc?.who && !names.has(id)) names.set(id, line.pc.who);
     }
-    return [...lost.values()].some(blocks => blocks >= 2);
+    return [...lost].filter(([, blocks]) => blocks >= 2).map(([id]) => names.get(id) ?? id);
 }
+const badlyHurt = result => hurtHeroes(result).length > 0;
 
 /**
  * After an exchange: `won`/`lost` first, then `hurt` (a hero lost 2+ Health blocks in the last exchange),

@@ -23,7 +23,7 @@ async function world(t) {
     return app;
 }
 
-test('the reply offer and Fight tab dot follow Keep narrating, reload and the feature switch', async t => {
+test('the reply offer is Fight on the board and Auto-fight; Auto-fight opens the board and plays, and it survives reload and the feature switch', async t => {
     const { doc, host, ui, draw } = await world(t);
     ui.mounts.screen.open('story-block/fight');
     await settle();
@@ -31,14 +31,18 @@ test('the reply offer and Fight tab dot follow Keep narrating, reload and the fe
     const alert = () => doc.querySelectorAll('[data-id="story-block/fight"]').some(node => Boolean(node.querySelector('.ss-screenbar-alert')));
     assert.match(reply.querySelector('.rpg-fight-offer').textContent, /A fight started: Rat/);
     assert.equal(alert(), true);
-    reply.querySelector('.rpg-fight-offer-narrate').click();
+    assert.deepEqual(reply.querySelector('.rpg-fight-offer-actions').children.map(node => node.textContent), ['Fight on the board', 'Auto-fight']);
+    reply.querySelector('.rpg-fight-offer-auto').click();
     await settle();
     assert.equal(reply.querySelector('.rpg-fight-offer'), null);
-    assert.equal(alert(), false);
+    const played = boardSession(host.ctx.chatMetadata);
+    assert.ok(played.exchanges.length >= 1 && played.exchanges.length <= 3, 'Auto played up to the default cap');
+    assert.match(doc.querySelector('.rpg-board-auto-note').textContent, /^Auto played \d+ exchanges?/);
     await host.st.loadChat(structuredClone(host.ctx.chat), 'offer-reload');
     draw();
     host.events.emit('head', { index: host.store.headIndex() });
     assert.equal(Boolean(doc.querySelector('.rpg-fight-offer')), false, 'the choice survives reload');
+    delete host.ctx.chatMetadata.rpgFightBoard;   // (the reader dropped the staged fight)
     await host.swipe('A snake appears.\n<Changes>\n+ dm foes — a new fight | kind: set-slot-1 | name: Snake | count: 1 | level: 1\n</Changes>');
     draw();
     host.events.emit('head', { index: host.store.headIndex() });

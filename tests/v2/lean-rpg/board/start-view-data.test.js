@@ -27,7 +27,7 @@ test('the offer line names the staged fight and hides for this fight when asked'
     assert.equal(shown.visible, true);
     assert.deepEqual(shown.foes.map(foe => foe.name), ['Sluice Rats', 'Eels']);
     assert.equal(shown.text, 'A fight started: Sluice Rats, Eels.');
-    assert.deepEqual([shown.boardLabel, shown.narrateLabel].filter(Boolean), ['Fight on the board', 'Keep narrating']);
+    assert.deepEqual([shown.boardLabel, shown.autoLabel].filter(Boolean), ['Fight on the board', 'Auto-fight']);
     const hidden = offerLineData(fight, { state: value, hidden: true });
     assert.equal(hidden.visible, false);
     assert.equal(hidden.text, shown.text, 'hiding keeps the same fight wording');
@@ -38,10 +38,11 @@ test('the known pause reads foe groups from the sheet with level and health', ()
     const { fight, state: value } = openedFight();
     const data = pauseViewData({ fight, state: value });
     assert.equal(data.mode, 'known');
-    assert.match(data.foes[0].label, /^Sluice Rats ×3 · Lv 1$/);
-    assert.match(data.foes[0].health, /Unhurt|Fresh/);
-    assert.match(data.note, /The reply is waiting/);
-    assert.deepEqual([data.boardLabel, data.narrateLabel].filter(Boolean), ['Fight it on the board', 'Narrate it instead']);
+    assert.match(data.title, /^This is an attack on Sluice Rats \(3\)/);
+    assert.equal(data.note, 'Your message waits while the fight is played on the board.');
+    assert.deepEqual([data.boardLabel, data.autoLabel, data.narrateLabel].filter(Boolean), ['Fight on the board', 'Auto-fight (up to 3 exchanges)'], 'two choices, no narration');
+    assert.equal(pauseViewData({ fight, state: value, cap: 1 }).autoLabel, 'Auto-fight (up to 1 exchange)');
+    assert.equal(pauseViewData({ fight, state: value, cap: 9 }).autoLabel, 'Auto-fight (until the end)');
 });
 
 test('the planner opening shows new foes, the rolled approach checks and the ambush edge', () => {
@@ -57,7 +58,7 @@ test('the planner opening shows new foes, the rolled approach checks and the amb
     assert.match(data.foes[0].label, /^Rat Swarms ×3 · Lv 3$/);
     assert.equal(data.checks[0].label, 'Astra · Obscure (DEX): SUCCESS 18 vs 15');
     assert.equal(data.edge, 'Edge: ambush · Astra acts first');
-    assert.deepEqual([data.boardLabel, data.narrateLabel].filter(Boolean), ['Fight it on the board', 'Narrate it instead']);
+    assert.deepEqual([data.boardLabel, data.narrateLabel].filter(Boolean), ['Fight on the board', 'Narrate it instead']);
 });
 
 test('the waiting pause is the exact planner text and the helpers do not change their inputs', () => {

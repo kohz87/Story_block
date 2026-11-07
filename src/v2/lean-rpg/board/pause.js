@@ -1,5 +1,5 @@
-// The pause screen between Send and the fight board: known foes, the planner's wait, or new foes with rolled approach checks.
-// It renders pauseViewData only; both choices are callbacks so the send flow keeps ownership of the fight.
+// The pause screen between Send and the fight board: an attack on known foes, the planner's wait, or new foes with rolled approach checks.
+// It renders pauseViewData only; the choices (Fight on the board, Auto-fight) are callbacks so the send flow keeps ownership of the fight.
 
 import { button, h, text } from '../../view/widgets/dom.js';
 
@@ -8,11 +8,11 @@ export const PAUSE_ROOT = 'rpg-fight-pause';
 const outcomeName = value => (value === 'success' || value === 'cost' || value === 'fail' ? value : 'neutral');
 
 /**
- * createPauseView({ doc, onBoard, onNarrate })
+ * createPauseView({ doc, onBoard, onAuto, onNarrate })
  * → { render(container, data), update(data), clear(), destroy(), element }.
- * Narration is available even while the opening is being planned.
+ * A fight that known foes start offers the board and Auto-fight; narration is offered only for the planner's own opening.
  */
-export function createPauseView({ doc = globalThis.document, onBoard = () => {}, onNarrate = () => {} } = {}) {
+export function createPauseView({ doc = globalThis.document, onBoard = () => {}, onAuto = () => {}, onNarrate = () => {} } = {}) {
     let host = null, root = null, shown = null;
     const clear = () => { root?.remove?.(); root = null; return null; };
 
@@ -62,8 +62,9 @@ export function createPauseView({ doc = globalThis.document, onBoard = () => {},
             }
             if (text(shown.edge, 160)) root.appendChild(h(doc, 'p', 'rpg-fight-pause-edge', text(shown.edge, 160)));
             const actions = h(doc, 'div', 'rpg-fight-pause-actions');
-            actions.appendChild(button(doc, text(shown.boardLabel) || 'Fight it on the board', 'ss-button ss-button-primary rpg-fight-pause-board', () => onBoard?.(shown)));
-            actions.appendChild(button(doc, text(shown.narrateLabel) || 'Narrate it instead', 'ss-button rpg-fight-pause-narrate', () => onNarrate?.(shown)));
+            actions.appendChild(button(doc, text(shown.boardLabel) || 'Fight on the board', 'ss-button ss-button-primary rpg-fight-pause-board', () => onBoard?.(shown)));
+            if (text(shown.autoLabel)) actions.appendChild(button(doc, text(shown.autoLabel), 'ss-button rpg-fight-pause-auto', () => onAuto?.(shown)));
+            if (text(shown.narrateLabel)) actions.appendChild(button(doc, text(shown.narrateLabel), 'ss-button rpg-fight-pause-narrate', () => onNarrate?.(shown)));
             root.appendChild(actions);
         }
         if (root.parentNode !== host) host.appendChild(root);
