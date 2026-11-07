@@ -229,3 +229,10 @@ Last checked: 2026-11-07.
 - `testkit/matrix/run/basics.js`: the matrix basic row, action, replay, prompt and dormancy cases.
 - `testkit/matrix/run/cases.js`: the matrix missing-query, malformed, feature, clock, disabled, late and duplicate cases.
 - `testkit/matrix/run/revisions.js`: the matrix swipe, re-read and delete cases.
+
+## tests/v2/ (combat replay corpus)
+- `tests/v2/qa/combat-corpus.test.js`: replays the D0 combat chats and pins state, Problems, Re-read, cues and battle-log models.
+- `tests/v2/fixtures/combat-corpus/corpus.mjs`: captures one combat chat's full-replay golden.
+- `tests/v2/fixtures/combat-corpus/make.mjs`: builds the Standard-rules planner, fight-start, board, noroll and practice chats and writes their goldens.
+- `tests/v2/fixtures/combat-corpus/chats.json`: the ten pinned combat chats and their replay setup.
+- `tests/v2/fixtures/combat-corpus/goldens.json`: the golden state, Problems, cues, battle-log models and Re-read results.
