@@ -232,6 +232,7 @@ test('after a fallback is durable the participant is told { from, to } once, and
     assert.equal(told[0].from.checkpoint, after.checkpoint);
     const done = selections(host).find(entry => entry.fell);
     assert.deepEqual(told[0].to, done.fell.to);
+    assert.equal(told[0].reason, 'fallback', 'the reason names the fallback');
     assert.equal(done.phase, 'complete', 'told after the selection completed');
     await host.sdk.timeline.status();
     assert.equal(told.length, 1, 'looking again does not tell it again');

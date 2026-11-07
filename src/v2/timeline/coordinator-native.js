@@ -165,7 +165,7 @@ export function createNative(s, deps) {
             const chosen = withWholePrefixes(() => fallback.fallbackChain(fell.module).find(item => item.checkpoint === fell.to.checkpoint && item.hash === fell.to.hash));
             // The participant is told once, now that the selection is durable, to read the replies it missed (same catch-up as a reader restore).
             if (typeof participants.get(fell.module)?.restored === 'function') {
-                const told = await callParticipant(fell.module, 'restored', { from: fell.from, to: fell.to });
+                const told = await callParticipant(fell.module, 'restored', { from: fell.from, to: fell.to, reason: 'fallback' });
                 if (!told.ok) try { problem?.({ module: fell.module, code: 'SELECTION_FELL_SCAN', quiet: true, message: `${LABELS[fell.module] ?? fell.module} could not start reading the replies it missed: ${told.message}` }); } catch { /* a listener is not the timeline's business */ }
             }
             const message = fellNotice(LABELS[fell.module] ?? registry.module?.(fell.module)?.name ?? fell.module, { index: chosen?.index, replies: fell.replies });
