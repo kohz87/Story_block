@@ -102,8 +102,9 @@ the approach checks earn practice and a successful ambush applies to the first e
   next seed. A message sent mid-fight carries the exchanges already played and the fight stays open.
 - A changed sheet or gear holds a staged fight until restored or discarded. The board is offered only under
   Standard rules; a recorded board receipt still replays with its saved rules.
-- Flags default from skill wording; explicit flags live on the editing reply. While the board is on, a rename
-  carries explicit flags to the new name. With the board off, this is a known limit.
+- Flags default from skill wording; explicit flags live on the editing reply. A rename
+  carries explicit flags to the new name, board on (`rpg.boardSkill`) or off (`rpg.boardSkillCarry`, no feature gate; it only
+  copies an existing explicit entry from the old name and never makes flags from defaults).
 - A plain attack uses the best eligible weapon stat. Flee uses AGI against the strongest standing group.
   Foes choose a standing member in stable order; defence is automatic.
 - The end card shows XP for the original foe groups on a win and practice for the unsent segment; the folded

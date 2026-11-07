@@ -446,3 +446,18 @@ test('B15: latest() still finds the last rolled reply after fifteen quiet exchan
     assert.ok(found, 'the roll is still in the chat');
     assert.equal(found.index, head);
 });
+
+test('the panel draws the stop line after the rounds and the Receipt row last, and neither for a record without a stop', () => {
+    const doc = setupDom();
+    const { stop: _s, pace: _p, rules: _r, ...old } = result();
+    const plain = buildPanel(doc, panelModel({ resolve: readResolve(old), state: after, before, roleOf }));
+    assert.equal(plain.querySelector('.rpg-bl-stop'), null);
+    assert.equal(plain.querySelector('.rpg-bl-receipt'), null);
+    const resolve = { ...readResolve(result()), stop: 'pace', pace: 'careful', flow: 2, cap: 8, board: false, receipt: 'Told cue.' };
+    const node = buildPanel(doc, panelModel({ resolve, state: after, before, roleOf }));
+    const stop = node.querySelector('.rpg-bl-stop');
+    assert.match(stop.textContent, /^Ended: careful pace allows 1 exchange\./);
+    assert.equal(stop.querySelector('small').textContent.startsWith('The fight goes on next reply.'), true);
+    const body = node.children.at(-1);
+    assert.equal(body.children.at(-1).className, 'rpg-bl-receipt');
+});
