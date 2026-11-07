@@ -16,6 +16,7 @@ import { createInspectorSource } from '../inspect.js';
 import { createSavePoints } from '../rewind.js';
 import { createInspectorWidget, INSPECTOR_WIDGET } from '../screens/inspector.js';
 import { createSavePointsWidget, SAVEPOINTS_WIDGET } from '../screens/savepoints.js';
+import { createRebuildBannerWidget, REBUILD_BANNER_WIDGET } from '../screens/rebuild-banner.js';
 import { createReadyHintWidget, READY_HINT_WIDGET } from '../screens/ready-hint.js';
 import { RPG_START_WIDGET } from '../screens/home.js';
 import { createShowMoreWidget, SHOW_MORE_WIDGET } from '../screens/show-more.js';
@@ -64,10 +65,24 @@ export function createHostSetup({ runtime, ctx, doc, registry, store, sdk, openS
         chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId),
         problems: index => inspectorProblems(index),
     });
+    // Home's rebuild banner and the Inspector's Problem-row button share one widget and one last result (the timeline's `host.rebuild`).
+    let rebuilt = null;
+    const rebuildBlocked = () => runtime.timeline?.blocked?.() ?? null;
+    const rebuildBanner = createRebuildBannerWidget({
+        blocked: rebuildBlocked,
+        rebuild: async (module, input) => {
+            const result = await runtime.timeline.host.rebuild(module, input);
+            if (result?.ok) rebuilt = result;
+            return result;
+        },
+        last: () => rebuilt,
+        dismiss: () => { rebuilt = null; },
+    });
     const hostWidgets = {
         ...blockWidgets.widgets,
         ...createFieldsWidgets(),
-        [INSPECTOR_WIDGET]: createInspectorWidget(inspector, { enabled: () => coreOn(CORE_FEATURE.inspector) }),
+        [INSPECTOR_WIDGET]: createInspectorWidget(inspector, { enabled: () => coreOn(CORE_FEATURE.inspector), rebuild: { widget: rebuildBanner, blocked: rebuildBlocked, nameOf: module => registry.module?.(module)?.name ?? module } }),
+        [REBUILD_BANNER_WIDGET]: rebuildBanner,
         [SAVEPOINTS_WIDGET]: createSavePointsWidget({
             points: savePoints,
             enabled: () => coreOn(CORE_FEATURE.savepoints),

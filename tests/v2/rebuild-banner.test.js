@@ -4,6 +4,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setupDom } from './view/mounts/helpers.js';
+import { STRINGS } from '../../src/v2/strings.js';
+import { homeScreen } from '../../src/v2/screens/home.js';
+import { createInspectorWidget } from '../../src/v2/screens/inspector.js';
+import { createTimeline } from '../../src/v2/timeline/index.js';
+import { host as widgetHost, installDom, fakeApi } from './view/widgets/fake-dom.js';
 import {
     createRebuildBannerWidget, rebuildTarget, REBUILD_BANNER_WIDGET, REBUILD_READ_ALL, REBUILD_READ_LAST, REBUILD_TEXT,
 } from '../../src/v2/screens/rebuild-banner.js';
@@ -163,4 +168,78 @@ test('a result already recorded is drawn as the done note; destroy removes the w
     assert.ok(drawn.includes('head'));
     handle.destroy();
     assert.equal(host.children.length, 0);
+});
+
+// ---- Step 2: strings, Home, the Inspector's Problem row, the timeline's host command ------------------
+
+test('the words live in strings/screens.js and match the approved mockup', () => {
+    assert.equal(REBUILD_TEXT, STRINGS.rebuild);
+    assert.equal(STRINGS.rebuild.rowTitle, "Dossiers can't be restored here");
+    assert.equal(STRINGS.rebuild.dialogMuted, 'This uses model calls, about one per reply read.');
+    assert.equal(Object.isFrozen(STRINGS.rebuild), true);
+});
+
+test('Home mounts the banner slot above "Before you start", and the slot hides while empty', () => {
+    const a = homeScreen.template.indexOf('name="story-block.rebuild-banner" class="rebuild-slot"');
+    const b = homeScreen.template.indexOf('name="story-block.ready-hint"');
+    assert.ok(a > 0 && a < b);
+    assert.match(homeScreen.css, /\.rebuild-slot:empty \{ display: none; \}/);
+});
+
+function inspectorWith(held, problems, calls = []) {
+    const doc = installDom();
+    const source = {
+        memory: { index: null, search: '', open: new Set() }, replies: () => [{ index: 1, name: 'Ren', rev: 2, head: true, snippet: 'x' }], headIndex: () => 1,
+        reply: () => ({ ok: true, index: 1, name: 'Ren', rev: 2, checkpoint: false, diff: { entries: [], more: 0 }, ops: [], receipts: [], problems, state: { meta: { rev: 2 } } }),
+    };
+    const banner = createRebuildBannerWidget({ blocked: () => held, rebuild: async (module, choice) => { calls.push([module, choice]); return { ok: true, read: choice.read, reply: 4 }; } });
+    const widget = createInspectorWidget(source, { rebuild: { widget: banner, blocked: () => held, nameOf: () => 'NPC State Delta' } });
+    const el = widgetHost(doc);
+    widget.render(el, {}, fakeApi());
+    return { el, calls };
+}
+
+test('the Inspector Problem row has the button while the block is permanent: its own row when no reply row carries it, then the same confirmation', async () => {
+    const { el, calls } = inspectorWith(block(), []);
+    const row = el.querySelector('.sb-insp-problems li');
+    assert.ok(row, 'the block has a row even with no reply problems');
+    assert.equal(text(row.querySelector('.ss-listcard-title')), "Dossiers can't be restored here");
+    assert.equal(text(row.querySelector('.ss-listcard-sub')), 'SNAPSHOT_UNAVAILABLE · NPC State Delta');
+    const button = row.querySelector('.sb-insp-rebuild');
+    assert.equal(text(button), REBUILD_TEXT.start);
+    button.click();
+    await tick();
+    const dialog = row.querySelector('.rebuild-dialog');
+    assert.ok(dialog, 'the same confirmation opens in the row');
+    assert.equal(dialog.querySelectorAll('input')[0].checked, true);
+    dialog.querySelector('.rebuild-confirm').click();
+    await tick();
+    assert.deepEqual(calls, [['npc-state-delta', { read: REBUILD_READ_LAST }]]);
+    assert.ok(row.querySelector('.rebuild-note'));
+});
+
+test('the button goes on the reply row that carries the cause (once); a retrying or free chat has none', () => {
+    const rows = [{ code: 'SNAPSHOT_UNAVAILABLE', message: 'file missing' }, { code: 'SNAPSHOT_UNAVAILABLE', message: 'again' }, { code: 'REFUSED', message: 'x' }];
+    const { el } = inspectorWith(block(), rows);
+    assert.equal(el.querySelectorAll('.sb-insp-problems li').length, 3);
+    assert.equal(el.querySelectorAll('.sb-insp-rebuild').length, 1);
+    assert.ok(el.querySelectorAll('.sb-insp-problems li')[0].querySelector('.sb-insp-rebuild'));
+    for (const held of [null, block('FAILED')]) {
+        const none = inspectorWith(held, [{ code: 'SNAPSHOT_UNAVAILABLE', message: 'file missing' }]);
+        assert.equal(none.el.querySelectorAll('.sb-insp-rebuild').length, 0);
+    }
+});
+
+test('createTimeline: host.rebuild and blocked() are wired; the host command refuses with no block, and the public api has no rebuild', async () => {
+    const meta = {};
+    const timeline = createTimeline({
+        store: { flush: async () => {}, touch() {}, receipts: () => [], state: () => null }, registry: { restore: () => ({ state: 'idle' }), setRestore() {}, module: () => null },
+        metadata: () => meta, chat: () => [],
+    });
+    assert.equal(typeof timeline.host.rebuild, 'function');
+    assert.equal(timeline.api.rebuild, undefined, 'a module cannot call it');
+    assert.equal(timeline.blocked(), null);
+    const answer = await timeline.host.rebuild('npc-state-delta', { read: 'last-40' });
+    assert.equal(answer.ok, false);
+    assert.ok(['REFUSED', 'FAILED'].includes(answer.code));
 });

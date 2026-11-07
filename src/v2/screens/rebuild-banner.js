@@ -5,9 +5,13 @@
 // transient failure (still being retried) draws nothing. Text is set with textContent; the words are the approved
 // Home mockup's.
 //
+// `props.inline` / `props.open`: the Inspector's Problem row mounts this widget with both, so its button opens the same confirmation.
+//
 // ui-host.js passes `blocked()` (the timeline's current block: { reason, code, blockedBy: { module, code } } or
 // null), `rebuild(module, { read })`, `progress()` ({ reply, total } or null), `last()` (the last rebuilt result) and
 // `dismiss(result)` (optional). It redraws on the host's head, committed, turn, feature and timeline events.
+
+import { STRINGS, fill } from '../strings.js';
 
 export const REBUILD_BANNER_WIDGET = 'story-block.rebuild-banner';
 
@@ -15,24 +19,8 @@ export const REBUILD_READ_LAST = 'last-40';
 export const REBUILD_READ_ALL = 'all';
 export const REBUILD_PERMANENT_CODES = Object.freeze(['SNAPSHOT_UNAVAILABLE', 'CONFLICT', 'DEPENDENCY_UNAVAILABLE']);
 
-/** The approved mockup's words (one block, so the Step 2 string registration can mirror it exactly). */
-export const REBUILD_TEXT = Object.freeze({
-    title: "This branch's dossiers can't be restored",
-    body: 'A saved dossier file is missing, and no earlier saved point could be checked. Replies are paused for this chat.',
-    start: "Start this branch's dossiers from the chat",
-    muted: 'Or restore the missing file from a backup and reload.',
-    dialogTitle: "Start this branch's dossiers from the chat?",
-    dialogBody: "The dossiers for this branch can't be restored, because a saved file is missing. Story Suite will read the chat again and build new dossiers from it. Notes and changes made by hand on this branch are not kept. Your other chats and branches are not changed.",
-    last: 'Read the last 40 replies (faster)',
-    all: 'Read the whole chat',
-    dialogMuted: 'This uses model calls, about one per reply read.',
-    confirm: 'Start from the chat',
-    cancel: 'Cancel',
-    workingTitle: 'Starting dossiers from the chat…',
-    working: 'Starting…',
-    doneLast: '✓ Dossiers for this branch were started from the chat (last 40 replies). Replies are back on.',
-    doneAll: '✓ Dossiers for this branch were started from the chat (the whole chat). Replies are back on.',
-});
+/** The approved mockup's words (strings/screens.js `rebuild`, one block so every surface shows the same). */
+export const REBUILD_TEXT = STRINGS.rebuild;
 
 let serial = 0;
 
@@ -58,14 +46,16 @@ export function rebuildTarget(blocked) {
  * or a failure envelope. `progress()` → `{ reply, total }` (total null while reading the whole chat).
  */
 export function createRebuildBannerWidget({
-    blocked = () => null, rebuild = async () => ({ ok: false, code: 'FAILED', message: 'The dossiers could not be started.' }),
+    blocked = () => null, rebuild = async () => ({ ok: false, code: 'FAILED', message: REBUILD_TEXT.failed }),
     progress = () => null, last = () => null, dismiss = () => {},
 } = {}) {
     return Object.freeze({
         props: {},
         primary: null,
         validate: () => [],
-        render(host, _props, api = {}) {
+        render(host, props, api = {}) {
+            // `inline` (the Inspector's Problem row): no banner of its own, only the confirmation, progress and result; `open` starts at the confirmation.
+            const inline = props?.inline === true;
             const doc = host.ownerDocument ?? globalThis.document;
             let phase = 'idle';               // idle | dialog | working | failed | done
             let dialogTarget = null;
@@ -141,11 +131,9 @@ export function createRebuildBannerWidget({
                 let value = null;
                 try { value = progress(); } catch { value = null; }
                 const reply = Number.isInteger(value?.reply) ? value.reply : null;
-                if (reply === null) return 'Reading the chat. Replies resume when it finishes.';
+                if (reply === null) return REBUILD_TEXT.reading;
                 const total = Number.isInteger(value?.total) ? value.total : (read === REBUILD_READ_LAST ? 40 : null);
-                return total === null
-                    ? `Reading reply ${reply}. Replies resume when it finishes.`
-                    : `Reading reply ${reply} of ${total}. Replies resume when it finishes.`;
+                return total === null ? fill(REBUILD_TEXT.readingReply, { reply }) : fill(REBUILD_TEXT.readingOf, { reply, total });
             }
 
             function workingView() {
@@ -174,8 +162,8 @@ export function createRebuildBannerWidget({
                 const text = el(doc, 'span', 'rebuild-note-text', doneText(result));
                 const close = el(doc, 'button', 'rebuild-dismiss', '×');
                 close.type = 'button';
-                close.setAttribute('aria-label', 'Dismiss');
-                close.setAttribute('title', 'Dismiss');
+                close.setAttribute('aria-label', REBUILD_TEXT.dismiss);
+                close.setAttribute('title', REBUILD_TEXT.dismiss);
                 close.addEventListener('click', () => {
                     dismissed = doneKey(result);
                     try { dismiss(result); } catch { /* the reader's note is optional */ }
@@ -212,7 +200,7 @@ export function createRebuildBannerWidget({
                 if (gone) return;
                 working = null;
                 if (!result || result.ok === false) {
-                    failure = { module, message: typeof result?.message === 'string' && result.message ? result.message : 'The dossiers could not be started.' };
+                    failure = { module, message: typeof result?.message === 'string' && result.message ? result.message : REBUILD_TEXT.failed };
                     phase = 'failed';
                     drawn += 1;
                     paint([enabled({ module, code: result?.code ?? 'FAILED' }, failure.message)]);
@@ -236,7 +224,7 @@ export function createRebuildBannerWidget({
                 try { held = await blocked(); } catch { held = null; }
                 if (gone || mine !== drawn) return;
                 const target = rebuildTarget(held);
-                if (target) { paint([enabled(target)]); return; }
+                if (target) { paint(inline ? [] : [enabled(target)]); return; }
                 let previous = null;
                 try { previous = await last(); } catch { previous = null; }
                 if (gone || mine !== drawn) return;
@@ -255,7 +243,9 @@ export function createRebuildBannerWidget({
                     } catch { /* an older host without that event */ }
                 }
             }
-            draw();
+            if (inline && props?.open === true) {
+                Promise.resolve().then(blocked).then(held => { const target = rebuildTarget(held); if (!gone && target) openDialog(target); else draw(); }, () => draw());
+            } else draw();
             return {
                 update: () => { draw(); },
                 destroy: () => {
