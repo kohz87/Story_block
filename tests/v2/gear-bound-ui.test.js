@@ -15,7 +15,7 @@ const featureOn = id => id === 'story-block.gear' || id === 'story-block.rpg';
 const core = gear => createCoreModule({ hooks: () => [], settings: () => ({}), extras: { gearOn: () => gear, persona: () => 'Astra' } });
 
 // Ren's dagger is a signature piece (bound to Ren, worn in the weapon slot); the iron sword is Astra's own (worn); the rest is carried.
-function crew({ gear = true, long = null } = {}) {
+function crew({ gear = true, long = null, rope = 0 } = {}) {
     const module = core(gear);
     const state = stocked(module);
     const inv = state.domains.inventory;
@@ -23,6 +23,7 @@ function crew({ gear = true, long = null } = {}) {
     inv.defs['pack.fantasy/dagger'].slot = 'weapon';
     inv.defs['pack.fantasy/dagger'].rarity = 'legendary';
     if (long) inv.defs['pack.fantasy/dagger'].name = long;
+    if (rope) inv.defs['story/rope'].carry = rope;
     state.domains.party = { actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' } } };
     const dagger = inv.stacks.it_dagg0001;
     dagger.owner = 'ac_ren00001';
@@ -195,4 +196,46 @@ test('the refusal sentence is the code\'s, gender-neutral: "Bound to Ren: Dagger
     const message = JSON.stringify(result);
     assert.match(message, /Bound to Ren: Dagger stays with them\./);
     assert.doesNotMatch(message, /\bhim\b|\bher\b/);
+});
+
+test('a story item\'s Carry control shows its word, and its open form keeps line 2 and sits outside any height-locked line', async () => {
+    const setup = crew({ rope: 7 });
+    const calls = [];
+    const { el, problems } = draw(setup, calls);
+    assert.deepEqual(problems, []);
+    const rope = rowOf(el, 'Rope');
+    const control = rope.querySelector('.g-l2 .item-carry');
+    assert.ok(control, 'the Carry control is in line 2');
+    assert.equal(text(control.querySelector('.ss-w-editable-value')), 'Carry +7', 'its word');
+    assert.equal(rope.querySelectorAll('.ss-w-editable-pencil').length, 2, 'Edit pencil and Carry pencil');
+    control.querySelector('.ss-w-editable-pencil').click();
+    const form = rope.querySelector('.item-carry .ss-w-editable-item-form');
+    assert.ok(form, 'the Carry form is open inside the control');
+    assert.ok(form.querySelector('input[type="number"]'), 'with its number input');
+    assert.ok(form.querySelector('.ss-w-editable-save') && form.querySelector('.ss-w-editable-cancel'), 'Save and Cancel');
+    // The CSS: line 2 holding the open form is not hidden and not locked to 16px; the row's fixed-line rules stop while any form is open.
+    const css = inventoryScreen.css;
+    assert.match(css, /:is\(\.g-l2:not\(:has\(\.ss-w-editable-item-form\)\), \.g-l3\) \{ display: none; \}/);
+    assert.match(css, /\.g-l2:has\(\.ss-w-editable-item-form\) \{ display: flex; flex-wrap: wrap; height: auto; overflow: visible; white-space: normal; \}/);
+    assert.equal(rope.querySelector('.g-l1').querySelector('.item-carry'), null);
+    // Gear off: no Carry control.
+    assert.equal(draw(crew({ gear: false })).el.querySelectorAll('.item-carry').length, 0);
+});
+
+test('rendered at phone width, gear on: clicking Carry shows a visible form with a usable input (optional browser)', async t => {
+    let chromium;
+    try { ({ chromium } = await import('playwright')); } catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; t.skip('Install the optional browser package to run the rendered check.'); return; }
+    let browser;
+    try { browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] }); } catch (error) { t.skip(`Browser unavailable: ${String(error).split('\n')[0]}`); return; }
+    t.after(() => browser.close());
+    const css = inventoryScreen.css;
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    // The row's real shape (lines, Edit control, Carry control with an open form) under the screen's own CSS.
+    await page.setContent(`<style>${css}</style><div class="inv gear"><ul><li class="item grow"><div class="body"><div class="line g-l1"><span class="name">Rope</span></div>
+      <div class="g-l2"><span class="item-carry"><span class="ss-w-editable"><button class="ss-w-editable-pencil">p</button><form class="ss-w-editable-item-form"><label>Adds carry capacity (0-500)<input type="number" value="7"></label><button type="button">Save</button><button type="button">Cancel</button></form></span></span></div>
+      <div class="detail g-l3">x</div></div></li></ul></div>`);
+    const box = await page.locator('.item-carry input').boundingBox();
+    assert.ok(box && box.width > 40 && box.height > 10, 'the input is visible with a size');
+    assert.equal(await page.locator('.g-l2').evaluate(node => getComputedStyle(node).display !== 'none' && getComputedStyle(node).overflow === 'visible'), true);
+    assert.equal(await page.locator('.g-l3').evaluate(node => getComputedStyle(node).display), 'none');
 });
