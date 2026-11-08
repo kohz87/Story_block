@@ -31,6 +31,19 @@ test('a message that is not an attack gives nothing', () => {
         assert.equal(looksLikeAttack(message), false, message);
 });
 
+test('the owner message and adverb or comma subjects read as attacks', () => {
+    const owner = 'I head out to clear the bog-boars, seeking them out and immediately found them digging on the ground, when I approach them from the shadow, I immediately attacked them.';
+    for (const message of [owner, 'I immediately attacked them', 'As I crept closer, I attacked the boars', 'then I quickly struck the boar',
+        'we finally charged', 'I just also swung at the boar', 'The wind rose: I attacked the boars'])
+        assert.equal(looksLikeAttack(message), true, message);
+});
+
+test('other subjects, doubts and quotes still give no attack', () => {
+    for (const message of ['the boar attacked me', 'they attacked the cart', 'she struck him, I watched', 'I ask whether I should attack',
+        "I don't attack the boar", 'He said "I attacked them" and left.', 'I quietly slowly really attacked them'])
+        assert.equal(looksLikeAttack(message), false, message);
+});
+
 test('every distinctive word of a name must appear whole in the message', () => {
     assert.deepEqual(vetGroups([{ name: 'Cave Troll', count: 2 }], { message: 'I attack the rats.', sheet }), []);
     assert.deepEqual(vetGroups([{ name: 'Cave Rats', count: 2 }, { name: 'Dire Rats', count: 2 }], { message: 'I attack the cave rat.', sheet }),

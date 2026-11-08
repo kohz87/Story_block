@@ -1,6 +1,7 @@
 // The foe pre-check: a short, pure reading of the reader's typed attack before a reply is generated. It asks for the
 // enemy groups the message attacks, reads the answer as JSON, and holds those groups to the Foes block's rules. It
 // plans no dice and writes nothing; the caller records accepted groups as an opening and the board plays it.
+import { READER_SUBJECT } from './action-gate.js';
 import { FOE_SLOTS } from '../names.js';
 import { OPEN_MAX_NAME } from '../open.js';
 import { FOE_COUNT_MAX } from '../templates.js';
@@ -47,7 +48,7 @@ export function looksLikeAttack(message) {
         const action = ATTACK.exec(clause);
         if (!action) return false;
         const before = clause.slice(0, action.index).trim();
-        return !before || /(?:^|\b(?:as|when|while|once)\s+)(?:i|we)(?:\s+(?:will|try to|attempt to))?$/iu.test(before);
+        return !before || READER_SUBJECT.test(before);
     });
 }
 
