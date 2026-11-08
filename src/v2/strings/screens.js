@@ -69,7 +69,7 @@ export const SCREEN_STRINGS = {
                 noGreeting: 'This chat has no greeting yet, so there is nothing to add items to. Start the chat first.',
                 kitGreeting: 'Starting kit belongs to this greeting.',
                 laterHint: 'Rarity and bonuses come from the story after the first message.',
-                carry: 'Adds carry capacity (0\u2013500)', carryHelp: 'Only you set this. The story never changes it.', carryEdit: 'Carry',
+                carry: 'Adds carry capacity (0\u2013500)', carryHelp: 'Only you set this. The story never changes it.',
                 packHint: 'Kind, slot and rarity come from the pack.',
                 laterTitle: 'Fixed after your first message',
                 points: '{n} of {max} points for {a} {rarity} piece', pointsNone: 'A common piece has no bonus',

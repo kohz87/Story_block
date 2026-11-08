@@ -198,44 +198,62 @@ test('the refusal sentence is the code\'s, gender-neutral: "Bound to Ren: Dagger
     assert.doesNotMatch(message, /\bhim\b|\bher\b/);
 });
 
-test('a story item\'s Carry control shows its word, and its open form keeps line 2 and sits outside any height-locked line', async () => {
+test('a story item has one pencil: its Edit form carries the Carry field, saving 20 sends inventory.carry; line 2 shows "+N carry" only when set', async () => {
     const setup = crew({ rope: 7 });
     const calls = [];
     const { el, problems } = draw(setup, calls);
     assert.deepEqual(problems, []);
     const rope = rowOf(el, 'Rope');
-    const control = rope.querySelector('.g-l2 .item-carry');
-    assert.ok(control, 'the Carry control is in line 2');
-    assert.equal(text(control.querySelector('.ss-w-editable-value')), 'Carry +7', 'its word');
-    assert.equal(rope.querySelectorAll('.ss-w-editable-pencil').length, 2, 'Edit pencil and Carry pencil');
-    control.querySelector('.ss-w-editable-pencil').click();
-    const form = rope.querySelector('.item-carry .ss-w-editable-item-form');
-    assert.ok(form, 'the Carry form is open inside the control');
-    assert.ok(form.querySelector('input[type="number"]'), 'with its number input');
-    assert.ok(form.querySelector('.ss-w-editable-save') && form.querySelector('.ss-w-editable-cancel'), 'Save and Cancel');
-    // The CSS: line 2 holding the open form is not hidden and not locked to 16px; the row's fixed-line rules stop while any form is open.
-    const css = inventoryScreen.css;
-    assert.match(css, /:is\(\.g-l2:not\(:has\(\.ss-w-editable-item-form\)\), \.g-l3\) \{ display: none; \}/);
-    assert.match(css, /\.g-l2:has\(\.ss-w-editable-item-form\) \{ display: flex; flex-wrap: wrap; height: auto; overflow: visible; white-space: normal; \}/);
-    assert.equal(rope.querySelector('.g-l1').querySelector('.item-carry'), null);
-    // Gear off: no Carry control.
-    assert.equal(draw(crew({ gear: false })).el.querySelectorAll('.item-carry').length, 0);
+    assert.equal(rope.querySelectorAll('.ss-w-editable-pencil').length, 1, 'one pencil per row');
+    assert.equal(rope.querySelectorAll('.item-carry').length, 0, 'no separate Carry control');
+    assert.equal(text(rope.querySelector('.g-l2 .carry-note')), '+7 carry');
+    assert.equal(rope.querySelectorAll('.g-l3 .carry-note').length, 0);
+    assert.equal(rowOf(el, 'Iron Sword').querySelectorAll('.carry-note').length, 0, 'nothing when the reader set none');
+    rope.querySelector('.ss-w-editable-pencil').click();
+    const box = rope.querySelector('[aria-label="Adds carry capacity (0\u2013500)"]');
+    assert.ok(box, 'the Carry field is in the Edit form');
+    assert.equal(box.value, '7');
+    assert.equal(text(rope.querySelectorAll('.ss-w-editable-item-hint').pop()), 'Only you set this. The story never changes it.');
+    box.value = '20';
+    rope.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls, [['inventory.carry', { stack: calls[0][1].stack, carry: 20 }]]);
+    assert.equal(Object.values(setup.h.state.domains.inventory.defs).find(def => def.name === 'Rope').carry, 20);
+    // Money and a pack's item have no field; gear off has no carry note.
+    const sword = swordRow(draw(setup).el);
+    sword.querySelector('.ss-w-editable-pencil').click();
+    assert.equal(sword.querySelector('[aria-label="Adds carry capacity (0\u2013500)"]'), null);
+    assert.equal(draw(crew({ gear: false })).el.querySelectorAll('.carry-note').length, 0);
 });
 
-test('rendered at phone width, gear on: clicking Carry shows a visible form with a usable input (optional browser)', async t => {
+test('line 3 puts a dot only between the parts that are there; gaps are 14px (line 3) and 10px (line 2), rows 6px apart', () => {
+    const { el } = draw(crew());
+    const sword = swordRow(el), rope = rowOf(el, 'Rope');
+    assert.equal(sword.querySelectorAll('.g-l3 .sep').length >= 1, true);
+    for (const row of [sword, rope, daggerRow(el)]) {
+        const kids = row.querySelector('.g-l3').childNodes.filter(node => node.nodeType === 1).map(node => node.classes()[0]);
+        assert.notEqual(kids[0], 'sep', 'no leading dot');
+        assert.notEqual(kids.at(-1), 'sep', 'no trailing dot');
+        assert.equal(kids.some((name, at) => name === 'sep' && kids[at + 1] === 'sep'), false, 'no doubled dot');
+    }
+    assert.equal(rope.querySelectorAll('.g-l3 .sep').length, 0, 'goods: nothing to separate');
+    const css = inventoryScreen.css;
+    assert.match(css, /--l-gap: 14px/);
+    assert.match(css, /\.g-l2 \{ --l-gap: 10px; \}/);
+    assert.match(css, /row-gap: 6px; column-gap: 10px/);
+});
+
+test('rendered at phone width, gear on: an open Edit form hides the fixed lines (optional browser)', async t => {
     let chromium;
     try { ({ chromium } = await import('playwright')); } catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; t.skip('Install the optional browser package to run the rendered check.'); return; }
     let browser;
     try { browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] }); } catch (error) { t.skip(`Browser unavailable: ${String(error).split('\n')[0]}`); return; }
     t.after(() => browser.close());
-    const css = inventoryScreen.css;
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    // The row's real shape (lines, Edit control, Carry control with an open form) under the screen's own CSS.
-    await page.setContent(`<style>${css}</style><div class="inv gear"><ul><li class="item grow"><div class="body"><div class="line g-l1"><span class="name">Rope</span></div>
-      <div class="g-l2"><span class="item-carry"><span class="ss-w-editable"><button class="ss-w-editable-pencil">p</button><form class="ss-w-editable-item-form"><label>Adds carry capacity (0-500)<input type="number" value="7"></label><button type="button">Save</button><button type="button">Cancel</button></form></span></span></div>
-      <div class="detail g-l3">x</div></div></li></ul></div>`);
-    const box = await page.locator('.item-carry input').boundingBox();
+    await page.setContent(`<style>${inventoryScreen.css}</style><div class="inv gear"><ul><li class="item grow"><div class="body"><div class="line g-l1"><span class="name">Rope</span><span class="item-edit"><span class="ss-w-editable"><form class="ss-w-editable-item-form"><label>Adds carry capacity (0-500)<input type="number" value="7"></label></form></span></span></div>
+      <div class="g-l2">x</div><div class="detail g-l3">x</div></div></li></ul></div>`);
+    const box = await page.locator('.g-l1 input').boundingBox();
     assert.ok(box && box.width > 40 && box.height > 10, 'the input is visible with a size');
-    assert.equal(await page.locator('.g-l2').evaluate(node => getComputedStyle(node).display !== 'none' && getComputedStyle(node).overflow === 'visible'), true);
+    assert.equal(await page.locator('.g-l2').evaluate(node => getComputedStyle(node).display), 'none');
     assert.equal(await page.locator('.g-l3').evaluate(node => getComputedStyle(node).display), 'none');
 });

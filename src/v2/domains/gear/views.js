@@ -92,11 +92,9 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
             // The slot the Edit form offers: where it is worn, else the place its own slot names ('' for none: a bag).
             slotKey: worn ? stack.equipped : (def.kind === 'equipment' && slotWordOf(def.slot) ? placeOf(slotWordOf(def.slot)) : ''),
             fill: FILL[condWord(cond)],
-            // What the reader set for it to add to carrying (0: none), and whether its Carry edit is offered (not a pack's, not money, not a hand-made piece: that one has it in its Edit form).
+            // What the reader set for it to add to carrying (0: none), and whether the item's own Edit form offers its Carry field (not a pack's, not money, not a hand-made piece: that form has its own).
             carry: Number.isSafeInteger(def.carry) && !def.id.startsWith('pack.') ? def.carry : 0,
             carryEdit: !def.id.startsWith('pack.') && def.kind !== 'money' && !handDef(inventory, def),
-            // The word of the small Carry control: "Carry", or "Carry +N" when the reader gave it N.
-            carryWord: Number.isSafeInteger(def.carry) && def.carry > 0 && !def.id.startsWith('pack.') ? `${S.form.carryEdit} +${def.carry}` : S.form.carryEdit,
             // A piece the reader added by hand (its Edit offers Kind, Slot, Rarity and Bonus): its own slot and stat points.
             ...(handDef(inventory, def) ? { hand: true, defSlot: def.kind === 'equipment' ? placeOf(slotWordOf(def.slot) ?? '') : '', stats: statsFor(def) } : {}),
             // A cast member's signature piece: whose it is, for the chip ("Bound to Mara").
