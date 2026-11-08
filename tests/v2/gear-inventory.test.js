@@ -406,8 +406,8 @@ test('value by condition: Good 100%, Worn 75%, Torn 50%, Broken 20% on the price
 });
 
 test('mounts and carts add their carry while they travel with the party', () => {
-    assert.deepEqual(['horse', 'Pony', 'mule', 'donkey', 'pack animal', 'cart', 'barrow', 'hand-cart', 'Hand Cart', 'wagon', 'boat', 'ox', ''].map(kindCarry), [20, 20, 40, 40, 40, 60, 60, 60, 60, 150, 100, 20, 20]);
-    assert.deepEqual(KIND_CARRY, { horse: 20, pony: 20, mule: 40, donkey: 40, cart: 60, barrow: 60, wagon: 150, boat: 100 });
+    assert.deepEqual(['horse', 'Pony', 'mule', 'donkey', 'pack animal', 'cart', 'barrow', 'hand-cart', 'Hand Cart', 'wagon', 'boat', 'ox', ''].map(kindCarry), [40, 30, 50, 50, 50, 60, 60, 60, 60, 150, 100, 20, 20]);
+    assert.deepEqual(KIND_CARRY, { pony: 30, horse: 40, mule: 50, donkey: 50, cart: 60, barrow: 60, sledge: 60, carriage: 80, coach: 80, boat: 100, barge: 150, wagon: 150 });
     assert.equal(travelsWith('', 'Stray Oar'), true);
     assert.equal(travelsWith('ridden by Wessel', 'Stray Oar'), true);
     assert.equal(travelsWith('at the Stray Oar', 'Stray Oar'), true);
@@ -423,12 +423,12 @@ test('mounts and carts add their carry while they travel with the party', () => 
     const h = createHarness([module], { state });
     const gear = () => h.query('inventory.gear', { owner: 'party' }).carry;
     // The reader (30) + Grey 20 + Burr 2 × 40 + the cart's own 90; the boat was left elsewhere.
-    assert.equal(h.query('gear.carry', {}).capacity, 30 + 30 + 20 + 80 + 90, 'Ren\'s 30 is a person of their own');
-    assert.deepEqual(gear().sources, [{ name: 'The reader', carry: 30 }, { name: 'Grey', carry: 20 }, { name: 'Burr', carry: 80 }, { name: 'Old Cart', carry: 90 }]);
-    assert.equal(gear().capacity, 30 + 20 + 80 + 90);
+    assert.equal(h.query('gear.carry', {}).capacity, 30 + 30 + 40 + 100 + 90, 'Ren\'s 30 is a person of their own');
+    assert.deepEqual(gear().sources, [{ name: 'The reader', carry: 30 }, { name: 'Grey', carry: 40 }, { name: 'Burr', carry: 100 }, { name: 'Old Cart', carry: 90 }]);
+    assert.equal(gear().capacity, 30 + 40 + 100 + 90);
     state.domains.scene.mounts['m:left'].where = '';
     h.state = state;
-    assert.equal(gear().capacity, 30 + 20 + 80 + 90 + 100, 'the boat joined the party');
+    assert.equal(gear().capacity, 30 + 40 + 100 + 90 + 100, 'the boat joined the party');
     // Without the Mounts rows nothing is added.
     delete state.domains.scene.mounts;
     h.state = state;
@@ -443,7 +443,7 @@ test('a mount row\'s own carry is the reader\'s pencil: 1…1000, empty clears i
     const row = () => host.sdk.query('mounts.list')[0];
     const edit = carry => host.sdk.command('mounts.edit', { mount: 'Grey', carry });
     assert.equal(row().carry, undefined);
-    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).carry.capacity, 50, 'the reader 30 + a horse 20');
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).carry.capacity, 70, 'the reader 30 + a horse 40');
     assert.equal((await edit('45')).ok, true);
     assert.equal(row().carry, 45);
     assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).carry.capacity, 75);
@@ -451,12 +451,12 @@ test('a mount row\'s own carry is the reader\'s pencil: 1…1000, empty clears i
     assert.equal((await edit('x')).ok, false);
     assert.equal((await edit('')).ok, true);
     assert.equal(row().carry, undefined, 'cleared: the kind\'s usual again');
-    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).carry.capacity, 50);
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).carry.capacity, 70);
     host.store.rebuild();
-    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).carry.capacity, 50);
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).carry.capacity, 70);
 });
 
-test('a cart, barrow, wagon or sledge the story names (a rented hand-cart) adds its kind\'s carry while owned, with gear on only', () => {
+test('a cart, barrow, wagon, sledge, carriage, coach or barge the story names (a rented hand-cart) adds its kind\'s carry while owned, with gear on only', () => {
     assert.deepEqual(['Hand Cart', 'Rented hand-cart', 'Ox Wagon', 'Wheelbarrow', 'Sledge', 'Cartographer\'s Map', 'Rope'].map(itemCarryOf), [60, 60, 150, 60, 60, null, null]);
     const h = createHarness([gearCore()]);
     assert.equal(h.capture(line('+', 'item', 'Rented Hand Cart', {}), ON).ok, true);
@@ -789,4 +789,13 @@ test('story lines and the hand form: a long or compound name becomes equipment a
         assert.equal(added.ok, true, `${name}: ${added.message}`);
         await equip(host, name);
     }
+});
+
+test('carry table: every kind, plurals, vehicles named as items, unknown stays 20', () => {
+    const kinds = { pony: 30, horse: 40, mule: 50, donkey: 50, 'pack animal': 50, 'pack horse': 50, cart: 60, barrow: 60, 'hand-cart': 60, sledge: 60,
+        carriage: 80, coach: 80, boat: 100, barge: 150, wagon: 150, ox: 20, '': 20 };
+    for (const [kind, value] of Object.entries(kinds)) assert.equal(kindCarry(kind), value, kind);
+    const plurals = { ponies: 30, horses: 40, mules: 50, donkeys: 50, carts: 60, barrows: 60, 'hand-carts': 60, sledges: 60, carriages: 80, coaches: 80, boats: 100, barges: 150, wagons: 150 };
+    for (const [kind, value] of Object.entries(plurals)) assert.equal(kindCarry(kind), value, kind);
+    assert.deepEqual(['Carriage', 'Old Coach', 'Stage Coaches', 'Carriages', 'Grain Barge', 'Barges', 'Wagons', 'Sledges', 'Coachman\'s Whip', 'Rope'].map(itemCarryOf), [80, 80, 80, 80, 150, 150, 150, 60, null, null]);
 });

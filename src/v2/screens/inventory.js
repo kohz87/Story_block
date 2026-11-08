@@ -52,6 +52,8 @@ function group(kind, gear = false) {
     const row = 'q.gx.rows[it.stack]';
     const edit = `{"value":"{{ it.name }}","itemCount":{{ q.counts[it.stack] }},"itemNote":"{{ it.note }}","displayValue":false,"kind":"item","label":"${jsonText(S.editItem)}","command":"inventory.edit","payload":{"stack":"{{ it.stack }}","group":true}${gear
         ? `,"gear":{"kind":"{{ it.kind }}","stack":"{{ it.stack }}","owner":"{{ it.owner }}","by":"{{ ${row}.byId }}","place":"{{ ${row}.place }}","slot":"{{ ${row}.slotKey }}","bound":"{{ ${row}.bound.who }}","def":"{{ it.def }}","rarity":"{{ it.rarity }}","row":{{ ${row} }},"kit":{{ q.gx.kit.open }},"owners":{{ q.gx.owners }}}` : ''}}`;
+    // A story item's small Carry edit (gear on): this one field, set by the reader only (the item's own Edit form has it for a piece they added).
+    const carryEdit = `{"value":"","displayValue":false,"kind":"fields","label":"${jsonText(G.form.carryEdit)}","command":"inventory.carry","payload":{"stack":"{{ it.stack }}"},"help":"${jsonText(G.form.carryHelp)}","fields":[{"key":"carry","label":"${jsonText(G.form.carry)}","type":"number","value":"{{ ${row}.carry }}","min":0,"max":500}]}`;
     // The chips and the condition of a row: today's, or (gear on) the slot, who wears it and the condition bar with its word.
     const chips = gear ? `
           <span class="rarity">{{ it.rarity }}</span>
@@ -70,6 +72,7 @@ function group(kind, gear = false) {
           <span class="chip eq worn-by bound" data-if="${row}.bound != null" title="${html(G.boundTitle, { name: '{{ ' + row + '.bound.who }}' })}">${LOCK}${html(G.boundBy, { name: '{{ ' + row + '.bound.who }}' })}</span>
           <span class="chip key" data-if="it.key" title="${html(S.keyTitle)}">${html(S.key)}</span>
           <span class="owner muted" data-if="it.owner != 'party'">{{ state.party.actors[it.owner].name }}</span>
+          <span class="item-carry" data-if="${row}.carryEdit" data-inline-control="ss.editable" data-props='${carryEdit}'></span>
         </div>`;
     // Line 3: the stat bonus, the condition bar and word, then the note (muted), one line.
     const detail = gear ? `
