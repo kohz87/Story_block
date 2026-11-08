@@ -41,7 +41,7 @@ function block(css, selector, at = null) {
 }
 
 test('the three chat-side surfaces are theme roots, so the look\'s tokens reach them under every panel style', () => {
-    for (const root of ['.story-suite-bar', '.story-suite-extras', '.story-suite-reply-note']) {
+    for (const root of ['.story-suite-bar', '.story-suite-extras', '.story-suite-reply-note', '.rpg-fight-offer', '.rpg-fight-pause']) {
         assert.ok(THEME_ROOTS.includes(root), root);
         assert.ok(ROOT_SELECTOR.includes(root), root);
     }
