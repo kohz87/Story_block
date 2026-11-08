@@ -11,10 +11,11 @@ import { createEvaluation } from '../data-modules/interpreter.js';
 import { CLASS_NAMES, FIX_VERSION, FOE_SLOTS } from './names.js';
 import { FOE_LEVEL, bandOfRank, classOfLevel, foeLevelCap, levelOf, levelOfClass, partyLevels } from './foes.js';
 import { fold, readSheet } from './read.js';
+import { FOE_COUNT_MAX } from './templates.js';
 
 export const OPEN_MAX_COUNT = 12;
-// What a recorded opening may hold: the pre-check's packs ("4 scores of rats") run to 999; the old planner's vetOpen still holds its own entries to OPEN_MAX_COUNT.
-export const OPEN_RECORD_MAX_COUNT = 999;
+// What a recorded opening may hold: the pre-check's packs ("4 scores of rats") run to the Foes block's own count maximum; the old planner's vetOpen still holds its own entries to OPEN_MAX_COUNT.
+export const OPEN_RECORD_MAX_COUNT = FOE_COUNT_MAX;
 export const OPEN_MAX_NAME = 40;
 const STOP = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'to', 'in', 'on']);
 

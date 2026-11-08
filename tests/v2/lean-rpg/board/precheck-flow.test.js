@@ -150,15 +150,15 @@ test('the stock Foes block opens and plays the example with 80 foes as packs', a
     } finally { host.close(); restore(); }
 });
 
-test('an opening refused by the pinned Foes schema sends plainly with the normal approach cue', async () => {
+test('a count above the Foes block maximum sends plainly with the normal approach cue', async () => {
     const definition = stockFoes();
     const fields = Object.fromEntries(Object.entries(definition.state).map(([key, schema]) => [key, schema.default]));
     const restore = seedCrypto(708), { host, callModel } = await make({
         blocks: { ...blocks(), foes: { role: 'foes', fields, definition } },
-        answers: [JSON.stringify({ groups: [{ name: 'Rats', count: 999 }] })],
+        answers: [JSON.stringify({ groups: [{ name: 'Rats', count: 100 }] })],
     });
     try {
-        const sent = await host.send('I attack 999 rats.', 'The narrator sets up the foes.');
+        const sent = await host.send('I attack 100 rats.', 'The narrator sets up the foes.');
         assert.equal(sent.aborted, undefined);
         assert.equal(callModel.calls.length, 1);
         assert.match(tailOf(sent.request), /end at the moment of engagement/i);

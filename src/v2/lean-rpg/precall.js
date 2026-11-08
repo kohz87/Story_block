@@ -31,6 +31,9 @@ const readSettings = (view, moduleId) => {
 /** Whether `state` already holds this message's rolls (its claim). */
 export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === true;
 
+/** The text of the reply just before the reader's last message (the narration that introduced the foes), or ''. */
+const previousReply = messages => { const before = messages.at(-2); return before && !before.is_user && !before.is_system ? String(before.mes ?? '') : ''; };
+
 /**
  * The hook. `deps`: { chat() → SillyTavern's chat array, metadata() → the chat's metadata, moduleId,
  * skip { peek() → whether the next reply is to go out with no dice, clear() } (start.js: "Send without the RPG for now"),
@@ -62,7 +65,7 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         const working = holdStart(meta, messages, { mode: 'working' });
         try { onPlanning(true); } catch { /* the screen redraws on the next event */ }
         let groups = [];
-        try { groups = await runPrecheck({ callModel, message: text, sheet, values, limit: timeoutMs, timer }); } finally {
+        try { groups = await runPrecheck({ callModel, message: text, previous: previousReply(messages), sheet, values, limit: timeoutMs, timer }); } finally {
             if (working) clearStart(meta, working);
             try { onPlanning(false); } catch { /* the screen redraws on the next event */ }
         }

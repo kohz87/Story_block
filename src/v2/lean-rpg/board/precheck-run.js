@@ -17,12 +17,12 @@ export const wantsPrecheck = (values, sheet, message) => values?.[PRECHECK_SETTI
  * One Assist call → the vetted groups `[{ name, count, level? }]`, or [] (timeout, failure, nothing readable).
  * `callModel(prompt, { maxTokens, profile, helper, timeoutMs })` is the host's queued Assist call.
  */
-export async function runPrecheck({ callModel, message, sheet, values = {}, limit = PRECHECK_LIMIT_MS, timer }) {
+export async function runPrecheck({ callModel, message, previous = '', sheet, values = {}, limit = PRECHECK_LIMIT_MS, timer }) {
     if (typeof callModel !== 'function') return [];
     try {
-        const prompt = precheckPrompt({ message, sheet });
+        const prompt = precheckPrompt({ message, previous, sheet });
         const answer = await withTimeout(() => callModel(prompt, { maxTokens: ANSWER_TOKENS, profile: String(values[SETTING.profile] ?? ''), helper: 'precheck', timeoutMs: limit }), limit, timer);
-        return vetGroups(parsePrecheck(answer), { message, sheet });
+        return vetGroups(parsePrecheck(answer), { message, previous, sheet });
     } catch { return []; }
 }
 

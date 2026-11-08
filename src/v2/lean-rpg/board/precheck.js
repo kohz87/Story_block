@@ -3,10 +3,11 @@
 // plans no dice and writes nothing; the caller records accepted groups as an opening and the board plays it.
 import { FOE_SLOTS } from '../names.js';
 import { OPEN_MAX_NAME } from '../open.js';
+import { FOE_COUNT_MAX } from '../templates.js';
 import { FOE_LEVEL, foeLevelCap, partyLevels } from '../foes.js';
 
 /** The pre-check's own bounds before a caller narrows them with `limits`. */
-export const PRECHECK_LIMITS = Object.freeze({ groups: FOE_SLOTS, count: 999, name: OPEN_MAX_NAME });
+export const PRECHECK_LIMITS = Object.freeze({ groups: FOE_SLOTS, count: FOE_COUNT_MAX, name: OPEN_MAX_NAME });
 
 const STOP = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'to', 'in', 'on']);
 const WHOLE = /\d+(?:\.\d+)?/u;
@@ -30,11 +31,11 @@ function singular(word) {
 const nameKey = text => wordsOf(text).map(singular).filter(word => !STOP.has(word)).join('\u0000');
 const distinctiveWords = text => wordsOf(text).map(singular).filter(word => !STOP.has(word));
 
-/** Whether every distinctive word of `name` (plurals are fine) appears whole in `message`. */
-export function namedInMessage(name, message) {
+/** Whether every distinctive word of `name` (plurals are fine) appears whole in `message` or in `previous` (the reply just before it, which introduced the foes). */
+export function namedInMessage(name, message, previous = '') {
     const wanted = distinctiveWords(name);
     if (!wanted.length) return false;
-    const seen = new Set(wordsOf(message).map(singular));
+    const seen = new Set([...wordsOf(message), ...wordsOf(previous)].map(singular));
     return wanted.every(word => seen.has(word));
 }
 
@@ -64,8 +65,9 @@ function partyLine(sheet, roster) {
  * The short Assist prompt: the reader's message, the foes already on the sheet, and the party. It asks only for JSON
  * groups: `{"groups":[{"name":"...","count":1,"level":2}]}` (`level` optional). Dice, actions and outcomes are not asked.
  */
-export function precheckPrompt({ message = '', sheet = null, roster = null } = {}) {
+export function precheckPrompt({ message = '', previous = '', sheet = null, roster = null } = {}) {
     const text = oneLine(message).slice(0, 1200);
+    const before = oneLine(previous).slice(-1200);
     const foes = [...new Set((sheet?.foes ?? []).map(foe => oneLine(foe?.name)).filter(Boolean))];
     const party = partyLine(sheet, roster);
     return [
@@ -75,12 +77,13 @@ export function precheckPrompt({ message = '', sheet = null, roster = null } = {
         'Reader\'s message:',
         text,
         '',
+        ...(before ? ['The reply just before it (the story\'s own names for these foes):', before, ''] : []),
         `Foes already on the Foes block: ${foes.length ? foes.join(', ') : 'none'}`,
         `Party: ${party || 'none'}`,
         '',
         'Rules:',
         '- List only enemies the reader explicitly attacks. Ignore allies, bystanders and groups already on the sheet.',
-        `- Give each group a short natural name (at most ${PRECHECK_LIMITS.name} characters), using the message's words.`,
+        `- Give each group a short natural name (at most ${PRECHECK_LIMITS.name} characters), using the words of the message or of the reply before it.`,
         `- count is the whole number of foes in that group, from 1 to ${PRECHECK_LIMITS.count}. Resolve amounts: "six" = 6, "a dozen" = 12, "4 scores" = 80. If unclear, use 1.`,
         '- level is optional. Give a whole level only when the message makes it clear; otherwise leave the key out.',
         '',
@@ -158,10 +161,10 @@ function levelOf(value) {
 
 /**
  * Vets parsed groups for an opening. `limits` may narrow `{ groups, count, name, levelMin, levelMax }`; its defaults are
- * `PRECHECK_LIMITS` and the Foes rules. A level, when given, is held to 1..99 and to one band above the party's highest.
+ * `PRECHECK_LIMITS` and the Foes rules (a count above the Foes block's maximum refuses every group). Name words may come from `message` or `previous`. A level, when given, is held to 1..99 and to one band above the party's highest.
  * → `[{ name, count, level? }]`, in the exact form `openFoes` takes; an omitted level remains omitted for resolve to draw.
  */
-export function vetGroups(groups, { message = '', sheet = null, limits = null } = {}) {
+export function vetGroups(groups, { message = '', previous = '', sheet = null, limits = null } = {}) {
     if (!Array.isArray(groups)) return [];
     const maxGroups = limitOf(limits, ['groups', 'maxGroups'], PRECHECK_LIMITS.groups);
     const maxCount = limitOf(limits, ['count', 'maxCount'], PRECHECK_LIMITS.count);
@@ -177,10 +180,11 @@ export function vetGroups(groups, { message = '', sheet = null, limits = null } 
         if (!isObject(group)) continue;
         const name = oneLine(group.name).slice(0, maxName).trim();
         const key = nameKey(name);
-        if (!name || !key || known.has(key) || seen.has(key) || !namedInMessage(name, message)) continue;
+        if (!name || !key || known.has(key) || seen.has(key) || !namedInMessage(name, message, previous)) continue;
         seen.add(key);
         const rawCount = countOf(group.count);
-        const count = Math.max(1, Math.min(maxCount, Number.isInteger(rawCount) ? rawCount : 1));
+        if (Number.isInteger(rawCount) && rawCount > maxCount) return []; // a group past the block's maximum: refuse the whole reading, the send goes plain
+        const count = Math.max(1, Number.isInteger(rawCount) ? rawCount : 1);
         const rawLevel = levelOf(group.level);
         const level = Number.isInteger(rawLevel) ? Math.max(levelMin, Math.min(cap, rawLevel)) : null;
         accepted.push({ name, count, ...(level === null ? {} : { level }) });

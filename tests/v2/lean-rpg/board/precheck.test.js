@@ -1,6 +1,7 @@
 // The foe pre-check reads the reader's typed attack into openFoes' group form, without a model call here.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { FOE_COUNT_MAX } from '../../../../src/v2/lean-rpg/templates.js';
 import { looksLikeAttack, parsePrecheck, precheckPrompt, vetGroups } from '../../../../src/v2/lean-rpg/board/precheck.js';
 
 const MESSAGE = 'I creep down the culvert and attack the six Gorged Grey-Tooth Tunnel Rats with 4 scores of Bilge-Rat Offspring.';
@@ -45,14 +46,36 @@ test('malformed JSON gives null', () => {
 
 test('plural whole words, the sheet, count bounds and clamped levels follow the Foes rules', () => {
     const groups = [
-        { name: 'Tunnel Rat', count: 1200, level: 150 },
+        { name: 'Tunnel Rat', count: 99, level: 150 },
         { name: 'Bilge Boars', count: '4 scores', level: 0 },
         { name: 'Silt Wolves', count: 'a dozen' },
         { name: 'Tunnel Rats', count: 2 },
     ];
     assert.deepEqual(vetGroups(groups, { message: 'I attack the tunnel rats with 4 scores of bilge boars and a dozen silt wolves.', sheet }),
-        [{ name: 'Tunnel Rat', count: 999, level: 15 }, { name: 'Bilge Boars', count: 80, level: 1 }, { name: 'Silt Wolves', count: 12 }]);
+        [{ name: 'Tunnel Rat', count: 99, level: 15 }, { name: 'Bilge Boars', count: 80, level: 1 }, { name: 'Silt Wolves', count: 12 }]);
     assert.deepEqual(vetGroups([{ name: 'Silt Hounds', count: 2 }], { message: 'I attack the silt hounds.', sheet }), [], 'already on the sheet');
     assert.deepEqual(vetGroups([{ name: 'Rats', count: 20 }, { name: 'Rats', count: 3 }], { message: 'I attack the rats.', sheet, limits: { count: 10 } }),
-        [{ name: 'Rats', count: 10 }], 'the count limit holds and a repeated group is refused');
+        [], 'a narrower limit refuses a larger group');
+    assert.deepEqual(vetGroups([{ name: 'Rats', count: 9 }, { name: 'Rats', count: 3 }], { message: 'I attack the rats.', sheet, limits: { count: 10 } }),
+        [{ name: 'Rats', count: 9 }], 'a repeated group is refused');
+});
+
+const PREVIOUS = 'Gorged grey-tooth tunnel rats gnaw at the bundle, and a swarm of rat-offspring squirms behind them. Bilge water drips.';
+const EXAMPLE = 'I creep down the culvert to cut loose the oilskin bundle and attack the six rats with 4 scores of minor rats offsprings.';
+const NAMES = [{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6 }, { name: 'Bilge-Rat Offspring', count: 80 }];
+
+test('the approved example: names from the reply before are accepted, 80 included', () => {
+    assert.deepEqual(vetGroups(NAMES, { message: EXAMPLE, previous: PREVIOUS, sheet }), NAMES);
+    assert.match(precheckPrompt({ message: EXAMPLE, previous: PREVIOUS, sheet }), /gnaw at the bundle/u);
+});
+
+test('a name word found in neither the message nor the reply before is refused', () => {
+    assert.deepEqual(vetGroups(NAMES, { message: EXAMPLE, previous: '', sheet }), []);
+    assert.deepEqual(vetGroups([{ name: 'Crimson Wyrm Rats', count: 2 }], { message: EXAMPLE, previous: PREVIOUS, sheet }), []);
+});
+
+test('a count above the Foes block maximum refuses the reading; the maximum itself is fine', () => {
+    assert.equal(FOE_COUNT_MAX, 99);
+    assert.deepEqual(vetGroups([{ name: 'Rats', count: 100 }], { message: 'I attack the rats.', sheet }), []);
+    assert.deepEqual(vetGroups([{ name: 'Rats', count: 99 }], { message: 'I attack the rats.', sheet }), [{ name: 'Rats', count: 99 }]);
 });
