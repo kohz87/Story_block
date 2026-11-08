@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { BAR_MAX, BAR_START, scaledCharacter } from '../../../src/v2/lean-rpg/templates-bars.js';
+import { withRecovery } from '../../../src/v2/lean-rpg/templates-recovery.js';
 import { STANDARD_NUMBERS, STAT_KEYS, blocksFor } from '../../../src/v2/lean-rpg/formula.js';
 import { STAGES } from '../../../src/v2/lean-rpg/names.js';
 import { growthOf, spreadWord, wordToBlocks } from '../../../src/v2/lean-rpg/blocks.js';
@@ -88,7 +89,8 @@ test('the template\'s set-health line turns a word into the same share of the bi
     const run = (word, vit) => Math.floor((Math.floor(word * 2 * (4 + Math.floor(vit / 5)) * 1) + 2) / 5);
     assert.equal(JSON.stringify(effect).includes('"mul",["arg","to"],2'), true, 'the 2 is on the word, one level shallower');
     assert.deepEqual([3, 5].map(word => run(word, 5)), [6, 10]);
-    assert.deepEqual(NEW.kinds['button-rest'].effects.map(step => JSON.stringify(step.value)), [JSON.stringify(['mul', 2, ['floorDiv', ['add', ['get', ['agi']], 20], 5]]), JSON.stringify(['mul', 2, ['floorDiv', ['add', ['get', ['int']], 20], 5]])]);
+    // (the Short rest refills to the size each bar holds in its hidden `-blocks` field, which the grow rules keep at the new size)
+    assert.deepEqual(NEW.kinds['button-rest'].effects.map(step => JSON.stringify(step.value)), [JSON.stringify(['get', ['stamina-blocks']]), JSON.stringify(['get', ['mana-blocks']])]);
     assert.equal(size(5), 10);
     assert.deepEqual(NEW.rules.map(rule => rule.id), ['health-grow', 'health-bar', 'stamina-grow', 'stamina-bar', 'mana-grow', 'mana-bar', 'level-up', 'xp-cap']);
 });
@@ -233,7 +235,8 @@ test('a joining companion takes the scale of the chat: an old party stays old, a
 
 test('scaledCharacter turns only the size expressions: the same kinds, the same level rules', () => {
     const again = scaledCharacter(OLD, { health: ['add', 4, ['floorDiv', ['get', ['vit']], 5]], stamina: ['add', 3, ['floorDiv', ['get', ['agi']], 5]], mana: ['add', 3, ['floorDiv', ['get', ['int']], 5]] });
-    assert.deepEqual(again, NEW);
-    assert.deepEqual(NEW.kinds['add-xp'], OLD.kinds['add-xp']);
+    assert.deepEqual(withRecovery(again), NEW);
+    assert.deepEqual(again.kinds['add-xp'], OLD.kinds['add-xp']);
+    assert.equal(NEW.kinds['add-xp'], undefined, 'the marked template has no narrator XP line');
     assert.deepEqual(NEW.rules.filter(rule => ['level-up', 'xp-cap'].includes(rule.id)), OLD.rules.filter(rule => ['level-up', 'xp-cap'].includes(rule.id)));
 });

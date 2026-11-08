@@ -91,10 +91,22 @@ function boardGroups(sheet, earlier, was, receipts) {
 }
 
 /** The XP a member of level `level` gets for the fight's `groups` (see FIGHT_XP): the groups' bases scaled by the level gap, added, rounded down; 0, or 1..60. */
-export function memberXp(groups, level) {
+export function memberXp(groups, level, bars = false) {
+    // A marked fight (`bars: 2`): each group pays (15 + 2 per foe after the first) x max(1, ceil(level / 10)) x the level-gap percent, the same sum, cap and floor.
+    if (bars) return markedXp(groups, level);
     const percent = groups.reduce((total, group) => {
         const scale = Math.max(0, Math.min(FIGHT_XP.maxPercent, 100 + FIGHT_XP.gapPercent * (group.level - level)));
         return total + group.count * Math.max(1, Math.ceil(group.level / FIGHT_XP.perLevels)) * FIGHT_XP.perBand * scale;
+    }, 0);
+    const xp = Math.floor(percent / 100);
+    return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.max, xp)) : 0;
+}
+
+/** The XP of a marked fight (see memberXp): 0, or 1..60. */
+function markedXp(groups, level) {
+    const percent = groups.reduce((total, group) => {
+        const scale = Math.max(0, Math.min(FIGHT_XP.maxPercent, 100 + FIGHT_XP.gapPercent * (group.level - level)));
+        return total + (FIGHT_XP.markedFirst + FIGHT_XP.markedMore * (group.count - 1)) * Math.max(1, Math.ceil(group.level / FIGHT_XP.perLevels)) * scale;
     }, 0);
     const xp = Math.floor(percent / 100);
     return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.max, xp)) : 0;
@@ -141,6 +153,8 @@ export function fightHook(view, info) {
     const board = boardWin(info?.receipts);
     if (board && !board.won) return undefined;
     const sheet = readSheet(view.state);
+    // XP is combat on the board only (owner, 9 Nov): on the new rules a fight the story settles without the board pays nothing.
+    if (!board && sheet.characters.some(character => character.scale === 2)) return undefined;
     const filled = sheet.foes.filter(foe => foe.filled);
     // (cheap first: a fight can only be won now if every filled group is Down; a board win is known by its receipt instead)
     if (!board && (!filled.length || !filled.every(foe => foe.hurt === 0))) return undefined;
@@ -162,7 +176,7 @@ export function fightHook(view, info) {
     // The XP rate in force, recorded with the step (a payload without `rate` is 100): a later change of the setting never moves a reply that has it.
     let rate = XP_RATE.default;
     try { rate = xpRateFrom(typeof view.settings === 'function' ? view.settings('story-block') : null); } catch { rate = XP_RATE.default; }
-    return { commands: [{ type: FIGHT, payload: { was, ...(groups ? { groups } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) } }] };
+    return { commands: [{ type: FIGHT, payload: { was, ...(groups ? { groups } : {}), ...(board?.bars ? { bars: 2 } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) } }] };
 }
 
 /**
@@ -172,6 +186,8 @@ export function fightHook(view, info) {
 export function fightXp(ctx, payload = {}) {
     if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'The XP for a fight is given by Story Block after a reply, not by an action.');
     const was = slotsOf(payload?.was);
+    if (payload?.bars !== undefined && payload.bars !== 2) ctx.fail('INVALID', 'The fight\'s mark was damaged.');
+    const bars = payload?.bars === 2;
     const rate = payload?.rate === undefined ? XP_RATE.default : xpRateOf(payload.rate);
     if (rate === null) ctx.fail('INVALID', 'The XP rate of the fight was damaged.');
     if (!was.length) ctx.fail('INVALID', 'The XP for a fight needs the groups it was fought against.');
@@ -183,8 +199,8 @@ export function fightXp(ctx, payload = {}) {
     if (!fight.won) ctx.fail('NO_LONGER_DONE', 'No won fight is left to give XP for on this story.');
     const from = fromOf(domain, ctx.source);
     const witness = fightWitness(sheet, domain, ctx.source, { was, groups: given });
-    const predicate = { kind: FIGHT };
-    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness }) }, { was, ...(given ? { groups: given } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) });
+    const predicate = { kind: FIGHT, ...(bars ? { bars: 2 } : {}) };
+    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness }) }, { was, ...(given ? { groups: given } : {}), ...(bars ? { bars: 2 } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) });
     const draft = ctx.draft('dataModules');
     const awards = [];
     for (const character of paidOf(sheet)) {
@@ -194,11 +210,12 @@ export function fightXp(ctx, payload = {}) {
         // What the story added to this member's xp, soul and points in this reply (the narrator's XP line and its rise) is not used.
         const kept = from[character.module];
         const keys = RISES.filter(key => whole(kept?.[key]) && key in fields);
-        const held = Boolean(kept) && keys.some(key => fields[key] !== kept[key]);
+        // (a marked fight has no narrator XP to hold back: a story line cannot add XP to a marked character at all)
+        const held = !bars && Boolean(kept) && keys.some(key => fields[key] !== kept[key]);
         const instance = draft.instances[character.module].chat;
         // The fight pays at the level the member had before this reply's own (held back) XP line raised it.
         const before = held ? (whole(kept.level) ? clampLevel(kept.level) : whole(kept.soul) ? levelOfClass(kept.soul) : null) : null;
-        const xp = scaleXp(memberXp(fight.groups, before ?? memberLevel(character)), rate);
+        const xp = scaleXp(memberXp(fight.groups, before ?? memberLevel(character), bars), rate);
         if (isObject(definition?.state) && Array.isArray(definition.rules)) {
             const evaluation = createEvaluation(definition, instance, { inputs: {}, source: {}, cursor: null, subject: 'chat' });
             if (held) evaluation.effects(keys.map(key => ({ op: 'set', path: [key], value: kept[key] })));
@@ -215,7 +232,7 @@ export function fightXp(ctx, payload = {}) {
     const held = awards.some(award => award.held);
     return {
         summary: `Fight won: ${awards.filter(award => award.xp > 0).map(award => `${award.who} +${award.xp} XP`).join(', ') || 'no XP to give'}.`, narrate: false, replan: true,
-        data: { v2: { result: { fight: { lv: 1, ...(rate !== XP_RATE.default ? { rate } : {}), groups: fight.groups, awards } } } },
+        data: { v2: { result: { fight: { lv: 1, ...(bars ? { bars: 2 } : {}), ...(rate !== XP_RATE.default ? { rate } : {}), groups: fight.groups, awards } } } },
         ...(held ? { problem: FIGHT_XP_HELD } : {}),
     };
 }
@@ -231,6 +248,7 @@ export function fightGuard({ state, hash }, { guard, source, recorded }) {
         if (recorded.rate !== undefined && xpRateOf(recorded.rate) === null) return bad('The fight\'s XP rate was damaged.');
         const groups = recorded.groups === undefined ? null : groupsOf(recorded.groups, was);
         if (recorded.groups !== undefined && !groups) return bad('The fight\'s groups were damaged.');
+        if ((recorded.bars !== undefined && recorded.bars !== 2) || (predicate.bars === 2) !== (recorded.bars === 2)) return bad('The fight\'s mark was damaged.');
         const witness = fightWitness(readSheet(state), state.domains?.dataModules, source, { was, groups });
         if (hash({ source, predicate, witness }) !== guard.inputHash) return bad('The sheet before this step changed; Re-read this reply.');
         return { ok: true };

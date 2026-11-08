@@ -45,7 +45,7 @@ test('every block stays inside the field, kind and text limits', () => {
 
 test('the Character block has the keys the RPG reads, with their ranges and stage names', () => {
     const { state, kinds } = template('Character');
-    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'level', 'xp', 'rise', 'cap', 'down', 'alive', 'left', 'health-blocks', 'stamina-blocks', 'mana-blocks']);
+    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'level', 'xp', 'rise', 'cap', 'down', 'alive', 'left', 'health-blocks', 'stamina-blocks', 'mana-blocks', 'rested-at']);
     assert.equal(state.who.type, 'text');
     assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
     assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');
@@ -65,7 +65,7 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     assert.equal(state.down.type, 'bool');
     assert.equal(state.down.prompt, false, 'Down is hidden from the narrator');
     assert.equal(state.alive.type, 'bool');
-    assert.deepEqual(Object.keys(kinds), ['set-health', 'set-mana', 'set-stamina', 'add-xp', 'button-rest']);
+    assert.deepEqual(Object.keys(kinds), ['set-health', 'set-mana', 'set-stamina', 'rest', 'full-rest', 'heal', 'button-rest', 'button-full-rest']);
     assert.equal(kinds['button-rest'].ui, true);
     // Stats and points are set by the reader only: no kind writes them.
     const touched = Object.values(kinds).flatMap(kind => kind.effects.map(effect => effect.path[0]));
@@ -140,14 +140,14 @@ test('death is a latch of two reply-end functions in that order, then a card tha
     assert.ok(card.text.length <= 240 && card.title.length <= 60);
 });
 
-test('the combat rules text is the [COMBAT SYSTEM] prompt with a line on rolls and one of XP guidance', () => {
+test('the combat rules text is the [COMBAT SYSTEM] prompt with a line on rolls (and no XP line: the code gives XP)', () => {
     const { prompt, state, kinds } = template('Combat rules');
     const lines = prompt.split('\n');
-    assert.equal(lines.length, 7);
+    assert.equal(lines.length, 6);
     assert.equal(lines[0], '[COMBAT SYSTEM]');
     COMBAT_HEADINGS.forEach((heading, index) => assert.ok(lines[index + 1].startsWith(heading), heading));
     assert.match(lines[5], /^Rolls: tell the rolled result as given; code moves the bars for hits, heals, skill costs: never set those\.$/);
-    assert.match(lines[6], /^XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\.$/);
+    assert.equal(prompt.includes('XP'), false);
     assert.ok([...prompt].length <= 1200);
     assert.deepEqual(state, {});
     assert.deepEqual(kinds, {});

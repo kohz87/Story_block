@@ -75,7 +75,7 @@ test('the Standard descriptions are shorter', () => {
         assert.ok(lean.length < BEFORE[role].length * 0.85, `${role}: ${lean.length} against ${BEFORE[role].length}`);
         assert.ok(lean.length <= 1200, `${role} fits the block's room`);
     }
-    for (const heading of ['No Plot Armor:', 'Exchanges:', 'Weight & Risk:', 'Believable Outcomes:', 'Rolls:', 'XP guide:']) assert.ok(definitionOf(STANDARD_TEMPLATES, 'rules').prompt.includes(heading), heading);
+    for (const heading of ['No Plot Armor:', 'Exchanges:', 'Weight & Risk:', 'Believable Outcomes:', 'Rolls:']) assert.ok(definitionOf(STANDARD_TEMPLATES, 'rules').prompt.includes(heading), heading);
 });
 
 test('the health words are told once: a later list that is the same is "same words as" the first', { skip }, async t => {
@@ -120,18 +120,14 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     assert.match(text, /N = 1\.\.8 for learn-N\./u);
 });
 
-test('the XP guide stays on a quiet reply (Standard), once, and the rest of the combat text does not', { skip }, async t => {
-    const expected = [[STANDARD_TEMPLATES, /XP guide: code gives XP for a won fight and practises rolled skills; write none for them\. Other deeds 5 to 40\./u]];
-
-    for (const [templates, guide] of expected) {
-        const { host } = await world(t, { templates });
-        const { request } = await host.send('I walk on.', 'The road is quiet.');
-        const text = staticOf(request);
-        assert.match(text, guide);
-        assert.equal(text.split('XP guide:').length - 1, 1, 'once');
-        assert.doesNotMatch(text, /\[COMBAT SYSTEM\]|No Plot Armor/u);
-        host.close();
-    }
+test('a quiet reply (Standard, marked Character) tells no XP line, and the combat text does not show', { skip }, async t => {
+    // (the marked Character: XP is the code's alone, so the quiet reply says nothing about XP lines, and the rest of the combat text does not show)
+    const { host } = await world(t, { templates: STANDARD_TEMPLATES });
+    const { request } = await host.send('I walk on.', 'The road is quiet.');
+    const text = staticOf(request);
+    assert.doesNotMatch(text, /XP guide|Other deeds|add-xp|XP line/u);
+    assert.doesNotMatch(text, /\[COMBAT SYSTEM\]|No Plot Armor/u);
+    host.close();
 });
 
 test('a fight the narrator opens without a plan still parses; from the next reply the combat text and the whole grammar are told', { skip }, async t => {

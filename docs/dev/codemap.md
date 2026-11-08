@@ -23,6 +23,7 @@ Last checked: 2026-11-07.
 - `src/v2/data-modules/editable-layout.js`: adds inline editors to local fields in authored data-module screen layouts.
 - `src/v2/data-modules/fields-widget.js`: defines the fields and heading layout nodes used to show a data module's values.
 - `src/v2/data-modules/hash-basis-v1.js`: frozen interpreter-1 descriptors and limits kept as a historical identity contract.
+- `src/v2/data-modules/recovery.js`: a marked Character's story rules (no narrator XP, bars lowered but never raised by `set-*`, full rest once per 6 story hours) and their notes.
 
 ## src/v2/events/
 - `src/v2/events/calls.js`: allowlisted condition calls that read the before-generate state and queries.
@@ -35,6 +36,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/cue.js`: writes compact narrator roll cues under the prompt budget.
 - `src/v2/lean-rpg/join.js`: reads party join and leave lines, then builds companion definitions and offer cards.
 - `src/v2/lean-rpg/templates-bars.js`: turns the old Character template into the doubled-bars one (`scale: 2`: size expressions, grow rules, bar maximum and default).
+- `src/v2/lean-rpg/templates-recovery.js`: the marked Character's recovery kinds (rest, full-rest, heal, Short rest and Full rest buttons), no narrator `add-xp`, its prompt.
 - `src/v2/lean-rpg/levels.js`: level, rank, level-cap and XP-rate helpers plus the RPG rank query.
 - `src/v2/lean-rpg/noroll.js`: replay-only: shows and re-reads the per-reply receipt an old chat's retired roll planner left when it gave no usable plan.
 - `src/v2/lean-rpg/open.js`: checks and fills new foes that the roll planner opens during a fight.

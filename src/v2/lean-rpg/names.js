@@ -111,7 +111,7 @@ export const practiceFromRollsOnly = (rpgOn, values) => rpgOn === true && values
  * are added (whole per cents, so no rounding error) and rounded down; a total above 0 is held to `min` .. `max`, a total of 0 gives nothing.
  * Level 5 against six level 5 crawlers: 6 × 1 × 2 = 12.
  */
-export const FIGHT_XP = Object.freeze({ perBand: 2, perLevels: 10, gapPercent: 10, maxPercent: 200, min: 1, max: 60 });
+export const FIGHT_XP = Object.freeze({ markedFirst: 15, markedMore: 2, perBand: 2, perLevels: 10, gapPercent: 10, maxPercent: 200, min: 1, max: 60 });
 
 /** The line the narrator writes where the fight is told (the battle log is drawn there). */
 export const BATTLE_MARKER = '[battle]';

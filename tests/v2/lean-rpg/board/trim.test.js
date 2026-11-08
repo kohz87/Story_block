@@ -34,7 +34,7 @@ test('board on trims the stock lines, keeps flavour and has the same static text
         assert.doesNotMatch(text, /Up to four foe groups in the fight/);
         assert.match(text, /kind: set-slot-N/);
         assert.doesNotMatch(text, /kind: hurt-N|kind: clear-N|Rolls: tell the rolled result|code gives XP for a won fight/);
-        assert.match(text, /Other deeds 5 to 40/);
+        assert.doesNotMatch(text, /Other deeds 5 to 40|add-xp/);
         const counted = staticTextWith(host.registry, { [CORE_FEATURE.fightBoard]: true });
         assert.match(counted, /kind: set-slot-N/);
         assert.doesNotMatch(counted, /kind: hurt-N|kind: clear-N|Rolls: tell the rolled result/);
@@ -97,7 +97,7 @@ test('a pack’s combat flavour appears unchanged only in a fight reply', async 
         await host.send('Begin.', 'Opening.');
         for (const { definition: source } of STANDARD_TEMPLATES) {
             const definition = structuredClone(source);
-            if (definition.role === 'rules') definition.prompt = definition.prompt.replace('XP guide:', 'The tide fights for neither side.\nXP guide:');
+            if (definition.role === 'rules') definition.prompt += '\nThe tide fights for neither side.';
             assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
         }
         assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra' } })).ok, true);

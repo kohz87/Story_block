@@ -161,7 +161,7 @@ test('the end card uses the current XP rate and practice setting', async t => {
         action: [{ who: 'Wessel', kind: 'skill', skill: 'Cut', target: 1 }], stop: 'won',
     });
     const awards = doc.querySelector('.rpg-board-awards').textContent;
-    assert.match(awards, /Wessel \+4 XP/);
+    assert.match(awards, /Wessel \+30 XP/);
     const uses = usesOf(result).find(item => item.skill === 'Cut').n;
     assert.ok(awards.includes(`Wessel: Cut +${Math.min(20, uses * 5)}`));
 });

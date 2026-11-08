@@ -9,7 +9,7 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { createFakeModel } from '../../../testkit/model.js';
 import { FIGHT, FIGHT_XP, FIGHT_XP_HELD, FLOW_VERSION, LEAN_RPG_FEATURE, LIMITS, RESOLVE, STANDARD_FORMULA, fightOf, memberXp, DEFAULT_SETTINGS, scaleXp, xpRateFrom, xpRateOf, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { fightLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
-import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { reply, success } from '../data-modules/helpers.js';
 import { cueOf, character, foeBlock, levelFoeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 
@@ -277,7 +277,8 @@ async function world(t, { answers = ['none'], party = ['Astra'], xp = 0, rate } 
     host.features.set(LEAN_RPG_FEATURE, true);
     host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
-    const definitionOf = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
+    // (the narrator's XP line and the hold belong to the Character made before the marked one)
+    const definitionOf = name => (name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition));
     for (const who of party) {
         const definition = definitionOf('Character');
         if (who !== party[0]) { definition.slug = who.toLowerCase(); definition.name = who; }

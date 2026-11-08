@@ -92,7 +92,7 @@ export function pendingAwards(state, session, result, settings = {}) {
     const sheet = readSheet(state), fight = fightOf(sheet, session.groups ?? []);
     const rate = xpRateFrom(settings), perUse = practiceOf(session.setup?.opening?.payload?.practice) ?? practiceOf(settings[PRACTICE_SETTING]) ?? PRACTICE.perUse;
     const xp = result.stop === 'won' && fight.won ? sheet.characters.filter(actor => actor.alive !== false && Number.isSafeInteger(actor.xp))
-        .map(actor => ({ who: actor.who, amount: scaleXp(memberXp(fight.groups, memberLevel(actor)), rate) })) : [];
+        .map(actor => ({ who: actor.who, amount: scaleXp(memberXp(fight.groups, memberLevel(actor), session.setup?.bars === 2), rate) })) : [];
     const practice = usesOf(result).filter(use => {
         const actor = sheet.characters.find(entry => entry.key === fold(use.who));
         return actor?.skills.some(skill => fold(skill.name) === fold(use.skill));

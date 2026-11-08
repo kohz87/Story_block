@@ -8,13 +8,14 @@ import { DEFAULT_SETTINGS, EARLIER_RULES, LEVEL, LV_VERSION, STANDARD, STANDARD_
 import { buildDefinitions, newDraft } from '../../../src/v2/lean-rpg/view/wizard-data.js';
 import { readParty } from '../../../src/v2/lean-rpg/view/party-data.js';
 import { reply, success, view, rebuilt } from '../data-modules/helpers.js';
-import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { fakeState } from './view/helpers.js';
 import { hostAvailable } from '../../../testkit/index.js';
 import { seedCrypto } from '../qa/helpers/seeded.js';
 import { PARTY, character, rollReceipt, setup, sheetDomain } from './helpers.js';
 
-const templates = () => STANDARD_TEMPLATES.filter(entry => entry.name === 'Character').map(entry => structuredClone(entry.definition));
+// (the narrator's XP line belongs to the Character made before the marked one, which keeps it: these tests run on that block)
+const templates = () => [characterV1For()];
 const definition = () => templates()[0];
 const line = (slug, kind, extra = '') => `+ dm ${slug} — why | kind: ${kind}${extra}`;
 const sheet = (host, slug) => view(host, `pack.chat/${slug}`).chat;

@@ -237,7 +237,7 @@ for (const seed of SEEDS) {
                 assert.ok(uses, `seed ${seed} step ${step}: Astra actually uses ${stagedSkill}`);
                 assert.equal(practice.find(entry => entry.who === 'Astra' && entry.skill === stagedSkill)?.amount ?? 0, Math.min(20, uses.n * 3),
                     `seed ${seed} step ${step}: ${stagedSkill} practice follows its actual uses`);
-                const expectedXp = memberXp([{ count: stagedCount, level: 1 }], 1);
+                const expectedXp = memberXp([{ count: stagedCount, level: 1 }], 1, true);
                 assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, expectedXp, `seed ${seed} step ${step}: the original count pays its XP`);
                 made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards, skill: stagedSkill, xp: expectedXp,
                     member: stagedKind === 'member', pack: stagedKind === 'pack' };
