@@ -156,15 +156,20 @@ test('the new pin runs words, growth, Down and Rest through the real block engin
     await host.send('Begin.', 'Opening.');
     const fresh = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Character').definition);
     success(await host.sdk.command('dm.define', { definition: fresh }));
-    assert.equal(fullModuleGrammar(fresh, 'character'), fullModuleGrammar(standard('Character'), 'character'));
-    for (const [index, word] of STAGES.health.entries()) {
+    // (the marked Character's grammar differs from the earlier one by design: no add-xp, rest / full-rest / heal, two buttons; xp-recovery.test.js holds the rules)
+    const grammar = fullModuleGrammar(fresh, 'character');
+    assert.doesNotMatch(grammar, /kind: add-xp/);
+    for (const kind of ['rest', 'full-rest', 'heal | amount: 1..3', 'button-rest', 'button-full-rest']) assert.ok(grammar.includes(`kind: ${kind}`), kind);
+    // (the story only lowers a marked bar, so the words go from the top stage down)
+    for (const [index, word] of [...STAGES.health.entries()].reverse()) {
         await host.send('Health.', reply(say('character', 'set-health', ` | to: ${word}`)));
         assert.equal(sheet(host, 'character').health, [0, 2, 4, 6, 8, 10][index], word);
     }
-    for (const [index, word] of STAGES.stamina.entries()) {
+    for (const [index, word] of [...STAGES.stamina.entries()].reverse()) {
         await host.send('Recover.', reply(say('character', 'set-stamina', ` | to: ${word}`), say('character', 'set-mana', ` | to: ${STAGES.mana[index]}`)));
         assert.deepEqual([sheet(host, 'character').stamina, sheet(host, 'character').mana], Array(2).fill([0, 3, 5, 8, 10][index]));
     }
+    success(await host.sdk.command('dm.act', { module: 'pack.chat/character', kind: 'button-full-rest' })); // (the bars are at the bottom; only a rest raises them)
     await host.send('Hurt.', reply(say('character', 'set-health', ' | to: Hurt'), say('character', 'set-stamina', ' | to: Tired'), say('character', 'set-mana', ' | to: Steady')));
     assert.deepEqual(bars(host), [6, 5, 8]);
     await set(host, 'character', { vit: 10, agi: 10, int: 10 });

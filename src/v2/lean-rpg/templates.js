@@ -8,6 +8,7 @@ import { CREATION, LEVEL, STATS, STAGES, USES } from './names.js';
 import { SIGNATURE_FIELD, SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { STANDARD_NUMBERS } from './formula.js';
 import { scaledCharacter } from './templates-bars.js';
+import { withRecovery } from './templates-recovery.js';
 import { typedSkills } from './templates-skills.js';
 
 const names = (words, first = 0) => Object.fromEntries(words.map((word, index) => [String(index + first), word]));
@@ -216,7 +217,7 @@ const standardCharacterV1 = {
 /** The Character template as it was before the doubled bars (no `scale` mark: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5): a chat's earlier characters, and a companion joining a chat that has only those. */
 export const characterV1For = () => structuredClone(standardCharacterV1);
 // The template the chooser, the wizard and an import make blocks from: the same Character with the doubled bars (templates-bars.js).
-const standardCharacter = scaledCharacter(standardCharacterV1, SIZE);
+const standardCharacter = withRecovery(scaledCharacter(standardCharacterV1, SIZE));
 
 const standardFoes = {
     slug: 'foes', name: 'Foes', role: 'foes', schema: 1, stateVersion: 2, scope: 'chat',
@@ -254,7 +255,6 @@ export const COMBAT_PROMPT_STANDARD = [
     'Weight & Risk: every strike, miss, wound and hesitation carries impact. Injury, fatigue, fear and pain carry into the next exchange and the next scene.',
     'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned; survival must be justified.',
     'Rolls: tell the rolled result as given; code moves the bars for hits, heals, skill costs: never set those.',
-    'XP guide: code gives XP for a won fight and practises rolled skills; write none for them. Other deeds 5 to 40.',
 ].join('\n');
 
 const standardCombat = { ...combat, stateVersion: 2, prompt: COMBAT_PROMPT_STANDARD };

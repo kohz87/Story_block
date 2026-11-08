@@ -10,6 +10,7 @@ import { LEAN_RPG_FEATURE } from '../../lean-rpg/names.js';
 import { XP_RATE, scaleXp, xpRateFrom } from '../../lean-rpg/levels.js';
 import { averageLevel, bandOfRank, foeRandom, foeLevelCap, levelOf, partyLevels, pickLevel } from '../../lean-rpg/foes.js';
 import { SKILL_SLOTS_MAX, SLOT_NUMBER, isTypedSkills } from '../../skill-slots.js';
+import { RESTED_FIELD, RESTED_KNOWN, SET_KINDS, fullRestTooSoon, isMarkedCharacter, recoveryNote } from '../recovery.js';
 import { B, rpg, draftOf, stateOf, pairKey, subjectsOf, instancePath, prefixImports } from './shared.js';
 import { skillCapacity } from './skills.js';
 import { namedChanges } from './prompt.js';
@@ -83,6 +84,9 @@ export function createAct(deps) {
         const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
         // A foe group the narrator sets may give `level: N` or `rank: <name>`, or neither: then its level is drawn from the reply's seed (see foeLevelLabels).
         const labels = kind && line && definition.role === 'foes' ? foeLevelLabels(given, kind, prefix, ctx, module) : given;
+        // A marked Character (recovery.js): the story's XP line is not used (the kind is not in its block), with the note the reader sees.
+        const marked = ctx.cause === 'story' && isMarkedCharacter(definition);
+        if (marked && given.kind === 'add-xp') ctx.fail('RECOVERY_REFUSED', recoveryNote.xp(String(instanceOf(prefix, module)?.fields?.who || definition.name)).slice(0, 280));
         if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(shown.kinds))}`);
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
@@ -111,6 +115,14 @@ export function createAct(deps) {
         const listKey = `${module}:${subject}`, listsKept = draft.perReply[pairKey(ctx.source)]?.lists ?? {};
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject, lists: copy(listsKept[listKey] ?? {}) });
         const fieldsBefore = copy(instance.fields);
+        // A full rest (the story's or the reader's button) of a marked Character keeps the story minute it happened at; the story's is refused when the last was under 6 story hours ago.
+        // The clock is Story Director's (none: allowed); the minute is recorded with the action, so a rebuild never asks the clock again.
+        const restKind = isMarkedCharacter(definition) && (labels.kind === 'full-rest' || labels.kind === 'button-full-rest');
+        let minutes = null;
+        if (restKind) { try { minutes = ctx.query('director.time', {})?.minutes; } catch { minutes = null; } }
+        const clock = Number.isSafeInteger(minutes) ? minutes : null;
+        const who = String(instance.fields.who || definition.name);
+        if (restKind && ctx.cause === 'story' && fullRestTooSoon(clock, instance.fields[RESTED_FIELD], instance.fields[RESTED_KNOWN])) ctx.fail('RECOVERY_REFUSED', recoveryNote.fullRest(who).slice(0, 280));
         evaluation.timers();
         // A foe group the narrator sets by a name already on a slot of the same Foes block (the pre-call may have opened this very fight, lean-rpg/open.js)
         // is that group: the slot is updated (count and class), never a second slot with the same name; its health stays as it is.
@@ -124,13 +136,18 @@ export function createAct(deps) {
             const run = route ? definition.kinds[route.kind] : kind;
             if (!evaluation.condition(['kind', route?.kind ?? labels.kind], run.when, { arg: args })) refuse('DM_CONDITION', '', run.refusal ?? 'Kind condition is not met.');
             evaluation.effects(run.effects, { arg: args });
+            // A marked Character's bar is lowered by the story, never raised (a rest, a full rest or a heal does that).
+            const raised = SET_KINDS[labels.kind];
+            if (marked && raised && instance.fields[raised] > fieldsBefore[raised]) ctx.fail('RECOVERY_REFUSED', recoveryNote.raised(who, raised).slice(0, 280));
+            if (clock !== null && Object.hasOwn(definition.state, RESTED_KNOWN)) evaluation.effects([{ op: 'set', path: [RESTED_FIELD], value: clock }, { op: 'set', path: [RESTED_KNOWN], value: true }]);
+            else if (clock !== null && clock >= 0 && clock < 2_000_000_000 && definition.state[RESTED_FIELD]) evaluation.effects([{ op: 'set', path: [RESTED_FIELD], value: clock + 1 }]);
         }
         evaluation.rules();
         const result = evaluation.finish();
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: prefixImports(definition),
-            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
+            reads: result.reads.map(read => read.path), imports: prefixImports(definition), clock: restKind,
+            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(clock !== null ? { clock } : {}), ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
         // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is

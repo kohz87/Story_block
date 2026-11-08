@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
-import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { fightHook, fightGuard, fightXp, groupsOf, memberXp, openedSlots } from '../../../../src/v2/lean-rpg/fight.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
@@ -12,12 +12,12 @@ import { discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, levelFoeBlock, recordOf, sheetDomain } from '../helpers.js';
 
-async function world() {
+async function world({ old = false } = {}) {
     const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } } });
     host.features.set(CORE_FEATURE.leanRpg, true);
     host.features.set(CORE_FEATURE.fightBoard, true);
     await host.send('Begin.', 'Opening.');
-    for (const { definition } of STANDARD_TEMPLATES) assert.equal((await host.sdk.command('dm.define', { definition: structuredClone(definition) })).ok, true);
+    for (const { definition } of STANDARD_TEMPLATES) assert.equal((await host.sdk.command('dm.define', { definition: structuredClone(old && definition.role === 'character' ? characterV1For() : definition) })).ok, true);
     assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 1, str: 20, agi: 20, vit: 20, health: 5 } })).ok, true);
     await host.send('Rats.', 'Rats.\n<Changes>\n+ dm foes — rats | kind: set-slot-1 | name: Tunnel Rat | count: 1 | level: 1\n</Changes>');
     return host;
@@ -49,7 +49,7 @@ for (const [name, story] of [['a new group the narrator opens', NEW], ['the Down
     test(`a board win still pays XP once when the same reply has ${name}`, async () => {
         const restore = seedCrypto(33), host = await world();
         try {
-            const want = memberXp([{ count: 1, level: 1 }], 1);
+            const want = memberXp([{ count: 1, level: 1 }], 1, true);
             await winWith(host, story);
             assert.equal(hero(host).xp, want);
             assert.equal(fights(host).length, 1);
@@ -70,20 +70,39 @@ test('a board win that leaves the block as it was carries no groups (the record 
     const restore = seedCrypto(34), host = await world();
     try {
         await winWith(host, 'Done.');
-        assert.equal(hero(host).xp, memberXp([{ count: 1, level: 1 }], 1));
+        assert.equal(hero(host).xp, memberXp([{ count: 1, level: 1 }], 1, true));
         const step = fights(host)[0];
         assert.equal(step.replan.payload.groups, undefined);
-        assert.deepEqual(Object.keys(step.replan.payload), ['was']);
+        assert.deepEqual(Object.keys(step.replan.payload), ['was', 'bars'], 'a marked fight records its mark beside the slots');
     } finally { host.close(); restore(); }
 });
 
-test('a board win with the groups still holds back the narrator\'s own XP line in that reply (one payment)', async () => {
-    const restore = seedCrypto(35), host = await world();
+test('a board win on a Character made before the mark holds back the narrator\'s own XP line in that reply (one payment, the old sum)', async () => {
+    const restore = seedCrypto(35), host = await world({ old: true });
     try {
         const want = memberXp([{ count: 1, level: 1 }], 1);
         await winWith(host, NEW.replace('</Changes>', '+ dm character — big | kind: add-xp | amount: 50\n</Changes>'));
         assert.equal(fights(host).length, 1);
         assert.equal(hero(host).xp, want, 'the code\'s XP only; the narrator\'s 50 is not used');
+    } finally { host.close(); restore(); }
+});
+
+test('a marked board win pays the marked sum and records the mark; the narrator\'s XP line is refused, not held; replay == live', async () => {
+    const restore = seedCrypto(35), host = await world();
+    try {
+        await winWith(host, NEW.replace('</Changes>', '+ dm character — big | kind: add-xp | amount: 50\n</Changes>'));
+        assert.equal(fights(host).length, 1);
+        assert.equal(hero(host).xp, 15, 'one level 1 foe at level 1: 15, and the narrator\'s 50 is not used');
+        assert.equal(fights(host)[0].replan.payload.bars, 2);
+        assert.equal(fights(host)[0].data.v2.result.fight.bars, 2);
+        const problems = host.turn.problems().map(problem => problem.message);
+        assert.ok(problems.some(message => message.includes('XP comes from fights only')), 'the refusal note');
+        assert.equal(problems.some(message => message.includes('given by code')), false, 'no hold note: nothing is left to hold');
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live);
+        assert.equal((await host.turn.reread(host.store.headIndex())).ok, true);
+        assert.equal(hero(host).xp, 15);
     } finally { host.close(); restore(); }
 });
 

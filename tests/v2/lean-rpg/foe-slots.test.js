@@ -9,7 +9,7 @@ import { fightIsOpen } from '../../../src/v2/lean-rpg/quiet.js';
 import { openFoes, vetOpen } from '../../../src/v2/lean-rpg/open.js';
 import { openedSlots, fightHook } from '../../../src/v2/lean-rpg/fight.js';
 import { legacyPlanner } from './legacy-planner.js';
-import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { PARTY, foeBlock, sheetDomain } from './helpers.js';
 
 const available = await hostAvailable();
@@ -29,7 +29,8 @@ async function world(t) {
     host.features.set(LEAN_RPG_FEATURE, true);
     host.features.set('story-block.fight-board', false);
     await host.send('Begin.', 'Opening.');
-    for (const entry of STANDARD_TEMPLATES) ok(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
+    // (the Character made before the marked one: a fight the story settles pays XP only there)
+    for (const entry of STANDARD_TEMPLATES) ok(await host.sdk.command('dm.define', { definition: entry.name === 'Character' ? characterV1For() : structuredClone(entry.definition) }));
     ok(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 30, str: 20, agi: 20, dex: 20, vit: 20, int: 20, luk: 20 } }));
     ok(await host.sdk.command('dm.set', { module: 'pack.chat/skills', fields: { who: 'Astra' } }));
     await host.send('I remember my training.', 'Forms.\n<Changes>\n~ dm skills — learns | kind: learn-1 | name: Iaijutsu | about: a draw | stat: agi | uses: stamina\n</Changes>');

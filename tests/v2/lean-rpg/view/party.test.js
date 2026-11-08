@@ -6,6 +6,7 @@ import { createPartyScreen, createPartyWidget, PARTY_SCREEN_ID, PARTY_WIDGET } f
 import { hasCharacters, readParty, stageTone, stageWord } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { activeNow } from '../../../../src/v2/view/mounts/common.js';
 import { characterDefinition, fakeState, foesDefinition, roleOf, skillsDefinition } from './helpers.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 
 const wessel = { definition: characterDefinition('wessel', 'Wessel'), fields: { health: 3, mana: 4, stamina: 1, str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, points: 3, level: 2, xp: 40 } };
 const ren = { definition: characterDefinition('ren', 'Ren'), fields: { health: 5, mana: 2, stamina: 3, str: 7, vit: 9, agi: 10, dex: 11, int: 15, luk: 10, cha: 12, level: 1, xp: 85 } };
@@ -21,6 +22,20 @@ function draw(state, { api = {}, own = 'Wessel', openWizard = null } = {}) {
 }
 const buttons = (root, text) => root.querySelectorAll('button').filter(node => node.textContent === text);
 const card = (el, name) => el.querySelector(`.rpg-card[data-character="${name}"]`);
+
+test('marked character cards show the two rest buttons and send their actions; older cards stay unchanged', async () => {
+    const definition = { ...structuredClone(STANDARD_TEMPLATES[0].definition), slug: 'wessel' };
+    const calls = [];
+    const state = fakeState([{ definition, fields: { who: 'Wessel' } }, ren]);
+    const { el } = draw(state, { api: { command: async (type, payload) => { calls.push([type, payload]); return { ok: true }; } } });
+    const mine = card(el, 'Wessel');
+    assert.deepEqual(mine.querySelectorAll('.rpg-rest-row button').map(node => node.textContent), ['Short rest', 'Full rest']);
+    assert.equal(mine.querySelector('.rpg-rest-hint').textContent, 'Short rest: Stamina and Mana. Full rest: Health too.');
+    for (const node of mine.querySelectorAll('.rpg-rest-row button')) node.click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, [['dm.act', { module: 'pack.chat/wessel', kind: 'button-rest' }], ['dm.act', { module: 'pack.chat/wessel', kind: 'button-full-rest' }]]);
+    assert.equal(card(el, 'Ren').querySelector('.rpg-rest-row'), null);
+});
 
 test('the reader\'s own character comes first, then block order; each card reads its block', () => {
     const read = readParty(party(), { own: 'Wessel', roleOf });

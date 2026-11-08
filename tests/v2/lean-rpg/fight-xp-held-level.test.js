@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 const { createHost } = await import('../../../testkit/index.js');
 const { createFakeModel } = await import('../../../testkit/model.js');
 const { LEAN_RPG_FEATURE } = await import('../../../src/v2/lean-rpg/index.js');
-const { STANDARD_TEMPLATES } = await import('../../../src/v2/lean-rpg/templates.js');
+const { STANDARD_TEMPLATES, characterV1For } = await import('../../../src/v2/lean-rpg/templates.js');
 const { reply, success } = await import('../../../tests/v2/data-modules/helpers.js');
 
 const SLOT = '+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 6 | level: 1';
@@ -16,7 +16,8 @@ async function world(t, { level = 2, xp = 0, rate, cap } = {}) {
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
     await host.send('Begin.', 'Opening.');
-    const def = name => structuredClone(STANDARD_TEMPLATES.find(e => e.name === name).definition);
+    // (the narrator's XP line and the hold belong to the Character made before the marked one)
+    const def = name => (name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(e => e.name === name).definition));
     success(await host.sdk.command('dm.define', { definition: def('Character') }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level, xp, ...(cap ? { cap } : {}) } }));
     success(await host.sdk.command('dm.define', { definition: def('Foes') }));
