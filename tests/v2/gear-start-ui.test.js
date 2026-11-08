@@ -204,7 +204,7 @@ test('Edit after the first message: Rarity and Bonus are disabled with the hint;
     const row = rowOf(el, 'Wolfskin Cap');
     row.querySelector('.ss-w-editable-pencil').click();
     assert.equal(row.querySelector('.ss-w-editable-intro'), null);
-    assert.equal(text(row.querySelector('.ss-w-editable-note')), 'Rarity and bonuses come from the story after the first message.');
+    assert.equal(text([...row.querySelectorAll('.ss-w-editable-note')].at(-1)), 'Rarity and bonuses come from the story after the first message.');
     assert.deepEqual([labelled(row, 'Rarity').disabled, labelled(row, 'Rarity').value], [true, 'rare']);
     const selects = row.querySelectorAll('select').filter(node => ['Bonus', 'Stat'].includes(node.getAttribute('aria-label')));
     assert.deepEqual(selects.map(node => [node.value, node.disabled]), [['VIT', true], ['AGI', true]]);

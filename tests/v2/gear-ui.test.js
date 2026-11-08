@@ -28,7 +28,7 @@ test('Inventory, gear on: Carry first, then Equipment, Consumables, Goods, Quest
     assert.ok(card, 'the card is an item row\'s card');
     assert.match(text(card.querySelector('.carry-line')), /^\d+ \/ 30$/);
     assert.equal(card.querySelectorAll('.ss-bar-track').length, 1);
-    assert.match(text(card.querySelector('.carry-break')), /^The reader 30$/);
+    assert.match(text(card.querySelector('.carry-break')), /^Strength 30$/);
     assert.doesNotMatch(card.className, /heavy|over/, 'normal below 80 %');
     assert.equal(el.querySelector('.carry-sec').querySelector('.carry-state'), null);
     // "+ Add item" is the compact pill (about 30px drawn, a 44px tap area), one line, on a phone as on a desktop.
@@ -175,7 +175,7 @@ test('gear.view: the persona is the main wearer, members follow; the breakdown, 
     const h = createHarness([module], { state });
     const view = h.query('gear.view', {});
     assert.deepEqual(view.owners, [{ value: 'party', label: 'Astra' }, { value: 'ac_ren00001', label: 'Ren' }]);
-    assert.equal(view.carry.breakdown, 'The reader 30');
+    assert.equal(view.carry.breakdown, 'Strength 30');
     assert.deepEqual(view.carry.away, ['Skiff +100 \u00b7 moored at Eel Wharf, not with you']);
     assert.equal(view.rows.it_dagg0001.by, 'Ren');
     assert.equal(view.rows.it_sword001.by, '');
