@@ -108,4 +108,3 @@ export function bonusPaidOnLine(host) {
     }
     return paid;
 }
-
