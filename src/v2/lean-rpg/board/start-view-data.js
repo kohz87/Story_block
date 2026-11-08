@@ -65,9 +65,11 @@ export function offerLineData(fight, { state = null, hidden = false } = {}) {
     if (!foes.length) return null;
     const names = [...new Set(foes.map(foe => foe.name))];
     const joined = names.join(', ');
+    // A fight that ended with foes still up says so (offers.js sets `standing`); the groups show their counts.
+    const standing = fight?.standing === true;
     return {
         visible: hidden !== true, foes,
-        text: `A fight started: ${joined}.`,
+        text: standing ? `Foes are still standing: ${foes.map(countName).join(', ')}` : `A fight started: ${joined}.`,
         label: `Fight offer: ${joined}`,
         boardLabel: OFFER_BOARD_LABEL,
         autoLabel: OFFER_AUTO_LABEL,

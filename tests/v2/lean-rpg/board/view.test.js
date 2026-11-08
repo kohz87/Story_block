@@ -32,7 +32,7 @@ async function defineFoes(host, entries) {
     assert.equal(defined.ok, true, defined.message);
 }
 
-function renderMembers(t, { doc, host, members, order }) {
+function renderMembers(t, { doc, host, members, order, rounds = [] }) {
     const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
     assert.equal(openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } }).error, undefined);
     const board = createBoardView({ doc, headState: () => host.head(), meta: () => meta, store: host.store,
@@ -41,7 +41,7 @@ function renderMembers(t, { doc, host, members, order }) {
     const root = doc.createElement('div');
     let handles = [];
     doc.body.appendChild(root);
-    const snapshot = { session: boardSession(meta), played: { state: host.head(), result: { members, order, rounds: [], opening: [], quickStart: [],
+    const snapshot = { session: boardSession(meta), played: { state: host.head(), result: { members, order, rounds, opening: [], quickStart: [],
         idle: [], hurts: [], refused: [], stop: 'open' } }, heldSid: null };
     const draw = () => {
         for (const handle of handles) handle.destroy?.();
@@ -529,12 +529,33 @@ test('an area skill asks for a standing group only when more than one group stan
     const root = renderMembers(t, { doc, host, members, order: [{ id: 'c:wessel', name: 'Wessel', party: true },
         { id: 'f:11', party: false }, { id: 'f:12', party: false }, { id: 'f:21', party: false }] });
     const area = [...root.querySelectorAll('.rpg-board-choice')].find(node => node.textContent.includes('Shadow Cut'));
-    assert.match(area.textContent, /— one group$/u);
+    assert.match(area.textContent, /— every group$/u);
     area.click();
-    assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Choose a group');
-    assert.deepEqual([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].map(node => node.textContent), ['1. Bristle-boars', '2. Spiders']);
+    assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Wessel: Shadow Cut (area)');
+    assert.equal(root.querySelector('.rpg-board-area-note').textContent, 'Hits every enemy group. The group you pick takes the full effect, and the others take one Health block less.');
+    assert.deepEqual([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].map(node => node.textContent), ['Main target: Bristle-boars', 'Main target: Spiders']);
     assert.ok([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].every(node => node.classList.contains('rpg-board-choice')), 'groups use the 48px choice buttons');
     assert.match(BOARD_CSS, /\.rpg-board-members \.rpg-board-controls button \{ min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important; \}/u);
+});
+
+test('the board log shows one line per area group without repeating the roll', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host, { skills: { skill1: 'Shadow Cut', about1: 'sweep every foe', uses1: 'mana' } });
+    await defineFoes(host, [['Tunnel Rat', 24, 1, 5], ['Grey-Tooth Nest-Mother', 1, 1, 5]]);
+    const order = [{ id: 'c:wessel', name: 'Wessel', total: 100 }, { id: 'f:11', name: 'Tunnel Rat pack 1', total: 1 },
+        { id: 'f:12', name: 'Tunnel Rat pack 2', total: 1 }, { id: 'f:2', name: 'Grey-Tooth Nest-Mother', total: 1 }];
+    const played = playBoard(host.head(), { seed: 3, offset: 0, rules: { ...STANDARD_FORMULA, levelDivisor: 5 }, members: 1, aoe: 1, order },
+        [{ actions: [{ who: 'Wessel', kind: 'skill', skill: 'Shadow Cut', area: true, group: 1 }] }]);
+    assert.equal(played.error, undefined, played.error);
+    const root = renderMembers(t, { doc, host, members: played.result.members, order: played.result.order, rounds: played.result.rounds });
+    const lines = [...root.querySelectorAll('.rpg-board-log-content p')].map(node => node.textContent);
+    const main = lines.filter(text => text.startsWith('Wessel → Tunnel Rat packs'));
+    const other = lines.filter(text => /^… also (hits|targets) Grey-Tooth Nest-Mother \(reduced\)/u.test(text));
+    assert.equal(main.length, 1, JSON.stringify(lines));
+    assert.equal(other.length, 1, JSON.stringify(lines));
+    assert.match(main[0], /d20/u);
+    assert.doesNotMatch(other[0], /d20/u);
 });
 
 test('pending awards use opening groups, settings and the per-reply practice cap', () => {
