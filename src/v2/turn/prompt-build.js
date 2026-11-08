@@ -70,6 +70,19 @@ export function createPromptBuild(s, deps) {
                 problem({ module: moduleId, code: 'TIMEOUT', message: `beforeGenerate did not answer within ${limit / 1000} s; the reply went on without its notes.` });
                 continue;
             }
+            // The foe pre-check found new foes (lean-rpg/precall.js): the opening is previewed, recorded as the hold, and the send waits for the reader's choice.
+            // If the opening cannot be prepared, the send goes on as it does without the pre-check (nothing is recorded).
+            if (out?.fightStart?.opening) {
+                const chat = ctx?.chat ?? [], last = chat.at(-1);
+                if (!last?.is_user || readRecord(chat.at(-2))?.sid !== out.fightStart.anchor || hashText(String(last.mes ?? '').trim()) !== out.fightStart.message) {
+                    return { blocked: { moduleId, reason: 'The chat changed while the fight was being prepared.' } };
+                }
+                const result = bus.run(RPG_RESOLVE, out.fightStart.opening, { cause: 'system' });
+                if (result?.ok && result.receipt?.data?.v2?.result?.opened?.length
+                    && holdStart(metadata(), ctx?.chat, { mode: 'new', opening: { payload: out.fightStart.opening, seed: result.receipt.seed }, result: result.receipt.data.v2.result })) {
+                    return { blocked: { moduleId, reason: 'Choose how to play the waiting fight.', fightStart: true } };
+                }
+            }
             // A merged hook (domains/index.js mergeParts) keeps the answers of the parts that did answer and reports the others.
             for (const entry of Array.isArray(out?.problems) ? out.problems : []) problem({ module: moduleId, code: entry.code, message: entry.message });
             const lines = Array.isArray(out) ? out : Array.isArray(out?.lines) ? out.lines : [];

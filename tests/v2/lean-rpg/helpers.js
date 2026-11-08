@@ -51,7 +51,7 @@ export function sheetDomain(blocks) {
     const domain = { pins: {}, active: {}, instances: {}, perReply: {} };
     Object.entries(blocks).forEach(([slug, block], n) => {
         const id = `pack.chat/${slug}`;
-        domain.pins[`h${n}`] = { definition: { id, slug, name: slug, role: block.role, schema: 1, scope: 'chat' }, packId: 'chat', interpreter: 1 };
+        domain.pins[`h${n}`] = { definition: { ...block.definition, id, slug, name: slug, role: block.role, schema: block.definition?.schema ?? 1, scope: 'chat' }, packId: 'chat', interpreter: 1 };
         domain.active[id] = { hash: `h${n}`, generation: 1, subjects: ['chat'] };
         domain.instances[id] = { chat: { fields: block.fields, timers: {}, offers: {}, settled: {} } };
     });
@@ -78,11 +78,13 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, board = false, settings = {}, timer, timeoutMs, planner = true, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {}, bare = false } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, board = false, settings = {}, timer, timeoutMs, planner = true, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {}, bare = false, precheck = false } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
-    const part = createLeanRpgPart({ chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null, moduleId: OWNER });
+    const part = createLeanRpgPart({ chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null, moduleId: OWNER,
+        // (`precheck`: the foe pre-check asks the scripted model, with `timeoutMs` and `timer` for its limit)
+        ...(precheck ? { callModel, timeoutMs, timer, onPlanning: () => {} } : {}) });
     // The hook the module gets: the real one, or the real one with the scripted planner behind it.
     if (planner) part.hooks.beforeGenerate = legacyPlanner(part, { callModel, chat: () => host.ctx.chat, metadata: () => host.ctx.chatMetadata ?? null, moduleId: OWNER, timer, ...(timeoutMs !== undefined ? { timeoutMs } : {}) });
     const module = {

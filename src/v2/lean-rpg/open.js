@@ -11,8 +11,11 @@ import { createEvaluation } from '../data-modules/interpreter.js';
 import { CLASS_NAMES, FIX_VERSION, FOE_SLOTS } from './names.js';
 import { FOE_LEVEL, bandOfRank, classOfLevel, foeLevelCap, levelOf, levelOfClass, partyLevels } from './foes.js';
 import { fold, readSheet } from './read.js';
+import { FOE_COUNT_MAX } from './templates.js';
 
 export const OPEN_MAX_COUNT = 12;
+// What a recorded opening may hold: the pre-check's packs ("4 scores of rats") run to the Foes block's own count maximum; the old planner's vetOpen still holds its own entries to OPEN_MAX_COUNT.
+export const OPEN_RECORD_MAX_COUNT = FOE_COUNT_MAX;
 export const OPEN_MAX_NAME = 40;
 const STOP = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'to', 'in', 'on']);
 
@@ -86,7 +89,7 @@ export function openErrors(open) {
         if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) { errors.push(`${where} must be an object.`); return; }
         for (const key of Object.keys(entry)) if (!['name', 'count', 'class', 'level', 'rank', 'from', 'to'].includes(key)) errors.push(`${where} has "${key}", which a plan does not use.`);
         if (typeof entry.name !== 'string' || !entry.name.trim() || entry.name.length > OPEN_MAX_NAME) errors.push(`${where} needs a name (text, at most ${OPEN_MAX_NAME} characters).`);
-        if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > OPEN_MAX_COUNT) errors.push(`${where} count must be a whole number from 1 to ${OPEN_MAX_COUNT}.`);
+        if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > OPEN_RECORD_MAX_COUNT) errors.push(`${where} count must be a whole number from 1 to ${OPEN_RECORD_MAX_COUNT}.`);
         // (A plan from before the Levels rules has a class; one from after has a level, a rank with its band, or neither.)
         if (entry.class !== undefined) {
             if (!Number.isInteger(entry.class) || entry.class < 1 || entry.class > CLASS_NAMES.length) errors.push(`${where} class must be a whole number from 1 to ${CLASS_NAMES.length}.`);
