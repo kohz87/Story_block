@@ -215,9 +215,15 @@ test('the Party tab prints the level where it printed the Soul Class: label "Lev
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
-// (the dice are random per run: Ren may act first, or Wessel may open the fight, so his roll is looked for in every line)
+// Ren may act first or Wessel may open the fight, so look for his roll in every line.
 const wesselOf = result => [...(result.opening ?? []), ...result.rounds.flatMap(round => round.lines)].find(entry => entry.kind === 'act' && entry.pc.who === 'Wessel').pc;
-const levelled = () => { const blocks = PARTY(); blocks.wessel.fields = character('Wessel', { soul: 2, level: 40 }); return blocks; };
+// A durable foe and hero ensure Wessel can act even if Ren and the foe both go first.
+const levelled = () => {
+    const blocks = PARTY();
+    blocks.wessel.fields = character('Wessel', { soul: 2, level: 40, vit: 20, health: 8 });
+    Object.assign(blocks.foes.fields, { class1: 9, hurt1: 7 });
+    return blocks;
+};
 
 const sameStory = async host => {
     const live = JSON.stringify(host.head());

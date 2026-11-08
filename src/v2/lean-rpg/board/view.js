@@ -16,6 +16,7 @@ import { boardChoices, memberGroups as groupsOfMembers, memberHealthWord, member
 import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
 import { equipmentForBoard, playBoard } from './engine.js';
 import { barMovement, settledNote } from './note.js';
+import { areaLineGroups } from './order.js';
 import { dropOf } from '../ambush.js';
 import { AUTO_CAP, autoExchanges } from '../names.js';
 import { autoNote, runAuto } from './auto-run.js';
@@ -39,6 +40,13 @@ const labelLine = line => {
     const skill = line.skill ? ` (${line.skill})` : '';
     const verdict = `${line.kind === 'foe' ? `${pc.who}'s defence${skill}: ` : ''}${String(line.outcome).toUpperCase()}`;
     return `${who}${line.kind === 'foe' ? '' : skill}: d20 ${pc.die} ${signed(bonus)} = ${pc.total} vs ${foe.total ?? line.dc} — ${verdict}${line.decisive ? ', DECISIVE' : ''}${changes.length ? ` · ${changes.join(' · ')}` : ''}`;
+};
+const labelAreaGroup = group => {
+    const line = group[0], name = line.aoeName || line.foe?.name || '';
+    const changes = group.flatMap(item => [item.damage ? barMovement(item.damage) : '', item.cost ? barMovement(item.cost, true) : '']).filter(Boolean);
+    if (line.reduced) return `… also ${line.outcome === 'fail' ? 'targets' : 'hits'} ${name} (reduced)${changes.length ? ` → ${changes.join(', ')}` : line.outcome === 'fail' ? ' — FAIL' : ''}`;
+    const base = labelLine({ ...line, foe: { ...line.foe, name }, damage: undefined, cost: undefined });
+    return `${base}${line.aoeNoTarget ? ' · main target Down' : ''}${changes.length ? ` → ${changes.join(', ')}` : ''}`;
 };
 
 // A read-only member card in the Fight tab's own foe-card shape: name and level pills, then the existing segmented meter.
@@ -223,7 +231,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             for (const line of result.opening ?? []) logContent.appendChild(h(doc, 'p', '', `Opening · ${labelLine(line)}`));
             for (const round of result.rounds ?? []) {
                 logContent.appendChild(h(doc, 'p', 'rpg-board-round', `Exchange ${round.n}`));
-                for (const line of round.lines) logContent.appendChild(h(doc, 'p', '', labelLine(line)));
+                for (const group of areaLineGroups(round.lines)) logContent.appendChild(h(doc, 'p', '', group[0].aoe ? labelAreaGroup(group) : labelLine(group[0])));
             }
         }
         if (!logContent.childNodes.length) logContent.appendChild(h(doc, 'p', '', 'Choose an action to begin.'));
@@ -231,7 +239,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         root.appendChild(log);
         const panel = h(doc, 'div', 'rpg-board-controls');
         const gear = session.setup.gear ? equipmentForBoard(state, session.setup.gear) : {};
-        const memberGroupList = members ? groupsOfMembers(members, foes) : null;
+        const memberGroupList = members ? groupsOfMembers(members, foes, { aoe: session.setup.aoe === 1 }) : null;
         const data = boardChoices(state, { ...session.setup, ...gear }, chosen, memberGroupList), ended = played.result.stop !== 'open', sending = ended && Boolean(start?.sending?.());
         const standing = members ? standingMembers(members) : data.foes;
         if (confirm) confirmDiscard(panel);

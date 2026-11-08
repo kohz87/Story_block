@@ -9,7 +9,7 @@ import { fightOf, memberLevel, memberXp } from '../fight.js';
 import { scaleXp, xpRateFrom } from '../levels.js';
 import { usesOf } from '../practice.js';
 import { actionSkills } from './plan.js';
-import { memberBaseName, memberOrderEntries, pluralName } from './order.js';
+import { areaGroupName, memberBaseName, memberOrderEntries, pluralName } from './order.js';
 import { attackStat, bestDefence } from './rules.js';
 import { skillKey } from './flags.js';
 
@@ -63,14 +63,14 @@ export function memberPackLine(member) {
 }
 
 /** The standing real-slot groups, each with the display name an area asks for. */
-export function memberGroups(members, realFoes = []) {
+export function memberGroups(members, realFoes = [], { aoe = false } = {}) {
     const list = standingMembers(members), out = [], seen = new Set();
     for (const member of list) {
         const group = Number(member?.group);
         if (!Number.isFinite(group) || seen.has(group)) continue;
         seen.add(group);
         const real = (Array.isArray(realFoes) ? realFoes : []).find(foe => Number(foe?.slot) === group);
-        out.push({ group, label: pluralName(memberBaseName(member, real)), members: list.filter(item => Number(item?.group) === group) });
+        out.push({ group, label: aoe && real ? areaGroupName(real) : pluralName(memberBaseName(member, real)), members: list.filter(item => Number(item?.group) === group) });
     }
     return out;
 }

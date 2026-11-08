@@ -143,8 +143,13 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
             // (the newer area rule, record `aoe: 1`: ONE roll, the main group's. Its group's bars take the full effect, every other standing group's bars
             // the same roll at one Health block less. The old path below is kept for records without `aoe`.)
             const all = foes.filter(bar => standing(bar.id)), mainOf = bar => (bar.foe.group ?? bar.at) === entry.group;
-            if (!all.some(mainOf)) return { idle: 'no-target' };
-            return { lines: [...all.filter(mainOf).map(bar => hit(bars.get(bar.id), { pcDie, foeDie })), ...all.filter(bar => !mainOf(bar)).map(bar => hit(bars.get(bar.id), { pcDie, foeDie }, true))] };
+            if (!all.length) return { idle: 'no-target' };
+            const main = all.filter(mainOf), down = !main.length;
+            // If an earlier action cleared the main group, its contest still decides the other standing groups, without hitting the Down target.
+            const targets = [...(down ? [bars.get(foeId(entry.foe.slot))] : main), ...all.filter(bar => !mainOf(bar))];
+            return { lines: targets.map((bar, at) => ({ ...hit(bars.get(bar.id), { pcDie, foeDie }, !mainOf(bar)), aoe: true,
+                aoeGroup: bar.foe.group ?? bar.at, aoeAgainst: entry.foe.name, ...(Number.isFinite(bar.foe.level) ? { aoeLevel: bar.foe.level } : {}),
+                ...(at ? { aoeFollowup: true } : {}), ...(down && !at ? { aoeNoTarget: true } : {}) })) };
         }
         if (entry.area) {
             const targets = entry.group === undefined ? foes.filter(bar => standing(bar.id)) : areaBars;

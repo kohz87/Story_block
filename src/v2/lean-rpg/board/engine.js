@@ -15,6 +15,7 @@ import { boardDice } from './dice.js';
 import { fleeRoll } from './flee.js';
 import { memberRolls } from './member-rolls.js';
 import { boardFoes, collapseFoes, memberSize, splitFoes } from './members.js';
+import { areaGroupName } from './order.js';
 import { exchangePlan } from './plan.js';
 import { attackStat } from './rules.js';
 
@@ -147,6 +148,7 @@ export function playBoard(state, setup, exchanges) {
         weaponSides(prepared, fightSheet, equipment.weapons);
         const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, memberRolls: hooks, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
         const lines = rolled.rounds[0]?.lines ?? [];
+        for (const line of lines) if (line.aoe) line.aoeName = areaGroupName(realFoes.find(foe => foe.slot === line.aoeGroup));
         if (equipment.gear) {
             noteGear([...rolled.opening, ...lines], equipment.gear);
             wear.push(...stagingWear(copy, equipment.gear, { opening: rolled.opening, rounds: [{ n: number, lines }], rules }));
