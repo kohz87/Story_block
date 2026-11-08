@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHost, hostAvailable } from '../../testkit/index.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
-import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES_EIGHT as STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { skillSlots } from '../../src/v2/skill-slots.js';
 import { partyLines } from '../../src/v2/lean-rpg/view/changes-lines.js';
 import { joinCard, joinDraft, joinOffers } from '../../src/v2/lean-rpg/join.js';
@@ -194,13 +194,13 @@ test('F2: a character file keeps up to eight skills when its level has dropped b
     const { draft } = withImport(readDraft({ name: 'Wessel', kind: 'companion' }), file.file);
     assert.equal(draft.skills.length, 8, 'no cut to the current slots');
     assert.equal(readDraft(draft).skills.length, 8, 'a draft read again keeps them');
-    assert.equal(draftSlots(readDraft(draft)), 8);
-    assert.equal(withSkill(readDraft(draft)).skills.length, 8, 'but no new one is added');
+    assert.equal(draftSlots(readDraft(draft)), 11, 'eight combat kept and the three utility ones');
+    assert.equal(withSkill(readDraft(draft)).skills.at(-1).type, 'utility', 'a new one can only be a utility skill');
     const made = buildDefinitions(readDraft(draft), {});
     assert.equal(made.skills.state.skill8.default, 'Skill 8');
     assert.equal(made.skills.state.rank7.default, 2);
     // a draft that holds fewer keeps the level's room
-    assert.equal(draftSlots(readDraft({ name: 'Wessel', level: 30, skills: [] })), 6);
+    assert.equal(draftSlots(readDraft({ name: 'Wessel', level: 30, skills: [] })), 9, 'the level\'s six combat slots and the three utility ones');
 });
 
 // ---- F3: the tail's room -------------------------------------------------------------------------------------------------------------------------------

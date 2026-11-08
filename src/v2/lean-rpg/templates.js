@@ -8,6 +8,7 @@ import { CREATION, LEVEL, STATS, STAGES, USES } from './names.js';
 import { SIGNATURE_FIELD, SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { STANDARD_NUMBERS } from './formula.js';
 import { scaledCharacter } from './templates-bars.js';
+import { typedSkills } from './templates-skills.js';
 
 const names = (words, first = 0) => Object.fromEntries(words.map((word, index) => [String(index + first), word]));
 const HEALTH = names(STAGES.health);
@@ -259,9 +260,13 @@ export const COMBAT_PROMPT_STANDARD = [
 const standardCombat = { ...combat, stateVersion: 2, prompt: COMBAT_PROMPT_STANDARD };
 
 /** The Standard formula's four templates, in the chooser's order. Skills are the base block with the learn guard. */
+/** The Skills template as the eight-slot release had it (no types): a Re-read of a join made before them, and a block in a chat that has only such blocks. */
+export const skillsV2For = () => structuredClone(standardSkills);
+// The Skills template new blocks are made from: the eight slots plus three utility ones, a type on every slot (templates-skills.js).
+const typedStandardSkills = typedSkills(standardSkills, 'Five combat skills (more with levels) and three utility ones, for the story only. Each has a description, a stat, what it uses, a rank and practice 0 to 100. A learn line names a skill (type combat or utility, combat if left out); 100 practice raises the rank.');
 export const STANDARD_TEMPLATES = Object.freeze([
     { name: 'Character', definition: standardCharacter },
-    { name: 'Skills', definition: standardSkills },
+    { name: 'Skills', definition: typedStandardSkills },
     { name: 'Foes', definition: standardFoes },
     { name: 'Combat rules', definition: standardCombat },
 ]);
@@ -311,3 +316,6 @@ export const SKILL_SETS = Object.freeze([
         skill('Read people', 'int', 'Spotting a lie, a worry or a hidden rank from small signs.'),
         skill('Haggle', 'cha', 'Bargaining a price down, or a favour up.')] },
 ]);
+
+/** The Standard templates with the Skills block as the eight-slot release had it (no types): what a chat made before the types still holds; the tests of such chats read it. */
+export const STANDARD_TEMPLATES_EIGHT = Object.freeze(STANDARD_TEMPLATES.map(entry => (entry.name === 'Skills' ? { name: entry.name, definition: skillsV2For() } : entry)));

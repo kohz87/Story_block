@@ -120,9 +120,9 @@ test('a bad file is a plain error and nothing else, and reading never throws', (
     }
     const { dex: _dex, ...lacking } = STAT_VALUES;
     refused({ ...base(), stats: lacking }, /DEX/);
-    // (pinned change, extra skill slots: a file holds up to eight skills, so the limit named is 8 and nine are refused)
-    refused({ ...base(), skills: 'many' }, /at most 8/);
-    refused({ ...base(), skills: Array.from({ length: 9 }, () => SKILLS[0]) }, /at most 8/);
+    // (pinned change, extra skill slots: a file holds up to eleven skills (utility ones too), so the limit named is 11 and twelve are refused)
+    refused({ ...base(), skills: 'many' }, /at most 11/);
+    refused({ ...base(), skills: Array.from({ length: 12 }, () => SKILLS[0]) }, /at most 11/);
     refused({ ...base(), skills: [SKILLS[0], { ...SKILLS[1], rank: 4 }] }, /Skill 2 in the file is not valid/);
     refused({ ...base(), skills: [{ ...SKILLS[0], stat: 'hp' }] }, /Skill 1/);
     refused({ ...base(), skills: [{ ...SKILLS[0], uses: 'rage' }] }, /Skill 1/);
