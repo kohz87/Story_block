@@ -95,6 +95,10 @@ export const AUTO_CAP_SETTING = 'rpgAutoCap';
 export const AUTO_CAP = Object.freeze({ min: 1, max: 9, default: 3, end: 9 });
 export const autoCapFrom = values => (Number.isInteger(values?.[AUTO_CAP_SETTING]) && values[AUTO_CAP_SETTING] >= AUTO_CAP.min && values[AUTO_CAP_SETTING] <= AUTO_CAP.max
     ? values[AUTO_CAP_SETTING] : AUTO_CAP.default);
+/** The pre-check (board/precheck-run.js): Settings → RPG → Fight board "Set up a fight from my attack" (on unless set to false), and its time limit in ms. */
+export const PRECHECK_SETTING = 'rpgPrecheck';
+export const PRECHECK_LIMIT_MS = 20_000;
+export const precheckOn = values => values?.[PRECHECK_SETTING] !== false;
 export const autoExchanges = cap => (cap >= AUTO_CAP.end ? Infinity : cap);
 /** The most seconds an old `rpg.noroll` record may name as the limit its planner was given (replay only: the planner and its setting are gone). */
 export const NOROLL_LIMIT_MAX = 120;

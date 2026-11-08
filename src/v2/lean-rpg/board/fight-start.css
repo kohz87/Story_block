@@ -28,3 +28,9 @@
 .rpg-board-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--ss-text) 16%, transparent); }
 .rpg-board-setting-copy { min-width: 0; }
 .rpg-board-setting .ss-switch { flex: 0 0 auto; }
+/* The pre-check's wait line: one quiet line with a small spinner, no choice. */
+.rpg-fight-pause-working { display: flex; align-items: center; gap: 8px; }
+.rpg-fight-pause-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--ss-muted); border-top-color: var(--ss-accent, currentColor); border-radius: 50%; animation: rpg-fight-spin 0.9s linear infinite; }
+@keyframes rpg-fight-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .rpg-fight-pause-spinner { animation: none; } }
+.rpg-fight-pause-hint { margin-top: 2px; }

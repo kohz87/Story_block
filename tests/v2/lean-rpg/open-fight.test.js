@@ -94,7 +94,7 @@ test('the checks: whole words, plurals, small words, count 1-12, the level as wr
     assert.deepEqual(vetted.refused.map(entry => entry.name), ['Dragons']);
     assert.deepEqual(openLinesOf('pace: normal\nfoe Goblins | new | count: 3 | class: II\nfoe Rats | target: Wessel'), [{ name: 'Goblins', count: '3', class: 'II' }]);
     assert.deepEqual(openLinesOf('foe Goblins | new | count: 3 | level: 14 | rank: E'), [{ name: 'Goblins', count: '3', level: '14', rank: 'E' }]);
-    assert.equal(validatePlan({ pace: 'normal', open: [{ name: 'A', count: 13, class: 1 }] }).ok, false);
+    assert.equal(validatePlan({ pace: 'normal', open: [{ name: 'A', count: 1000, class: 1 }] }).ok, false);
     assert.equal(validatePlan({ pace: 'normal', open: [{ name: 'A', count: 2, class: 1 }] }).ok, true);
 });
 

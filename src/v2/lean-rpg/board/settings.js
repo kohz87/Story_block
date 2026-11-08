@@ -1,4 +1,4 @@
-// Draws the fight-board settings: the shared feature switch and Auto-fight's cap slider (Settings → RPG → Fight board).
+// Draws the fight-board settings: the shared feature switch, Auto-fight's cap slider and the pre-check's switch (Settings → RPG → Fight board).
 // The feature store is the single source of truth for the switch; the cap is the `rpgAutoCap` setting, 1 to 8 or "Until the end".
 import { h } from '../../view/widgets/dom.js';
 import { switchField } from '../../view/form/fields.js';
@@ -33,7 +33,19 @@ export function capSetting(doc, cap) {
     return box;
 }
 
-export function boardSetting(doc, feature, changed, cap = null) {
+/** The pre-check's switch card (on unless set to false): `precheck` is `{ value, set(on) }`; the words are the approved mockup's. */
+export function precheckSetting(doc, precheck) {
+    const row = h(doc, 'div', 'rpg-board-setting');
+    row.setAttribute('data-card', 'precheck');
+    const copy = h(doc, 'div', 'rpg-board-setting-copy');
+    copy.appendChild(h(doc, 'b', '', 'Set up a fight from my attack'));
+    copy.appendChild(h(doc, 'p', 'rpg-set-help', 'When you type an attack and no foe is standing, a short call on your Assist profile finds the foes, so you fight on the board before the reply. Off: the narrator sets up the foes and the board opens after its reply.'));
+    const field = switchField({ doc, ariaLabel: 'Set up a fight from my attack', value: precheck.value, onChange: value => precheck.set(value) });
+    row.append(copy, field.el);
+    return row;
+}
+
+export function boardSetting(doc, feature, changed, cap = null, precheck = null) {
     const row = h(doc, 'div', 'rpg-board-setting');
     row.setAttribute('data-card', 'board');
     const copy = h(doc, 'div', 'rpg-board-setting-copy');
@@ -44,5 +56,6 @@ export function boardSetting(doc, feature, changed, cap = null) {
     if (!cap) return row;
     const both = h(doc, 'div', 'rpg-board-settings');
     both.append(row, capSetting(doc, cap));
+    if (precheck) both.appendChild(precheckSetting(doc, precheck));
     return both;
 }
