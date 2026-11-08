@@ -52,8 +52,6 @@ function group(kind, gear = false) {
     const row = 'q.gx.rows[it.stack]';
     const edit = `{"value":"{{ it.name }}","itemCount":{{ q.counts[it.stack] }},"itemNote":"{{ it.note }}","displayValue":false,"kind":"item","label":"${jsonText(S.editItem)}","command":"inventory.edit","payload":{"stack":"{{ it.stack }}","group":true}${gear
         ? `,"gear":{"kind":"{{ it.kind }}","stack":"{{ it.stack }}","owner":"{{ it.owner }}","by":"{{ ${row}.byId }}","place":"{{ ${row}.place }}","slot":"{{ ${row}.slotKey }}","bound":"{{ ${row}.bound.who }}","def":"{{ it.def }}","rarity":"{{ it.rarity }}","row":{{ ${row} }},"kit":{{ q.gx.kit.open }},"owners":{{ q.gx.owners }}}` : ''}}`;
-    // A story item's small Carry edit (gear on): this one field, set by the reader only (the item's own Edit form has it for a piece they added).
-    const carryEdit = `{"value":"{{ ${row}.carryWord }}","displayValue":true,"kind":"fields","label":"${jsonText(G.form.carryEdit)}","command":"inventory.carry","payload":{"stack":"{{ it.stack }}"},"help":"${jsonText(G.form.carryHelp)}","fields":[{"key":"carry","label":"${jsonText(G.form.carry)}","type":"number","value":"{{ ${row}.carry }}","min":0,"max":500}]}`;
     // The chips and the condition of a row: today's, or (gear on) the slot, who wears it and the condition bar with its word.
     const chips = gear ? `
           <span class="rarity">{{ it.rarity }}</span>
@@ -72,15 +70,18 @@ function group(kind, gear = false) {
           <span class="chip eq worn-by bound" data-if="${row}.bound != null" title="${html(G.boundTitle, { name: '{{ ' + row + '.bound.who }}' })}">${LOCK}${html(G.boundBy, { name: '{{ ' + row + '.bound.who }}' })}</span>
           <span class="chip key" data-if="it.key" title="${html(S.keyTitle)}">${html(S.key)}</span>
           <span class="owner muted" data-if="it.owner != 'party'">{{ state.party.actors[it.owner].name }}</span>
-          <span class="item-carry" data-if="${row}.carryEdit" data-inline-control="ss.editable" data-props='${carryEdit}'></span>
+          <span class="carry-note" data-if="${row}.carry > 0">+{{ ${row}.carry }} ${html(S.carry)}</span>
         </div>`;
-    // Line 3: the stat bonus, the condition bar and word, then the note (muted), one line.
+    // Line 3: the stat bonus, the condition (bar and word together), then the note (muted), one line; a faint dot only between parts that are there.
     const detail = gear ? `
         <div class="detail gear-line g-l3">
           <span class="bonus" data-if="${row}.bonus != ''">{{ ${row}.bonus }}</span>
-          <span class="carry-note" data-if="it.carry">+{{ it.carry }} ${html(S.carry)}</span>
-          <span class="cbar" data-if="it.kind == 'equipment'" title="${html(G.condTitle)}" data-bind-var="--ss-fill: ${row}.fill" data-class="w-worn: ${row}.word == 'worn'; w-torn: ${row}.word == 'torn'; w-broken: ${row}.word == 'broken'"><i></i></span>
-          <span class="cword" data-if="it.kind == 'equipment'" data-class="w-worn: ${row}.word == 'worn'; w-torn: ${row}.word == 'torn'; w-broken: ${row}.word == 'broken'">${['good', 'worn', 'torn', 'broken'].map(word => `<span data-if="${row}.word == '${word}'">${html(G.words[word])}</span>`).join('')}<span data-if="${row}.broken"> ${html(G.brokenNoBonus)}</span></span>
+          <span class="sep" data-if="${row}.bonus != '' && it.kind == 'equipment'" aria-hidden="true">·</span>
+          <span class="cpart" data-if="it.kind == 'equipment'">
+          <span class="cbar" title="${html(G.condTitle)}" data-bind-var="--ss-fill: ${row}.fill" data-class="w-worn: ${row}.word == 'worn'; w-torn: ${row}.word == 'torn'; w-broken: ${row}.word == 'broken'"><i></i></span>
+          <span class="cword" data-class="w-worn: ${row}.word == 'worn'; w-torn: ${row}.word == 'torn'; w-broken: ${row}.word == 'broken'">${['good', 'worn', 'torn', 'broken'].map(word => `<span data-if="${row}.word == '${word}'">${html(G.words[word])}</span>`).join('')}<span data-if="${row}.broken"> ${html(G.brokenNoBonus)}</span></span>
+          </span>
+          <span class="sep" data-if="it.note != '' && (${row}.bonus != '' || it.kind == 'equipment')" aria-hidden="true">·</span>
           <p class="note muted" data-if="it.note">{{ it.note }}</p>
         </div>` : '';
     const buttons = gear ? '' : `
@@ -307,7 +308,7 @@ const CSS = `${BASE_CSS}
 .chip.slot { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7em; }
 .gear-line { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 0.8em; }
 .gear-line .bonus { color: var(--rarity); font-weight: 600; font-variant-numeric: tabular-nums; }
-.gear-line .carry-note { color: var(--sb-em); }
+.g-l2 .carry-note { color: var(--sb-em); font-size: 11px; }
 .cbar { --ss-fill: 1; position: relative; display: inline-block; width: 38px; height: 4px; border-radius: 2px; background: var(--ss-track, rgba(127, 127, 127, 0.3)); overflow: hidden; }
 .cbar > i { position: absolute; inset: 0 auto 0 0; width: calc(var(--ss-fill, 1) * 100%); border-radius: inherit; background: var(--ss-good, var(--sb-good)); }
 .cbar.w-worn > i { background: var(--ss-warn, #e0b04a); }
@@ -318,11 +319,11 @@ const CSS = `${BASE_CSS}
 .cword.w-torn { color: color-mix(in srgb, var(--ss-warn-text, #e0b04a) 55%, var(--ss-bad-text, var(--sb-bad))); }
 .cword.w-broken { color: var(--ss-bad-text, var(--sb-bad)); }
 .item.broken .name { text-decoration: none; }
-/* ---- Gear on: every row is three lines (name, pencil, rarity word, slot chip / who has it / bonus, condition, note), the same height, the same text
+/* ---- Gear on: every row is three lines (name, pencil, rarity word, slot chip / who has it, +N carry / bonus, condition, note), the same height, the same text
    edge; the compact Drop sits in the middle of the row. The row being edited keeps the form above (no fixed lines then). ---- */
 .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) { min-height: 84px; box-sizing: border-box; padding-top: 12px; padding-bottom: 12px; }
-.inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 20px 16px 16px; row-gap: 4px; column-gap: 10px; align-items: center; }
-.inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > :is(.g-l1, .g-l2, .g-l3) { grid-column: 1; grid-row: auto; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; }
+.inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 20px 16px 16px; row-gap: 6px; column-gap: 10px; align-items: center; }
+.inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > :is(.g-l1, .g-l2, .g-l3) { grid-column: 1; grid-row: auto; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--l-gap, 6px); min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; }
 .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .g-l1 { height: 20px; }
 .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > :is(.g-l2, .g-l3) { height: 16px; }
 .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .actions { grid-column: 2; grid-row: 1 / 4; align-self: center; justify-self: end; margin: 0; }
@@ -333,15 +334,13 @@ const CSS = `${BASE_CSS}
 .inv.gear .g-l1 .item-edit .ss-w-editable-pencil { height: 18px; min-height: 0; min-width: 0; padding: 0 2px; margin: 0; }
 .inv.gear .g-l1 .rarity { font-size: 9px; }
 .inv.gear .g-l2 .chip.eq { display: inline-flex; align-items: center; }
-.inv.gear .item.grow .g-l3 { font-size: 1em; }
-.inv.gear .g-l3 .note { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-.inv.gear .item.grow:has(.ss-w-editable-item-form) > .body > :is(.g-l2:not(:has(.ss-w-editable-item-form)), .g-l3) { display: none; }
-/* The small Carry control (line 2): a chip with its word and pencil; its open form unfolds the row like the Edit form (line 2 stays, shows only the form). */
-.inv.gear .item-carry .ss-w-editable { display: inline-flex; align-items: center; gap: 2px; height: 16px; padding: 0 2px 0 6px; border: 1px solid color-mix(in srgb, var(--sb-accent) 45%, transparent); border-radius: 999px; font-size: 10px; }
-.inv.gear .item-carry .ss-w-editable-pencil { height: 14px; min-height: 0; min-width: 0; padding: 0 2px; margin: 0; }
-.inv.gear .g-l2:has(.ss-w-editable-item-form) { display: flex; flex-wrap: wrap; height: auto; overflow: visible; white-space: normal; }
-.inv.gear .g-l2:has(.ss-w-editable-item-form) > :not(.item-carry) { display: none; }
-.inv.gear .item-carry:has(.ss-w-editable-item-form), .inv.gear .item-carry .ss-w-editable:has(.ss-w-editable-item-form) { display: block; width: 100%; height: auto; padding: 0; border: 0; border-radius: 0; font-size: inherit; }
+.inv.gear .item.grow .g-l3 { font-size: 1em; --l-gap: 14px; }
+.inv.gear .g-l2 { --l-gap: 10px; }
+.inv.gear .g-l3 > * { flex: none; }
+.inv.gear .g-l3 .sep { color: var(--sb-border); }
+.inv.gear .g-l3 .cpart { display: inline-flex; align-items: center; gap: 5px; }
+.inv.gear .g-l3 > .note { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.inv.gear .item.grow:has(.ss-w-editable-item-form) > .body > :is(.g-l2, .g-l3) { display: none; }
 .chip.bound { display: inline-flex; align-items: center; }
 .bound > .bound-lock { display: inline-flex; flex: none; margin: 0 3px 0 0; }
 .bound > .bound-lock .ss-w-badge { padding: 0; border: 0; background: none; min-height: 0; gap: 0; }
