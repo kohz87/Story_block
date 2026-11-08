@@ -9,10 +9,10 @@ import { offerLineData } from './start-view-data.js';
 const standing = state => state ? readSheet(state).foes.filter(foe => foe.filled && foe.hurt > 0) : [];
 const identity = foe => `${foe.slot}:${fold(foe.name)}`;
 const byIdentity = foes => new Map(foes.map(foe => [identity(foe), foe]));
-// A group is new when its slot:name was not standing before, when its count rose, or when the count is the same and its
-// Health is back up, or the reply itself set the slot (a slot cleared and set again, even with the same name and numbers).
-// Health alone falling or a smaller count is just the fight.
-const arrived = (foe, was, set) => set.has(foe.slot) || !was || foe.count > was.count || (foe.count === was.count && foe.hurt > was.hurt);
+// A group is new when its slot:name was not standing before, when its count rose, or when the reply itself set the slot
+// (a slot cleared and set again, even with the same name and numbers). Health moving either way (a foe healing) or a
+// smaller count is just the fight, never an arrival.
+const arrived = (foe, was, set) => set.has(foe.slot) || !was || foe.count > was.count;
 
 // What a reply's stored receipts say: the foe slots it set with a set-slot line, and how the board fight it carried ended.
 function receiptsOf(store, index) {
