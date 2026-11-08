@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { STANDARD_TEMPLATES, SKILL_SETS, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, SKILL_SETS, characterV1For, skillsV2For } from '../../../src/v2/lean-rpg/templates.js';
 import { CREATION, ROLES, STATS, USES } from '../../../src/v2/lean-rpg/index.js';
 import { validateDataModules, DM_LIMITS as L } from '../../../src/v2/data-modules/check.js';
 
@@ -35,7 +35,7 @@ test('every block stays inside the field, kind and text limits', () => {
         // The block engine's limit is DM_LIMITS.fields (32), not 16. (Pinned change, extra skill slots: the Skills block's eight slots of six fields, its `who`
         // and the signature mark are 50, inside DM_LIMITS.skillsFields, the limit of a block with the role `skills`.)
         assert.ok(Object.keys(definition.state).length <= (definition.role === 'skills' ? L.skillsFields : L.fields), `${definition.slug} fields`);
-        assert.ok(Object.keys(definition.kinds).length <= L.kinds, `${definition.slug} kinds`);
+        assert.ok(Object.keys(definition.kinds).length <= (definition.role === 'skills' ? L.skillsKinds : L.kinds), `${definition.slug} kinds`);
         for (const field of Object.values(definition.state)) if (field.type === 'text') assert.ok(field.max <= L.text);
         for (const kind of Object.values(definition.kinds)) for (const label of Object.values(kind.labels)) {
             if (label.type === 'text') assert.ok(label.max <= L.text);
@@ -73,7 +73,7 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
 });
 
 test('the Skills block has eight slots of name, description, stat, resource, rank and practice and the signature mark: 50 fields, 16 kinds', () => {
-    const { state, kinds, rules } = template('Skills');
+    const { state, kinds, rules } = skillsV2For();
     assert.equal(Object.keys(state).length, 50);
     assert.equal(Object.keys(kinds).length, 16);
     assert.equal(state.who.type, 'text');
@@ -120,7 +120,7 @@ test('a rise is a plain rule: XP at 100 raises the Level (below the cap), resets
         '2.17.0: the rise is worked out once (min of the XP\'s hundreds and the room under the cap), carries the XP over 100 and gives a point for every multiple of 3 crossed');
     assert.deepEqual(character.rules.find(rule => rule.id === 'xp-cap').then, [{ op: 'set', path: ['xp'], value: 100 }], 'at the cap the XP past 100 is not kept');
     for (const rule of template('Skills').rules) {
-        const n = rule.id.at(-1);
+        const n = rule.id.slice('rank-up-'.length);
         assert.deepEqual(rule.when, ['and', ['ge', ['get', [`practice${n}`]], 100], ['lt', ['get', [`rank${n}`]], 3]]);
         assert.deepEqual(rule.then, [{ op: 'add', path: [`rank${n}`], value: 1, bounds: 'clamp' }, { op: 'set', path: [`practice${n}`], value: 0 }]);
     }

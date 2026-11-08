@@ -24,8 +24,12 @@ export function skillKey(module, skill) {
     return JSON.stringify([String(module ?? ''), Number(skill?.slot) || 0, fold(skill?.name ?? '')]);
 }
 
-/** Use explicit boolean flags when present; older skills need no migration. */
+/** A utility skill (the Skills block's `type`, read.js skillsOf) is for the story: the board never offers it, Auto never picks it, and it is never a defence. */
+export const isUtility = skill => skill?.type === 'utility';
+
+/** Use explicit boolean flags when present; older skills need no migration. A utility skill has none. */
 export function skillFlags(skill, overrides = null) {
+    if (isUtility(skill)) return { target: false, area: false, defence: false };
     const defaults = defaultFlags(skill);
     return Object.fromEntries(Object.keys(defaults).map(flag => [flag, typeof overrides?.[flag] === 'boolean' ? overrides[flag] : defaults[flag]]));
 }

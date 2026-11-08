@@ -136,8 +136,8 @@ export function joinDraft({ name = '', about = '', soul = 1, best = '', skills =
  * The two definitions a joining companion is made of (`used`: the ids of the story's blocks, so the slugs are free). The Character
  * starts with no unspent points: the named stat is raised and the rest left as it was, as the line said.
  */
-export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null, cap = null, legacy = false, scale = 2 } = {}) =>
-    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap, legacy, scale });
+export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null, cap = null, legacy = false, scale = 2, typed = true } = {}) =>
+    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap, legacy, scale, typed });
 
 /**
  * A Re-read takes the joined character's scale from that reply's pin. Otherwise choose 1 when all existing character pins are old, else 2.

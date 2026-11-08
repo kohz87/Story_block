@@ -37,6 +37,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/join.js`: reads party join and leave lines, then builds companion definitions and offer cards.
 - `src/v2/lean-rpg/templates-bars.js`: turns the old Character template into the doubled-bars one (`scale: 2`: size expressions, grow rules, bar maximum and default).
 - `src/v2/lean-rpg/templates-recovery.js`: the marked Character's recovery kinds (rest, full-rest, heal, Short rest and Full rest buttons), no narrator `add-xp`, its prompt.
+- `src/v2/lean-rpg/templates-skills.js`: turns the eight-slot Skills template into the typed one (three utility slots 9 to 11, a `type` per slot, the learn line's optional `type` label, matching rank-up rules).
 - `src/v2/lean-rpg/levels.js`: level, rank, level-cap and XP-rate helpers plus the RPG rank query.
 - `src/v2/lean-rpg/noroll.js`: replay-only: shows and re-reads the per-reply receipt an old chat's retired roll planner left when it gave no usable plan.
 - `src/v2/lean-rpg/open.js`: checks and fills new foes that the roll planner opens during a fight.
