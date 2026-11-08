@@ -26,22 +26,26 @@ test('a message naming both example groups reads their names and counts', () => 
         [{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6 }, { name: 'Bilge-Rat Offspring', count: 80 }]);
 });
 
-test('a message that is not an attack gives nothing', () => {
-    for (const message of ['I thank the guard and ask about the road.', 'I do not attack the rats.', 'The rats attack me.'])
-        assert.equal(looksLikeAttack(message), false, message);
-});
+const OWNER = 'Without waiting for them to approach, using the element of surprise, I launched an attack in the guard and master vane immediately.\n\nI took down the men then called for Temiwa and Torka to come over.';
+const OWNER2 = 'After that I head out to clear the mud-lampreys or bog-boars, seeking them out and immediately found them digging on the ground, when I approach them from the shadow, I immediately attacked them.';
 
-test('the owner message and adverb or comma subjects read as attacks', () => {
-    const owner = 'I head out to clear the bog-boars, seeking them out and immediately found them digging on the ground, when I approach them from the shadow, I immediately attacked them.';
-    for (const message of [owner, 'I immediately attacked them', 'As I crept closer, I attacked the boars', 'then I quickly struck the boar',
-        'we finally charged', 'I just also swung at the boar', 'The wind rose: I attacked the boars'])
+test('the gate is loose: any attack word in a clause with no doubt word passes', () => {
+    for (const message of [OWNER, OWNER2, 'while the dogs are mauling him, right when he\'s about to die, I attack the dogs immediately',
+        'they started attacking the two men', 'I attacked them', 'I slit the sentry\'s throat', 'I hurl the spear at the boar', 'I cut down the guard',
+        'I launched an assault on the camp', 'I charged the raiders'])
         assert.equal(looksLikeAttack(message), true, message);
 });
 
-test('other subjects, doubts and quotes still give no attack', () => {
-    for (const message of ['the boar attacked me', 'they attacked the cart', 'she struck him, I watched', 'I ask whether I should attack',
-        "I don't attack the boar", 'He said "I attacked them" and left.', 'I quietly slowly really attacked them'])
+test('a message with no attack word, only quoted words or a doubt clause gives nothing', () => {
+    for (const message of ['I thank the guard and ask about the road.', 'I kiss her neck', 'He said "I attacked them" and left.', '"I attack the boar"',
+        'I ask whether I should attack', "I don't attack the boar", 'I do not attack the rats.'])
         assert.equal(looksLikeAttack(message), false, message);
+});
+
+test('a third party or an idiom passes the gate by design: Assist decides', () => {
+    for (const message of ['The rats attack me.', 'the boar attacked me', 'they attacked the cart', 'she struck him, I watched', 'I wait for the sow to attack me',
+        'I hit the road', 'I kill time at the inn'])
+        assert.equal(looksLikeAttack(message), true, message);
 });
 
 test('every distinctive word of a name must appear whole in the message', () => {
@@ -110,12 +114,11 @@ test('an attack blended into narration is read', () => {
     ]) assert.equal(looksLikeAttack(message), true, message);
 });
 
-test('a third party, a question, a quote or a cart is not the reader attacking', () => {
+test('a question, a quote, a cart or a non-fight phrasal is not an attack word at all', () => {
     for (const message of [
-        'the boar attacked me', 'they attacked the cart', 'she struck him, I watched', 'I ask whether I should attack', 'I don\'t attack',
+        'I ask whether I should attack', 'I don\'t attack',
         '"I attack the boar"', 'my sister drives the cart into the yard', 'I drive the cart into town', 'I bring the meat down to the cellar',
         'the sow\'s tusk goes for my leg', 'Grel\'s pistol smashes the lamp', 'I go for a walk', 'I rush at the chance',
-        'I wait for the sow to attack me',
         'I drive my fingers into her hair.', 'My hand goes for her waist.', 'I bury my face into her neck.', 'I go for the stew.', 'I rush at the door.',
         'My fist bangs on the table.', 'I crack a smile at her.', 'I crack the egg.', 'I take her by surprise with a kiss.', 'I sink into the bath.',
         'I bring my hand down on her shoulder.', 'Without a word I hand her the note.', 'My cane lashes the mud from my boots.',
@@ -124,12 +127,15 @@ test('a third party, a question, a quote or a cart is not the reader attacking',
     ]) assert.equal(looksLikeAttack(message), false, message);
 });
 
-test('the standing-foe hold reads the same shapes', async () => {
+test('the standing-foe hold stays strict on the subject and judges every attack word', async () => {
     const { knownFoeAction } = await import('../../../../src/v2/lean-rpg/board/action-gate.js');
     const foes = { foes: [{ name: 'Bog Boar', filled: true, hurt: 2 }] };
     for (const text of ['Without a word I charge the boars, cane raised.', 'My cane lashes out at the boar\'s throat.', 'I drive the iron ferrule into the boar\'s skull.',
         'I slip in from the shadows to take the boars by surprise.']) assert.equal(knownFoeAction(text, foes), true, text);
-    for (const text of ['I drive the cart into town', 'the boar\'s tusk goes for my leg', 'I go for a walk']) assert.equal(knownFoeAction(text, foes), false, text);
+    for (const text of ['I drive the cart into town', 'the boar\'s tusk goes for my leg', 'I go for a walk', 'the boar attacked me']) assert.equal(knownFoeAction(text, foes), false, text);
+    const dogs = { foes: [{ name: 'Dog', filled: true, hurt: 1 }] };
+    assert.equal(knownFoeAction('while the dogs are mauling him, I attack the dogs', dogs), true);
+    assert.equal(knownFoeAction('while the dogs are mauling him, they attack the dogs', dogs), false);
 });
 
 test('the prompt carries the count rule, the not-a-fight rule and up to 4000 characters of the reply before', () => {
@@ -137,6 +143,7 @@ test('the prompt carries the count rule, the not-a-fight rule and up to 4000 cha
     assert.match(prompt, /If the message gives none, use the number the reply just before it gives/u);
     assert.match(prompt, /"two massive bog-boars" = 2/u);
     assert.match(prompt, /Only if neither says, use 1/u);
+    assert.match(prompt, /already over \('after the fight'\)/u);
     assert.match(prompt, /not attacking anyone .*hit the road.*punch the dough.*kill time.*\{"groups":\[\]\}/u);
     const previous = `${'a'.repeat(1000)}${'b'.repeat(4000)}`;
     const kept = /The reply just before it[^\n]*\n(\w+)\n/u.exec(precheckPrompt({ message: 'I attack.', previous, sheet }))[1];

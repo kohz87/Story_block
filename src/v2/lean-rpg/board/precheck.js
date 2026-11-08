@@ -1,7 +1,7 @@
 // The foe pre-check: a short, pure reading of the reader's typed attack before a reply is generated. It asks for the
 // enemy groups the message attacks, reads the answer as JSON, and holds those groups to the Foes block's rules. It
 // plans no dice and writes nothing; the caller records accepted groups as an opening and the board plays it.
-import { READER_SUBJECT, findAttack, ownSubjectOk } from './action-gate.js';
+import { findAttack } from './action-gate.js';
 import { FOE_SLOTS } from '../names.js';
 import { OPEN_MAX_NAME } from '../open.js';
 import { FOE_COUNT_MAX } from '../templates.js';
@@ -42,16 +42,13 @@ export function namedInMessage(name, message, previous = '') {
     return wanted.every(word => seen.has(word));
 }
 
-/** Whether the reader's message types an explicit attack, using the board's attack words without needing a known foe. */
+/**
+ * Whether the message could be an attack: any clause with an attack word or phrasal attack and no doubt word. The gate is LOOSE on purpose
+ * (no subject test: a third party or an idiom passes); the Assist reading decides whether the reader is really starting a fight.
+ */
 export function looksLikeAttack(message) {
     const text = String(message ?? '').replace(/[“"][^”"]*[”"]/gu, ' ');
-    return text.split(/[.!?;\n]|\b(?:and|then|but)\b/iu).some(clause => {
-        if (UNCERTAIN.test(clause)) return false;
-        const action = findAttack(clause);
-        if (!action) return false;
-        const before = clause.slice(0, action.index).trim();
-        return !before || (READER_SUBJECT.test(before) && ownSubjectOk(before, clause, action));
-    });
+    return text.split(/[.!?;\n]|\b(?:and|then|but)\b/iu).some(clause => !UNCERTAIN.test(clause) && findAttack(clause) !== null);
 }
 
 function partyLine(sheet, roster) {
@@ -86,7 +83,7 @@ export function precheckPrompt({ message = '', previous = '', sheet = null, rost
         `Party: ${party || 'none'}`,
         '',
         'Rules:',
-        '- If the reader is not attacking anyone (an idiom such as "hit the road", "punch the dough", "kill time", a threat, a question, a plan for later, or someone else attacking), reply {"groups":[]}.',
+        '- If the reader is not attacking anyone (an idiom such as "hit the road", "punch the dough", "kill time", a threat, a question, a plan for later, a fight that is already over (\'after the fight\'), or someone else attacking), reply {"groups":[]}.',
         '- List only enemies the reader explicitly attacks. Ignore allies, bystanders and groups already on the sheet.',
         `- Give each group a short natural name (at most ${PRECHECK_LIMITS.name} characters), using the words of the message or of the reply before it.`,
         `- count is the whole number of foes in that group, from 1 to ${PRECHECK_LIMITS.count}. Resolve amounts: "six" = 6, "a dozen" = 12, "4 scores" = 80.`,
