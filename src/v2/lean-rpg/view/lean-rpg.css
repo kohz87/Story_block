@@ -222,10 +222,6 @@
 .rpg-bl-label { color: var(--ss-muted); }
 .rpg-bl-track { display: block; height: 6px; border-radius: 3px; background: var(--ss-track); overflow: hidden; }
 .rpg-bl-fill { display: block; height: 100%; width: calc(var(--rpg-fill, 0) * 100%); border-radius: 3px; background: var(--ss-text); }
-/* The bars are coloured by stage (good near full, warn in the middle, bad near empty), like the Party tab's, not by resource. */
-.rpg-bl-tone-good .rpg-bl-fill { background: var(--ss-good); }
-.rpg-bl-tone-warn .rpg-bl-fill { background: var(--ss-warn); }
-.rpg-bl-tone-bad .rpg-bl-fill { background: var(--ss-bad); }
 .rpg-bl-foes { grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; }
 .rpg-bl-foe-list { overflow-wrap: anywhere; }
 @media (max-width: 600px) {

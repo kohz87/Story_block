@@ -11,6 +11,8 @@ import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { setRpgLib } from '../../../src/v2/rpg-lazy.js';
+import * as leanRpg from '../../../src/v2/lean-rpg/index.js';
 import { partyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { fakeState, characterDefinition, skillsDefinition } from './view/helpers.js';
 
@@ -186,6 +188,25 @@ test('a swipe takes the companion back; a Re-read and a rebuild and a reload kee
     await host.st.deleteMessage(host.ctx.chat.length - 1);
     assert.equal(blocks(host).includes('pack.chat/mara'), false, 'deleting the reply takes it away');
     await rebuilt(host, 'after a delete');
+});
+
+test('a Re-read keeps the old pin of a first companion even when the prefix has no characters', { skip }, async t => {
+    const host = await world({ wessel: false });
+    t.after(() => { setRpgLib(leanRpg); host.close(); });
+    // Permit a historical first-join line through the current grammar gate and capture it with the old scale.
+    // The gate reads the live head; planning reads a prefix object without meta, so the first-join setup stays real.
+    setRpgLib({ ...leanRpg, joinScale: () => 1, partyOf: state => {
+        const party = leanRpg.partyOf(state);
+        return !party.length && state?.meta ? [{ name: 'Gate' }] : party;
+    } });
+    try { await host.send('Mara walks in.', reply(MARA)); } finally { setRpgLib(leanRpg); }
+    const at = host.ctx.chat.length - 1, domain = host.head().domains.dataModules;
+    const before = structuredClone(domain.active['pack.chat/mara']);
+    assert.ok(before, 'the old first join made a character');
+    assert.equal(domain.pins[before.hash].definition.state.health.scale, undefined);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.deepEqual(host.head().domains.dataModules.active['pack.chat/mara'], before, 'the same pinned definition and generation remain');
+    await rebuilt(host, 'after a Re-read of the first old companion');
 });
 
 // ---- Off, and the grammar ----------------------------------------------------------------------------------------------------------

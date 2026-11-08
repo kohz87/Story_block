@@ -126,7 +126,7 @@ test('the panel: short lines, the coloured result word, (26 vs 16), the arrow, a
     assert.deepEqual(node.querySelectorAll('.rpg-out').map(word => word.className), ['rpg-out rpg-out-fail', 'rpg-out rpg-out-success', 'rpg-out rpg-out-cost']);
     assert.equal(node.querySelector('.rpg-skill').textContent, 'Iron Breath');
     const wessel = node.querySelector('.rpg-bl-who[data-who="Wessel"]');
-    assert.deepEqual(wessel.querySelectorAll('.rpg-bl-stat').map(cell => cell.querySelector('.rpg-bl-word').textContent), ['Scratched', 'Steady', 'Tired']);
+    assert.deepEqual(wessel.querySelectorAll('.rpg-bl-stat').map(cell => cell.querySelector('.rpg-bl-word').textContent), ['Scratched · 4/5', 'Steady · 3/4', 'Tired · 2/4']);
     assert.equal(wessel.querySelector('.rpg-bl-health .rpg-bl-track').style.getPropertyValue('--rpg-fill'), '0.8');
     assert.equal(wessel.querySelector('.rpg-bl-mana .rpg-bl-track').style.getPropertyValue('--rpg-fill'), '0.75');
     assert.equal(node.querySelector('.rpg-bl-foes').textContent, 'FoesSluice Rat A · Lv 5: Wounded · Sluice Rat B · Lv 5: Hurt');   // (PINNED CHANGE: only the groups that rolled)
@@ -154,7 +154,7 @@ test('a foe\'s attack says Hit, Grazed or Blocked in the outcome\'s colour, the 
     assert.match(css, /\.rpg-out-success \{[^}]*--ss-good/);
 });
 
-test('the Status bars are coloured by stage, as the Party tab\'s are, not by resource', () => {
+test('the Status bars use the same resource colours and dulling as the Party bars', () => {
     const { node, model } = panel();
     const tones = rows => rows.map(row => [row.key, row.tone]);
     // Wessel: Scratched 4/5, Steady 3/4, Tired 2/4. Ren: Hurt 3/5, Drained-ish 2/4, Tired 2/4.
@@ -162,11 +162,16 @@ test('the Status bars are coloured by stage, as the Party tab\'s are, not by res
     assert.deepEqual(tones(model.status[1].rows), [['health', 'warn'], ['mana', 'warn'], ['stamina', 'warn']]);
     const cells = who => node.querySelectorAll(`.rpg-bl-who[data-who="${who}"] .rpg-bl-stat`);
     assert.deepEqual(cells('Wessel').map(cell => cell.className.split(' ').filter(name => name.startsWith('rpg-bl-tone-'))), [['rpg-bl-tone-good'], ['rpg-bl-tone-good'], ['rpg-bl-tone-warn']]);
+    assert.deepEqual(cells('Wessel').map(cell => cell.className.split(' ').find(name => name.startsWith('rpg-bl-step-'))), ['rpg-bl-step-full', 'rpg-bl-step-full', 'rpg-bl-step-mid']);
     const bad = panelModel({ resolve: readResolve(result()), state: state({ wessel: { health: 1, mana: 0, stamina: 4 } }), before, roleOf });
     assert.deepEqual(tones(bad.status[0].rows), [['health', 'bad'], ['mana', 'bad'], ['stamina', 'good']]);
-    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
-    for (const tone of ['good', 'warn', 'bad']) assert.match(css, new RegExp(`\\.rpg-bl-tone-${tone} \\.rpg-bl-fill \\{[^}]*--ss-${tone}`));
-    assert.doesNotMatch(css, /\.rpg-bl-(health|mana|stamina) \.rpg-bl-fill/, 'no colour by resource');
+    const low = buildPanel(setupDom(), bad).querySelectorAll('.rpg-bl-who[data-who="Wessel"] .rpg-bl-stat');
+    assert.deepEqual(low.map(cell => cell.className.split(' ').find(name => name.startsWith('rpg-bl-step-'))), ['rpg-bl-step-low', 'rpg-bl-step-low', 'rpg-bl-step-full']);
+    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/bars.css', import.meta.url), 'utf8');
+    for (const [bar, token] of [['health', 'hp'], ['mana', 'mp'], ['stamina', 'sp']]) assert.match(css, new RegExp(`\\.rpg-bl-${bar} \\{ --rpg-bar: var\\(--ss-${token}\\)`));
+    for (const step of ['full', 'mid', 'low']) assert.match(css, new RegExp(`\\.rpg-bl-step-${step} \\.rpg-bl-fill`));
+    assert.match(css, /:is\(\.ss-bar-hp, \.ss-bar-sp, \.ss-bar-mp\) \.ss-bar-head/);
+    assert.doesNotMatch(css, /^\.ss-bar-(head|value)\s*\{/m, 'the XP and other bars retain their existing layout');
 });
 
 test('the breakdown is on tap, for every line', () => {

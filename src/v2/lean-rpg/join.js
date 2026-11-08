@@ -11,7 +11,7 @@ import { activeDefinition, instanceOf } from '../data-modules/adapters.js';
 import { DM_LIMITS } from '../data-modules/schema.js';
 import { oneLine } from '../../text.js';
 import { CLASS_NAMES, CREATION, JOINS, JOIN_SETTING, PARTY_MAX, STATS } from './names.js';
-import { fold, readSheet } from './read.js';
+import { fold } from './read.js';
 import { RPG_STRINGS, fill } from './strings.js';
 import { buildDefinitions, creationOf, hasRoom, newSoul, readDraft } from './view/wizard-data.js';
 import { classOfLevel, companionStats, levelOfClass } from './formula.js';
@@ -140,10 +140,15 @@ export const joinDefinitions = (request, { used = [], soul = request.soul, rules
     buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap, legacy, scale, typed });
 
 /**
- * The bar sizes a joining companion is made with: 1 (the earlier sizes) when the story already has characters and none of them has the doubled bars, else 2.
- * Read from the pins of the state before the reply, so a Re-read of the join chooses the same.
+ * A Re-read takes the joined character's scale from that reply's pin. Otherwise choose 1 when all existing character pins are old, else 2.
+ * Inspect pins even when a character has left or has no readable name; those old pins still identify the story's existing scale.
  */
-export const joinScale = state => { const sheet = readSheet(state).characters; return sheet.length && !sheet.some(person => person.scale === 2) ? 1 : 2; };
+export const joinScale = (state, standing = null, module = null) => {
+    const joined = module && standing ? activeDefinition(standing, module) : null;
+    if (joined?.role === 'character') return joined.state?.health?.scale === 2 ? 2 : 1;
+    const pins = Object.keys(state?.domains?.dataModules?.active ?? {}).map(id => activeDefinition(state, id)).filter(definition => definition?.role === 'character');
+    return pins.length && !pins.some(definition => definition.state?.health?.scale === 2) ? 1 : 2;
+};
 
 /**
  * The offers on a reply: the `+ party` lines that asked (Ask), read from the reply's receipts (`entries`: store.receipts() as a

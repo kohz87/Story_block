@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { STANDARD_TEMPLATES, SKILL_SETS, skillsV2For } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, SKILL_SETS, characterV1For, skillsV2For } from '../../../src/v2/lean-rpg/templates.js';
 import { CREATION, ROLES, STATS, USES } from '../../../src/v2/lean-rpg/index.js';
 import { validateDataModules, DM_LIMITS as L } from '../../../src/v2/data-modules/check.js';
 
@@ -157,7 +157,7 @@ test('the combat rules text is the [COMBAT SYSTEM] prompt with a line on rolls a
 // 2.7 definition: the shapes the RPG adds sit only in those keys.
 test('without the new block-engine keys, each template passes the data-module checker', () => {
     for (const { definition } of STANDARD_TEMPLATES) {
-        const legacy = structuredClone(definition);
+        const legacy = definition.role === 'character' ? characterV1For() : structuredClone(definition);
         // (pinned change, extra skill slots: the Skills block's eight slots need the role's larger field limit, so its role stays)
         if (definition.role !== 'skills') delete legacy.role;
         delete legacy.replyEnd;

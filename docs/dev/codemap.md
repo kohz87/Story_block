@@ -87,6 +87,9 @@ Last checked: 2026-11-07.
 - `src/v2/timeline/referenced.js`: the `timeline.referenced` query: checkpoint ids named by every chat SillyTavern lists (chats of deleted characters are not checked); any listed chat unreadable makes the answer incomplete. Not replay-safe.
 - `src/v2/timeline/util.js`: holds shared timeline ids, error codes, crash and stale-chat helpers.
 
+## src/v2/turn/
+- `src/v2/turn/money-guard.js`: money guard; warns in Problems (never blocks, writes nothing) on a coin line repeating a recent same-source payment or far above the purse.
+
 ## src/v2/ui/
 - `src/v2/ui/inventory-tab.js`: draws a minimal plain Inventory tab with item stacks and command buttons.
 - `src/v2/ui/scene-tab.js`: draws a minimal plain read-only Scene tab with place and present people.

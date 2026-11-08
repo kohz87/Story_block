@@ -185,7 +185,10 @@ export function createParty(deps) {
         // (and one made before the skill types has eight slots and no `type` field: built that way again; a first read of a join makes the typed block)
         const typed = !earlier || Object.hasOwn(earlier.definition.state ?? {}, 'type1');
         const seeds = legacy ? [] : castSeeds(ctx, request.name, 'join');
-        const made = rpg().joinDefinitions({ ...request, skills: seeds }, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap), legacy, typed, scale: rpg().joinScale(prefix) });
+        // Re-reading an existing join uses its own pinned character, even if the prefix had no characters at all.
+        const prior = (ctx.standingReceipts ?? []).find(receipt => receipt?.data?.join?.op === 'added' && fold(receipt.data.join.name) === fold(request.name));
+        const scale = rpg().joinScale(prefix, ctx.standing, prior?.data?.v2?.result?.module);
+        const made = rpg().joinDefinitions({ ...request, skills: seeds }, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap), legacy, typed, scale });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
         const first = rpg().partyOf(prefix).length === 0, plan = first ? rpg().extrasPlan(prefix) : { add: [], skipped: [] };
         const extras = rpg().extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug] });

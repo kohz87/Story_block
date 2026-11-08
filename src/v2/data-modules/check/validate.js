@@ -58,7 +58,12 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
             else show.tabName = oneLine(show.tabName);
         }
         if (byteLength(JSON.stringify(definition)) > L.definitionBytes) add('DM_BUDGET', at, `A definition must fit ${L.definitionBytes} UTF-8 JSON bytes.`);
-        for (const [key, schema] of named(definition.state, definition.role === 'skills' ? L.skillsFields : L.fields, `${at}.state`, add)) scalar(schema, `${at}.state.${key}`, add);
+        for (const [key, schema] of named(definition.state, definition.role === 'skills' ? L.skillsFields : L.fields, `${at}.state`, add)) {
+            scalar(schema, `${at}.state.${key}`, add);
+            if (schema?.scale !== undefined && (definition.role !== 'character' || !['health', 'stamina', 'mana'].includes(key) || schema.blocks !== key)) add('DM_SCHEMA', `${at}.state.${key}.scale`, STRINGS.blocks.scaleKey);
+        }
+        if (['health', 'stamina', 'mana'].some(key => definition.state?.[key]?.scale === 2)
+            && !['health', 'stamina', 'mana'].every(key => definition.state?.[key]?.scale === 2 && definition.state[key].blocks === key)) add('DM_SCHEMA', `${at}.state`, 'A scaled character needs all three scaled bars.');
         layoutKeys(definition, at, add);
         if (definition.role !== undefined) stageFields(definition, at, add);
         imports(definition, at, add); // forms first, linking before expression analysis below

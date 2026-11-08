@@ -35,7 +35,7 @@ export const pressButton = (doc, text, cls, act) => {
 };
 const signed = n => n >= 0 ? `+${n}` : String(n);
 const labelLine = line => {
-    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.reduced ? `… also hits ${foe.name} (reduced)` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
+    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.support ? `${pc.who} heals ${line.target}` : line.reduced ? `… also hits ${foe.name} (reduced)` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
     const bonus = (pc.statBonus ?? 0) + (pc.classBonus ?? 0) + (pc.rank ?? 0) + (pc.edge ?? 0);
     const changes = [line.damage ? barMovement(line.damage) : '', line.cost ? barMovement(line.cost, true) : ''].filter(Boolean);
     const skill = line.skill ? ` (${line.skill})` : '';
@@ -236,6 +236,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             for (const round of result.rounds ?? []) {
                 logContent.appendChild(h(doc, 'p', 'rpg-board-round', `Exchange ${round.n}`));
                 for (const group of areaLineGroups(round.lines)) logContent.appendChild(h(doc, 'p', '', group[0].aoe ? labelAreaGroup(group) : labelLine(group[0])));
+                for (const item of round.idle ?? []) if (item.why === 'no-resource') logContent.appendChild(h(doc, 'p', '', `${item.who} cannot heal: the skill's resource is Empty.`));
             }
         }
         if (!logContent.childNodes.length) logContent.appendChild(h(doc, 'p', '', 'Choose an action to begin.'));
@@ -282,6 +283,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                     targeting = null;
                 }
                 else if (item.action.kind === 'flee') chosen = [item.action];
+                else if (item.action.support) chosen.push(item.action);
                 else if (item.action.area && members) {
                     if (memberGroupList.length > 1) targeting = { groupMode: true, action: item.action };
                     else chosen.push({ ...item.action, ...(memberGroupList[0] ? { group: memberGroupList[0].group } : {}) });

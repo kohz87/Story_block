@@ -75,10 +75,10 @@ test('a card per filled foe slot: name (× count), Class pill, smooth health str
     assert.equal(bar('Sluice Rat A').getAttribute('aria-valuemax'), '5');
     assert.equal(bar('Sluice Rat A').querySelectorAll('.ss-w-meter-cell').length, 0, 'no cells: one smooth strip');
     assert.match(bar('Sluice Rat A').className, /ss-w-bar-health/, 'the red Health strip');
-    assert.match(foeCard(el, 'Sluice Rat A').textContent, /Wounded/);
+    assert.match(foeCard(el, 'Sluice Rat A').textContent, /Wounded · 2\/5/);
     assert.match(foeCard(el, 'Sluice Rat B').textContent, /Scratched/);
     assert.deepEqual(['Sluice Rat A', 'Sluice Rat B', 'Rat Swarm'].map(name => bar(name).className.match(/ss-w-tone-(\w+)/)[1]), ['warn', 'good', 'good']);
-    assert.match(foeCard(el, 'Sluice Rat C').textContent, /Down/);
+    assert.match(foeCard(el, 'Sluice Rat C').textContent, /Down · 0\/5/);
     assert.ok(foeCard(el, 'Sluice Rat C').classList.contains('rpg-down'), 'greyed');
     assert.ok(!foeCard(el, 'Sluice Rat A').classList.contains('rpg-down'));
     assert.deepEqual(readFight(state, { roleOf }).map(item => [item.name, item.tone, item.down]), [['Sluice Rat A', 'warn', false], ['Sluice Rat B', 'good', false], ['Sluice Rat C', 'bad', true], ['Rat Swarm', 'good', false]]);
@@ -117,7 +117,7 @@ test('a card per character with the three stage bars', () => {
     assert.deepEqual(el.querySelectorAll('.rpg-pc').map(node => node.getAttribute('data-character')), ['Wessel', 'Ren']);
     const mine = el.querySelector('.rpg-pc[data-character="Wessel"]');
     assert.deepEqual(mine.querySelectorAll('.rpg-bar').map(node => node.getAttribute('data-bar')), ['health', 'mana', 'stamina']);
-    assert.match(mine.querySelector('.rpg-bar[data-bar="health"]').textContent, /Hurt/);
+    assert.match(mine.querySelector('.rpg-bar[data-bar="health"]').textContent, /Hurt · 3\/5/);
     assert.match(mine.querySelector('.rpg-bar[data-bar="stamina"]').textContent, /Spent/);
     assert.equal(mine.querySelectorAll('.ss-w-editable-pencil').length, 0, 'read-only here: the Party tab edits them');
 });

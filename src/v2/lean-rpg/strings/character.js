@@ -28,9 +28,10 @@ export const CHARACTER_STRINGS = Object.freeze({
             beaten: '{who} does not act: beaten before its turn.',
             down: '{who} does not act: down.',
             'no-target': '{who} does not act: nothing left to act on.',
+            'no-resource': '{who} does not act: the skill\'s resource is Empty.',
         }),
-        foeNote: 'Foe Health grows with class: 4 + class/3 blocks. A hit takes 1 block, a Decisive hit 2.',
-        foeNoteLevel: 'Foe Health grows with level: 4 + level/30 blocks. A hit takes 1 block, a Decisive hit 2.',
+        foeNote: 'Foe Health grows with class: 4 + class/3 blocks. A plain hit takes 1 block, a Decisive hit 2.',
+        foeNoteLevel: 'Foe Health grows with level: 4 + level/30 blocks. A plain hit takes 1 block, a Decisive hit 2.',
     }),
     party: Object.freeze({
         title: 'Party',
