@@ -90,7 +90,7 @@ export function pauseViewData({ fight = null, state = null, cap = 3, opening = n
     if (!known.length) return null;
     if (found.length) {
         return {
-            mode: 'new', title: `This is an attack on ${known.map(countName).join(', ')}`,
+            mode: 'new', title: `This is an attack on ${known.map(foe => `${foe.name} (${foe.count})`).join(', ')}`,
             note: 'Your message waits while the fight is played on the board.',
             hint: 'Found by the pre-check from your message. Big groups fight as packs.',
             label: 'Fight paused', boardLabel: PAUSE_BOARD_LABEL, autoLabel: autoFightLabel(cap), sendLabel: PAUSE_SEND_LABEL,

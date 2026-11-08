@@ -61,8 +61,10 @@ export function createStartController({ doc, chat, meta, state, preview, board, 
     const pause = createPauseView({ doc, onBoard: () => begin(false), onAuto: () => begin(true), onSend: plain });
     // The reader's message is already in the chat. A second Send must not append another one while it waits.
     const stopSend = event => {
-        if (!current()) return;
+        const pending = current();
+        if (!pending) return;
         event.preventDefault?.(); event.stopImmediatePropagation?.(); event.stopPropagation?.();
+        if (pending.choice === 'plain') { send(); return; }
         tell(); show();
     };
     const click = event => { if (event.target?.closest?.('#send_but')) stopSend(event); };

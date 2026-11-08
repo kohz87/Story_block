@@ -30,12 +30,12 @@ function singular(word) {
 const nameKey = text => wordsOf(text).map(singular).filter(word => !STOP.has(word)).join('\u0000');
 const distinctiveWords = text => wordsOf(text).map(singular).filter(word => !STOP.has(word));
 
-/** Whether a whole distinctive word of `name` (a plural is fine) appears in `message`. */
+/** Whether every distinctive word of `name` (plurals are fine) appears whole in `message`. */
 export function namedInMessage(name, message) {
     const wanted = distinctiveWords(name);
     if (!wanted.length) return false;
     const seen = new Set(wordsOf(message).map(singular));
-    return wanted.some(word => seen.has(word));
+    return wanted.every(word => seen.has(word));
 }
 
 /** Whether the reader's message types an explicit attack, using the board's attack words without needing a known foe. */

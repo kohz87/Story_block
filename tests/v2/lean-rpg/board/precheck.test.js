@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { looksLikeAttack, parsePrecheck, precheckPrompt, vetGroups } from '../../../../src/v2/lean-rpg/board/precheck.js';
 
-const MESSAGE = 'I creep down the culvert to cut loose the oilskin bundle and attack the six rats with 4 scores of minor rat offspring.';
+const MESSAGE = 'I creep down the culvert and attack the six Gorged Grey-Tooth Tunnel Rats with 4 scores of Bilge-Rat Offspring.';
 const ANSWER = 'The foes are:\n```json\n{"groups":[{"name":"Gorged Grey-Tooth Tunnel Rats","count":6},{"name":"Bilge-Rat Offspring","count":80}]}\n```';
 const sheet = {
     characters: [{ who: 'Astra', level: 5, alive: true }],
@@ -19,7 +19,7 @@ test('the prompt names the message, the sheet and JSON groups only', () => {
     assert.doesNotMatch(prompt, /\b(?:roll|outcome|story)\b/iu);
 });
 
-test('the owner\'s example reads as Gorged Grey-Tooth Tunnel Rats x6 and Bilge-Rat Offspring x80', () => {
+test('a message naming both example groups reads their names and counts', () => {
     assert.equal(looksLikeAttack(MESSAGE), true);
     assert.deepEqual(vetGroups(parsePrecheck(ANSWER), { message: MESSAGE, sheet }),
         [{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6 }, { name: 'Bilge-Rat Offspring', count: 80 }]);
@@ -30,8 +30,11 @@ test('a message that is not an attack gives nothing', () => {
         assert.equal(looksLikeAttack(message), false, message);
 });
 
-test('a name whose words are not in the message is refused', () => {
+test('every distinctive word of a name must appear whole in the message', () => {
     assert.deepEqual(vetGroups([{ name: 'Cave Troll', count: 2 }], { message: 'I attack the rats.', sheet }), []);
+    assert.deepEqual(vetGroups([{ name: 'Cave Rats', count: 2 }, { name: 'Dire Rats', count: 2 }], { message: 'I attack the cave rat.', sheet }),
+        [{ name: 'Cave Rats', count: 2 }]);
+    assert.deepEqual(vetGroups([{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6 }], { message: 'I attack six rats.', sheet }), []);
 });
 
 test('malformed JSON gives null', () => {

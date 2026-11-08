@@ -1,4 +1,4 @@
-// The roll hook (SPEC_RPG §2R A3). Rolls are made by the fight board only: there is no planner and no model call before a reply.
+// The roll hook (SPEC_RPG §2R A3). Rolls are made by the fight board; the optional pre-check reads new foes without planning dice.
 // beforeGenerate carries a board fight the reader staged ("Send with this fight") as `rpg.resolve` board commands and, with no fight to carry, tells
 // the narrator how to open one (noFight); canGenerate holds a send until the waiting fight is played or chosen. Old chats keep their planner
 // rolls as records (resolve.js replays them); nothing here asks a model for a plan.
@@ -38,17 +38,19 @@ export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === 
  * Returns { canGenerate(view, info), beforeGenerate(view, info) → { commands } | { lines } | null, afterCapture(), afterReceive(info, state, query) }.
  */
 export function createPrecall({ chat, metadata = () => null, moduleId = 'story-block', skip: noDice = { peek: () => false, clear: () => {} }, callModel = null, onPlanning = () => {}, timeoutMs, timer }) {
+    // A retried interceptor must not repeat a check, but an edited or different message still needs its own check.
+    const checked = new WeakMap();
     // No foe is filled in and nothing was rolled: if a fight starts in this reply, the narrator sets the Foes line and stops at the first clash.
     // (a block of Down groups only is a won fight: no fight is on)
     const noFight = (sheet, board = false) => (sheet.foes.length && !sheet.foes.some(foe => foe.filled && foe.hurt > 0)
         ? { lines: [board ? { text: 'No foes are set. If a fight begins, set the Foes line and tell the approach only. The fight has not started: end at the moment of engagement.', keep: true } : OPEN_FIGHT_LINE] } : null);
 
-    // A saved hold counts only when it waits for a choice: a pre-check still reading (a page reloaded mid-call) or "Send without a fight" holds nothing.
-    const waiting = held => (held && held.mode !== 'working' && held.choice !== 'plain' ? held : null);
+    // A running pre-check also holds another send; stale working states are ignored by pendingStart after a reload.
+    const waiting = held => (held && held.choice !== 'plain' ? held : null);
 
     // The foe pre-check (board/precheck-run.js): a typed attack with no foe standing is read once for its groups; the opening is recorded as the old
     // planner's was and the send is held (turn/prompt-build.js records it). → { fightStart } or null (the send goes on as it does without the pre-check).
-    async function precheck(view, sheet, messages, index, key, text, startAnchor) {
+    async function precheck(view, sheet, messages, key, text, startAnchor) {
         let meta;
         try { meta = metadata(); } catch { return null; }
         const values = readSettings(view, moduleId), held = pendingStart(meta, messages);
@@ -56,11 +58,12 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         try { pack = packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { /* no pack rules */ }
         const rules = rulesFromSettings(values, pack);
         if (!startAnchor || !callModel || held?.choice === 'plain' || !isStandard(rules) || noDice.peek() || !wantsPrecheck(values, sheet, text)) return null;
+        checked.set(messages.at(-1), key);
         const working = holdStart(meta, messages, { mode: 'working' });
         try { onPlanning(true); } catch { /* the screen redraws on the next event */ }
         let groups = [];
         try { groups = await runPrecheck({ callModel, message: text, sheet, values, limit: timeoutMs, timer }); } finally {
-            if (metadata() === meta && pendingStart(meta, chat()) === working) clearStart(meta);
+            if (working) clearStart(meta, working);
             try { onPlanning(false); } catch { /* the screen redraws on the next event */ }
         }
         if (!groups.length) return null;
@@ -151,9 +154,9 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
             }
         }
         if (claimed(view.state, key)) return null;
-        if (on && normalizeType(info?.type) === 'normal' && info.commit !== false && !waiting(pendingStart(meta, messages))) {
-            const fightStart = await precheck(view, sheet, messages, index, key, text, startAnchor);
-            if (fightStart) return { fightStart };
+        if (on && normalizeType(info?.type) === 'normal' && info.commit !== false && !(info.again && checked.get(last) === key) && !waiting(pendingStart(meta, messages))) {
+            const fightStart = await precheck(view, sheet, messages, key, text, startAnchor);
+            if (fightStart) return { fightStart, ...(readSettings(view, moduleId)[ROLLS_SETTING] !== 'off' ? noFight(sheet, on) ?? {} : {}) };
         }
         if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
         if (!sheet.characters.length) return null;

@@ -51,7 +51,7 @@ export function sheetDomain(blocks) {
     const domain = { pins: {}, active: {}, instances: {}, perReply: {} };
     Object.entries(blocks).forEach(([slug, block], n) => {
         const id = `pack.chat/${slug}`;
-        domain.pins[`h${n}`] = { definition: { id, slug, name: slug, role: block.role, schema: 1, scope: 'chat' }, packId: 'chat', interpreter: 1 };
+        domain.pins[`h${n}`] = { definition: { ...block.definition, id, slug, name: slug, role: block.role, schema: block.definition?.schema ?? 1, scope: 'chat' }, packId: 'chat', interpreter: 1 };
         domain.active[id] = { hash: `h${n}`, generation: 1, subjects: ['chat'] };
         domain.instances[id] = { chat: { fields: block.fields, timers: {}, offers: {}, settled: {} } };
     });
