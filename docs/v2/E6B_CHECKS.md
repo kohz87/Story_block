@@ -10,7 +10,7 @@ changed Re-reads, Continue, swipe back, delete, reload and delayed native-prefix
 clockBoundary implementation makes the regression file fail. Source tests check a single identity/capture rule.
 
 Post-fix full host suite: 3,384 tests, 3,373 pass, 10 skip, 1 existing todo, zero failures. Syntax check passes.
-An earlier fully parallel run hit a V8 structuredClone abort in state-fuzz; its isolated 11 tests passed, and the
+An earlier fully parallel run hit a V8 structuredClone abort in state-fuzz (now four shard files); its isolated 11 tests passed, and the
 complete suite passed with test-concurrency=2. No expected-failure masking was added.
 
 Refreshed module copies (outside the repo): SD 1,125 dot results, exit 0; NSD 1,439 dot results plus compatibility

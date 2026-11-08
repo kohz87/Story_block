@@ -70,7 +70,7 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
 - Break findings: `tests/v2/break/a1-stray-*`, `a1-reread-double-dash`, `a2-reread-after-vouched-click`,
   `b1-capture-*`, `b1r2-capture*`, `c2-continue-split-block`, `c2-cut-mid-reasoning`, `c2-spoof-marker-reread`,
   `c4-slow-reread`, `confirm-stray-echo-twice`, `confirm-close-tag-in-line-leaks`, `fix-reread-vouched`.
-- Fuzz: `tests/v2/qa/state-fuzz.test.js`, `qa/delete-fuzz.test.js` (add a new kind to the generator).
+- Fuzz: `tests/v2/qa/state-fuzz-1..4.test.js` (shards of `helpers/state-fuzz-run.js`), `qa/delete-fuzz.test.js` (add a new kind to the generator).
 
 ## When you change it
 

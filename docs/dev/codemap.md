@@ -239,6 +239,8 @@ Last checked: 2026-11-07.
 
 ## tests/v2/ (combat replay corpus)
 - `tests/v2/qa/combat-corpus.test.js`: replays the D0 combat chats and pins state, Problems, Re-read, cues and battle-log models.
+- `tests/v2/qa/state-fuzz-1..4.test.js`: four balanced shards of the seeded whole-chat fuzz (same seeds and steps as the old single file; a QA_FUZZ_* override runs in shard 1).
+- `tests/v2/qa/helpers/state-fuzz-run.js`: the fuzz run function, the seed lists and the shard split; `state-fuzz-gen.js`: its seeded generators (change lines, replies, UI commands) and the bonus-paid counter.
 - `tests/v2/fixtures/combat-corpus/corpus.mjs`: captures one combat chat's full-replay golden.
 - `tests/v2/fixtures/combat-corpus/make.mjs`: builds the Standard-rules planner, fight-start, board, noroll and practice chats and writes their goldens.
 - `tests/v2/fixtures/combat-corpus/chats.json`: the ten pinned combat chats and their replay setup.
