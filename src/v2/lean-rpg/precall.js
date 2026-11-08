@@ -95,8 +95,8 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
                 // (the copy made at "Send with this fight" stands in when the session itself is gone)
                 if (!board) board = sentBoard(meta, messages);
             }
-            if (!board && live) return { ok: false, reason: 'The fight no longer matches this reply. Restore the reply or discard the fight.', action: false };
-            if (session?.anchor === anchor && live && !session.setup?.witness) return { ok: false, reason: 'This older fight cannot be checked. Discard it and start the fight again.', action: false };
+            if (!board && live) return { ok: false, reason: 'The fight no longer matches this reply. Restore the reply or discard the fight (Fight tab, Discard fight).', action: false };
+            if (session?.anchor === anchor && live && !session.setup?.witness) return { ok: false, reason: 'This older fight cannot be checked. Discard it (Fight tab, Discard fight) and start the fight again.', action: false };
         } else if ((on || live) && last && !last.is_user && !String(last.mes ?? '')) board = priorBoard(last)?.board;
         if (!board) {
             if (info.commit !== true || !['normal', 'regenerate'].includes(normalizeType(info.type)) || !last?.is_user || !on) return null;
@@ -108,7 +108,7 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
             }
             return null;
         }
-        if (!on) return { ok: false, reason: 'Turn on the fight board or discard the fight before sending.', action: false };
+        if (!on) return { ok: false, reason: 'Turn on the fight board or discard the fight (Fight tab, Discard fight) before sending.', action: false };
         const error = board.setup?.opening ? null : boardInputError(view.state, board);
         return error ? { ok: false, reason: error, action: false } : null;
     }

@@ -119,7 +119,7 @@ export function playBoard(state, setup, exchanges) {
         || !Number.isInteger(setup.offset) || setup.offset < 0 || !Array.isArray(exchanges) || exchanges.length > 99) return { error: 'The fight setup is damaged.' };
     if (setup.invalidated) return { error: 'The earlier fight was taken back. Restore that reply or discard this fight.' };
     if (setup.witness?.offset === setup.offset && setup.witness.hash !== boardWitness(state, setup))
-        return { error: 'The sheet or gear changed after the fight was rolled. Restore it or discard the fight.' };
+        return { error: 'The sheet or gear changed after the fight was rolled. Restore it or discard the fight (Fight tab, Discard fight).' };
     const copy = structuredClone(state), domain = copy.domains.dataModules, rules = setup.rules, limits = maxOf(domain);
     const startSheet = readSheet(copy), members = setup.members === 1, realFoes = members ? startSheet.foes : null;
     const boardFoeList = members ? splitFoes(realFoes, { carried: setup.carriedMembers, maxOf: limits }) : null;

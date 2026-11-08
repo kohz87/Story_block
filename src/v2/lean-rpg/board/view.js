@@ -126,8 +126,8 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         if (!held) fresh(session, state);
         const played = held ? { error: meta()?.rpgFightHeldDiscarded?.[sid]
             ? 'The fight was discarded. Regenerate the held reply.'
-            : 'The fight reply is waiting. Restore the sheet or gear, or discard the fight and regenerate the reply.' }
-            : !matched ? { error: 'The fight no longer matches this reply. Restore the reply or discard the fight.' }
+            : 'The fight reply is waiting. Restore the sheet or gear, or discard the fight (Fight tab, Discard fight) and regenerate the reply.' }
+            : !matched ? { error: 'The fight no longer matches this reply. Restore the reply or discard the fight (Fight tab, Discard fight).' }
             : !isStandard(rules()) ? { error: 'The fight board needs Standard rules. Switch back to Standard or discard this fight.' }
             : playBoard(state, session.setup, session.exchanges);
         return { session, played, heldSid: held ? sid : null };
