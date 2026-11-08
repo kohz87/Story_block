@@ -117,7 +117,7 @@ foes a fled or lost fight left, with the note 'These foes are as you left them: 
 
 ## Test map
 
-- `members.test.js`, `members-fight.test.js`, and the member cases in `engine`, `plan`, `session`, `awards`, `view`, `view-data`, `standard`, `state-fuzz` and `delete-fuzz` tests: splitting, packs, carry and rewind, collapse, XP, pay-once defence, group area, pack attack cap, opening order and byte-identical old fights.
+- `members.test.js`, `members-fight.test.js`, and the member cases in `engine`, `plan`, `session`, `awards`, `view`, `view-data`, `standard`, `state-fuzz` (shards) and `delete-fuzz` tests: splitting, packs, carry and rewind, collapse, XP, pay-once defence, group area, pack attack cap, opening order and byte-identical old fights.
 - `awards.test.js` covers batched practice, the per-skill cap, swipe and Re-read, and XP across a split fight.
 - `commit.test.js` covers staged versus committed results, claims, gear wear, story lines during capture,
   reader edits in flight, and held-reply restore/discard after reload. `view.test.js` covers the hold notice.
@@ -131,7 +131,7 @@ foes a fled or lost fight left, with the note 'These foes are as you left them: 
 - `note.test.js`, `view.test.js`, `view-data.test.js`, `phone-css.test.js` and `view/widgets/blocks.test.js` cover defence, bar words, wear, controls, downed packs, pending awards, the expandable hero and phone layout.
 - `touch.test.js` renders the board at 390×844 and 360×740 in the game view and the Story panel when
   the optional browser is available; it checks choice priority, content-sized logs, whole card rows, the narrator fold, finished-board scrolling and bottom-bar clearance.
-- `tests/v2/qa/state-fuzz.test.js` includes board fights; `delete-fuzz.test.js` creates winning board segments
+- `tests/v2/qa/state-fuzz-1..4.test.js` (shards of `helpers/state-fuzz-run.js`) includes board fights; `delete-fuzz.test.js` creates winning board segments
   among deletable replies and checks deleted and replayed rounds, practice and XP.
 
 ## Where to look when …

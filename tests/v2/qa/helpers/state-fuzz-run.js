@@ -1,4 +1,7 @@
-// QA: seeded fuzz of whole chats on the real host (testkit createHost: real store, command bus,
+// QA fuzz helper: the seeded whole-chat fuzz of state-fuzz (run function, seed lists, shards).
+// state-fuzz-1..4.test.js each run one balanced shard of RUNS so the seeds run in parallel files
+// (CI took ~15 min with one file). Not a test file (the test glob does not match helpers/).
+// seeded fuzz of whole chats on the real host (testkit createHost: real store, command bus,
 // turn, Story Block's core module, plus a small probe module). Each run mixes sends, swipes,
 // regenerates, continues, deletes (last and middle), swipe picks and swipe deletes, edits, chat
 // switches and bursts of UI commands between replies. After every step:
@@ -13,19 +16,20 @@
 //   pending), a failed save keeps the state dirty and leaves the chat as it was;
 // - the static prompt is byte-identical in every request of the run.
 // A failing seed replays exactly: the host's crypto IDs and seeds follow the run's seed.
-import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHost } from '../../../testkit/index.js';
-import { aiMessage } from '../../../testkit/fake-st.js';
-import { readRecord } from '../../../src/v2/persist.js';
-import { HAPPENED } from '../../../src/v2/prompt.js';
-import { prng, seedCrypto } from './helpers/seeded.js';
-import { BONUS_CLAIM, probeModule } from './helpers/probe-module.js';
-import { carriers, checkInvariants, rebuildAt } from './helpers/oracle.js';
-import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
-import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
-import { readSheet } from '../../../src/v2/lean-rpg/read.js';
-import { boardSession, openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
+import { createHost } from '../../../../testkit/index.js';
+import { aiMessage } from '../../../../testkit/fake-st.js';
+import { readRecord } from '../../../../src/v2/persist.js';
+import { HAPPENED } from '../../../../src/v2/prompt.js';
+import { prng, seedCrypto } from './seeded.js';
+import { BONUS_CLAIM, probeModule } from './probe-module.js';
+import { carriers, checkInvariants, rebuildAt } from './oracle.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
+import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
+import { boardSession, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { changeLine, replyText, uiCommand, bonusPaidOnLine } from './state-fuzz-gen.js';
+
 
 // QA_FUZZ_SEEDS=200 QA_FUZZ_STEPS=200 runs a longer hunt locally (QA_FUZZ_SEED=n one seed); CI runs the fixed list.
 const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : process.env.QA_FUZZ_SEEDS ? Array.from({ length: Number(process.env.QA_FUZZ_SEEDS) }, (_, i) => i + 1) : [1, 7, 42, 1337, 2024, 31337, 90210, 424242];
@@ -38,118 +42,28 @@ const RUNS = process.env.QA_FUZZ_SEED || process.env.QA_FUZZ_SEEDS || process.en
     ? SEEDS.map(seed => [seed, STEPS])
     : [...SEEDS.map(seed => [seed, STEPS]), ...LONG_SEEDS.map(seed => [seed, LONG_STEPS])];
 
-const ITEMS = ['Rope', 'Lamp', 'Moonveil Trout', 'Iron Key', 'Apple', 'Torch'];
-const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
-const PEOPLE = ['Fenna', 'Kael', 'Lyra'];
-const WORDS = ['ember', 'frost', 'gale', 'stone', 'tide'];
-const MOUNTS = ['Grey Mare', 'Burr', 'Old Flea', 'Pia', 'Tansy', 'Rook', 'Dune', 'Wren'];
+// The balanced shards (CI seconds measured: long 16:149, 25:138, 36:127; short 1:50, 1337:47, 31337:43,
+// 2024:38, 7:37, 424242:35, 90210:27, 42:20). Each long seed has its own shard. Their union is RUNS.
+const SHARD_RUNS = [
+    [[16, LONG_STEPS], [90210, STEPS]],
+    [[25, LONG_STEPS], [7, STEPS]],
+    [[36, LONG_STEPS], [1, STEPS]],
+    [[1337, STEPS], [31337, STEPS], [2024, STEPS], [424242, STEPS], [42, STEPS]],
+];
+const OVERRIDDEN = Boolean(process.env.QA_FUZZ_SEED || process.env.QA_FUZZ_SEEDS || process.env.QA_FUZZ_STEPS);
+// Shard n (1..4) of the runs. A local override runs its whole list once, in shard 1; the others skip.
+export const shardRuns = n => (OVERRIDDEN ? (n === 1 ? RUNS : []) : SHARD_RUNS[n - 1]);
+// The remake check needs a shard whose runs reach it: shards 2..4 do (3, 2, 6 remakes); shard 1 (16, 90210) makes none, so it checks only when an override gave it the whole list.
+export const checksRemakes = n => OVERRIDDEN || n !== 1;
 
 const plain = value => (value === null || value === undefined ? value : JSON.parse(JSON.stringify(value)));
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-function changeLine(r) {
-    switch (r.int(0, 10)) {
-        case 0: case 1: return `+ item ${r.pick(ITEMS)} | qty: ${r.int(1, 3)}`;
-        case 2: return `- item ${r.pick(ITEMS)} | qty: ${r.int(1, 2)}`;
-        case 3: return `~ item ${r.pick(ITEMS)} | note: ${r.pick(WORDS)}-marked`;
-        case 4: return `+ coin ${r.int(1, 20)} | from: ${r.pick(PEOPLE)}`;
-        case 5: return `- coin ${r.int(1, 12)} | to: ${r.pick(PEOPLE)}`;
-        case 6: return `~ place ${r.pick(PLACES)} | kind: settlement`;
-        case 7: return `${r.pick(['+', '-'])} present ${r.pick(PEOPLE)}`;
-        case 8: return `! probe ${r.pick(WORDS)}`;
-        case 9: return r.pick(['+ dragon Smaug', 'not a change line', '* - item', '~ wound Ren — a scratch']);
-        // Loot to pick from (story-block.loot): laid out by the reply, taken by a ui burst below.
-        default: return r.chance(0.5) ? `+ item ${r.pick(ITEMS)}` : `? loot ${r.pick(ITEMS)}, ${r.pick(ITEMS)} x${r.int(1, 3)} — ${r.pick(PLACES)}`;
-    }
-}
-
-function replyText(r, step) {
-    const story = `Reply of step ${step}: the story goes on.`;
-    if (r.chance(0.2)) return story;
-    const lines = Array.from({ length: r.int(1, 5) }, () => changeLine(r));
-    // The weather (MODULES §F120), by step so the seeds draw the same chats.
-    if (step % 6 === 4) lines.push(`~ weather ${WORDS[step % WORDS.length]} and rain`);
-    // The party's mounts (story-block.mounts), by step too: a few rows come, change and go, and the cap of six is reached now and then.
-    if (step % 5 === 2) lines.push(`${['+', '+', '~', '-'][step % 4]} mount ${MOUNTS[step % MOUNTS.length]} | kind: ${['horse', 'mule', 'cart'][step % 3]} | condition: ${WORDS[step % WORDS.length]}`);
-    // Your look (MODULES §F126), by step too: all three parts, one part, or a part cleared.
-    if (step % 7 === 2) lines.push(`~ you rank: ${WORDS[(step + 1) % WORDS.length]} rank | wearing: ${WORDS[step % WORDS.length]} cloak | condition: ${WORDS[(step + 2) % WORDS.length]}-worn`);
-    else if (step % 5 === 3) lines.push(`~ you condition: step ${step} chilled`);
-    else if (step % 9 === 4) lines.push(step % 2 ? '~ you rank:' : `~ you rank: step ${step} novice`);
-    else if (step % 11 === 6) lines.push(step % 2 ? '~ you wearing:' : `~ you wearing: step ${step} boots | condition:`);
-    if (r.chance(0.1)) return `${story}\n<Changes>\n${lines[0]}\n</Changes>\nMore story.\n<Changes>\n${lines.slice(1).join('\n')}\n</Changes>`;
-    return `${story}\n<Changes>\n${lines.join('\n')}\n</Changes>`;
-}
-
-// A UI command the reader could press now: [type, payload].
-function uiCommand(r, host) {
-    const head = host.head();
-    const stacks = Object.values(head?.domains?.inventory?.stacks ?? {})
-        .sort((a, b) => (a.def + a.qty + a.note < b.def + b.qty + b.note ? -1 : 1));
-    const choices = [
-        ['probe.tick', {}],
-        ['probe.pay', {}],
-        ['probe.broken', {}],
-        ['wallet.pay', { owner: 'party', amount: r.int(1, 8) }],
-        ['wallet.receive', { owner: 'party', amount: r.int(1, 4) }],
-    ];
-    if (stacks.length) {
-        const stack = r.pick(stacks);
-        choices.push(['inventory.drop', { stack: stack.id, qty: r.int(1, 2) }]);
-        if (stack.qty >= 2) choices.push(['inventory.split', { stack: stack.id, qty: 1 }]);
-        const twin = stacks.find(other => other !== stack && other.def === stack.def);
-        if (twin) choices.push(['inventory.merge', { stack: stack.id, into: twin.id }]);
-    }
-    // The reader's own gear (gear on, docs/v2/GEAR.md "Your own gear"): add with kind, slot, rarity, bonus and Equip on, and the Edit of kind, slot, rarity and bonus, kit open or not.
-    const GEAR_NAMES = ['Wolfskin Cap', 'Lucky Bone', 'Oak Shield', 'Rope', 'Torch'];
-    choices.push(['inventory.add', { name: r.pick(GEAR_NAMES), qty: r.int(1, 2), kind: r.pick(['equipment', 'equipment', 'goods', 'consumable']), slot: r.pick(['head', 'weapon', 'accessory-1', 'accessory-2', '', 'bogus']),
-        rarity: r.pick(['common', 'rare', 'legendary', 'mythic']), stats: r.pick([{}, { VIT: 1 }, { STR: 2, DEX: 2 }, { WIS: 1 }, { STR: 1, DEX: 1, INT: 1 }]), ...(r.chance(0.4) ? { equip: 'party' } : {}) }]);
-    if (stacks.length) {
-        const stack = r.pick(stacks);
-        choices.push(['inventory.edit', { stack: stack.id, group: true, kind: r.pick(['equipment', 'goods', 'quest']), slot: r.pick(['head', 'body', '', 'bogus']), rarity: r.pick(['common', 'epic']), stats: r.pick([{}, { AGI: 1 }, { LUK: 3 }]) }]);
-    }
-    // Kind = Equipment on a name the chat already has as something else (inventory.js `remakeAsEquipment`): the reader's own item is remade, anything else refused. A whole stack
-    // is dropped now and then first (a burst of 1 to 3 commands often does both), so the definition is left with no stack.
-    const loose = Object.values(head?.domains?.inventory?.defs ?? {}).filter(def => def.id.startsWith('story/') && def.kind !== 'equipment').sort((a, b) => (a.id < b.id ? -1 : 1));
-    if (loose.length) {
-        const def = r.pick(loose);
-        choices.push(['inventory.add', { name: def.name, qty: 1, kind: 'equipment', slot: r.pick(['head', 'weapon', 'accessory-1', '']), ...(r.chance(0.4) ? { equip: 'party' } : {}) }]);
-        const own = stacks.find(stack => stack.def === def.id);
-        if (own) choices.push(['inventory.drop', { stack: own.id, qty: own.qty }]);
-    }
-    choices.push(['inventory.drop', { stack: 'it_00000000', qty: 1 }]);
-    // A skill rename's flag carry (rpg.boardSkillCarry, no feature gate): a real skill of the sheet when there is one, else a name the sheet lacks (refused).
-    const actor = readSheet(head ?? {}).characters?.find(entry => entry.skills?.length);
-    const skill = actor && r.pick(actor.skills);
-    choices.push(['rpg.boardSkillCarry', skill ? { module: actor.module, slot: skill.slot, from: r.pick(['Old Name', skill.name]), name: skill.name } : { module: 'fuzz-hero', slot: 1, from: 'Old Name', name: 'New Name' }]);
-    const offers = Object.keys(head?.domains?.inventory?.loot ?? {}).sort();
-    if (offers.length) choices.push(['inventory.lootTake', { sid: r.pick(offers), pick: [0, r.int(0, 1)] }]);
-    return r.pick(choices);
-}
-
-function bonusPaidOnLine(host) {
-    // A skipped block takes only its own receipts with it (store.js replays block by block). The
-    // store reports the blocks skipped since the latest checkpoint; the oracle finds the older ones.
-    const chat = host.ctx.chat;
-    const skipped = new Set();
-    // One rebuild per checkpoint segment: at the carrier before each later checkpoint, and at the head.
-    const list = carriers(chat);
-    const ends = list.filter((index, at) => at === list.length - 1 || readRecord(chat[list[at + 1]])?.checkpoint);
-    for (const index of ends) {
-        for (const entry of rebuildAt(chat, index).skipped) for (const rev of entry.revs) skipped.add(`${entry.index}:${rev}`);
-    }
-    let paid = 0;
-    for (const index of carriers(chat)) {
-        const record = readRecord(chat[index]);
-        paid += (record?.receipts ?? []).filter(receipt => receipt.type === 'probe.pay' && !skipped.has(`${index}:${receipt.rev}`)).length;
-    }
-    return paid;
-}
-
 const tailOf = request => request.chat.filter(message => message.role === 'system').slice(1).map(message => message.content).join('\n');
 
-const remakes = { count: 0, runs: 0 };
+export const remakes = { count: 0, runs: 0 };
 
-async function fuzz(t, seed, steps) {
+export async function fuzz(t, seed, steps) {
     const restore = seedCrypto(seed);
     t.after(restore);
     t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -471,16 +385,3 @@ async function fuzz(t, seed, steps) {
     assert.equal(statics.size, 1, `seed ${seed}: the static prompt is byte-identical in every request of the chat`);
     assert.deepEqual(host.turn.problems().filter(problem => problem.module === null && problem.code === 'FAILED'), [], `seed ${seed}: the host itself never failed`);
 }
-
-for (const [seed, steps] of RUNS) {
-    test(`fuzz seed ${seed}${steps === STEPS ? '' : ` (${steps} steps)`}: replay equals rebuild, rollback is exact, told once, claims once, saves per burst`, async t => {
-        await fuzz(t, seed, steps);
-        remakes.runs++;
-    });
-}
-
-test('the fuzz reaches the remake of an earlier-used name as equipment', t => {
-    if (remakes.runs < RUNS.length) return t.skip('only some seeds ran');
-    if (process.env.QA_FUZZ_STATS) console.log(`remakes executed across ${RUNS.length} seeds: ${remakes.count}`);
-    assert.ok(remakes.count > 0, 'no fuzz seed made an earlier-used name equipment (inventory.add kind equipment after a drop)');
-});

@@ -64,7 +64,7 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
   `counters.test.js`, `replay-fit.test.js`, `long-chat.test.js`, `rewind.test.js`, `savepoints.test.js`, `ops.test.js`.
 - `tests/v2/replay-guard.test.js`, `replay-source.test.js`, `replay-chain.test.js` (guarded blocks, source map,
   checkpoint gaps, Re-read replan; the test-only owner is `tests/v2/helpers/guarded.js`).
-- `tests/v2/qa/state-fuzz.test.js` (replay equals rebuild wherever checkpoints fall), `qa/delete-fuzz.test.js`,
+- `tests/v2/qa/state-fuzz-1..4.test.js` (shards of `helpers/state-fuzz-run.js`) (replay equals rebuild wherever checkpoints fall), `qa/delete-fuzz.test.js`,
   `qa/state-directed.test.js`.
 - Break findings: `b2-timeline-*`, `b6-record-stored-once`, `b6-saves-per-reply`, `c1-*`, `c4-rename-midsave`,
   `c4-rescue-*`, `c4-save-hang`, `a1-late-save-*`, `a1-late-rescue-write`, `a1-unload-behind-hung-save`,
