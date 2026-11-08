@@ -27,7 +27,7 @@ test('sync into a module checkout: layout, VERSION, stale files gone, and the ve
         const { target, files, commit } = syncTestkit({ from: root, to: module });
         assert.equal(existsSync(stale), false);
         assert.ok(files.length > 50);
-        assert.match(readFileSync(join(target, 'VERSION'), 'utf8'), new RegExp(`commit ${commit.replace('+', '\\+')}`));
+        assert.ok(readFileSync(join(target, 'VERSION'), 'utf8').includes(`commit ${commit}`));
         const kit = await import(pathToFileURL(join(target, 'testkit', 'index.js')).href);
         const host = await kit.createHost();
         await host.send('Go.', 'Rope.\n<Changes>\n+ item Rope\n</Changes>');

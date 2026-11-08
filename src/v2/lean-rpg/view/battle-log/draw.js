@@ -39,11 +39,15 @@ function lineNode(doc, line, { check = false } = {}) {
         if (line.support) {
             text.append(`${line.who} ${line.heals ? B.verbHeals : B.verbHelps} ${line.target}`);
             if (line.skill) { text.append(' ('); text.appendChild(el(doc, 'span', 'rpg-skill', line.skill)); text.append(')'); }
+        } else if (line.reduced) {
+            // An area attack's other groups: the main hit is the line above; this one is the same roll at one Health block less.
+            text.append(fill(line.outcome === 'fail' ? B.alsoTargets : B.alsoHits, { name: line.target }));
         } else {
             text.append(`${line.who} ${line.skill ? B.uses : B.attacks} `);
             if (line.skill) text.appendChild(el(doc, 'span', 'rpg-skill', line.skill));
+            if (line.aoe) text.append(` (${B.area})`);
             if (line.skill && line.gear && !line.foe) text.append(` (${line.gear})`);
-            if (line.target) text.append(`${line.skill ? ` ${B.on} ` : ''}${line.target}${line.area ? ` (${B.area})` : ''}`);
+            if (line.target) text.append(`${line.skill ? ` ${B.on} ` : ''}${line.target}${line.area && !line.aoe ? ` (${B.area})` : ''}`);
             if (!line.skill && line.gear && !line.foe) text.append(` (${line.gear})`);
         }
         // The skill a defender used ("Sluice Rat A attacks Astra (Iaijutsu) — Blocked"); a roll made before there were any has none.
@@ -52,11 +56,11 @@ function lineNode(doc, line, { check = false } = {}) {
             text.appendChild(el(doc, 'span', 'rpg-skill', line.defence));
             text.append(line.gear ? `, ${line.gear})` : ')');
         } else if (line.gear && line.foe) text.append(` (${line.gear})`);
-        if (outcome) {
-            text.append(' — ');
+        if (outcome && (!line.reduced || line.outcome === 'fail')) {
+            text.append(line.aoeNoTarget ? ' — main target Down; ' : ' — ');
             text.appendChild(el(doc, 'span', `rpg-out rpg-out-${line.outcome}`, outcome));
         }
-        if (line.total !== null && line.vs !== null) text.append(` (${fill(B.vs, { total: line.total, against: line.vs })})`);
+        if (!line.reduced && line.total !== null && line.vs !== null) text.append(` (${fill(B.vs, { total: line.total, against: line.vs })})`);
         if (line.arrows.length) text.appendChild(el(doc, 'span', 'rpg-arrow', ` → ${line.arrows.join(', ')}`));
     }
     row.append(mark, text);
