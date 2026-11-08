@@ -10,7 +10,7 @@ import { castSkillsOf } from '../../src/v2/packs/cast-skills.js';
 import { CAST_LIMITS, CAST_SKILL_STATS } from '../../src/v2/packs/limits.js';
 import { STATS } from '../../src/v2/lean-rpg/names.js';
 import { SKILL_SLOTS_MAX, skillSlots, signatureAt } from '../../src/v2/skill-slots.js';
-import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES_EIGHT as STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { partyLines } from '../../src/v2/lean-rpg/view/changes-lines.js';
 import { readParty } from '../../src/v2/lean-rpg/view/party-data.js';
 import { buildCharacterFile, parseCharacterFile } from '../../src/v2/lean-rpg/charfile.js';
@@ -109,13 +109,13 @@ test('the Skills template has eight slots, the signature mark (hidden, not typed
     assert.deepEqual([state.sig.edit, state.sig.prompt, state.sig.min, state.sig.max, state.sig.default], [false, false, 0, 255, 0]);
 });
 
-test('a character file holds up to eight skills and refuses nine', () => {
+test('a character file holds up to eleven skills (eight combat, three utility) and refuses twelve', () => {
     const skill = n => ({ name: `S${n}`, about: 'x', stat: 'str', uses: 'stamina', rank: 0 });
     const stats = Object.fromEntries(STATS.map(stat => [stat, 10]));
-    const file = buildCharacterFile({ level: 60, points: 0, stats, skills: Array.from({ length: 9 }, (_, n) => skill(n)) });
-    assert.equal(file.skills.length, 8, 'a ninth is not written');
+    const file = buildCharacterFile({ level: 60, points: 0, stats, skills: Array.from({ length: 12 }, (_, n) => skill(n)) });
+    assert.equal(file.skills.length, 11, 'a twelfth is not written');
     assert.equal(parseCharacterFile(JSON.stringify(file)).ok, true);
-    assert.equal(parseCharacterFile(JSON.stringify({ ...file, skills: Array.from({ length: 9 }, (_, n) => skill(n)) })).ok, false);
+    assert.equal(parseCharacterFile(JSON.stringify({ ...file, skills: Array.from({ length: 12 }, (_, n) => skill(n)) })).ok, false);
 });
 
 // ---- a join ---------------------------------------------------------------------------------------------------------------------------

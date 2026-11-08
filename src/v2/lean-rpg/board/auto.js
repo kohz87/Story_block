@@ -12,7 +12,7 @@ import { prepareStandard } from '../standard.js';
 import { judge } from '../standard/roll.js';
 import { actionSkills, exchangePlan } from './plan.js';
 import { attackStat, bestDefence } from './rules.js';
-import { skillFlags, skillKey } from './flags.js';
+import { isUtility, skillFlags, skillKey } from './flags.js';
 import { splitFoes } from './members.js';
 
 const HEALING = /\b(?:heal|heals|healing|mend|mends|mending|restore|restores|restoring|recover|recovers|recovering|remedy|remedies|cure|cures|curing|soothe|soothes|soothing|revive|revives|reviving)\b/iu;
@@ -129,7 +129,7 @@ export function autoPicks(boardState, rules) {
         return skill ? { defence: skill.name } : {};
     };
     for (const actor of actors) {
-        const healer = (actor.skills ?? []).find(skill => healingSkill(skill) && canPay(actor, skill));
+        const healer = (actor.skills ?? []).find(skill => !isUtility(skill) && healingSkill(skill) && canPay(actor, skill));
         const mate = healer ? healTarget(characters) : null;
         if (healer && mate) {
             out.push({ who: actor.who, kind: 'skill', skill: healer.name, target: mate.who, support: true,

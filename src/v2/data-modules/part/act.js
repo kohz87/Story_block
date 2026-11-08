@@ -9,12 +9,13 @@ import { fold, readSheet } from '../../lean-rpg/read.js';
 import { LEAN_RPG_FEATURE } from '../../lean-rpg/names.js';
 import { XP_RATE, scaleXp, xpRateFrom } from '../../lean-rpg/levels.js';
 import { averageLevel, bandOfRank, foeRandom, foeLevelCap, levelOf, partyLevels, pickLevel } from '../../lean-rpg/foes.js';
-import { SKILL_SLOTS_MAX } from '../../skill-slots.js';
+import { SKILL_SLOTS_MAX, SLOT_NUMBER } from '../../skill-slots.js';
 import { B, rpg, draftOf, stateOf, pairKey, subjectsOf, instancePath, prefixImports } from './shared.js';
 import { skillCapacity } from './skills.js';
 import { namedChanges } from './prompt.js';
 
-const PRACTICE_KIND = new RegExp(`^practice-[1-${SKILL_SLOTS_MAX}]$`, 'u');
+const LEARN_KIND = new RegExp(`^learn-${SLOT_NUMBER}$`, 'u');
+const PRACTICE_KIND = new RegExp(`^practice-${SLOT_NUMBER}$`, 'u');
 
 export function createAct(deps) {
     const { dependency, guard, finish, growSkills, skillRoute, skillRoom, skillWant, settings } = deps;
@@ -65,7 +66,7 @@ export function createAct(deps) {
         let grown = null, redirect = null;
         if (line && definition.role === 'skills') {
             const named = withKind(definition, line), fields = instanceOf(prefix, module)?.fields;
-            if (fields && /^learn-[1-8]$/u.test(String(named.kind ?? ''))) {
+            if (fields && LEARN_KIND.test(String(named.kind ?? ''))) {
                 const probe = skillRoute(fields, named.kind, { name: String(named.name ?? '') }, line.text, skillRoom(prefix, definition, fields));
                 const standing = ctx.standing ? activeDefinition({ domains: { dataModules: ctx.standing.domains?.dataModules } }, module) : null;
                 // (the guard re-asks the conditions an action answered on the block as it was before; the new slots are empty by construction, so a grown action records none)
@@ -89,6 +90,8 @@ export function createAct(deps) {
         // and keeps its practice lines on a Re-read, an edit, a rebuild and a reload) the narrator's practice line changes nothing.
         if (ctx.cause === 'story' && definition.role === 'skills' && PRACTICE_KIND.test(labels.kind) && ctx.carrier?.practiceRule === 'rolls') refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
+        // (a learn line of a block with types that leaves its `type` out is a combat skill)
+        if (kind.labels?.type && args.type === undefined) args.type = 'combat';
         // The XP rate (lean-rpg/levels.js): the narrator's XP line for a character is multiplied by the rate in force (the RPG on), which the line's record keeps
         // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.
         let xpRate = XP_RATE.default;

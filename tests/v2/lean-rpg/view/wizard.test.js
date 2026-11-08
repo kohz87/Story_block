@@ -42,15 +42,16 @@ test('the budget: a stat above 5 costs a point a step, below it gives one back, 
 
 test('at most five skills and at most one at Adept, however the draft got there', () => {
     let draft = newDraft({ persona: 'Wessel' });
-    for (let n = 0; n < 8; n += 1) draft = withSkill(draft);
-    assert.equal(draft.skills.length, 5, 'add stops at five');
+    for (let n = 0; n < 12; n += 1) draft = withSkill(draft);
+    assert.equal(draft.skills.length, 8, 'add stops at five combat skills and three utility ones');
+    assert.equal(draft.skills.filter(skill => skill.type === 'utility').length, 3);
     draft = withSkillPatch(draft, 0, { start: 1 });
     assert.deepEqual([adeptCount(draft), draft.skills[0].start, mayStartAdept(draft, 0), mayStartAdept(draft, 1)], [1, 1, true, false]);
     draft = withSkillPatch(draft, 1, { start: 1 });
-    assert.deepEqual(draft.skills.map(skill => skill.start), [1, 0, 0, 0, 0], 'a second Adept is refused');
+    assert.deepEqual(draft.skills.map(skill => skill.start), [1, 0, 0, 0, 0, 0, 0, 0], 'a second Adept is refused');
     draft = withSkillPatch(draft, 0, { start: 0 });
     draft = withSkillPatch(draft, 1, { start: 1 });
-    assert.deepEqual(draft.skills.map(skill => skill.start), [0, 1, 0, 0, 0], 'it moves once the first lets go');
+    assert.deepEqual(draft.skills.map(skill => skill.start), [0, 1, 0, 0, 0, 0, 0, 0], 'it moves once the first lets go');
     assert.equal(adeptCount(withoutSkill(draft, 1)), 0);
     const forced = readDraft({ skills: Array.from({ length: 7 }, (_, n) => ({ name: `S${n}`, about: 'a', stat: 'str', uses: 'mana', start: 1 })) });
     assert.deepEqual([forced.skills.length, adeptCount(forced), forced.skills[0].uses], [5, 1, 'mana'], 'a hand-made draft is made whole');
@@ -249,7 +250,7 @@ test('Skills: the five built-in sets and a pack\'s, rows with Stat, Uses and Sta
     assert.equal(cards()[2].querySelector('.rpg-wiz-card-skills').textContent, 'Spark (INT, mana) · Ward (INT, mana) · Lore (INT)');
     assert.equal(cards()[5].querySelector('.rpg-wiz-card-skills').textContent, 'Spear (STR) · Ward-reading (INT, mana) · Gatecraft (VIT)');
     assert.deepEqual(cards().map(card => card.getAttribute('aria-pressed')), ['false', 'false', 'false', 'false', 'false', 'false']);
-    assert.match(skills.textContent, /Up to 5 skills, each with what it does, the stat it rolls with and what it uses\. One may start at Adept, the rest are Novice\./);
+    assert.match(skills.textContent, /Up to 8 skills, each with what it does, the stat it rolls with and what it uses\. Up to three can be utility skills, for the story only: they stay off the fight board and take no combat slot\. One may start at Adept, the rest are Novice\./);
     cards()[0].click();
     skills = wizardOf(dialog);
     assert.deepEqual(cards().map(card => card.getAttribute('aria-pressed')), ['true', 'false', 'false', 'false', 'false', 'false']);
@@ -271,7 +272,7 @@ test('Skills: the five built-in sets and a pack\'s, rows with Stat, Uses and Sta
     rows()[1].querySelector('[data-field="uses"]').value = 'mana';
     rows()[1].querySelector('[data-field="uses"]').dispatch('change');
     assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /Blade work, Iron Breath, Shield work/);
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, '3 of 5 skills');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, '3 of 8 skills');
     // One Adept: the others' Adept option is off once one is taken.
     rows()[0].querySelector('[data-field="start"]').value = '1';
     rows()[0].querySelector('[data-field="start"]').dispatch('change');
@@ -282,14 +283,13 @@ test('Skills: the five built-in sets and a pack\'s, rows with Stat, Uses and Sta
     rows()[1].querySelector('[data-field="start"]').dispatch('change');
     assert.deepEqual(rows().map(row => row.querySelector('[data-field="start"]').value), ['1', '0', '0'], 'a second Adept is refused');
     // Add up to five, then no more; remove frees the slot (and the Adept).
-    click(wizardOf(dialog), '+ Add a skill');
-    click(wizardOf(dialog), '+ Add a skill');
-    assert.equal(rows().length, 5);
+    for (let more = 0; more < 5; more += 1) click(wizardOf(dialog), '+ Add a skill');
+    assert.equal(rows().length, 8);
     assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-add-button').disabled, true);
     assert.match(wizardOf(dialog).querySelector('.rpg-wiz-add .rpg-wiz-note').textContent, /^All slots are used\./);
     rows()[0].querySelector('.rpg-wiz-x').click();
-    assert.equal(rows().length, 4);
-    assert.deepEqual(rows().map(row => adept(row).hasAttribute('disabled')), [false, false, false, false], 'the Adept one is gone: Adept is free again');
+    assert.equal(rows().length, 7);
+    assert.deepEqual(rows().map(row => adept(row).hasAttribute('disabled')), Array(7).fill(false), 'the Adept one is gone: Adept is free again');
     assert.match(wizardOf(dialog).querySelector('.rpg-wiz-add .rpg-wiz-note').textContent, /^1 slot left\./);
     // A pack set replaces the rows.
     cards()[5].click();
@@ -520,7 +520,7 @@ test('feature off: no wizard screen, no button, nothing of it loaded', async t =
 test('the stylesheet: the summary row, the template cards in three columns, rows that stack on a phone, theme tokens only', () => {
     const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
     assert.match(css, /\.rpg-wiz-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-    assert.match(css, /\.rpg-wiz-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1\.7fr\) 78px 104px 104px 36px/);
+    assert.match(css, /\.rpg-wiz-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1\.7fr\) 78px 104px 104px 104px 36px/);
     const phone = css.slice(css.indexOf('@media (max-width: 600px) {\n    .rpg-wiz-grid'));
     assert.match(phone, /\.rpg-wiz-grid \{ grid-template-columns: 1fr; \}/);
     assert.match(phone, /\.rpg-wiz-row \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) 36px;/);

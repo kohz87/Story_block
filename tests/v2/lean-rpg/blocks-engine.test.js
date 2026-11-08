@@ -35,7 +35,7 @@ test('the Standard templates are the same four blocks, version 2, each passing t
         const checked = validateDataModules([structuredClone(definition)], CHECK);
         assert.equal(checked.ok, true, `${name}: ${JSON.stringify(checked.errors)}`);
         assert.ok(Buffer.byteLength(JSON.stringify(definition)) <= L.definitionBytes, name);
-        assert.ok(Object.keys(definition.state).length <= (definition.role === 'skills' ? L.skillsFields : L.fields) && Object.keys(definition.kinds).length <= L.kinds, name);
+        assert.ok(Object.keys(definition.state).length <= (definition.role === 'skills' ? L.skillsFields : L.fields) && Object.keys(definition.kinds).length <= (definition.role === 'skills' ? L.skillsKinds : L.kinds), name);
     }
     for (const name of ['Character', 'Foes', 'Combat rules']) assert.equal(standard(name).stateVersion, 2, name);
     assert.ok(COMBAT_PROMPT_STANDARD.length <= L.prompt, 'the Combat rules text fits the block\'s 1200');

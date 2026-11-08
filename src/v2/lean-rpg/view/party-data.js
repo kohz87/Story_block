@@ -11,7 +11,7 @@ import { STANDARD_NUMBERS, levelOfClass } from '../formula.js';
 import { barOf, characterBars, growthOf, scaleOf, sizeOf, spreadWord, statsOfFields, wordsOf } from '../blocks.js';
 import { activeDefinition, actorsOf, instanceOf } from '../../data-modules/adapters.js';
 import { LEVEL } from '../names.js';
-import { SKILL_SLOTS_MAX, signatureAt } from '../../skill-slots.js';
+import { SKILL_FIELDS_MAX, isTypedSkills, signatureAt, skillTypeOf } from '../../skill-slots.js';
 import { levelLabel, playerRankValue } from '../levels.js';
 import { soulLabelOf } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
@@ -124,14 +124,14 @@ const textOf = value => (typeof value === 'string' ? value.replace(/\s+/g, ' ').
  */
 export function skillsOf(block) {
     const out = [];
-    for (let slot = 1; slot <= SKILL_SLOTS_MAX; slot += 1) {
+    for (let slot = 1; slot <= SKILL_FIELDS_MAX; slot += 1) {
         const name = textOf(block.fields[`skill${slot}`]);
         if (!name) continue;
         const rank = whole(block.fields[`rank${slot}`]);
         const stat = textOf(block.fields[`stat${slot}`]).toLowerCase(), uses = textOf(block.fields[`uses${slot}`]).toLowerCase();
         out.push({ slot, name, about: textOf(block.fields[`about${slot}`]), stat: STATS.includes(stat) ? stat : null, uses: uses === 'mana' || uses === 'stamina' ? uses : null,
             rank, rankName: rankName(block.definition.state?.[`rank${slot}`], rank), practice: whole(block.fields[`practice${slot}`]),
-            ...(signatureAt(block.fields.sig, slot) ? { signature: true } : {}) });
+            ...(signatureAt(block.fields.sig, slot) ? { signature: true } : {}), ...(isTypedSkills(block.fields) ? { type: skillTypeOf(block.fields, slot) } : {}) });
     }
     return out;
 }

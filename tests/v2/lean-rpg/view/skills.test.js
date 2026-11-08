@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setupDom } from '../../view/mounts/helpers.js';
-import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES_EIGHT as STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { readParty } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { createPartyWidget } from '../../../../src/v2/lean-rpg/view/party.js';
 import { RANK_TONES, masteryOf, renderSkills, rollOf } from '../../../../src/v2/lean-rpg/view/skills.js';

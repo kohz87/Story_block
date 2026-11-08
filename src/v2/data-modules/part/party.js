@@ -182,8 +182,10 @@ export function createParty(deps) {
         // (a companion starts under the story's level cap: the pack's ranks record names one, else the reader's setting, else 99)
         // (a Re-read of a join made before the signature skills: the block that reply made had five slots and no mark, so it is built that way and seeds nothing)
         const earlier = standingBlock(ctx, request.name), legacy = Boolean(earlier) && !Object.hasOwn(earlier.definition.state ?? {}, 'sig');
+        // (and one made before the skill types has eight slots and no `type` field: built that way again; a first read of a join makes the typed block)
+        const typed = !earlier || Object.hasOwn(earlier.definition.state ?? {}, 'type1');
         const seeds = legacy ? [] : castSeeds(ctx, request.name, 'join');
-        const made = rpg().joinDefinitions({ ...request, skills: seeds }, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap), legacy, scale: rpg().joinScale(prefix) });
+        const made = rpg().joinDefinitions({ ...request, skills: seeds }, { used: Object.keys(domain?.active ?? {}), soul, rules, cap: rpg().levelCapFor(settings(), packLevelsOf(rpgRecords)?.levelCap), legacy, typed, scale: rpg().joinScale(prefix) });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
         const first = rpg().partyOf(prefix).length === 0, plan = first ? rpg().extrasPlan(prefix) : { add: [], skipped: [] };
         const extras = rpg().extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug] });

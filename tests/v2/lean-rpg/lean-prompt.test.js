@@ -43,14 +43,14 @@ test('a numbered family is one template line with N, and a closing line says wha
         const skills = moduleGrammar(definitionOf(templates, 'skills'), 'skills');
         assert.equal(skills.split('\n').filter(line => line.includes('kind: learn-N')).length, 1, label);
         assert.equal(skills.split('\n').filter(line => line.includes('kind: practice-N')).length, 1, label);
-        assert.ok(skills.includes('N = 1..8 for learn-N and practice-N.'), label);
-        assert.doesNotMatch(skills, /learn-[1-8]|practice-[1-8]/u, `${label}: no kind written eight times`);
+        assert.ok(skills.includes('N = 1..11 for learn-N and practice-N.'), label);
+        assert.doesNotMatch(skills, /learn-(?:[1-9]|1[01])|practice-(?:[1-9]|1[01])/u, `${label}: no kind written eleven times`);
         const foes = moduleGrammar(definitionOf(templates, 'foes'), 'foes');
         for (const kind of ['set-slot-N', 'hurt-N', 'clear-N']) assert.equal(foes.split('\n').filter(line => line.includes(`kind: ${kind}`)).length, 1, `${label} ${kind}`);
         assert.ok(foes.includes('N = 1..4 for set-slot-N, hurt-N and clear-N.'), label);
         // The kinds themselves are as they were: the template is the text the narrator reads, never the definition.
         assert.deepEqual(Object.keys(definitionOf(templates, 'foes').kinds), [1, 2, 3, 4].flatMap(n => [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]));
-        assert.equal(Object.keys(definitionOf(templates, 'skills').kinds).length, 16); // (pinned change, extra skill slots: 8 learn + 8 practice)
+        assert.equal(Object.keys(definitionOf(templates, 'skills').kinds).length, 22); // (11 learn + 11 practice: eight combat slots and three utility ones)
     }
 });
 
@@ -117,7 +117,7 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     assert.match(text, /kind: learn-N/u);
     // Practice comes only from rolled uses (the RPG on, Rolls automatic): no practice-N line is offered.
     assert.doesNotMatch(text, /practice-N/u);
-    assert.match(text, /N = 1\.\.8 for learn-N\./u);
+    assert.match(text, /N = 1\.\.11 for learn-N\./u);
 });
 
 test('the XP guide stays on a quiet reply (Standard), once, and the rest of the combat text does not', { skip }, async t => {

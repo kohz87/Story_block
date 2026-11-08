@@ -23,11 +23,11 @@
 
 import { PRECHECK } from './assist/classifier.js';
 import { makeView } from './sdk.js';
-import { SKILL_SLOTS_MAX } from './skill-slots.js';
+import { SLOT_NUMBER } from './skill-slots.js';
 import { rpgLib } from './rpg-lazy.js';
 
 // A story line that practises a skill (`practice-N`, data-modules/part.js): the lines a reply is marked for (see captureEach).
-const PRACTICE_LINE = new RegExp(`\\|\\s*kind\\s*:\\s*practice-[1-${SKILL_SLOTS_MAX}]\\b`, 'iu');
+const PRACTICE_LINE = new RegExp(`\\|\\s*kind\\s*:\\s*practice-${SLOT_NUMBER}\\b`, 'iu');
 import { contentText, contextRoom } from './turn/text.js';
 import { createSession } from './turn/session.js';
 import { createCaptureFlow } from './turn/capture-flow.js';
