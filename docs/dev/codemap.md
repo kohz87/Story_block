@@ -40,6 +40,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/quiet.js`: trims combat and foe prompt grammar on replies where rolls cannot be used.
 - `src/v2/lean-rpg/board/auto.js`: chooses deterministic Auto-fight actions by the party policy and decides why Auto stops.
 - `src/v2/lean-rpg/board/auto-run.js`: plays Auto exchanges on the staged board fight until the cap, a won or lost fight or a badly hurt hero, and words why it stopped.
+- `src/v2/lean-rpg/board/precheck.js`: pure foe pre-check prompt, tolerant JSON reader, group vetting and typed-attack test for opening a fight from a message.
 - `src/v2/lean-rpg/board/resume.js`: finds the last ended board fight's exact foe bars when the collapsed Foes block still matches them.
 - `src/v2/lean-rpg/resolve.js`: prepares and rolls planned checks, acts and foe attacks into a replayable RPG receipt.
 - `src/v2/lean-rpg/soul.js`: reads a renamed Soul Class field label and names, with stock fallbacks.
