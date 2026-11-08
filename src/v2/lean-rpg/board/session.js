@@ -46,7 +46,7 @@ export function openBoard(meta, state, { sid, rules, gear = null, weapons = {}, 
 export function stageExchange(meta, state, actions) {
     const session = boardSession(meta);
     if (!session) return { error: 'Open a fight first.' };
-    if (session.exchanges.length && session.setup.witness?.offset !== session.setup.offset) return { error: 'This fight cannot be checked. Discard it and start the fight again.' };
+    if (session.exchanges.length && session.setup.witness?.offset !== session.setup.offset) return { error: 'This fight cannot be checked. Discard it (Fight tab, Discard fight) and start the fight again.' };
     const exchanges = [...session.exchanges, { actions: structuredClone(actions) }];
     const setup = { ...session.setup, witness: session.setup.witness ?? { offset: session.setup.offset, hash: boardWitness(state, session.setup) } };
     const preview = playBoard(state, setup, exchanges);

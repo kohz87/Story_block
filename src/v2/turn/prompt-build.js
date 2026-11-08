@@ -349,7 +349,7 @@ export function createPromptBuild(s, deps) {
             }
             await ensureModules({ store, bus, registry, events });
             if (s.heldBoard) {
-                block({ moduleId: 'story-block', reason: 'Restore the fight sheet or gear, or discard the fight and regenerate the held reply.', keepSession: true }, abort);
+                block({ moduleId: 'story-block', reason: 'Restore the fight sheet or gear, or discard the fight (Fight tab, Discard fight) and regenerate the held reply.', keepSession: true }, abort);
                 return;
             }
             const blocked = await blockedBy(kind);
