@@ -10,6 +10,8 @@ import { STANDARD_NUMBERS, STAT_KEYS, blocksFor } from '../../../src/v2/lean-rpg
 import { STAGES } from '../../../src/v2/lean-rpg/names.js';
 import { growthOf, spreadWord, wordToBlocks } from '../../../src/v2/lean-rpg/blocks.js';
 import { readSheet } from '../../../src/v2/lean-rpg/read.js';
+import { applyGear } from '../../../src/v2/lean-rpg/gear.js';
+import { rosterOf } from '../../../src/v2/lean-rpg/standard/roster.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
 import { prepareStandard, rollStandard } from '../../../src/v2/lean-rpg/standard.js';
 import { memberRolls } from '../../../src/v2/lean-rpg/board/member-rolls.js';
@@ -20,6 +22,7 @@ import { playBoard } from '../../../src/v2/lean-rpg/board/engine.js';
 import { boardGuard } from '../../../src/v2/lean-rpg/board/commit.js';
 import { openBoard } from '../../../src/v2/lean-rpg/board/session.js';
 import { boardChoices } from '../../../src/v2/lean-rpg/board/view-data.js';
+import { settledNote } from '../../../src/v2/lean-rpg/board/note.js';
 import { barText } from '../../../src/v2/lean-rpg/board/view-bars.js';
 import { growthText } from '../../../src/v2/lean-rpg/view/party-data.js';
 import { buildDefinitions, newDraft } from '../../../src/v2/lean-rpg/view/wizard-data.js';
@@ -74,6 +77,19 @@ test('the checker takes the scale mark only as 2 on a health, stamina or mana ba
     assert.equal(bad(definition => { definition.state.health.scale = 3; }), false);
     assert.equal(bad(definition => { definition.state.str.scale = 2; }), false);
     assert.equal(bad(definition => { delete definition.state.health.scale; }), false, 'a max of 16 without the mark is over the 10-stage limit');
+    assert.equal(bad(definition => { definition.state.stamina.max = 8; delete definition.state.stamina.scale; }), false, 'a partly marked character cannot mark a fight');
+    assert.equal(bad(definition => { definition.state.hurt1 = { type: 'int', min: 0, max: 16, default: 10, blocks: 'health', scale: 2 }; }), false, 'foe-style fields cannot use the larger allowance');
+    assert.equal(bad(definition => { definition.role = 'foes'; }), false, 'other roles cannot claim character scales');
+    assert.equal(bad(definition => { delete definition.role; }), false, 'blocks without a role cannot claim character scales');
+    assert.equal(bad(definition => { definition.state.health.blocks = 'mana'; }), false, 'the field and bar must agree');
+});
+
+test('gear cannot increase a scaled bar beyond its pinned maximum', () => {
+    const sheet = readSheet(stateOf(NEW, { vit: 20, agi: 20, int: 20, health: 16, stamina: 16, mana: 16 }));
+    const dressed = applyGear(sheet, { who: { astra: { add: { vit: 10, agi: 10, int: 10 } } } });
+    assert.equal(dressed.characters[0].stats.vit, 30);
+    const roster = rosterOf(dressed, () => 16);
+    assert.deepEqual([roster.characters[0].size, ...roster.resources.map(bar => bar.size)], [16, 16, 16]);
 });
 
 test('the story\'s stage words keep their share of the bar at the new sizes (words only, never numbers)', () => {
@@ -119,6 +135,8 @@ test('a single-target skill hits for 2 (3 when decisive), a plain attack for 1 (
         }
     }
     for (const name of Object.keys(seen)) assert.deepEqual([...seen[name]].sort(), [false, true], `${name}: both a plain and a decisive hit were seen`);
+    const pack = roll(stateOf(NEW, {}, [['Rats', 6, 1, 4]]), [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 11 }], { init0: [20], act0: [20, 1] })[0];
+    assert.equal(pack.damage.blocks, 3, 'the single-target skill also deals 3 to a pack on a decisive hit');
 });
 
 test('a skill costs 1, an area skill costs 2, a plain attack nothing; an old fight\'s area skill costs 1', () => {
@@ -145,11 +163,13 @@ test('an area skill with 1 left cannot be chosen: the plan refuses it, the board
 });
 
 test('an area skill whose pool a defence drained to 1 in the same exchange is rolled without the skill, never paid with 1', () => {
-    const state = stateOf(NEW, { stamina: 2 }), base = readSheet(state), sheet = { ...base, foes: splitFoes(base.foes, {}) };
+    const state = stateOf(NEW, { stamina: 2 }, [['Rat', 1, 1, 4]], [...SKILLS, ['Dodge', 3, 'agi', 'stamina', 'dodge attacks']]);
+    const base = readSheet(state), sheet = { ...base, foes: splitFoes(base.foes, {}) };
     const built = exchangePlan(sheet, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true, group: 1 }], {}, 1, { members: true, aoe: true, bars: true });
     const hooks = memberRolls(built.plan), prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true, memberRolls: hooks });
-    prepared.roster.resources.find(bar => bar.id === 'c:astra:stamina').value = 1;
-    const line = rollStandard(built.plan, prepared, dice({ init0: [20], act0: [20, 1] }), rules, { flow: 2, fix: true, then: true, board: true, scaled: true, memberRolls: hooks }).rounds[0].lines.find(item => item.kind === 'act');
+    const lines = rollStandard(built.plan, prepared, dice({ init0: [1], init16: [20], foe0: [5, 15], act0: [20, 1] }), rules, { flow: 2, fix: true, then: true, board: true, scaled: true, memberRolls: hooks }).rounds[0].lines;
+    assert.deepEqual([lines[0].kind, lines[0].skill, lines[0].cost.blocks, lines[0].cost.to], ['foe', 'Dodge', 1, 1]);
+    const line = lines.find(item => item.kind === 'act');
     assert.equal(line.skill, null);
     assert.equal(line.cost, undefined);
     assert.equal(line.without, 'Sweep');
@@ -163,6 +183,31 @@ test('Auto never picks an area skill it cannot pay (1 left in a marked fight), a
     assert.notEqual(one.area, true, 'with 1 it does not');
     const old = pick(stateOf(OLD, { stamina: 1, health: 5 }, [['Rats', 6, 1, 4]], [SKILLS[1]]), {});
     assert.equal(old.area, true, 'an old fight pays an area skill with 1');
+});
+
+test('marked board heals keep their one- and two-block values, cost one and are available to Auto', () => {
+    const state = stateOf(NEW, { health: 4, mana: 1 }, [['Rat', 1, 1, 4]], [['Mend', 3, 'int', 'mana', 'heal an ally']]);
+    const base = readSheet(state), sheet = { ...base, foes: splitFoes(base.foes, {}) };
+    const picks = autoPicks({ state, setup: { seed: 1, offset: 0, rules, members: 1, aoe: 1, bars: 2 } }, rules);
+    assert.deepEqual(picks[0], { who: 'Astra', kind: 'skill', skill: 'Mend', target: 'Astra', support: true, difficulty: 'normal' });
+    assert.ok(boardChoices(state, { bars: 2, flags: {} }).choices.some(choice => choice.action.support && choice.action.target === 'Astra'));
+    const built = exchangePlan(sheet, picks, {}, 1, { members: true, aoe: true, bars: true });
+    assert.equal(built.error, undefined, built.error);
+    for (const [die, amount] of [[6, 1], [20, 2]]) {
+        const hooks = memberRolls(built.plan), prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true, memberRolls: hooks });
+        const result = rollStandard(built.plan, prepared, dice({ init0: [20], act0: [die, 10] }), rules, { flow: 2, fix: true, then: true, board: true, scaled: true, memberRolls: hooks });
+        const line = result.rounds[0].lines.find(item => item.support);
+        assert.equal(line.damage.blocks, -amount);
+        assert.equal(line.cost.blocks, 1);
+        assert.match(settledNote(result), /Astra heals Astra \(Mend\)/);
+    }
+    const hooks = memberRolls(built.plan), prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true, memberRolls: hooks });
+    prepared.roster.resources.find(bar => bar.id === 'c:astra:mana').value = 0;
+    const drained = rollStandard(built.plan, prepared, dice({ init0: [20], act0: [20, 10] }), rules, { flow: 2, fix: true, then: true, board: true, scaled: true, memberRolls: hooks });
+    assert.equal(drained.rounds[0].lines.some(line => line.support), false, 'a defence cannot leave a free heal');
+    assert.ok(drained.rounds[0].idle.some(line => line.why === 'no-resource'));
+    const areaHeal = stateOf(NEW, { health: 4, mana: 1 }, [['Rat', 1, 1, 4]], [['Heal all foes', 3, 'int', 'mana', 'heal every foe']]);
+    assert.notEqual(autoPicks({ state: areaHeal, setup: { seed: 1, offset: 0, rules, members: 1, bars: 2 } }, rules)[0].support, true);
 });
 
 // ---- the old pin, byte for byte -----------------------------------------------------------------------------------------------------
@@ -196,7 +241,7 @@ test('a new pin marks the fight (setup, result), a mixed party does not, and the
     const board = { id: 'x', anchor: 'a', groups: [1], setup: { ...opened.session.setup }, exchanges: [] };
     const guard = (predicate, recorded) => boardGuard({ state, hash }, { guard: { version: 2, rulesHash: null, predicate, inputHash: '' }, source: '', recorded });
     const predicate = { kind: 'rpg.resolve', board: 1, key: 'b:x', setup: hash(board), rules: hash(rules), practice: 1 };
-    assert.match(guard(predicate, { key: 'b:x', board, practice: 1 }).reason, /./, 'a mark in the record the predicate does not carry is refused');
+    assert.equal(guard(predicate, { key: 'b:x', board, practice: 1 }).reason, 'The saved fight is damaged.', 'a mark in the record the predicate does not carry is refused');
 });
 
 // ---- Auto's badly-hurt stop ----------------------------------------------------------------------------------------------------------
@@ -229,6 +274,13 @@ test('a joining companion takes the scale of the chat: an old party stays old, a
     assert.equal(joinScale(only(NEW)), 2);
     assert.equal(joinScale({ domains: { dataModules: sheetDomain({}) } }), 2);
     assert.equal(joinScale(stateOf(undefined)), 1, 'a stage-field party is old');
+    const empty = { domains: { dataModules: sheetDomain({}) } };
+    assert.equal(joinScale(empty, only(OLD), 'pack.chat/a'), 1, 'a Re-read keeps the first old pin');
+    assert.equal(joinScale(empty, only(NEW), 'pack.chat/a'), 2, 'a Re-read keeps the first new pin');
+    assert.equal(joinScale(empty, only(OLD), 'pack.chat/missing'), 2, 'a newly added line uses the prefix');
+    const left = { domains: { dataModules: sheetDomain({ a: { role: 'character', definition: OLD, fields: character('Astra', { left: true }) } }) } };
+    assert.equal(joinScale(left), 1, 'a departed old character still fixes the companion scale');
+    assert.equal(joinScale(empty, left, 'pack.chat/a'), 1, 'a Re-read still finds a joined character who left');
 });
 
 test('scaledCharacter turns only the size expressions: the same kinds, the same level rules', () => {

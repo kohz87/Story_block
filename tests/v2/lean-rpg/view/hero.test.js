@@ -16,9 +16,9 @@ test('the lead is the reader\'s own character: three stage bars with the stage w
     const lead = heroLead(state(), { own: 'Wessel', roleOf });
     assert.equal(lead.name, 'Wessel');
     assert.deepEqual(lead.bars, [
-        { kind: 'hp', label: 'Health', value: 3, max: 5, text: 'Hurt' },
-        { kind: 'mp', label: 'Mana', value: 4, max: 4, text: 'Fresh' },
-        { kind: 'sp', label: 'Stamina', value: 1, max: 4, text: 'Spent' },
+        { kind: 'hp', label: 'Health', value: 3, max: 5, text: 'Hurt · 3/5' },
+        { kind: 'mp', label: 'Mana', value: 4, max: 4, text: 'Fresh · 4/4' },
+        { kind: 'sp', label: 'Stamina', value: 1, max: 4, text: 'Spent · 1/4' },
         { kind: 'exp', label: 'XP', value: 40, max: 100, text: '40 / 100 to Lv 3' },
     ]);
 });

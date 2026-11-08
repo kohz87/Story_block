@@ -119,6 +119,22 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     assert.ok(fight().querySelector('.rpg-board-open'));
 });
 
+test('the marked board stages a selected heal on its named party member and labels the result', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host, { character: { health: 4 }, skills: { skill1: 'Mend', about1: 'heal an ally', stat1: 'int', uses1: 'mana' } });
+    await defineFoes(host, [['Rat', 1, 1, 4]]);
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    const fight = () => doc.querySelector('[data-ss-screen="story-block/fight"]');
+    fight().querySelector('.rpg-board-open').click();
+    const choice = fight().querySelectorAll('.rpg-board-choice').find(node => node.textContent.includes('heal Wessel'));
+    assert.ok(choice);
+    choice.click();
+    assert.equal(boardSession(host.ctx.chatMetadata).exchanges[0].actions[0].support, true);
+    assert.match(fight().querySelector('.rpg-board-log').textContent, /Wessel heals Wessel \(Mend\)/);
+});
+
 test('the board ends on a won card', async t => {
     const { doc, result } = await showStop(t, {
         character: { str: 20, agi: 20 }, foes: [['Rats', 1, 1, 1]],

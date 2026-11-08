@@ -11,7 +11,7 @@ import { usesOf } from '../practice.js';
 import { actionSkills } from './plan.js';
 import { areaGroupName, memberBaseName, memberOrderEntries, pluralName } from './order.js';
 import { attackStat, bestDefence } from './rules.js';
-import { skillKey } from './flags.js';
+import { healingSkill, skillKey } from './flags.js';
 
 export function boardChoices(state, setup, chosen = [], memberGroupList = null) {
     const sheet = applyGear(readSheet(state), setup?.gear), actors = sheet.characters.filter(actor => actor.alive !== false && actor.health !== 0);
@@ -24,6 +24,10 @@ export function boardChoices(state, setup, chosen = [], memberGroupList = null) 
     for (const { skill, target, area, reason, areaReason } of actionSkills(actor, setup?.flags, { bars: setup?.bars === 2 })) {
         const detail = [skill.stat?.toUpperCase(), skill.uses === 'mana' ? 'Mana' : 'Stamina'].filter(Boolean).join(', ');
         const base = `${skill.name}${skill.about ? `: ${skill.about}` : ''} (${detail})`;
+        if (setup?.bars === 2 && healingSkill(skill) && target) {
+            for (const mate of sheet.characters.filter(person => person.alive !== false)) choices.push({ label: `${base} — heal ${mate.who}`, reason, action: { who: actor.who, kind: 'skill', skill: skill.name, target: mate.who, support: true } });
+            continue;
+        }
         if (target) choices.push({ label: `${base}${area ? ' — one foe' : ''}`, reason, action: { who: actor.who, kind: 'skill', skill: skill.name } });
         if (area) choices.push({ label: `${base}${areaLabel}`, reason: areaReason, action: { who: actor.who, kind: 'skill', skill: skill.name, area: true } });
     }

@@ -128,6 +128,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const me = bars.get(owner(entry));
         if (!standing(me.id)) return { idle: 'down' };
         if (entry.support) {
+            if (board && scaled && !entry.skill) return { idle: 'no-resource' };
             const mate = bars.get(entry.target.id);
             const total = pcDie + entry.pc.statBonus + entry.pc.classBonus + entry.pc.rank + entry.pc.edge;
             const outcome = outcomeStd(pcDie, total, entry.dc, rules);
