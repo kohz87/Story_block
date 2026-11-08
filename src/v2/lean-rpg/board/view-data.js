@@ -9,7 +9,7 @@ import { fightOf, memberLevel, memberXp } from '../fight.js';
 import { scaleXp, xpRateFrom } from '../levels.js';
 import { usesOf } from '../practice.js';
 import { actionSkills } from './plan.js';
-import { memberBaseName, memberOrderEntries, pluralName } from './order.js';
+import { areaGroupName, memberBaseName, memberOrderEntries, pluralName } from './order.js';
 import { attackStat, bestDefence } from './rules.js';
 import { skillKey } from './flags.js';
 
@@ -20,7 +20,7 @@ export function boardChoices(state, setup, chosen = [], memberGroupList = null) 
     if (!actor) return { sheet, actors, foes, actor: null, choices: [] };
     const weapon = setup?.weapons?.[actor.key], stat = attackStat(actor, weapon).toUpperCase();
     const choices = [{ label: `Attack${weapon?.name ? ` with ${weapon.name}` : ''} (${stat})`, action: { who: actor.who, kind: 'attack' } }];
-    const areaLabel = Array.isArray(memberGroupList) && memberGroupList.length > 1 ? ' — one group' : ' — every foe';
+    const areaLabel = Array.isArray(memberGroupList) && memberGroupList.length > 1 ? (setup?.aoe === 1 ? ' — every group' : ' — one group') : ' — every foe';
     for (const { skill, target, area, reason } of actionSkills(actor, setup?.flags)) {
         const detail = [skill.stat?.toUpperCase(), skill.uses === 'mana' ? 'Mana' : 'Stamina'].filter(Boolean).join(', ');
         const base = `${skill.name}${skill.about ? `: ${skill.about}` : ''} (${detail})`;
@@ -63,14 +63,14 @@ export function memberPackLine(member) {
 }
 
 /** The standing real-slot groups, each with the display name an area asks for. */
-export function memberGroups(members, realFoes = []) {
+export function memberGroups(members, realFoes = [], { aoe = false } = {}) {
     const list = standingMembers(members), out = [], seen = new Set();
     for (const member of list) {
         const group = Number(member?.group);
         if (!Number.isFinite(group) || seen.has(group)) continue;
         seen.add(group);
         const real = (Array.isArray(realFoes) ? realFoes : []).find(foe => Number(foe?.slot) === group);
-        out.push({ group, label: pluralName(memberBaseName(member, real)), members: list.filter(item => Number(item?.group) === group) });
+        out.push({ group, label: aoe && real ? areaGroupName(real) : pluralName(memberBaseName(member, real)), members: list.filter(item => Number(item?.group) === group) });
     }
     return out;
 }

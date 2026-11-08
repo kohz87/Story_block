@@ -25,13 +25,14 @@ export const barMovement = (damage, resource = false, foe = null) => {
 
 function lineNote(line, members = null) {
     const who = clean(line.pc?.who), foe = clean(line.foe?.name), skill = line.skill ? ` (${clean(line.skill)})` : '';
-    const action = line.flee ? `${who} flees from ${foe}` : line.kind === 'foe' ? `${foe} attacks ${who}` : `${who} attacks ${foe}${skill}`;
+    const area = line.aoe ? (line.reduced ? ' (area, reduced)' : ' (area)') : '';
+    const action = line.flee ? `${who} flees from ${foe}` : line.kind === 'foe' ? `${foe} attacks ${who}` : `${who} attacks ${foe}${skill}${area}`;
     const result = line.outcome === 'cost' ? 'success at a cost' : line.outcome;
     const verdict = line.kind === 'foe' ? `${who}'s defence${skill}: ${result}` : result;
     const slot = line.foe?.slot ?? Number(/^f:(\d+)/u.exec(line.damage?.id ?? '')?.[1] ?? NaN);
     const target = line.kind === 'foe' ? null : { ...(members?.get(slot) ?? {}), ...(line.foe ?? {}) };
     const changes = [line.damage ? barMovement(line.damage, false, target) : '', line.cost ? barMovement(line.cost, true) : ''].filter(Boolean);
-    return `${action}: ${verdict}${line.decisive ? ', decisive' : ''}${changes.length ? `; ${changes.join('; ')}` : ''}`;
+    return `${action}: ${line.aoeNoTarget ? 'main target already Down; ' : ''}${verdict}${line.decisive ? ', decisive' : ''}${changes.length ? `; ${changes.join('; ')}` : ''}`;
 }
 
 function newFoesNote(result, setup) {

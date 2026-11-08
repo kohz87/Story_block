@@ -70,7 +70,7 @@ function standardLine(line, { names, shown, word, who, legacy = false }) {
     const bare = !line.without ? '' : legacy ? ` (${resource})` : line.skill ? ` (${resource}; ${cut(line.skill, names)} instead)` : ` (no skill: ${resource}; a plain weapon attack \u2014 name no skill)`;
     const by = line.skill ? ` (${cut(line.skill, names)})` : '';
     if (foe) return `${shown(line.foe.name)} attacks ${who}${by}${bare}: ${verdict} for ${who} ${numbers(line)}${hit}`;
-    return `${who} \u2192 ${shown(line.foe.name)}${by}${bare}${line.area ? ' (area)' : ''}: ${verdict} ${numbers(line)}${hit}`;
+    return `${who} \u2192 ${shown(line.foe.name)}${by}${bare}${line.area ? (line.reduced ? ' (area, reduced)' : ' (area)') : ''}: ${verdict} ${numbers(line)}${hit}`;
 }
 
 const IDLE_WHY = Object.freeze({ down: 'Down', beaten: 'beaten', 'no-target': 'no target left' });

@@ -25,7 +25,8 @@ export function actionSkills(actor, flags = {}) {
 }
 
 /** Build a Standard plan from one choice for each standing member, or one flee choice. */
-export function exchangePlan(sheet, actions, flags = {}, number = 1, { members = false } = {}) {
+// `aoe`: the newer area rule (setup.aoe === 1): an area skill hits every standing group, the picked group is its main target.
+export function exchangePlan(sheet, actions, flags = {}, number = 1, { members = false, aoe = false } = {}) {
     const actors = (sheet?.characters ?? []).filter(standing), foes = (sheet?.foes ?? []).filter(up);
     if (!actors.length || !foes.length) return { error: 'The fight has already ended.' };
     const grouped = members;
@@ -64,7 +65,7 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1, { members =
         } else target = foes.find(foe => foe.slot === action.target);
         if (!target) return { error: 'That foe is no longer standing.' };
         acts.push({ who: actor.who, ...(skill ? { skill: skill.name } : {}), target: `foe${target.slot}`, type: skill?.uses === 'mana' ? 'magic' : 'physical',
-            ...(area ? { area: true } : {}), ...(group !== undefined ? { group } : {}) });
+            ...(area ? { area: true } : {}), ...(group !== undefined ? { group } : {}), ...(area && group !== undefined && aoe ? { aoe: true } : {}) });
     }
     // Every member attacks once and a pack attacks as its thinning bar allows. The flattened attacker index rotates targets.
     // A new-board defence is charged on its first executed attack, so Standard decides `paid` at the table, not here.

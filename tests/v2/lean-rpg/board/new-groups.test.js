@@ -6,6 +6,7 @@ import { createHost } from '../../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
 import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { boardReplyGrammar } from '../../../../src/v2/lean-rpg/index.js';
+import { readSheet } from '../../../../src/v2/lean-rpg/index.js';
 import { createFightOffers } from '../../../../src/v2/lean-rpg/board/offers.js';
 
 async function world() {
@@ -53,5 +54,22 @@ test('a group whose count rises or a slot set again shows the offer under the re
         assert.equal(offerIndex(host), grown);
         await host.send('Again.', `Story.\n<Changes>\n+ dm foes — gone | kind: clear-1\n+ dm foes — again | kind: set-slot-1 | name: Rat | count: 5 | level: 1\n</Changes>`);
         assert.equal(offerIndex(host), host.store.headIndex(), 'a slot cleared and set again, same name, is a new arrival');
+    } finally { host.close(); }
+});
+
+test('a foe healing (same count, Health back up) is not a new arrival and moves no offer', async () => {
+    const host = await world();
+    try {
+        await host.send('Rats.', line('rats | kind: set-slot-1 | name: Rat | count: 2 | level: 1'));
+        const first = host.store.headIndex();
+        const health = () => readSheet(host.store.head()).foes[0].hurt;
+        const mod = Object.keys(host.store.head().domains.dataModules.active).find(id => /foes/.test(id));
+        assert.equal((await host.sdk.command('dm.set', { module: mod, fields: { hurt1: 1 } })).ok, true);
+        const low = health();
+        assert.equal(offerIndex(host), first);
+        await host.send('Heal.', 'Story.');
+        assert.equal((await host.sdk.command('dm.set', { module: mod, fields: { hurt1: 5 } })).ok, true);
+        assert.ok(health() > low, 'the foe really healed');
+        assert.equal(offerIndex(host), first, 'Health rising with the count unchanged keeps the first offer');
     } finally { host.close(); }
 });
