@@ -11,6 +11,7 @@ export const SKILL_FIELDS_MAX = SKILL_SLOTS_MAX + UTILITY_SLOTS;
 export const SKILL_TYPES = Object.freeze(['combat', 'utility']);
 export const SLOT_NUMBER = '(?:[1-9]|1[01])';
 export const isTypedSkills = fields => Boolean(fields) && Object.hasOwn(fields, 'type1');
+export const skillFieldSlots = fields => (isTypedSkills(fields) ? SKILL_FIELDS_MAX : SKILL_SLOTS_MAX);
 export const skillTypeOf = (fields, slot) => (isTypedSkills(fields) && fields[`type${slot}`] === 'utility' ? 'utility' : 'combat');
 export const SIGNATURE_FIELD = 'sig';
-export const signatureAt = (value, slot) => Number.isSafeInteger(value) && value > 0 && Number.isSafeInteger(slot) && slot >= 1 && slot <= SKILL_SLOTS_MAX && (value >> (slot - 1)) % 2 === 1;
+export const signatureAt = (value, slot) => Number.isSafeInteger(value) && value > 0 && Number.isSafeInteger(slot) && slot >= 1 && slot <= SKILL_FIELDS_MAX && (value >> (slot - 1)) % 2 === 1;

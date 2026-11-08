@@ -16,7 +16,7 @@ import { activeDefinition } from '../../data-modules/adapters.js';
 import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
 import { LEVEL, CREATION, RANK_NAMES, STATS, USES } from '../names.js';
-import { SKILL_FIELDS_MAX, UTILITY_SLOTS, skillSlots } from '../../skill-slots.js';
+import { SKILL_FIELDS_MAX, SKILL_SLOTS_MAX, UTILITY_SLOTS, skillSlots } from '../../skill-slots.js';
 import { STANDARD_FORMULA, isStandard } from '../rules.js';
 import { classOfLevel, levelOfClass } from '../formula.js';
 import { SKILL_SETS, STANDARD_TEMPLATES, characterV1For, skillsV1For, skillsV2For } from '../templates.js';
@@ -68,7 +68,7 @@ export const draftSlots = draft => combatSlots(draft) + UTILITY_SLOTS;
 /** The combat slots a draft may fill (the level's; kept skills never lose theirs) and the utility ones it has (three, whatever the level). */
 export const combatSlots = draft => Math.max(skillSlots(draftLevel(draft)), keptSkills(draft?.skills, draft?.from));
 export const utilityCount = (draft, except = -1) => (draft?.skills ?? []).filter((skill, at) => skill.type === 'utility' && at !== except).length;
-const keptSkills = (skills, from) => Math.min(SKILL_FIELDS_MAX, (Array.isArray(skills) ? skills : []).filter(entry => isRecord(entry) && (entry.sig === true || (from && Number.isSafeInteger(entry.rank)))).length);
+const keptSkills = (skills, from) => Math.min(SKILL_SLOTS_MAX, (Array.isArray(skills) ? skills : []).filter(entry => isRecord(entry) && (entry.sig === true || (from && entry.type !== 'utility' && Number.isSafeInteger(entry.rank)))).length);
 
 const blankSkill = type => ({ name: '', about: '', stat: STATS[0], uses: USES[0], start: 0, ...(type === 'utility' ? { type } : {}) });
 
@@ -109,9 +109,12 @@ export function readDraft(raw) {
     let adept = 0;
     // (a signature skill, which a pack's cast member brought, and the skills of a file are kept whatever the level says: draftSlots)
     const wanted = Array.isArray(given.skills) ? given.skills : [];
-    const room = Math.max(skillSlots(startLevel), keptSkills(wanted, from)), utilityRoom = UTILITY_SLOTS;
-    let utility = 0;
-    const skills = wanted.slice(0, room + utilityRoom).map(entry => {
+    const room = Math.max(skillSlots(startLevel), keptSkills(wanted, from));
+    let utility = 0, combat = 0;
+    const skills = wanted.filter(entry => {
+        const isUtility = isRecord(entry) && entry.type === 'utility' && entry.sig !== true;
+        return isUtility ? ++utility <= UTILITY_SLOTS : ++combat <= room;
+    }).map(entry => {
         const skill = isRecord(entry) ? entry : {};
         // A rank the file gave: kept as it is, and it is not the one Adept a new skill may start at.
         const ranked = (from || skill.sig === true) && Number.isSafeInteger(skill.rank);
@@ -123,9 +126,9 @@ export function readDraft(raw) {
             stat: STATS.includes(skill.stat) ? skill.stat : (ranked ? '' : STATS[0]), uses: USES.includes(skill.uses) ? skill.uses : USES[0], start: wantsAdept ? 1 : 0,
             ...(ranked ? { rank: clamp(skill.rank, 0, FILE_LIMITS.rank) } : {}), ...(skill.sig === true ? { sig: true } : {}),
             // (a utility skill is for the story only: three of them, and a signature skill is always combat)
-            ...(skill.type === 'utility' && skill.sig !== true && (utility += 1) <= utilityRoom ? { type: 'utility' } : {}),
+            ...(skill.type === 'utility' && skill.sig !== true ? { type: 'utility' } : {}),
         };
-    }).filter((skill, at, all) => skill.type === 'utility' || all.slice(0, at + 1).filter(other => other.type !== 'utility').length <= room);
+    });
     return { name: oneLine(given.name, CREATION.name), kind: given.kind === 'companion' ? 'companion' : 'you',
         about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '',
         ...(startLevel > 1 ? { level: startLevel } : {}), ...(from ? { from } : {}), ...(creation ? { creation } : {}) };

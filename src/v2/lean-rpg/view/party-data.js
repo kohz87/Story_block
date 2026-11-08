@@ -11,7 +11,7 @@ import { STANDARD_NUMBERS, levelOfClass } from '../formula.js';
 import { barOf, characterBars, growthOf, scaleOf, sizeOf, spreadWord, statsOfFields, wordsOf } from '../blocks.js';
 import { activeDefinition, actorsOf, instanceOf } from '../../data-modules/adapters.js';
 import { LEVEL } from '../names.js';
-import { SKILL_FIELDS_MAX, isTypedSkills, signatureAt, skillTypeOf } from '../../skill-slots.js';
+import { skillFieldSlots, isTypedSkills, signatureAt, skillTypeOf } from '../../skill-slots.js';
 import { levelLabel, playerRankValue } from '../levels.js';
 import { soulLabelOf } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
@@ -124,7 +124,7 @@ const textOf = value => (typeof value === 'string' ? value.replace(/\s+/g, ' ').
  */
 export function skillsOf(block) {
     const out = [];
-    for (let slot = 1; slot <= SKILL_FIELDS_MAX; slot += 1) {
+    for (let slot = 1; slot <= skillFieldSlots(block.fields); slot += 1) {
         const name = textOf(block.fields[`skill${slot}`]);
         if (!name) continue;
         const rank = whole(block.fields[`rank${slot}`]);

@@ -11,7 +11,7 @@
 // never validates the definitions (the data-module checker did when they were pinned); a block it cannot read is left
 // out, with a plain `problems` line.
 import { FOE_SLOTS, LEVEL, STAGES, STATS, USES } from './names.js';
-import { SKILL_FIELDS_MAX, skillTypeOf } from '../skill-slots.js';
+import { skillFieldSlots, skillTypeOf } from '../skill-slots.js';
 import { dmHidden } from '../data-modules/schema.js';
 import { barOf, characterBars, scaleOf, sizeOf } from './blocks.js';
 import { soulReading } from './soul.js';
@@ -132,7 +132,7 @@ function character(id, fields, own = '', hidden = new Set(), definition = null) 
 
 function skillsOf(fields, hidden = new Set()) {
     const out = [];
-    for (let n = 1; n <= SKILL_FIELDS_MAX; n += 1) {
+    for (let n = 1; n <= skillFieldSlots(fields); n += 1) {
         const name = text(fields[`skill${n}`]);
         if (!name) continue;
         // A Skills block made before the stat and the resource were fields has neither: null, and the plan's stat is used.

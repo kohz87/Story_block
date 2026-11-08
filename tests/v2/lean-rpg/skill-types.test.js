@@ -10,11 +10,14 @@ import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { skillFlags } from '../../../src/v2/lean-rpg/board/flags.js';
 import { actionSkills, exchangePlan } from '../../../src/v2/lean-rpg/board/plan.js';
 import { bestDefence } from '../../../src/v2/lean-rpg/board/rules.js';
-import { buildDefinitions, combatSlots, draftSlots, newDraft, readDraft, withSkill, withSkillPatch } from '../../../src/v2/lean-rpg/view/wizard-data.js';
+import { buildDefinitions, combatSlots, draftSlots, newDraft, readDraft, withImport, withSkill, withSkillPatch } from '../../../src/v2/lean-rpg/view/wizard-data.js';
 import { buildCharacterFile, parseCharacterFile } from '../../../src/v2/lean-rpg/charfile.js';
 import { UTILITY_SLOTS, SKILL_FIELDS_MAX } from '../../../src/v2/skill-slots.js';
 import { summaryOf } from '../../../src/v2/data-modules/part/prompt.js';
 import { reply, success, view, rebuilt, reload } from '../data-modules/helpers.js';
+import { fakeState } from './view/helpers.js';
+import { readParty } from '../../../src/v2/lean-rpg/view/party-data.js';
+import { tailRoom } from '../../../src/v2/data-modules/part/prompt.js';
 
 const typedDefinition = () => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Skills').definition);
 const line = (n, name, type, why = 'learned') => `~ dm skills — ${why} | kind: learn-${n} | name: ${name} | about: Something. | stat: dex | uses: mana${type ? ` | type: ${type}` : ''}`;
@@ -90,6 +93,16 @@ test('the board: a utility skill is never listed, never chosen, never a defence,
     assert.equal(exchangePlan(sheetOf, [{ who: 'Astra', kind: 'skill', skill: 'Iaijutsu', target: 1 }]).error, undefined);
 });
 
+test('the board: a utility skill that heals is refused as a support action too', () => {
+    const mend = { slot: 9, name: 'Mend', about: 'Heals a wounded friend.', stat: 'int', uses: 'mana', rank: 0, type: 'utility' };
+    const actor = { who: 'Astra', key: 'astra', module: 'a', alive: true, health: 5, stamina: 4, mana: 4, stats: { str: 10, int: 12 }, skills: [mend] };
+    const sheetOf = { characters: [actor], foes: [{ slot: 1, filled: true, hurt: 3, name: 'Wolf', count: 1 }] };
+    const plan = exchangePlan(sheetOf, [{ who: 'Astra', kind: 'skill', skill: 'Mend', target: 'Astra', support: true }], {}, 1, { bars: true });
+    assert.match(plan.error, /cannot be used on that target/, "refused before it can be a support action");
+    const combat = exchangePlan({ ...sheetOf, characters: [{ ...actor, skills: [{ ...mend, type: undefined }] }] }, [{ who: 'Astra', kind: 'skill', skill: 'Mend', target: 'Astra', support: true }], {}, 1, { bars: true });
+    assert.equal(combat.error, undefined, 'the same skill as a combat skill still heals');
+});
+
 test('an old block (no type field): eight slots, all combat, learn-9 refused, nothing is added, the hash is the one it had', async t => {
     const host = await story(t, skillsV2For());
     await host.send('Learn.', reply(line(9, 'Ninth', 'utility')));
@@ -132,4 +145,56 @@ test('a character file keeps the type and carries up to eleven skills', () => {
     assert.equal(read.ok, true);
     assert.deepEqual(read.file.skills.map(skill => skill.type), [undefined, 'utility']);
     assert.ok(UTILITY_SLOTS === 3);
+});
+
+test('the wizard preserves imported combat skills without counting imported utility skills as combat room', () => {
+    const skill = (n, type) => ({ name: `S${n}`, about: 'x', stat: 'str', uses: 'stamina', rank: 0, ...(type ? { type } : {}) });
+    const stats = Object.fromEntries(['str', 'vit', 'agi', 'dex', 'int', 'luk', 'cha'].map(stat => [stat, 8]));
+    for (const count of [5, 8]) {
+        const file = { level: 1, points: 0, stats, skills: [...Array.from({ length: count }, (_, n) => skill(n)), ...Array.from({ length: 3 }, (_, n) => skill(n + 20, 'utility'))] };
+        const draft = readDraft(withImport(newDraft({ persona: 'Astra' }), file).draft);
+        assert.equal(combatSlots(draft), count);
+        assert.equal(draftSlots(draft), count + 3);
+        assert.equal(withSkill(draft), draft, 'neither pool can grow');
+        assert.equal(Object.keys(buildDefinitions(draft).skills.state).length, 79, 'the full import fits its definition');
+    }
+    const raw = readDraft({ skills: Array.from({ length: 6 }, (_, n) => skill(n, 'utility')) });
+    assert.deepEqual(raw.skills.map(skill => skill.type), ['utility', 'utility', 'utility'], 'extra utility skills are not silently turned into combat skills');
+});
+
+test('an untyped Skills block keeps its old definition budgets and ignores fields beyond slot eight', () => {
+    const old = skillsV2For();
+    const valid = structuredClone(old);
+    for (let n = 1; n <= 6; n += 1) valid.state[`extra${n}`] = { type: 'bool', default: false };
+    const check = definition => validateDataModules([definition], { packId: 'chat', capabilities: ['data-modules-v1'] });
+    assert.equal(check(valid).ok, true, '56 fields remain allowed');
+    valid.state.extra7 = { type: 'bool', default: false };
+    assert.ok(check(valid).errors.some(error => error.code === 'DM_BUDGET' && error.path.endsWith('.state')));
+    const kinds = structuredClone(old);
+    kinds.kinds.extra = structuredClone(kinds.kinds['learn-1']);
+    assert.ok(check(kinds).errors.some(error => error.code === 'DM_BUDGET' && error.path.endsWith('.kinds')));
+    old.state.skill9 = { type: 'text', max: 40, default: 'Not a skill' };
+    const person = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Character').definition);
+    person.state.who.default = 'Astra'; old.state.who.default = 'Astra';
+    old.state.skill1.default = 'Cut';
+    const state = fakeState([{ definition: person }, { definition: old }]);
+    assert.deepEqual(readSheet(state).characters[0].skills.map(skill => skill.name), ['Cut']);
+    assert.deepEqual(readParty(state, {})[0].skills.map(skill => skill.name), ['Cut']);
+    assert.doesNotMatch(summaryOf(state, 'pack.chat/skills'), /Not a skill/u);
+    const fields = state.domains.dataModules.instances['pack.chat/skills'].chat.fields;
+    assert.equal(tailRoom(old, true, fields), 300);
+});
+
+test('an unrelated old block with an optional type label does not acquire a combat argument', async t => {
+    const host = await createHost(); t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    const definition = { slug: 'custom', name: 'Custom', schema: 1, stateVersion: 1, scope: 'chat',
+        state: { count: { type: 'int', min: 0, max: 10, default: 0 } },
+        kinds: { use: { op: '~', labels: { type: { type: 'enum', values: ['small', 'large'], optional: true } }, effects: [{ op: 'add', path: ['count'], value: 1, bounds: 'clamp' }] } } };
+    success(await host.sdk.command('dm.define', { definition }));
+    await host.send('Do it.', reply('~ dm custom — done | kind: use'));
+    const span = host.ctx.chat.at(-1).extra.storySuite.spans.find(entry => entry.guard?.predicate?.kind === 'dm.act');
+    assert.ok(span);
+    assert.equal(Object.hasOwn(span.recorded.decision.args, 'type'), false);
+    rebuilt(host);
 });

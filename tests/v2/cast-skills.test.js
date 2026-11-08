@@ -110,12 +110,14 @@ test('the Skills template has eight slots, the signature mark (hidden, not typed
 });
 
 test('a character file holds up to eleven skills (eight combat, three utility) and refuses twelve', () => {
-    const skill = n => ({ name: `S${n}`, about: 'x', stat: 'str', uses: 'stamina', rank: 0 });
+    const skill = n => ({ name: `S${n}`, about: 'x', stat: 'str', uses: 'stamina', rank: 0, ...(n >= 8 ? { type: 'utility' } : {}) });
     const stats = Object.fromEntries(STATS.map(stat => [stat, 10]));
     const file = buildCharacterFile({ level: 60, points: 0, stats, skills: Array.from({ length: 12 }, (_, n) => skill(n)) });
     assert.equal(file.skills.length, 11, 'a twelfth is not written');
     assert.equal(parseCharacterFile(JSON.stringify(file)).ok, true);
     assert.equal(parseCharacterFile(JSON.stringify({ ...file, skills: Array.from({ length: 12 }, (_, n) => skill(n)) })).ok, false);
+    assert.equal(parseCharacterFile(JSON.stringify({ ...file, skills: Array.from({ length: 9 }, (_, n) => ({ ...skill(n), type: 'combat' })) })).ok, false);
+    assert.equal(parseCharacterFile(JSON.stringify({ ...file, skills: Array.from({ length: 4 }, (_, n) => ({ ...skill(n), type: 'utility' })) })).ok, false);
 });
 
 // ---- a join ---------------------------------------------------------------------------------------------------------------------------

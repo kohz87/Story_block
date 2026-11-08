@@ -9,7 +9,7 @@ import { fold, readSheet } from '../../lean-rpg/read.js';
 import { LEAN_RPG_FEATURE } from '../../lean-rpg/names.js';
 import { XP_RATE, scaleXp, xpRateFrom } from '../../lean-rpg/levels.js';
 import { averageLevel, bandOfRank, foeRandom, foeLevelCap, levelOf, partyLevels, pickLevel } from '../../lean-rpg/foes.js';
-import { SKILL_SLOTS_MAX, SLOT_NUMBER } from '../../skill-slots.js';
+import { SKILL_SLOTS_MAX, SLOT_NUMBER, isTypedSkills } from '../../skill-slots.js';
 import { B, rpg, draftOf, stateOf, pairKey, subjectsOf, instancePath, prefixImports } from './shared.js';
 import { skillCapacity } from './skills.js';
 import { namedChanges } from './prompt.js';
@@ -91,7 +91,7 @@ export function createAct(deps) {
         if (ctx.cause === 'story' && definition.role === 'skills' && PRACTICE_KIND.test(labels.kind) && ctx.carrier?.practiceRule === 'rolls') refuse('REFUSED', '', 'Practice comes from rolled skill uses.');
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
         // (a learn line of a block with types that leaves its `type` out is a combat skill)
-        if (kind.labels?.type && args.type === undefined) args.type = 'combat';
+        if (definition.role === 'skills' && isTypedSkills(definition.state) && LEARN_KIND.test(labels.kind) && kind.labels?.type && args.type === undefined) args.type = 'combat';
         // The XP rate (lean-rpg/levels.js): the narrator's XP line for a character is multiplied by the rate in force (the RPG on), which the line's record keeps
         // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.
         let xpRate = XP_RATE.default;

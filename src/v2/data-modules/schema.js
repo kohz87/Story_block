@@ -30,7 +30,7 @@ export const DM_LIMITS = freeze({
     // Its tail may be longer too, by 47 tokens for each skill it holds past five (tailRoom in part.js: the longest line one skill makes, measured).
     // A Skills block made with the types holds eleven slots (eight combat, three utility) of seven fields each (a `type` per slot), their `who` and the mark: 79 fields and a learn and
     // a practice line per slot, so `skillsFields` 80 and `skillsKinds` 22 (a block of the earlier eight slots is far inside both).
-    skillsFields: 80, skillsKinds: 22, skillTailTokens: 47,
+    skillsLegacyFields: 56, skillsFields: 80, skillsKinds: 22, skillTailTokens: 47,
     // The most stages a role block's bar field (health, mana, stamina, a foe's health) may have, counted up from 0.
     stages: 10,
     // The same for a character's bar that carries `scale: 2` (the doubled sizes, lean-rpg/templates-bars.js): the most it holds is 2 x (4 + 20/5) = 16 at the stat

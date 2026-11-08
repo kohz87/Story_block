@@ -12,10 +12,10 @@
 
 import { barOf, characterBars, sizeOf, spreadWord, wordsOf } from './blocks.js';
 import { STATS } from './names.js';
-import { SKILL_FIELDS_MAX, skillTypeOf } from '../skill-slots.js';
+import { skillFieldSlots, skillTypeOf } from '../skill-slots.js';
 import { oneLine } from '../../text.js';
 
-const SLOTS = Object.freeze({ skills: SKILL_FIELDS_MAX, foes: 4 });
+const SLOTS = Object.freeze({ foes: 4 });
 const word = value => (typeof value === 'string' ? oneLine(value) : '');
 
 // "Hurt, Fresh" style bits of one instance, in the definition's field order: what is not at its default, the stats as one run.
@@ -44,7 +44,7 @@ function sheetBody(definition, fields, { hidden, text }) {
 function skillsBody(definition, fields, { hidden, named }) {
     const lines = [];
     const say = key => (hidden(key) ? '' : word(fields[key]));
-    for (let slot = 1; slot <= SLOTS.skills; slot += 1) {
+    for (let slot = 1; slot <= skillFieldSlots(fields); slot += 1) {
         const name = say(`skill${slot}`);
         if (!name) continue;
         const bits = [hidden(`rank${slot}`) ? '' : named(`rank${slot}`, fields[`rank${slot}`]), say(`stat${slot}`), say(`uses${slot}`), skillTypeOf(fields, slot) === 'utility' ? 'utility' : ''].filter(Boolean);

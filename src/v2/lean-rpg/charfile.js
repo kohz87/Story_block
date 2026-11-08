@@ -13,7 +13,7 @@ import { KINDS, RARITIES } from '../domains/inventory.js';
 import { GEAR, slotWordOf } from '../domains/gear.js';
 import { formatAmount } from '../domains/money.js';
 import { CREATION, RANK_NAMES, STATS, USES } from './names.js';
-import { SKILL_FIELDS_MAX } from '../skill-slots.js';
+import { SKILL_FIELDS_MAX, SKILL_SLOTS_MAX, UTILITY_SLOTS } from '../skill-slots.js';
 import { classOfLevel, levelOfClass } from './formula.js';
 import { RPG_STRINGS, fill } from './strings.js';
 
@@ -120,6 +120,8 @@ export function parseCharacterFile(text) {
             if (!skill) return bad(fill(F.skill, { n: at + 1 }));
             skills.push(skill);
         }
+        const utility = skills.filter(skill => skill.type === 'utility').length;
+        if (utility > UTILITY_SLOTS || skills.length - utility > SKILL_SLOTS_MAX) return bad(F.skillPools);
         const level = hasLevel ? data.level : levelOfClass(data.soul);
         const file = { level, soul: data.soul ?? classOfLevel(level), points: data.points, stats, skills };
         if (data.items !== undefined) {

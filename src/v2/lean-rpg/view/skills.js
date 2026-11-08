@@ -83,7 +83,7 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
     const skillAt = slot => character.skills.find(skill => skill.slot === slot) ?? null;
     if (run.editing !== null) {
         const now = skillAt(run.editing);
-        if (!run.busy && (!now || now.name !== run.start?.name || now.about !== run.start?.about)) Object.assign(run, { editing: null, start: null, message: K.changed });
+        if (!run.busy && (!now || now.name !== run.start?.name || now.about !== run.start?.about || (isUtility(now) ? 'utility' : 'combat') !== run.start?.type)) Object.assign(run, { editing: null, start: null, message: K.changed });
     }
 
     const clear = () => { for (const handle of handles) handle.destroy?.(); handles = []; root.replaceChildren(); };
@@ -112,6 +112,11 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
         const name = run.draft.name.replace(/\s+/g, ' ').trim(), about = run.draft.about.replace(/\s+/g, ' ').trim();
         if (!name) { run.message = K.needName; draw(); return { ok: false }; }
         const typeChanged = hasTypes(character) && run.draft.type !== run.start.type;
+        if (typeChanged) {
+            const pools = poolsOf(character);
+            const full = run.draft.type === 'utility' ? pools.utility.length >= UTILITY_SLOTS : pools.combat.length >= pools.combatMax;
+            if (full) { run.message = K.poolFull; draw(); return { ok: false }; }
+        }
         const wordsChanged = name !== run.start.name || about !== run.start.about || typeChanged;
         const flagsChanged = run.draft.flags && run.draft.type !== 'utility' && JSON.stringify(run.draft.flags) !== JSON.stringify(run.start.flags);
         if (!wordsChanged && !flagsChanged) { cancel(); return { ok: true }; }

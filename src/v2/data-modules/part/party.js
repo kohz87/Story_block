@@ -6,7 +6,7 @@ import { copy, refuse, atPath } from '../interpreter.js';
 import { activeDefinition, inputsOf, instanceOf } from '../adapters.js';
 import { fill } from '../../strings.js';
 import { fold } from '../../lean-rpg/read.js';
-import { SKILL_SLOTS_MAX, signatureAt } from '../../skill-slots.js';
+import { SKILL_SLOTS_MAX, skillFieldSlots, isTypedSkills, skillTypeOf, signatureAt } from '../../skill-slots.js';
 import { castGearOf, gearLine } from '../../packs/cast-gear.js';
 import { castSkillsOf } from '../../packs/cast-skills.js';
 import { gearOn } from '../../domains/inventory.js';
@@ -32,7 +32,7 @@ export function createParty(deps) {
     // The signature skills a Skills block's definition was made with: the slots marked in `sig.default`, as the defaults of their fields have them.
     function defaultSeeds(state) {
         const bits = Number.isSafeInteger(state?.sig?.default) ? state.sig.default : 0, rows = [];
-        for (let n = 1; n <= SKILL_SLOTS_MAX; n += 1) {
+        for (let n = 1; n <= skillFieldSlots(state); n += 1) {
             const name = state?.[`skill${n}`]?.default;
             if (signatureAt(bits, n) && typeof name === 'string' && name) rows.push(skillRow(Object.fromEntries(['skill', 'about', 'stat', 'uses', 'rank'].map(key => [`${key}${n}`, state[`${key}${n}`]?.default])), n));
         }
@@ -41,7 +41,7 @@ export function createParty(deps) {
     // The skills the pack gives `name` now, the ones the person does not hold by name already (what a first read of a join, a return or an offer plans).
     function packSeeds(ctx, name) {
         const held = skillsBlockOf(stateOf(ctx), name);
-        const have = new Set(Array.from({ length: SKILL_SLOTS_MAX }, (_, i) => fold(held?.fields?.[`skill${i + 1}`] ?? '')).filter(Boolean));
+        const have = new Set(Array.from({ length: skillFieldSlots(held?.fields) }, (_, i) => fold(held?.fields?.[`skill${i + 1}`] ?? '')).filter(Boolean));
         let found = null;
         try { found = castSkillsOf(packs?.packs?.() ?? [], name); } catch { found = null; }
         return (found?.skills ?? []).filter(skill => !have.has(fold(skill.name)));
@@ -53,7 +53,7 @@ export function createParty(deps) {
     function castSeeds(ctx, name, mode = 'join') {
         if (!ctx.standing) return packSeeds(ctx, name);
         const held = skillsBlockOf(stateOf(ctx), name);
-        const have = new Set(Array.from({ length: SKILL_SLOTS_MAX }, (_, i) => fold(held?.fields?.[`skill${i + 1}`] ?? '')).filter(Boolean));
+        const have = new Set(Array.from({ length: skillFieldSlots(held?.fields) }, (_, i) => fold(held?.fields?.[`skill${i + 1}`] ?? '')).filter(Boolean));
         const after = standingBlock(ctx, name);
         if (!after || !Object.hasOwn(after.definition.state ?? {}, 'sig')) return [];
         if (mode === 'join') return defaultSeeds(after.definition.state).filter(skill => !have.has(fold(skill.name)));
@@ -63,7 +63,7 @@ export function createParty(deps) {
             .filter(row => dmObject(row) && typeof row.name === 'string' && row.name);
         if (recorded.length) return recorded.filter(row => !have.has(fold(row.name))).map(row => ({ name: row.name, about: typeof row.about === 'string' ? row.about : '', stat: row.stat, uses: row.uses ?? 'stamina', rank: Number.isSafeInteger(row.rank) ? row.rank : 0 }));
         const rows = [];
-        for (let n = 1; n <= SKILL_SLOTS_MAX; n += 1) if (typeof after.fields[`skill${n}`] === 'string' && after.fields[`skill${n}`] && signatureAt(after.fields.sig, n) && !have.has(fold(after.fields[`skill${n}`]))) rows.push(skillRow(after.fields, n));
+        for (let n = 1; n <= skillFieldSlots(after.fields); n += 1) if (typeof after.fields[`skill${n}`] === 'string' && after.fields[`skill${n}`] && signatureAt(after.fields.sig, n) && !have.has(fold(after.fields[`skill${n}`]))) rows.push(skillRow(after.fields, n));
         return rows;
     }
     // The tiles of the join's receipt and its summary words.
@@ -77,12 +77,16 @@ export function createParty(deps) {
         // A block made before the signature mark (or the extra slots) is extended first, so the skills can be marked (growSkills).
         let definition = block.definition;
         if (!Object.hasOwn(definition.state ?? {}, 'sig') || skillCapacity(definition) < SKILL_SLOTS_MAX) definition = deps.growSkills(ctx, prefix, draftOf(ctx), block.module) ?? definition;
-        const fields = atPath(draftOf(ctx), instancePath(block.module, 'chat')).fields, capacity = skillCapacity(definition), marks = Object.hasOwn(definition.state ?? {}, 'sig');
+        const fields = atPath(draftOf(ctx), instancePath(block.module, 'chat')).fields, typed = isTypedSkills(fields);
+        const capacity = typed ? skillFieldSlots(fields) : skillCapacity(definition), marks = Object.hasOwn(definition.state ?? {}, 'sig');
         const placed = [];
         for (const skill of seeds) {
-            const slot = Array.from({ length: capacity }, (_, i) => i + 1).find(n => !fields[`skill${n}`]);
+            const slots = Array.from({ length: capacity }, (_, i) => i + 1);
+            const combat = slots.filter(n => fields[`skill${n}`] && skillTypeOf(fields, n) === 'combat').length;
+            const slot = typed && combat >= SKILL_SLOTS_MAX ? null : slots.find(n => !fields[`skill${n}`]);
             if (!slot) { answer.problem = [answer.problem, `${name}'s ${skill.name} has no free skill slot.`].filter(Boolean).join(' '); continue; }
             Object.assign(fields, { [`skill${slot}`]: skill.name, [`about${slot}`]: skill.about, [`stat${slot}`]: skill.stat, [`uses${slot}`]: skill.uses, [`rank${slot}`]: skill.rank, [`practice${slot}`]: 0 });
+            if (typed) fields[`type${slot}`] = 'combat';
             if (marks) fields.sig = (Number.isSafeInteger(fields.sig) ? fields.sig : 0) + 2 ** (slot - 1);
             placed.push(skill);
         }
