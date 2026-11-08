@@ -29,7 +29,8 @@ test('the Wallet line says it is the amount before this reply, and does not repe
 test('the coin kind\'s grammar line says to write the coin line whenever {{user}} is paid or pays, in one short clause; the static part is the same every reply', async t => {
     const clause = 'whenever {{user}} is paid or pays in the story, even a few coins, write the coin line';
     assert.ok(CORE_KINDS.coin.grammar.includes(clause));
-    assert.ok(CORE_KINDS.coin.grammar.length < 220, 'one short clause, not a paragraph');
+    assert.ok(CORE_KINDS.coin.grammar.includes('Pay each find once. Do not repeat loot already paid in an earlier reply.'), 'the one money-guard instruction');
+    assert.ok(CORE_KINDS.coin.grammar.length < 260, 'one short clause and one short instruction, not a paragraph');
     const host = await createHost();
     t.after(() => host.close());
     await host.send('One.', 'A first reply.');

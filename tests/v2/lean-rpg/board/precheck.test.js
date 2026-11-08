@@ -16,14 +16,14 @@ test('the prompt names the message, the sheet and JSON groups only', () => {
     assert.match(prompt, /I creep down the culvert/u);
     assert.match(prompt, /Foes already on the Foes block: Silt Hound/u);
     assert.match(prompt, /Party: Astra \(level 5\)/u);
-    assert.match(prompt, /"groups":\[\{"name":"\.\.\.","count":1\}\]/u);
-    assert.doesNotMatch(prompt, /\b(?:roll|outcome|story)\b/iu);
+    assert.match(prompt, /"groups":\[\{"name":"\.\.\.","count":1,"level":2\}\]/u);
+    assert.doesNotMatch(prompt, /\b(?:roll|outcome)\b/iu);
 });
 
 test('a message naming both example groups reads their names and counts', () => {
     assert.equal(looksLikeAttack(MESSAGE), true);
     assert.deepEqual(vetGroups(parsePrecheck(ANSWER), { message: MESSAGE, sheet }),
-        [{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6 }, { name: 'Bilge-Rat Offspring', count: 80 }]);
+        [{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6, level: 5 }, { name: 'Bilge-Rat Offspring', count: 80, level: 5 }]);
 });
 
 const OWNER = 'Without waiting for them to approach, using the element of surprise, I launched an attack in the guard and master vane immediately.\n\nI took down the men then called for Temiwa and Torka to come over.';
@@ -51,7 +51,7 @@ test('a third party or an idiom passes the gate by design: Assist decides', () =
 test('every distinctive word of a name must appear whole in the message', () => {
     assert.deepEqual(vetGroups([{ name: 'Cave Troll', count: 2 }], { message: 'I attack the rats.', sheet }), []);
     assert.deepEqual(vetGroups([{ name: 'Cave Rats', count: 2 }, { name: 'Dire Rats', count: 2 }], { message: 'I attack the cave rat.', sheet }),
-        [{ name: 'Cave Rats', count: 2 }]);
+        [{ name: 'Cave Rats', count: 2, level: 5 }]);
     assert.deepEqual(vetGroups([{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6 }], { message: 'I attack six rats.', sheet }), []);
 });
 
@@ -69,12 +69,12 @@ test('plural whole words, the sheet, count bounds and clamped levels follow the 
         { name: 'Tunnel Rats', count: 2 },
     ];
     assert.deepEqual(vetGroups(groups, { message: 'I attack the tunnel rats with 4 scores of bilge boars and a dozen silt wolves.', sheet }),
-        [{ name: 'Tunnel Rat', count: 99, level: 15 }, { name: 'Bilge Boars', count: 80, level: 1 }, { name: 'Silt Wolves', count: 12 }]);
+        [{ name: 'Tunnel Rat', count: 99, level: 15 }, { name: 'Bilge Boars', count: 80, level: 1 }, { name: 'Silt Wolves', count: 12, level: 5 }]);
     assert.deepEqual(vetGroups([{ name: 'Silt Hounds', count: 2 }], { message: 'I attack the silt hounds.', sheet }), [], 'already on the sheet');
     assert.deepEqual(vetGroups([{ name: 'Rats', count: 20 }, { name: 'Rats', count: 3 }], { message: 'I attack the rats.', sheet, limits: { count: 10 } }),
         [], 'a narrower limit refuses a larger group');
     assert.deepEqual(vetGroups([{ name: 'Rats', count: 9 }, { name: 'Rats', count: 3 }], { message: 'I attack the rats.', sheet, limits: { count: 10 } }),
-        [{ name: 'Rats', count: 9 }], 'a repeated group is refused');
+        [{ name: 'Rats', count: 9, level: 5 }], 'a repeated group is refused');
 });
 
 const PREVIOUS = 'Gorged grey-tooth tunnel rats gnaw at the bundle, and a swarm of rat-offspring squirms behind them. Bilge water drips.';
@@ -82,7 +82,7 @@ const EXAMPLE = 'I creep down the culvert to cut loose the oilskin bundle and at
 const NAMES = [{ name: 'Gorged Grey-Tooth Tunnel Rats', count: 6 }, { name: 'Bilge-Rat Offspring', count: 80 }];
 
 test('the approved example: names from the reply before are accepted, 80 included', () => {
-    assert.deepEqual(vetGroups(NAMES, { message: EXAMPLE, previous: PREVIOUS, sheet }), NAMES);
+    assert.deepEqual(vetGroups(NAMES, { message: EXAMPLE, previous: PREVIOUS, sheet }), NAMES.map(group => ({ ...group, level: 5 })));
     assert.match(precheckPrompt({ message: EXAMPLE, previous: PREVIOUS, sheet }), /gnaw at the bundle/u);
 });
 
@@ -94,7 +94,7 @@ test('a name word found in neither the message nor the reply before is refused',
 test('a count above the Foes block maximum refuses the reading; the maximum itself is fine', () => {
     assert.equal(FOE_COUNT_MAX, 99);
     assert.deepEqual(vetGroups([{ name: 'Rats', count: 100 }], { message: 'I attack the rats.', sheet }), []);
-    assert.deepEqual(vetGroups([{ name: 'Rats', count: 99 }], { message: 'I attack the rats.', sheet }), [{ name: 'Rats', count: 99 }]);
+    assert.deepEqual(vetGroups([{ name: 'Rats', count: 99, level: 5 }], { message: 'I attack the rats.', sheet }), [{ name: 'Rats', count: 99, level: 5 }]);
 });
 
 // Attacks blended into the reader's own narration (strict word patterns, no model call).
@@ -153,4 +153,25 @@ test('the prompt carries the count rule, the not-a-fight rule and up to 4000 cha
 test('an empty groups answer (not a fight) is a plain send', () => {
     assert.deepEqual(parsePrecheck('{"groups":[]}'), []);
     assert.deepEqual(vetGroups(parsePrecheck('{"groups":[]}'), { message: 'I hit the road.', sheet }), []);
+});
+
+test('the prompt requires a level, compared with the party; a missing or invalid level is the party\'s top level, never a draw', () => {
+    const prompt = precheckPrompt({ message: MESSAGE, sheet });
+    assert.match(prompt, /level is required: give each group a sensible level for the story, compared with the party's levels/u);
+    assert.doesNotMatch(prompt, /level is optional/u);
+    const mixed = { ...sheet, characters: [{ who: 'Astra', level: 5, alive: true }, { who: 'Torka', level: 9, alive: true }] };
+    const said = vetGroups([{ name: 'Rats', count: 2 }, { name: 'Wolves', count: 1, level: 'strong' }, { name: 'Boars', count: 1, level: 7 }],
+        { message: 'I attack the rats, wolves and boars.', sheet: mixed });
+    assert.deepEqual(said.map(group => group.level), [9, 9, 7], 'missing or invalid = the top level; a given level stays');
+    assert.equal(vetGroups([{ name: 'Rats', count: 1 }], { message: 'I attack the rats.', sheet: { characters: [], foes: [] } })[0].level, 1, 'no party: level 1');
+    assert.equal(vetGroups([{ name: 'Rats', count: 1, level: 80 }], { message: 'I attack the rats.', sheet: mixed })[0].level, 19, 'a given level is still held to one band above the party');
+});
+
+test('an old recorded opening with no level still replays as it was: resolve draws near the party average', async () => {
+    const { settleOpen } = await import('../../../../src/v2/lean-rpg/foes.js');
+    const old = [{ name: 'Rats', count: 2 }];
+    assert.deepEqual(settleOpen(old, 5, 12345), settleOpen(old, 5, 12345), 'the same seed gives the same level');
+    const level = settleOpen(old, 5, 12345)[0].level;
+    assert.ok(level >= 3 && level <= 7, 'within the old +-2 draw around the party average');
+    assert.equal(settleOpen([{ name: 'Rats', count: 2, level: 9 }], 5, 12345)[0].level, 9, 'a recorded level stays');
 });

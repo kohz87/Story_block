@@ -18,6 +18,7 @@ import { occurrenceOf, operationKey } from '../evidence.js';
 import { hash, readRecord } from '../persist.js';
 import { LEAN_RPG_FEATURE, practiceFromRollsOnly } from '../lean-rpg/names.js';
 import { boardFailure, boardStep } from './held-board.js';
+import { earlierReceipts, moneyWarning } from './money-guard.js';
 
 export function createCaptureFlow(s, deps) {
     const { ctx, store, bus, registry, settings, events, hostSettings, view, viewReader, lateReader, problem, isCarrier, boardError, PRACTICE_LINE, HOOK_TIMEOUT_MS } = deps;
@@ -358,6 +359,9 @@ export function createCaptureFlow(s, deps) {
                 continue;
             }
             state = result.state ?? (base ? state : store.head());
+            // The money guard (warns only; the line is applied): a repeated payment or one far above the purse.
+            const warned = line.op === '+' ? moneyWarning(result.receipt, [...earlierReceipts(ctx?.chat, index), ...receipts]) : null;
+            if (warned) found.push(problem({ module: entry.moduleId, index, line: line.raw, code: 'LIMITED', message: warned }));
             receipts.push(result.receipt);
             // Used, but not all of it (a clamp): the owner says why, and that goes to the Problems list.
             if (typeof result.problem === 'string' && result.problem) {
