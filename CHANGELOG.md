@@ -1,8 +1,20 @@
+# Changelog
+
+## 2.26.0
+- **Typing an attack on new foes sets up the fight first.** When you type an attack on foes that are not on the sheet yet, the send is held while a short check (the Assist profile, 20 seconds at most, "Setting up the fight…") finds them, so the board fight is ready before the reply.
+  - **The hold** offers **Fight on the board**, **Auto-fight** and **Send without a fight**.
+  - **If the check fails, times out or finds nothing,** the message sends as before. Counts go up to the Foes block's maximum (99), and names must come from your message or the reply before it.
+  - **Setting:** "Set up a fight from my attack", on by default. Replay and Re-read never run the check.
+- **Fights can chain.** After a board fight, new arrivals get a fresh fight offer. A reply whose fight ended with you fleeing shows the foes still standing.
+- **Area attacks hit every foe group.** The main target takes the full effect and the other groups take less. The battle log and the narrator's note say so.
+- **A won board fight always pays its XP,** even when the narrator clears the foes in the fight reply. Re-read older fight replies to collect XP they missed.
+- **The Auto cap slider is readable on phones.**
+- **Items can carry a capacity you set.** Any item can add 0-500 carry capacity, and only you set it ("Carry" edit on story items, a field in the Edit form). Mounts and vehicles carry more: pony 30, horse 40, mule 50, cart 60, carriage 80, boat 100, barge or wagon 150. The carry line shows where the capacity comes from.
+- **Fight notices that say to discard a fight now say where:** (Fight tab, Discard fight).
+
 ## 2.25.1
 
 - **The fight offer's buttons are readable again.** Inside a chat message, "Fight on the board" and "Auto-fight" fell back to the browser's white buttons with the theme's light text. The fight offer and the fight pause now take Story Suite's own button and colour styles there.
-
-# Changelog
 
 ## 2.25.0
 - **Fights happen on the fight board, by hand or with Auto.** Classic rules and the roll planner are gone: Standard is the only rule set, and no model call is made before a reply.

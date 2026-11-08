@@ -1,4 +1,4 @@
-# AI-README: Story Block 2.25.1
+# AI-README: Story Block 2.26.0
 
 For AI assistants that read this repository. Plain facts, no marketing. For people, read [README.md](README.md). For rules
 every change must keep, read [CLAUDE.md](CLAUDE.md). Depth lives in `docs/`; this file points there instead of copying.
@@ -14,7 +14,7 @@ queries, screens and settings. Code sets every number; the story only proposes.
 
 | Repo | Module id | Version | Owns |
 |---|---|---|---|
-| kohz87/Story_block (this) | `story-block` | 2.25.1 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
+| kohz87/Story_block (this) | `story-block` | 2.26.0 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
 | kohz87/Story_director | `story-director` | 2.10.0 | Story clock and calendar, quests, threads, map, trips, World, Chronicle, arc planning, standalone checks, the living cast (meets people by place and routine). Needs Story Block (>= 2.12.0). |
 | kohz87/npc_state_delta | `npc-state-delta` | 1.9.0 | NPC dossiers, meters, stages, secrets, Cast and Dossiers screens, cast portraits. Needs Story Block; with Story Director it also follows the cast and Key people. |
 | kohz87/Story_studio | (not an extension) | 0.8.0 | An offline single HTML page that writes and checks packs with Story Block's own checker. No install. |
@@ -431,5 +431,5 @@ prompt byte-identical, every optional mechanic a Feature, no markup from text, n
 
 ## Version
 
-Story Block 2.25.1 (`manifest.json`, `package.json`). Suite: Story Director 2.11.2, NPC State Delta 1.13.2, Story Studio 0.10.2.
+Story Block 2.26.0 (`manifest.json`, `package.json`). Suite: Story Director 2.11.2, NPC State Delta 1.13.2, Story Studio 0.10.2.
 Sample pack: Ersveil 2.7.0. History: `CHANGELOG.md`.
