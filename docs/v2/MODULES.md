@@ -376,7 +376,7 @@ These settle questions agents raised; the host changes they need are made at int
     lines). Story Block's features `story-block.choices` and `story-block.chatter`, both **off** by default
     (each adds a grammar line to the static part and asks the model for more lines every reply; off is also
     F100's rule for extras). Two **display kinds** (SPEC §4.4): `? choice Climb the wall` (at most 4 a reply,
-    80 code points each) and `~ chatter Name: thought` (at most 3, a name of 40 and a thought of 140 code
+    80 code points each) and `~ chatter Name: thought` (at most 3, a name of 40 and a thought of 240 code
     points). No command runs for them and nothing is stored: no receipt, no op, no `meta.rev`; they are read
     again from the reply's hidden block (its shown swipe) each time they are drawn, so the live reply, Re-read,
     swipes, deletes and a reload show the same. Lines past the cap and lines that do not read (no text, no

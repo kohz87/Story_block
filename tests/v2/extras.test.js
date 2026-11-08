@@ -62,6 +62,14 @@ test('a choice longer than the narrator is asked for (80) is kept whole up to 16
     assert.equal(readChoice({ raw: `? choice ${long}` }).value.text, long);
 });
 
+test('a 200-character thought is kept whole; a 300-character one is cut to 240 with an ellipsis', () => {
+    assert.equal(CHATTER_CHARS, 240);
+    assert.equal(readChatter({ raw: `~ chatter Minke: ${'a'.repeat(200)}` }).value.text, 'a'.repeat(200));
+    const cut = readChatter({ raw: `~ chatter Minke: ${'b'.repeat(300)}` }).value.text;
+    assert.equal(Array.from(cut).length, 240);
+    assert.equal(cut, `${'b'.repeat(239)}…`);
+});
+
 test('a chatter line is a name and a thought; no name or no thought is refused', () => {
     assert.deepEqual(readChatter({ raw: '~ chatter Minke: …he\'d better not die down there' }).value, { name: 'Minke', text: '…he\'d better not die down there' });
     assert.deepEqual(readChatter({ raw: '~ chatter Jean-Luc — *keep moving*' }).value, { name: 'Jean-Luc', text: 'keep moving' });

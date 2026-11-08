@@ -602,7 +602,7 @@ One hidden block at the end of the reply:
   count after the ones it already shows); a line of a feature that is off is a quiet `FEATURE_OFF`, and its
   hidden comment marks that kind `off:`, so turning the feature on later does not show what the reader was
   told was not used; a Re-read reads it again and marks every comment of the reply as it found them. Story Block's two: `? choice Text` (4 a reply; the narrator is asked for 80 code points, a longer one is kept whole up to 160 and the button wraps; buttons under the latest reply
-  that only fill the message box) and `~ chatter Name: thought` (3 a reply, 40 + 140 code points; not drawn
+  that only fill the message box) and `~ chatter Name: thought` (3 a reply, 40 + 240 code points; not drawn
   under replies: next to each person on Story Director's World → Now, `chatter.head`, or on Story Block's
   Scene screen without it, `scene.chatter`; never sent back unless the reader's `chatterInPrompt` setting
   adds the answered reply's thoughts as one optional tail line).
