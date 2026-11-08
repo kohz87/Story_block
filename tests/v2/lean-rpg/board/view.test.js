@@ -97,9 +97,13 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     assert.ok(targets.some(text => /Rats 1\s+Unhurt/.test(text)), 'the target line names each standing member and its bar');
     assert.ok(targets.some(text => /Rats 2\s+Unhurt/.test(text)), 'every standing member has a target line');
     assert.ok(targets.some(text => /Spiders\s+Unhurt/.test(text)), 'a lone real foe in the mixed fight keeps its ordinary target line');
+    const rowOf = cls => fight().querySelector(`.${cls}`).parentNode;
+    assert.equal(rowOf('rpg-board-back'), rowOf('rpg-board-discard'), 'Back and Discard fight share one row container');
+    assert.match(rowOf('rpg-board-back').className, /rpg-board-actions/);
     const escape = { key: 'Escape', preventDefault() {}, stopImmediatePropagation() {}, stopPropagation() {} };
     doc.listeners.find(entry => entry.fn.name === 'keydown' && entry.capture).fn(escape);
     assert.match(fight().textContent, /choose an action/);
+    assert.equal(rowOf('rpg-board-auto'), rowOf('rpg-board-discard'), 'Auto and Discard fight share one row container');
     fight().querySelector('[data-choice="1"]').click();
     fight().querySelector('[data-choice="2"]').click();
     assert.match(fight().querySelector('.rpg-board-log').textContent, /Exchange 1/);
@@ -107,6 +111,7 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     assert.equal(boardSession(host.ctx.chatMetadata).exchanges.length, 1);
     fight().querySelector('.rpg-board-discard').click();
     assert.match(fight().textContent, /Discard this fight/);
+    assert.equal(rowOf('rpg-board-confirm'), fight().querySelectorAll('.ss-button').find(node => node.textContent === 'Cancel').parentNode, 'the confirm pair shares a row');
     fight().querySelectorAll('.ss-button').find(node => node.textContent === 'Cancel').click();
     assert.equal(boardSession(host.ctx.chatMetadata).exchanges.length, 1);
     fight().querySelector('.rpg-board-discard').click();

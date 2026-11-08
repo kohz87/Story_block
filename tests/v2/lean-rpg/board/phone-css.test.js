@@ -69,6 +69,14 @@ test('phone end card replaces its long copy and keeps full-width 48px buttons', 
     assert.match(rule(phone, ':is(.story-suite-sheet, .ss-gameview, .ss-cards) .rpg-board-ended button'), /min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important/);
 });
 
+test('board control buttons sit in one wrapping row, 8px apart, Discard fight at the far end', () => {
+    const row = rule(css, '.rpg-board-actions');
+    assert.match(row, /display: flex/);
+    assert.match(row, /flex-wrap: wrap/);
+    assert.match(row, /gap: 8px/);
+    assert.match(rule(css, '.rpg-board-actions .rpg-board-discard'), /margin-left: auto/);
+});
+
 test('finished phone fights unlock the body and show the whole log', () => {
     assert.match(phone, /:has\(\.rpg-board-active:not\(\.rpg-board-finished\)\)/);
     const log = rule(phone, '.rpg-board-finished .rpg-board-log.rpg-battle');

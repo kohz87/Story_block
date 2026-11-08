@@ -177,8 +177,10 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         const discard = () => { discardBoard(meta()); if (heldSid) discardHeld(meta(), heldSid); start?.discard?.(); persist(); reset(); redraw(); };
         const confirmDiscard = panel => {
             panel.appendChild(h(doc, 'p', '', 'Discard this fight and its unsent exchanges?'));
-            panel.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-confirm', discard));
-            panel.appendChild(button(doc, 'Cancel', 'ss-button', () => { confirm = false; redraw(); }));
+            const pair = h(doc, 'div', 'rpg-board-actions rpg-board-confirm-row');   // one row, 8px apart (never stacked)
+            pair.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-confirm', discard));
+            pair.appendChild(button(doc, 'Cancel', 'ss-button', () => { confirm = false; redraw(); }));
+            panel.appendChild(pair);
         };
         if (notice) root.appendChild(h(doc, 'p', 'rpg-board-error', notice));
         if (!listening) { doc.addEventListener?.('keydown', keydown, true); listening = true; }
@@ -192,6 +194,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             root.appendChild(panel);
             return;
         }
+        const tools = h(doc, 'div', 'rpg-board-actions');   // Auto / Back on the left, Discard fight at the far end, in one row
         const state = played.state, { ranks, playerRank } = levels(), party = readParty(state, { own: readerName(), roleOf, ranks, playerRank }), foes = readFoes(state, { roleOf, ranks });
         const members = Array.isArray(played.result.members) ? played.result.members : null;
         root.classList.toggle('rpg-board-members', members !== null);
@@ -305,14 +308,13 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                 line.setAttribute('data-choice', String(at + 1)); list.appendChild(line);
             });
             panel.appendChild(list);
-            if (autoNode) panel.appendChild(autoNode);
+            if (autoNode) tools.appendChild(autoNode);
             if (!targeting && autoLine && session.exchanges.length && start?.waiting?.() && !start.sending?.())
                 panel.appendChild(pressButton(doc, 'Send with this fight', 'ss-button ss-button-primary rpg-board-send', () => { start.send(); redraw(); }));
-            if (targeting) panel.appendChild(button(doc, 'Back', 'ss-button rpg-board-back', () => { targeting = null; redraw(); }));
+            if (targeting) tools.appendChild(button(doc, 'Back', 'ss-button rpg-board-back', () => { targeting = null; redraw(); }));
         }
         if (ended) panel.classList.add('rpg-board-ended');
         if (!sending) {
-            const tools = h(doc, 'div', 'rpg-board-actions');
             tools.appendChild(button(doc, 'Discard fight', 'ss-button rpg-board-discard', () => { confirm = true; redraw(); }));
             panel.appendChild(tools);
         }
