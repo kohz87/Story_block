@@ -118,7 +118,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const roll = diceOf(entry), pcDie = roll(), foeDie = roll();
         // (an area attack: the foe die already drawn is the first target's, one more for each other target. An old act has no group
         // and keeps drawing for every foe bar, as it always did; a grouped act draws only for its standing group.)
-        const areaBars = entry.area ? (entry.group === undefined ? foes
+        const areaBars = entry.area && !entry.aoe ? (entry.group === undefined ? foes
             : foes.filter(bar => standing(bar.id) && (bar.foe.group ?? bar.at) === entry.group)) : [];
         const areaDice = areaBars.map((_, at) => (at === 0 ? foeDie : roll()));
         const me = bars.get(owner(entry));
@@ -132,13 +132,20 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
             return { lines: [{ kind: 'check', type: entry.type, support: true, target: entry.target.name, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), pc: { ...entry.pc, die: pcDie, total },
                 difficulty: entry.difficulty, dc: entry.dc, outcome, decisive, ...(damage ? { damage } : {}) }] };
         }
-        const hit = (foeBar, dice) => {
+        const hit = (foeBar, dice, reduced = false) => {
             const rolled = contested(entry, dice.pcDie, dice.foeDie, rules);
-            const blocks = memberRolls?.hitBlocks(entry, foeBar, rolled.decisive) ?? (rolled.decisive ? 2 : 1);
+            const blocks = memberRolls?.hitBlocks(entry, foeBar, rolled.decisive, reduced) ?? (rolled.decisive ? 2 : 1);
             const damage = rolled.pcWins && ['physical', 'magic'].includes(entry.type) ? damageOf(foeBar, blocks) : undefined;
-            return { kind: 'act', type: entry.type, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), ...(entry.area ? { area: true } : {}),
+            return { kind: 'act', type: entry.type, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), ...(entry.area ? { area: true } : {}), ...(reduced ? { reduced: true } : {}),
                 pc: rolled.pc, foe: { ...rolled.foe, name: foeBar.name, slot: foeBar.slot }, outcome: rolled.outcome, decisive: rolled.decisive, ...(damage ? { damage } : {}) };
         };
+        if (entry.area && entry.aoe) {
+            // (the newer area rule, record `aoe: 1`: ONE roll, the main group's. Its group's bars take the full effect, every other standing group's bars
+            // the same roll at one Health block less. The old path below is kept for records without `aoe`.)
+            const all = foes.filter(bar => standing(bar.id)), mainOf = bar => (bar.foe.group ?? bar.at) === entry.group;
+            if (!all.some(mainOf)) return { idle: 'no-target' };
+            return { lines: [...all.filter(mainOf).map(bar => hit(bars.get(bar.id), { pcDie, foeDie })), ...all.filter(bar => !mainOf(bar)).map(bar => hit(bars.get(bar.id), { pcDie, foeDie }, true))] };
+        }
         if (entry.area) {
             const targets = entry.group === undefined ? foes.filter(bar => standing(bar.id)) : areaBars;
             if (!targets.length) return { idle: 'no-target' };

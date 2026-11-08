@@ -33,7 +33,7 @@ export const pressButton = (doc, text, cls, act) => {
 };
 const signed = n => n >= 0 ? `+${n}` : String(n);
 const labelLine = line => {
-    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
+    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.reduced ? `… also hits ${foe.name} (reduced)` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
     const bonus = (pc.statBonus ?? 0) + (pc.classBonus ?? 0) + (pc.rank ?? 0) + (pc.edge ?? 0);
     const changes = [line.damage ? barMovement(line.damage) : '', line.cost ? barMovement(line.cost, true) : ''].filter(Boolean);
     const skill = line.skill ? ` (${line.skill})` : '';
@@ -250,11 +250,13 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             }));
         } else {
             if (autoLine) panel.appendChild(h(doc, 'p', 'rpg-board-auto-note', autoLine));
-            panel.appendChild(h(doc, 'p', 'rpg-board-prompt', targeting ? (targeting.groupMode ? 'Choose a group' : 'Choose a target') : `${data.actor?.who ?? 'Party'}: choose an action`));
+            const mainTarget = Boolean(targeting?.groupMode) && session.setup.aoe === 1;
+            panel.appendChild(h(doc, 'p', 'rpg-board-prompt', mainTarget ? `${data.actor?.who ?? 'Party'}: ${targeting.action.skill} (area)` : targeting ? (targeting.groupMode ? 'Choose a group' : 'Choose a target') : `${data.actor?.who ?? 'Party'}: choose an action`));
+            if (mainTarget) panel.appendChild(h(doc, 'p', 'rpg-board-area-note', 'Hits every enemy group. The group you pick takes the full effect, and the others take one Health block less.'));
             if (!targeting) panel.appendChild(h(doc, 'p', 'rpg-board-defence', `Defence: ${data.defence ?? 'plain defence'}, automatic`));
             const list = h(doc, 'div', 'rpg-board-choices');
             const options = targeting ? (targeting.groupMode
-                ? memberGroupList.map((group, at) => ({ label: `${at + 1}. ${group.label}`, group: group.group, literal: true }))
+                ? memberGroupList.map((group, at) => ({ label: mainTarget ? `Main target: ${group.label}` : `${at + 1}. ${group.label}`, group: group.group, literal: true }))
                 : standing.map((foe, at) => members
                     ? { label: memberTargetLine(foe, at + 1), target: foe.slot, literal: true }
                     : { label: targetLabel(foe), target: foe.slot }))

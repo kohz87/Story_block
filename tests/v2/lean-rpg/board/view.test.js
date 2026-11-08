@@ -529,10 +529,11 @@ test('an area skill asks for a standing group only when more than one group stan
     const root = renderMembers(t, { doc, host, members, order: [{ id: 'c:wessel', name: 'Wessel', party: true },
         { id: 'f:11', party: false }, { id: 'f:12', party: false }, { id: 'f:21', party: false }] });
     const area = [...root.querySelectorAll('.rpg-board-choice')].find(node => node.textContent.includes('Shadow Cut'));
-    assert.match(area.textContent, /— one group$/u);
+    assert.match(area.textContent, /— every group$/u);
     area.click();
-    assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Choose a group');
-    assert.deepEqual([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].map(node => node.textContent), ['1. Bristle-boars', '2. Spiders']);
+    assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Wessel: Shadow Cut (area)');
+    assert.equal(root.querySelector('.rpg-board-area-note').textContent, 'Hits every enemy group. The group you pick takes the full effect, and the others take one Health block less.');
+    assert.deepEqual([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].map(node => node.textContent), ['Main target: Bristle-boars', 'Main target: Spiders']);
     assert.ok([...root.querySelectorAll('.rpg-board-choices .rpg-board-choice')].every(node => node.classList.contains('rpg-board-choice')), 'groups use the 48px choice buttons');
     assert.match(BOARD_CSS, /\.rpg-board-members \.rpg-board-controls button \{ min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important; \}/u);
 });

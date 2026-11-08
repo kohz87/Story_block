@@ -20,7 +20,7 @@ export function boardChoices(state, setup, chosen = [], memberGroupList = null) 
     if (!actor) return { sheet, actors, foes, actor: null, choices: [] };
     const weapon = setup?.weapons?.[actor.key], stat = attackStat(actor, weapon).toUpperCase();
     const choices = [{ label: `Attack${weapon?.name ? ` with ${weapon.name}` : ''} (${stat})`, action: { who: actor.who, kind: 'attack' } }];
-    const areaLabel = Array.isArray(memberGroupList) && memberGroupList.length > 1 ? ' — one group' : ' — every foe';
+    const areaLabel = Array.isArray(memberGroupList) && memberGroupList.length > 1 ? (setup?.aoe === 1 ? ' — every group' : ' — one group') : ' — every foe';
     for (const { skill, target, area, reason } of actionSkills(actor, setup?.flags)) {
         const detail = [skill.stat?.toUpperCase(), skill.uses === 'mana' ? 'Mana' : 'Stamina'].filter(Boolean).join(', ');
         const base = `${skill.name}${skill.about ? `: ${skill.about}` : ''} (${detail})`;

@@ -156,6 +156,7 @@ export const STORY_STRINGS = Object.freeze({
         foeDecisiveHit: 'Decisive hit',
         foeDecisiveBlock: 'Decisive block',
         area: 'area',
+        alsoHits: '… also hits {name} (reduced)',
         opening: 'Opening action',
         loses: '{who} loses {n} {blocks} ({to} of {size})',
         heals: '{who} heals {n} {blocks} ({to} of {size})',

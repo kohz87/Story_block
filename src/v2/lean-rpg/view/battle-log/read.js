@@ -100,14 +100,14 @@ function lineOf(raw, soulOf = () => null, lv = false, divisor = null, members = 
     const movement = (move, kind, name) => {
         if (!isRecord(move) || !Number.isFinite(move.from) || !Number.isFinite(move.to) || !Number.isFinite(move.size) || move.size <= 0 || !name) return false;
         const to = stageWord(STAGES[kind], move.to, move.size);
-        if (move.from !== move.to) arrows.push(kind === 'health' ? `${name} ${to}` : fill(B.arrowBar, { name, bar: RPG_STRINGS.bars[kind], word: to }));
+        if (move.from !== move.to) arrows.push(kind === 'health' ? (raw.reduced === true ? to : `${name} ${to}`) : fill(B.arrowBar, { name, bar: RPG_STRINGS.bars[kind], word: to }));
         return true;
     };
     const member = members?.get(raw.damage?.id);
     if (member) movement(raw.damage, 'health', words(member.name, 40));
     const recordedCost = members && cost && movement(raw.cost, cost, words(raw.cost?.name ?? raw.pc.who, 40));
     const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: gear && breakdown ? `${breakdown} · ${gear}` : breakdown, arrows, ...(cost ? { cost } : {}),
-        ...(recordedCost ? { recordedCost: cost } : {}), ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}), ...(gear ? { gear } : {}) };
+        ...(recordedCost ? { recordedCost: cost } : {}), ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}), ...(raw.reduced === true ? { reduced: true } : {}), ...(gear ? { gear } : {}) };
     // A support action (a heal or a buff, a `check` line that names the one helped) reads like an act on that character.
     if (raw.kind === 'check' && raw.support === true && words(raw.target, 40)) return { ...base, who: words(raw.pc.who, 40), target: words(raw.target, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, support: true, heals: isRecord(raw.damage) && raw.damage.blocks < 0 };
     if (raw.kind === 'foe') return { ...base, total: foeSide?.total ?? null, vs: raw.pc.total, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', defence: skill, stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
