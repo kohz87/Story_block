@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.27.0
+- **Items: the Carry control shows its word.** A story item's Carry control now reads "Carry" (or "Carry +N") and its form opens in view under the row instead of being hidden. Each inventory row has one pencil (Carry is also in the Edit form), shows +N carry on line 2 only when you set one, and keeps the bonus, condition and note on line 3 with clear gaps.
+- **Inner chatter can be up to 240 characters** (it was 140).
+- **Attacks are read from narration.** The check for a typed attack now also catches attacks written into a sentence ("I immediately attacked them", ", I struck the boar", driving a weapon into a foe), with the reader's weapon as the subject. Idioms and bare hands never count. The gate that decides whether to look is loose: any attack word outside quotes goes to the Assist profile, which decides, and the hold on a standing foe judges every attack word in a clause.
+- **Fight set-up from your attack is better.**
+  - **XP:** a fight the check opened is paid its XP even when the narrator clears the foes in the same reply.
+  - **Count and level:** the foe count comes from your message, else the reply before it, and more of that reply is read. The check also gives each foe group a level; a missing one is the party's top level. The same call says when it is not a fight.
+  - **No pop-up too early:** the Fight screen opens only for a ready fight, never while the check works, and a pause that ends with no fight closes what it opened.
+- **The fight board's buttons share one row.** Auto / Back and Discard fight sit 8px apart, with Discard at the far end.
+- **A money warning.** When a reply pays the same amount from the same source as one of the last four replies, or pays far more than the purse holds, Problems shows a warning. The payment still applies, and nothing is blocked. The coin rule tells the narrator to pay each find once.
+- **Internal:** the state fuzz test runs as four files in parallel in CI.
+- **New chats only: new combat rules.** A chat you started before 2.27.0 keeps its old rules, bars and XP. A new chat's first character (and a companion who joins an empty party) gets:
+  - **Bigger bars.** Health is 2 x (4 + VIT/5), Stamina 2 x (4 + AGI/5), Mana 2 x (4 + INT/5): 10 each for a fresh character, 16 at most. Gear does not grow a bar.
+  - **Skills hit harder.** A skill aimed at one foe takes 2 (3 when decisive) in place of 1 (2). A plain attack stays 1 (2). A skill that hits every foe costs 2 and cannot be picked with 1 left. Auto stops when a hero has lost a fifth of the bar.
+  - **XP from board fights only.** A won board fight pays 15 for one foe, 2 more for each extra foe in the group, more for higher foe levels, and 60 at most. The narrator's XP lines are refused, and so is the story raising Health, Stamina or Mana.
+  - **Rest.** **Short rest** refills Stamina and Mana. **Full rest** refills all three, and the story's full rest waits 6 story hours. The story can also heal 1 to 3.
+  - **Combat and utility skills.** Eleven slots: combat (5, 6 at level 20, up to 8) and three utility slots of their own, with a **Used for** switch. Utility skills stay off the fight board and Auto.
+- **The strips apply everywhere.** In every chat, old or new, Health, Stamina and Mana are drawn as one smooth strip (red, green and blue) that shrinks and dulls as it empties, with the word and the number ("Hurt · 5/10"). Only the sizes and rules above wait for a new chat.
+
 ## 2.26.0
 - **Typing an attack on new foes sets up the fight first.** When you type an attack on foes that are not on the sheet yet, the send is held while a short check (the Assist profile, 20 seconds at most, "Setting up the fight…") finds them, so the board fight is ready before the reply.
   - **The hold** offers **Fight on the board**, **Auto-fight** and **Send without a fight**.

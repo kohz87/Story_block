@@ -1,4 +1,4 @@
-# AI-README: Story Block 2.26.0
+# AI-README: Story Block 2.27.0
 
 For AI assistants that read this repository. Plain facts, no marketing. For people, read [README.md](README.md). For rules
 every change must keep, read [CLAUDE.md](CLAUDE.md). Depth lives in `docs/`; this file points there instead of copying.
@@ -14,7 +14,7 @@ queries, screens and settings. Code sets every number; the story only proposes.
 
 | Repo | Module id | Version | Owns |
 |---|---|---|---|
-| kohz87/Story_block (this) | `story-block` | 2.26.0 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
+| kohz87/Story_block (this) | `story-block` | 2.27.0 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
 | kohz87/Story_director | `story-director` | 2.10.0 | Story clock and calendar, quests, threads, map, trips, World, Chronicle, arc planning, standalone checks, the living cast (meets people by place and routine). Needs Story Block (>= 2.12.0). |
 | kohz87/npc_state_delta | `npc-state-delta` | 1.9.0 | NPC dossiers, meters, stages, secrets, Cast and Dossiers screens, cast portraits. Needs Story Block; with Story Director it also follows the cast and Key people. |
 | kohz87/Story_studio | (not an extension) | 0.8.0 | An offline single HTML page that writes and checks packs with Story Block's own checker. No install. |
@@ -100,7 +100,7 @@ message box) and in the Story panel (**Story** button). Settings open from the *
 - **Blocks** (`screens/blocks*.js`, `data-modules/`): Settings → Blocks: New block, From a template, Edit, **Show as** (own tab, Home card,
   both, hidden), ⋯ (Save as template, Export as pack, Remove). Templates are shared across chats (at most 16).
 - **Mounts** (`domains/mounts.js`): Home card with a pencil per mount; pace and "the party walks" note.
-- **RPG** (`lean-rpg/`): Party and Fight tabs, New character wizard, spend points, export/import a character, battle log under a reply.
+- **RPG** (`lean-rpg/`): Party and Fight tabs, New character wizard, spend points, export/import a character, battle log under a reply. A Character pinned with `scale: 2` (new chats only; `templates-bars.js`, `templates-recovery.js`) has bars of 2 x (4 + stat/5), a fight marked `bars: 2`, XP from board fights only and Short/Full rest; an unmarked pin keeps the old rules (`characterV1For()`). Skills are typed combat or utility (`templates-skills.js`). See `docs/v2/RPG.md`.
   See `docs/v2/RPG.md`.
 
 ## Settings
@@ -194,7 +194,7 @@ Look tokens (`view/theme.js` `PALETTES`, `SHARED`; dark / light where they diffe
 | `--ss-tile`, `--ss-border`, `--ss-rule`, `--ss-shadow` | `rgba(255,255,255,.09)`, `.16`, `.22`, `0 10px 30px rgba(0,0,0,.35)` / light palette | tiles, edges, hairlines, elevation |
 | `--ss-text`, `--ss-muted`, `--ss-help` | `#f1f2f8`, `#b6bacb`, `#d0d4e2` / `#23253a`, `#5b5e74`, `#23253a` | text |
 | `--ss-good`, `--ss-bad`, `--ss-warn`, `--ss-info`, `--ss-bad-text`, `--ss-warn-text` | `#72dea4`, `#ff6b6b`, `#e8b04b`, `#4fa3ff`, `#ff8a8a`, `#f5c35b` / light set | tones |
-| `--ss-hp`, `--ss-mp`, `--ss-sp`, `--ss-exp` | `#e5484d`, `#4fa3ff`, `#e8b04b`, `var(--ss-accent)` | bars |
+| `--ss-hp`, `--ss-mp`, `--ss-sp`, `--ss-exp` | `#e5484d`, `#4fa3ff`, `var(--ss-tick)` (green), `var(--ss-accent)` | bars (a Health, Stamina or Mana bar is one smooth strip: red, green, blue) |
 | `--ss-uncommon`, `--ss-rare`, `--ss-epic`, `--ss-legendary`, `--ss-tick` | `#2fbf71`, `#4fa3ff`, `#b07cff`, `#e8b04b`, `#2fbf71` | rarities, ticks |
 | `--ss-radius-s`, `-m`, `-l`, `-xl`, `-xxl`, `-button`, `-pill` | 10, 14, 18, 22, 26, 12, 999 px | corner rounding |
 | `--ss-space-1` ... `-5` | 4, 8, 12, 16, 24 px | spacing |
@@ -431,5 +431,5 @@ prompt byte-identical, every optional mechanic a Feature, no markup from text, n
 
 ## Version
 
-Story Block 2.26.0 (`manifest.json`, `package.json`). Suite: Story Director 2.11.2, NPC State Delta 1.13.2, Story Studio 0.10.2.
+Story Block 2.27.0 (`manifest.json`, `package.json`). Suite: Story Director 2.12.0, NPC State Delta 1.14.0, Story Studio 0.10.2.
 Sample pack: Ersveil 2.7.0. History: `CHANGELOG.md`.

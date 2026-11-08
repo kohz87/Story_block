@@ -47,6 +47,8 @@ New board fight records carry a scoped guard witness (`board/commit.js`: the dom
 
 ## Data flow
 
+A fight is marked `bars: 2` (setup, result, guard; `board/session.js`, `engine.js`, `commit.js`) only when every sheet character is pinned at scale 2; the mark changes skill damage (2/3), the area cost (2) and Auto's hurt stop, and an old fight keeps its recorded rules. A pre-check opening is unmarked and its foe `level` is required (`board/precheck.js vetGroups`: missing = the party's top level, held to the cap). Utility skills have no flags, so the board, Auto and the defence pick ignore them (`board/flags.js skillFlags`).
+
 Before step 1, an explicit attack against a known standing foe holds the send (title 'This is an attack on <foes>') with only **Fight on the board** and **Auto-fight**; ambiguous actions continue normally. No model call is made and nothing waits.
 The offer under a reply that opens foes has the same two choices. **Auto** stages ordinary exchanges through the same path as a chosen exchange, then **Auto again** and **Send with this fight** are offered. `openBoard({records})` resumes
 foes a fled or lost fight left, with the note 'These foes are as you left them: N of M standing, with their bars from the last fight.' Both previews and capture verify the inputs.
@@ -111,7 +113,7 @@ foes a fled or lost fight left, with the note 'These foes are as you left them: 
   Foes choose a standing member in stable order; defence is automatic.
 - The end card shows XP for the original foe groups on a win and practice for the unsent segment; the folded
   narrator note includes defence outcomes, recorded gear wear and the battle marker; the aftermath follows the real outcome. A waiting reply gets a send button.
-- The Feature keeps the static prompt at or below the quiet board-off size: it retains the opening foe line and trimmed XP guide.
+- The Feature keeps the static prompt at or below the quiet board-off size: it retains the opening foe line and trimmed XP guide (a marked Character's pinned prompt has no XP guide at all: `data-modules/part/views.js` strips it).
   Combat flavour, the foe description and manual foe grammar go into the tail when a fight is relevant; Rolls off gets manual practice there.
   The fixed text does not follow fight state or Rolls. With the board off, the existing prompt is unchanged.
 

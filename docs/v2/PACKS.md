@@ -10,6 +10,10 @@ For the format and limits, see the [authoring-kit reference](../../authoring-kit
 
 Rules packs for RPG Battle cannot be imported. Keep existing RPG Battle chats on the previous versions.
 
+## Character bars and skills in a pack
+
+A pack-defined Character keeps the sizes its own block gives. The block field key `scale` (only 2, only on a Character's `health`, `stamina` and `mana` bars, all three together) marks the doubled bars of Story Block's own new Character; marked bars may hold up to 17 stages, other bars up to 10. A Skills block with a `type<n>` field (combat or utility) has up to 80 fields and 22 kinds; a pack's cast `skills` have no type and are always combat. See [RPG.md](RPG.md).
+
 ## The cast
 
 `content.cast` lists the people of a world, written by hand. Each is a prepared person who starts somewhere with a goal and a routine and lives off-screen; Story Director brings them into the story by place and routine, or because their goal pulls them to the party, and NPC State Delta makes their dossier from the entry at the first meeting. Until then the reader sees nothing of them. Nameless extras stay the story's to invent. The Ersveil example has twelve (docs/v2/ERSVEIL.md, "The twelve"); the JSON below is a made-up one.
