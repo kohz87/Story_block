@@ -92,9 +92,9 @@ Off: the word does nothing.
 
 The party's capacity adds each Mount row's carry × count while the mount travels with the party: its `where` is empty, names the
 party's place, or says it is ridden, led or pulled; a mount left elsewhere ("stabled at …") adds nothing. The row's own `carry`
-(the reader's pencil on Home, 1–1000, empty clears it) beats the kind's usual: horse/pony 20, mule/donkey/pack animal 40,
-cart/barrow/hand-cart 60, wagon 150, boat 100, other 20 (`KIND_CARRY`). A story item whose name says cart, barrow, hand-cart,
-wagon or sledge gets that carry on its def (sledge counts as a cart) and adds it while owned. `inventory.gear` carry also lists
+(the reader's pencil on Home, 1–1000, empty clears it) beats the kind's usual: pony 30, horse 40, mule/donkey/pack animal 50,
+cart/barrow/hand-cart/sledge 60, carriage/coach 80, boat 100, barge/wagon 150, other 20 (`KIND_CARRY`; computed on read, nothing stored). A story item whose name says cart, barrow, hand-cart,
+sledge, carriage, coach, barge or wagon gets that carry on its def and adds it while owned. `inventory.gear` carry also lists
 `sources: [{ name, carry }]` (each member's 10 + 2 × STR, bags, carts, mounts).
 
 ## The screens
