@@ -11,7 +11,7 @@ import { activeDefinition, instanceOf } from '../data-modules/adapters.js';
 import { DM_LIMITS } from '../data-modules/schema.js';
 import { oneLine } from '../../text.js';
 import { CLASS_NAMES, CREATION, JOINS, JOIN_SETTING, PARTY_MAX, STATS } from './names.js';
-import { fold } from './read.js';
+import { fold, readSheet } from './read.js';
 import { RPG_STRINGS, fill } from './strings.js';
 import { buildDefinitions, creationOf, hasRoom, newSoul, readDraft } from './view/wizard-data.js';
 import { classOfLevel, companionStats, levelOfClass } from './formula.js';
@@ -136,8 +136,14 @@ export function joinDraft({ name = '', about = '', soul = 1, best = '', skills =
  * The two definitions a joining companion is made of (`used`: the ids of the story's blocks, so the slugs are free). The Character
  * starts with no unspent points: the named stat is raised and the rest left as it was, as the line said.
  */
-export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null, cap = null, legacy = false } = {}) =>
-    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap, legacy });
+export const joinDefinitions = (request, { used = [], soul = request.soul, rules = null, cap = null, legacy = false, scale = 2 } = {}) =>
+    buildDefinitions(joinDraft({ ...request, soul }, rules), { used, points: 0, cap, legacy, scale });
+
+/**
+ * The bar sizes a joining companion is made with: 1 (the earlier sizes) when the story already has characters and none of them has the doubled bars, else 2.
+ * Read from the pins of the state before the reply, so a Re-read of the join chooses the same.
+ */
+export const joinScale = state => { const sheet = readSheet(state).characters; return sheet.length && !sheet.some(person => person.scale === 2) ? 1 : 2; };
 
 /**
  * The offers on a reply: the `+ party` lines that asked (Ask), read from the reply's receipts (`entries`: store.receipts() as a

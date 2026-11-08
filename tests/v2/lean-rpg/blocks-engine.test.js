@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { STANDARD_TEMPLATES, COMBAT_PROMPT_STANDARD } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, COMBAT_PROMPT_STANDARD, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { STAGES } from '../../../src/v2/lean-rpg/names.js';
 import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { blocksFor, foeHealthBlocks } from '../../../src/v2/lean-rpg/formula.js';
@@ -15,7 +15,7 @@ import { fullModuleGrammar } from '../../../src/v2/data-modules/grammar.js';
 import { reply, success, view, rebuilt, reload } from '../data-modules/helpers.js';
 
 const CHECK = { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'] };
-const standard = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
+const standard = name => (name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition));
 const sheet = (host, slug) => view(host, `pack.chat/${slug}`).chat;
 const set = async (host, slug, fields) => success(await host.sdk.command('dm.set', { module: `pack.chat/${slug}`, fields }));
 // A line's sign is its kind's op: `+` for add-xp, `~` for the set kinds.

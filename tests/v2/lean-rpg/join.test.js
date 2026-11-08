@@ -82,7 +82,7 @@ test('what a joining companion is made of: stats 5, the best one 9 and a point f
     assert.equal(joinDraft({ name: 'Mara', best: 'wits' }, STANDARD).stats.int, 5, 'a best that is no stat raises nothing');
     const made = joinDefinitions({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' }, { used: ['pack.chat/wessel'], soul: 3, rules: STANDARD });
     const state = made.character.state;
-    assert.deepEqual([made.character.slug, made.character.role, state.int.default, state.vit.default, state.points.default, state.level.default, state.health.default, state.mana.default, state.stamina.default, state.left.default], ['mara', 'character', 13, 5, 0, 25, 5, 5, 4, false]);
+    assert.deepEqual([made.character.slug, made.character.role, state.int.default, state.vit.default, state.points.default, state.level.default, state.health.default, state.mana.default, state.stamina.default, state.left.default], ['mara', 'character', 13, 5, 0, 25, 10, 12, 10, false]);
     assert.equal(made.skills.role, 'skills');
     assert.equal(made.skills.state.who.default, 'Mara');
     for (let n = 1; n <= 5; n += 1) assert.equal(made.skills.state[`skill${n}`].default, '', `skill ${n} is empty`);
@@ -117,7 +117,7 @@ test('Automatically: a + party line makes the Character and an empty Skills bloc
     assert.deepEqual(blocks(host), ['pack.chat/mara', 'pack.chat/mara-skills', 'pack.chat/wessel', 'pack.chat/wessel-skills']);
     const mara = fields(host, 'mara');
     assert.deepEqual([mara.who, mara.about, mara.str, mara.vit, mara.agi, mara.dex, mara.int, mara.luk, mara.cha], ['Mara', 'a hedge-witch from Kvildal', 5, 5, 5, 9, 13, 5, 5]);
-    assert.deepEqual([mara.level, mara.points, mara.xp, mara.health, mara.mana, mara.stamina, mara.alive, mara.left], [25, 0, 0, 5, 5, 4, true, false], 'class IV asked, the party\'s highest is III; bars full');
+    assert.deepEqual([mara.level, mara.points, mara.xp, mara.health, mara.mana, mara.stamina, mara.alive, mara.left], [25, 0, 0, 10, 12, 10, true, false], 'class IV asked, the party\'s highest is III; bars full (the doubled sizes)');
     const skills = fields(host, 'mara-skills');
     assert.deepEqual([skills.who, skills.skill1, skills.rank1, skills.practice1, skills.skill5], ['Mara', '', 0, 0, '']);
     const receipt = lastReceipts(host).find(entry => entry.type === 'capture.party');

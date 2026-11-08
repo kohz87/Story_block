@@ -100,7 +100,7 @@ test('Create\'s two definitions come from the templates with the wizard\'s value
     assert.deepEqual(blockNames('Wessel'), { character: 'Wessel', skills: 'Wessel\'s skills' });
     const state = character.state;
     assert.deepEqual([state.who.default, state.about.default, state.str.default, state.vit.default, state.agi.default, state.dex.default, state.int.default], ['Wessel', 'A drill-yard washout.', 9, 7, 6, 5, 3]);
-    assert.deepEqual([state.points.default, state.level.default, state.xp.default, state.health.default, state.mana.default, state.stamina.default, state.alive.default], [5, 1, 0, 5, 3, 4, true], 'full bars (they grow with VIT, AGI and INT), Level 1, 0 XP and the unspent points');
+    assert.deepEqual([state.points.default, state.level.default, state.xp.default, state.health.default, state.mana.default, state.stamina.default, state.alive.default], [5, 1, 0, 10, 8, 10, true], 'full bars (they grow with VIT, AGI and INT), Level 1, 0 XP and the unspent points');
     assert.deepEqual([state.cap.default, state.soul], [99, undefined], 'the cap is 99 unless the story says another; no Soul Class');
     const sk = skills.state;
     assert.deepEqual([sk.who.default, sk.skill1.default, sk.about1.default, sk.stat1.default, sk.uses1.default, sk.rank1.default, sk.practice1.default], ['Wessel', 'Short blade', FIGHTER.skills[0].about, 'agi', 'stamina', 1, 0], 'the Adept one starts at rank 1');
@@ -346,7 +346,7 @@ test('Create makes the two blocks with one dm.define each, the wizard\'s values 
     assert.deepEqual(made.map(receipt => receipt.type), ['dm.define', 'dm.define', 'dm.define', 'dm.define'], 'four defines and nothing else: no dm.set');
     const character = fieldsOf(host, 'pack.chat/wessel'), skills = fieldsOf(host, 'pack.chat/wessel-skills');
     assert.deepEqual([character.who, character.about, character.str, character.vit, character.points, character.level, character.xp, character.health, character.mana, character.stamina, character.alive],
-        ['Wessel', 'A drill-yard washout from Bluewatch.', 10, 10, 0, 1, 0, 6, 4, 4, true]);
+        ['Wessel', 'A drill-yard washout from Bluewatch.', 10, 10, 0, 1, 0, 12, 10, 10, true]);
     assert.deepEqual([skills.who, skills.skill1, skills.stat1, skills.uses1, skills.rank1, skills.practice1, skills.skill2, skills.rank2, skills.skill4, skills.rank4],
         ['Wessel', 'Short blade', 'agi', 'stamina', 1, 0, 'Iron Breath', 0, '', 0]);
     const domain = host.head().domains.dataModules;

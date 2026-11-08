@@ -76,7 +76,7 @@ const SHARED = Object.freeze({
     '--ss-space-5': '24px',
     '--ss-hp': '#e5484d',
     '--ss-mp': '#4fa3ff',
-    '--ss-sp': '#e8b04b',
+    '--ss-sp': 'var(--ss-tick)',
     '--ss-exp': 'var(--ss-accent)',
     '--ss-tick': '#2fbf71',
     '--ss-uncommon': '#2fbf71',

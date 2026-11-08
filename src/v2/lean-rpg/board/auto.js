@@ -24,7 +24,7 @@ const healthOf = actor => {
 const maxHealthOf = actor => {
     const explicit = Number(actor?.size?.health ?? actor?.healthSize ?? actor?.healthMax ?? actor?.maxHealth ?? (typeof actor?.size === 'number' ? actor.size : null));
     if (Number.isFinite(explicit) && explicit > 0) return Math.trunc(explicit);
-    if (actor?.stats && typeof actor.stats === 'object') return blocksFor(actor.base ?? actor.stats).health;
+    if (actor?.stats && typeof actor.stats === 'object') return blocksFor(actor.base ?? actor.stats, actor.scale).health;
     return null;
 };
 const belowHalf = actor => {
@@ -74,9 +74,9 @@ function healTarget(characters) {
 }
 
 // The prepared side of one action, built by the board's own action and Standard preparation code.
-function attackEntry(sheet, actor, foe, action, flags, exchangeNumber, members, rules) {
+function attackEntry(sheet, actor, foe, action, flags, exchangeNumber, members, rules, bars = false) {
     const one = { ...sheet, characters: [actor], foes: [foe] };
-    const built = exchangePlan(one, [action], flags, exchangeNumber, { members });
+    const built = exchangePlan(one, [action], flags, exchangeNumber, { members, bars });
     if (built.error) return null;
     const prepared = prepareStandard(built.plan, one, rules, { lv: hasLevels(rules), fix: true, then: true });
     return prepared.acts[0] ?? null;
@@ -121,7 +121,7 @@ export function autoPicks(boardState, rules) {
     const target = weakest(foes);
     const actors = characters.filter(standingActor);
     const exchangeNumber = Number.isInteger(boardState?.number) ? boardState.number : (Number(setup.offset) + 1 || 1);
-    const out = [];
+    const out = [], bars = setup.bars === 2;
     if (!target) return out;
     const guard = actor => {
         if (!belowHalf(actor)) return {};
@@ -137,16 +137,17 @@ export function autoPicks(boardState, rules) {
             continue;
         }
         const plainAction = attackChoice(actor, target);
-        const plainEntry = attackEntry(sheet, actor, target, plainAction, flags, exchangeNumber, Boolean(members), rules);
+        const plainEntry = attackEntry(sheet, actor, target, plainAction, flags, exchangeNumber, Boolean(members), rules, bars);
         const plainOdds = oddsOf(plainEntry, actor, setup.weapons?.[actor.key], rules, true);
         let best = null;
-        for (const option of actionSkills(actor, flags)) {
+        for (const option of actionSkills(actor, flags, { bars })) {
             if (option.reason || healingSkill(option.skill)) continue;
             const scope = skillFlags(option.skill, flags[skillKey(actor.module, option.skill)]);
             if (!scope.target && !scope.area) continue;
-            for (const area of [scope.target ? false : null, scope.area ? true : null].filter(value => value !== null)) {
+            // (an area use the actor cannot pay for, 2 in a fight with the doubled bars, is never picked)
+            for (const area of [scope.target ? false : null, scope.area && !option.areaReason ? true : null].filter(value => value !== null)) {
                 const action = attackChoice(actor, target, option.skill, area, members ? target.group : null);
-                const entry = attackEntry(sheet, actor, target, action, flags, exchangeNumber, Boolean(members), rules);
+                const entry = attackEntry(sheet, actor, target, action, flags, exchangeNumber, Boolean(members), rules, bars);
                 const odds = oddsOf(entry, actor, null, rules);
                 if (odds > plainOdds && (!best || odds > best.odds)) best = { action, odds };
             }
@@ -156,12 +157,12 @@ export function autoPicks(boardState, rules) {
     return out;
 }
 
-// The heroes the last exchange hurt by 2 or more Health blocks (names; the id when a line has none).
+// The heroes the last exchange hurt badly (names; the id when a line has none): 2 or more Health blocks, or in a fight with the doubled bars (`result.bars`) a fifth of the bar.
 export function hurtHeroes(result) {
     const rounds = Array.isArray(result?.rounds) ? result.rounds : (Array.isArray(result) ? result : []);
     const last = rounds.at(-1);
     const lines = last?.lines ?? result?.lines ?? [];
-    const lost = new Map(), names = new Map();
+    const lost = new Map(), names = new Map(), sizes = new Map();
     for (const line of lines) {
         const damage = line?.damage;
         if (!damage) continue;
@@ -169,9 +170,10 @@ export function hurtHeroes(result) {
         if (!((damage.kind === 'char' || id.startsWith('c:')) && /^c:[^:]+$/u.test(id))) continue;
         const blocks = Number.isFinite(Number(damage.blocks)) ? Number(damage.blocks) : number(damage.from) - number(damage.to);
         lost.set(id, (lost.get(id) ?? 0) + Math.max(0, blocks));
+        if (Number.isFinite(Number(damage.size))) sizes.set(id, Number(damage.size));
         if (line?.pc?.who && !names.has(id)) names.set(id, line.pc.who);
     }
-    return [...lost].filter(([, blocks]) => blocks >= 2).map(([id]) => names.get(id) ?? id);
+    return [...lost].filter(([id, blocks]) => (result?.bars === 2 && sizes.has(id) ? blocks * 5 >= sizes.get(id) : blocks >= 2)).map(([id]) => names.get(id) ?? id);
 }
 const badlyHurt = result => hurtHeroes(result).length > 0;
 

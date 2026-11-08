@@ -10,7 +10,7 @@ import { character, foeBlock, setup } from '../helpers.js';
 import { boardSession, discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { planGear } from '../../../../src/v2/lean-rpg/gear.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
-import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../../src/v2/lean-rpg/templates.js';
 import { createFakeModel, createHost } from '../../../../testkit/index.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { gearAnswer } from '../../../../src/v2/domains/gear.js';
@@ -94,7 +94,7 @@ async function gearHost() {
     host.features.set('story-block.rpg', true);
     host.features.set('story-block.fight-board', true);
     await host.send('Begin.', 'Opening.');
-    for (const name of ['Character', 'Foes']) await host.sdk.command('dm.define', { definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition) });
+    for (const name of ['Character', 'Foes']) await host.sdk.command('dm.define', { definition: (name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition)) });
     await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', str: 3, dex: 12, agi: 10, vit: 20 } });
     await host.send('Set.', 'Fight.\n<Changes>\n+ dm foes — why | kind: set-slot-1 | name: Rats | count: 6 | level: 60\n+ item Cane Sword | kind: weapon | rarity: rare | DEX: +2 | equipped: weapon\n</Changes>');
     return host;

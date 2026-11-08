@@ -50,10 +50,10 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
     assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');
     assert.equal(state.about.edit, undefined, 'and the reader can edit it');
-    // (the bars are rows of blocks: health up to 8, stamina and mana up to 7, each with a hidden field that remembers its size; no stage names)
-    assert.deepEqual([state.health.min, state.health.max, state.health.blocks], [0, 8, 'health']);
-    assert.deepEqual([state.mana.min, state.mana.max, state.mana.blocks], [0, 7, 'mana']);
-    assert.deepEqual([state.stamina.min, state.stamina.max, state.stamina.blocks], [0, 7, 'stamina']);
+    // (the bars are rows of blocks with the doubled sizes, scale 2: up to 2 x (4 + 20/5) = 16 each, with a hidden field that remembers its size; no stage names)
+    assert.deepEqual([state.health.min, state.health.max, state.health.blocks, state.health.scale], [0, 16, 'health', 2]);
+    assert.deepEqual([state.mana.min, state.mana.max, state.mana.blocks, state.mana.scale], [0, 16, 'mana', 2]);
+    assert.deepEqual([state.stamina.min, state.stamina.max, state.stamina.blocks, state.stamina.scale], [0, 16, 'stamina', 2]);
     for (const key of ['health-blocks', 'stamina-blocks', 'mana-blocks']) assert.deepEqual([state[key].edit, state[key].prompt], [false, false], key);
     for (const stat of STATS) assert.deepEqual([state[stat].min, state[stat].max], [1, 20], stat);
     assert.deepEqual([state.points.min, state.points.max], [0, 60]);

@@ -152,8 +152,8 @@ test('a new Standard character starts with its bars full: Health, Stamina and Ma
     const draft = { ...newDraft({ persona: 'Tamsin', rules: STANDARD_FORMULA }), name: 'Tamsin' };
     const stats = { ...draft.stats, vit: 10, agi: 10, int: 10, str: 8 };
     const { character } = buildDefinitions({ ...draft, stats }, { used: [] });
-    const blocks = blocksFor(stats);
-    // (A Standard template's fields hold 8, 7 and 7 blocks; the default always fits the field.)
+    const blocks = blocksFor(stats, 2);
+    // (A Standard template's fields hold 16 blocks each, the doubled sizes; the default always fits the field.)
     for (const key of ['health', 'stamina', 'mana']) assert.equal(character.state[key].default, Math.min(blocks[key], character.state[key].max), key);
 });
 
@@ -188,10 +188,10 @@ test('Stats under Standard: steppers from 5, 10 points to spend, 3 to 10, and th
     assert.match(root().querySelector('.rpg-wiz-sum').textContent, /STR 5 · VIT 5 · AGI 5 · DEX 5 · INT 5 · LUK 5 · CHA 5/);
     assert.match(root().textContent, /Every stat starts at 5\. Spend 10 points; a stat can go down to 3 to free a point and up to 10 now\. Every third level gives 1 more point, and XP rises on its own\./);
     const line = () => root().querySelector('[data-wiz="growth"]').textContent;
-    assert.equal(line(), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
+    assert.equal(line(), 'Health 10 blocks (VIT 5, next at 10) · Stamina 10 (AGI 5, next at 10) · Mana 10 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
     for (let n = 0; n < 5; n += 1) step('vit', 'inc').click();
     assert.equal(step('vit', 'inc').disabled, true, 'VIT stops at 10');
-    assert.equal(line(), 'Health 6 blocks (VIT 10, next at 15) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
+    assert.equal(line(), 'Health 12 blocks (VIT 10, next at 15) · Stamina 10 (AGI 5, next at 10) · Mana 10 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
     assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 5');
     for (let n = 0; n < 4; n += 1) step('luk', 'inc').click();
     assert.match(line(), /Edge −1\.\.\+3 \(next at LUK 11\)$/, 'LUK 9 is still −1..+3');
@@ -224,8 +224,8 @@ test('Create under Standard writes the stats and full bars as the new blocks\' d
     await settle(); await settle();
     const fields = ctx.host.sdk.query('dataModules.view', { module: 'pack.chat/wessel' }).chat;
     assert.deepEqual([fields.str, fields.vit, fields.agi, fields.points], [10, 10, 5, 0]);
-    // A Standard chat is made from the Standard templates: Health is 4 + VIT/5 = 6 blocks, full, and the hidden size fields start there too.
-    assert.deepEqual([fields.health, fields['health-blocks'], fields.stamina, fields['stamina-blocks'], fields.mana, fields['mana-blocks']], [6, 6, 4, 4, 4, 4]);
+    // A Standard chat is made from the Standard templates: Health is 2 x (4 + VIT/5) = 12 blocks, full, and the hidden size fields start there too.
+    assert.deepEqual([fields.health, fields['health-blocks'], fields.stamina, fields['stamina-blocks'], fields.mana, fields['mana-blocks']], [12, 12, 10, 10, 10, 10]);
     const definition = ctx.host.head().domains.dataModules.pins[ctx.host.head().domains.dataModules.active['pack.chat/wessel'].hash].definition;
     assert.equal(definition.state.health.blocks, 'health', 'the Standard Character block');
 });

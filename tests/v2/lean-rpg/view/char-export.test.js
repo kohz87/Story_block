@@ -533,7 +533,7 @@ test('Create makes the Character and Skills blocks from the file, adds the thing
     assert.deepEqual(names(ctx.host), [...blocksBefore, 'pack.chat/combat-rules', 'pack.chat/foes', 'pack.chat/ren', 'pack.chat/ren-skills'].sort());
 
     const ren = fieldsOf(ctx.host, 'pack.chat/ren'), skills = fieldsOf(ctx.host, 'pack.chat/ren-skills');
-    assert.deepEqual([ren.who, ren.about, ren.level, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 6, 4, 5, true],
+    assert.deepEqual([ren.who, ren.about, ren.level, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 12, 10, 12, true],
         'the file\'s level and points; the reader\'s name and who they are; XP 0 and full bars (they grow with VIT, INT and AGI)');
     assert.deepEqual(STATS.map(stat => ren[stat]), [14, 12, 11, 10, 8, 9, 10]);
     assert.deepEqual([skills.who, skills.skill1, skills.about1, skills.stat1, skills.uses1, skills.rank1, skills.practice1, skills.skill2, skills.rank2, skills.skill3], ['Ren', 'Iron Breath', 'Steadies the lungs in a long fight.', 'vit', 'stamina', 2, 0, 'Short blade', 0, '']);

@@ -2,7 +2,7 @@
 export const CHARACTER_STRINGS = Object.freeze({
     // The Standard formula's bars (a row of blocks) and what the Party and Fight tabs and the battle log say about them and the turn order.
     blocks: Object.freeze({
-        of: '{word} · {n} of {max}',
+        of: '{word} · {n}/{max}',
         growthHealth: 'Health {n} blocks (VIT {stat}, next at {next})',
         growthStamina: 'Stamina {n} (AGI {stat}, next at {next})',
         growthMana: 'Mana {n} (INT {stat}, next at {next})',

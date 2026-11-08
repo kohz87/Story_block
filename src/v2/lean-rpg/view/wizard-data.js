@@ -19,7 +19,7 @@ import { LEVEL, CREATION, RANK_NAMES, STATS, USES } from '../names.js';
 import { SKILL_SLOTS_MAX, skillSlots } from '../../skill-slots.js';
 import { STANDARD_FORMULA, isStandard } from '../rules.js';
 import { classOfLevel, levelOfClass } from '../formula.js';
-import { SKILL_SETS, STANDARD_TEMPLATES, skillsV1For } from '../templates.js';
+import { SKILL_SETS, STANDARD_TEMPLATES, characterV1For, skillsV1For } from '../templates.js';
 import { barFields } from '../blocks.js';
 import { soulReading } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
@@ -315,11 +315,12 @@ export const blockNames = name => ({ character: name, skills: `${name}'s skills`
  * The two definitions Create makes, from the templates with the wizard's values written as the fields' defaults (so one `dm.define`
  * each makes the whole block, and the Skills block's `rankN` stays a field only play can move). `used` is the ids of the blocks
  * the chat has, so the slugs are free; `points` sets the Character's unspent points (a companion who joins starts with none, the
- * wizard's the budget left); `legacy` builds the Skills block of 2.21 (five slots, no signature mark); `cap` is the story's level cap (rules.js levelCapFor, 99 unset). → { character, skills } (definitions, the Character first)
+ * wizard's the budget left); `legacy` builds the Skills block of 2.21 (five slots, no signature mark); `cap` is the story's level cap (rules.js levelCapFor, 99 unset); `scale` the bar sizes (2, or 1 for the earlier ones). → { character, skills } (definitions, the Character first)
  */
-export function buildDefinitions(draft, { used = [], points = null, cap = null, legacy = false } = {}) {
+export function buildDefinitions(draft, { used = [], points = null, cap = null, legacy = false, scale = 2 } = {}) {
     const names = blockNames(draft.name);
-    const character = template('character');
+    // (`scale`: 2 for the doubled bars, the template's; 1 builds the Character as it was before them, for a companion joining a chat that has only such characters)
+    const character = scale === 2 ? template('character') : characterV1For();
     character.slug = uniqueBlockSlug(names.character, used);
     character.name = names.character;
     const state = character.state;
@@ -329,7 +330,7 @@ export function buildDefinitions(draft, { used = [], points = null, cap = null, 
     state.points.default = Number.isSafeInteger(points) ? Math.max(0, points) : Math.max(0, pointsLeft(draft));
     // The Standard formula's bars are rows of blocks that grow with VIT, AGI and INT: a new character starts with them full, and the hidden fields
     // that remember each bar's size start there too (blocks.js barFields), so the block's size rules find nothing to change.
-    for (const [key, value] of Object.entries(barFields(draft.stats))) if (state[key]) state[key].default = Math.min(value, Number.isSafeInteger(state[key].max) ? state[key].max : value);
+    for (const [key, value] of Object.entries(barFields(draft.stats, scale))) if (state[key]) state[key].default = Math.min(value, Number.isSafeInteger(state[key].max) ? state[key].max : value);
     // The starting level (the draft's `level`, 1 to 99; a companion or a file that came with a Soul Class has the level it stands for): into the block's `level` field,
     // held to the story's cap (levelCapFor, 99 unset), with the cap as the block's `cap`; a block of the earlier rules gets the class the level stands for.
     const top = Number.isSafeInteger(cap) ? Math.max(1, Math.min(99, cap)) : 99;

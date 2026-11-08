@@ -31,7 +31,7 @@ export function drawStageBars(doc, parent, character, { api, handles }) {
         row.setAttribute('data-bar', key);
         row.append(slot, edit);
         box.appendChild(row);
-        handles.push(meter.render(slot, { label, value: bar.value, max: bar.max, tone: bar.tone, text: bar.text ?? bar.word, segments: bar.max, icon: ICONS[key] }, {}));
+        handles.push(meter.render(slot, { label, value: bar.value, max: bar.max, tone: bar.tone, text: bar.text ?? bar.word, bar: key, icon: ICONS[key] }, {}));
         if (typeof api?.command !== 'function' || schema?.edit === false) continue;
         const options = barOptions(key, schema, bar);
         handles.push(editable.render(edit, { value: bar.value, kind: 'choice', options, label, displayValue: false, command: 'dm.set', payload: fieldPayload(character, key) }, { command: api.command }));

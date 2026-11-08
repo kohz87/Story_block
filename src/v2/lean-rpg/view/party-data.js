@@ -8,7 +8,7 @@
 
 import { STATS, STAGES } from '../index.js';
 import { STANDARD_NUMBERS, levelOfClass } from '../formula.js';
-import { barOf, characterBars, growthOf, sizeOf, spreadWord, statsOfFields, wordsOf } from '../blocks.js';
+import { barOf, characterBars, growthOf, scaleOf, sizeOf, spreadWord, statsOfFields, wordsOf } from '../blocks.js';
 import { activeDefinition, actorsOf, instanceOf } from '../../data-modules/adapters.js';
 import { LEVEL } from '../names.js';
 import { SKILL_SLOTS_MAX, signatureAt } from '../../skill-slots.js';
@@ -55,7 +55,7 @@ export function stageWord(key, schema, value) {
     return nameOf(schema, value, words[value] ?? String(value));
 }
 
-/** The bar's own reading when its field is a Standard block bar: `{ value, max, word, text, tone, blocks: true }` (`text`: "Hurt · 4 of 6"), else null. */
+/** The bar's own reading when its field is a Standard block bar: `{ value, max, word, text, tone, blocks: true }` (`text`: "Hurt · 4/6"), else null. */
 export function blockBar(key, schema, fields, fieldKey = key) {
     const bar = barOf(schema);
     if (!bar) return null;
@@ -76,7 +76,7 @@ export function growthText(growth) {
         fill(growth.luck.next === null ? B.luckTop : B.luck, { min: sign(growth.luck.min), max: sign(growth.luck.max), next: growth.luck.next ?? '' })].join(' · ');
 }
 
-/** The choices of a bar's edit (the pencil): every count from empty to full, "Hurt · 4 of 6" for a block bar, the stage word for a stage bar. */
+/** The choices of a bar's edit (the pencil): every count from empty to full, "Hurt · 4/6" for a block bar, the stage word for a stage bar. */
 export function barOptions(key, schema, bar, fields, fieldKey = key) {
     if (bar?.blocks) return Array.from({ length: bar.max + 1 }, (_, value) => ({ value, label: fill(RPG_STRINGS.blocks.of, { word: spreadWord(wordsOf(barOf(schema)), value, bar.max), n: value, max: bar.max }) }));
     return Array.from({ length: bar.max + 1 }, (_, value) => ({ value, label: stageWord(key, schema, value) }));
@@ -188,7 +188,7 @@ export function readParty(state, { own = '', roleOf, ranks = [], playerRank = nu
             soul, level, cap, ...(levelled ? { levelled: true } : {}), levelText: levelText(level, { ranks, playerRank, state, subject: block.subject }),
             soulName: levelled ? String(level) : soulName(definition.state?.soul, soul), soulLabel: soulLabelOf(levelled ? definition.state.level : definition.state?.soul), xp: Math.min(LEVEL.xpPerLevel, Math.max(0, whole(fields.xp))), bars, stats,
             skills: mine ? skillsOf(mine) : [], skillsBlock: mine ? { module: mine.module, definition: mine.definition } : null, definition, fields, order: block.order,
-            growth: characterBars(definition, fields) ? growthOf(statsOfFields(fields), { statMax: whole(definition.state?.vit?.max, STANDARD_NUMBERS.statMax) }) : null };
+            growth: characterBars(definition, fields) ? growthOf(statsOfFields(fields), { statMax: whole(definition.state?.vit?.max, STANDARD_NUMBERS.statMax), scale: scaleOf(definition.state?.health) }) : null, scale: scaleOf(definition.state?.health) };
     });
     const mineAt = own ? characters.findIndex(character => fold(character.name) === fold(own)) : -1;
     if (mineAt >= 0) characters[mineAt].own = true;

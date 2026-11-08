@@ -51,13 +51,13 @@ test('feature on: the open game view\'s header shows the bars, and they follow t
     const vitals = () => doc.querySelector('.ss-gameview-hero .ss-hero-vitals');
     assert.equal(vitals().hidden, false, 'the vitals are drawn');
     const bars = () => doc.querySelectorAll('.ss-gameview-hero .ss-bar').map(bar => [bar.querySelector('.ss-bar-label').textContent, bar.querySelector('.ss-bar-value').textContent]);
-    assert.deepEqual(bars(), [['Health', 'Hurt'], ['Mana', 'Fresh'], ['Stamina', 'Spent'], ['XP', '40 / 100 to Lv 2']]);
+    assert.deepEqual(bars(), [['Health', 'Wounded · 3/10'], ['Mana', 'Low · 4/10'], ['Stamina', 'Spent · 1/10'], ['XP', '40 / 100 to Lv 2']]);
     assert.equal(doc.querySelector('.ss-gameview-hero .ss-hero-pools').hidden, false);
     const result = await host.sdk.command('dm.set', { module: made.character, field: 'health', value: 1 });
     assert.equal(result.ok, true, result.message);
     assert.equal(fieldsOf(host, made.character).health, 1);
     await settle();
-    assert.deepEqual(bars()[0], ['Health', 'Badly wounded'], 'the header follows the head');
+    assert.deepEqual(bars()[0], ['Health', 'Badly wounded · 1/10'], 'the header follows the head');
 });
 
 test('feature off: the blocks are only data, the header has no bars; on again they are back', async t => {

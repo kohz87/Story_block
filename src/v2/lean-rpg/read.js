@@ -13,7 +13,7 @@
 import { FOE_SLOTS, LEVEL, STAGES, STATS, USES } from './names.js';
 import { SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { dmHidden } from '../data-modules/schema.js';
-import { barOf, characterBars, sizeOf } from './blocks.js';
+import { barOf, characterBars, scaleOf, sizeOf } from './blocks.js';
 import { soulReading } from './soul.js';
 import { classOfLevel, levelOfClass } from './formula.js';
 
@@ -122,6 +122,7 @@ function character(id, fields, own = '', hidden = new Set(), definition = null) 
         module: id, who, key: fold(who),
         health: int(fields.health), mana: int(fields.mana), stamina: int(fields.stamina),
         ...(bars ? { size: { health: bars.health.size, stamina: bars.stamina.size, mana: bars.mana.size } } : {}),
+        ...(bars && scaleOf(definition.state.health) === 2 ? { scale: 2 } : {}),
         stats, soul, level, cap, ...(levelled ? { levelled: true } : {}), soulLabel: reading.label, soulWord: levelled ? String(level) : reading.word(soul), xp: int(fields.xp), points: int(fields.points),
         alive: fields.alive !== false,
         skills: [],

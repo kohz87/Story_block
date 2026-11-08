@@ -2,14 +2,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { validateDataModules } from '../../../src/v2/data-modules/check.js';
 import { blockCards, settleReserve } from '../../../src/v2/data-modules/part.js';
 import { ROLES } from '../../../src/v2/lean-rpg/index.js';
 import { createCoreModule } from '../../../src/v2/domains/index.js';
 import { pack, reload, rebuilt, reply, success, view } from '../data-modules/helpers.js';
 
-const template = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
+const template = name => (name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition));
 const check = definition => validateDataModules([definition], { packId: 'chat', capabilities: ['data-modules-v1'] });
 const line = (slug, kind, extra = '') => `~ dm ${slug} — why | kind: ${kind}${extra}`;
 const settles = host => host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === 'dm.settle');

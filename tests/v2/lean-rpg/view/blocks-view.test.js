@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setupDom } from '../../view/mounts/helpers.js';
-import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../../src/v2/lean-rpg/templates.js';
 import { createPartyWidget } from '../../../../src/v2/lean-rpg/view/party.js';
 import { createFightWidget, readFight } from '../../../../src/v2/lean-rpg/view/fight.js';
 import { heroLead } from '../../../../src/v2/lean-rpg/view/hero-data.js';
@@ -12,7 +12,7 @@ import { growthText, readFoes, readParty } from '../../../../src/v2/lean-rpg/vie
 import { buildPanel, panelModel, readResolve } from '../../../../src/v2/lean-rpg/view/battle-log.js';
 import { fakeState } from './helpers.js';
 
-const standard = (name, slug) => ({ ...structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition), slug });
+const standard = (name, slug) => ({ ...(name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition)), slug });
 const roleOf = definition => definition.role ?? null;
 const wessel = { definition: standard('Character', 'wessel'), fields: { who: 'Wessel', str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 3, cha: 5, level: 2, health: 4, stamina: 2, mana: 4, 'health-blocks': 6, 'stamina-blocks': 5, 'mana-blocks': 4 } };
 const ren = { definition: standard('Character', 'ren'), fields: { who: 'Ren' } };
@@ -27,22 +27,25 @@ function draw(widgetOf, props) {
 }
 const party = () => draw(createPartyWidget, { headState: state, readerName: () => 'Wessel', roleOf });
 
-test('a Standard character\'s bars are as big as their stats say, with the word spread over them and "n of N"', () => {
+test('a Standard character\'s bars are as big as their stats say, with the word spread over them and "n/N"', () => {
     const [mine, theirs] = readParty(state(), { own: 'Wessel', roleOf });
     assert.deepEqual(['health', 'stamina', 'mana'].map(key => [mine.bars[key].value, mine.bars[key].max, mine.bars[key].word, mine.bars[key].text]),
-        [[4, 6, 'Hurt', 'Hurt · 4 of 6'], [2, 5, 'Tired', 'Tired · 2 of 5'], [4, 4, 'Fresh', 'Fresh · 4 of 4']]);
+        [[4, 6, 'Hurt', 'Hurt · 4/6'], [2, 5, 'Tired', 'Tired · 2/5'], [4, 4, 'Fresh', 'Fresh · 4/4']]);
     assert.deepEqual(['health', 'stamina', 'mana'].map(key => [theirs.bars[key].max, theirs.bars[key].word]), [[5, 'Unhurt'], [4, 'Fresh'], [4, 'Fresh']], 'new stats of 5: Health 5, Stamina 4, Mana 4');
     assert.equal(mine.bars.health.tone, 'warn');
 });
 
-test('the Party card draws one cell per block and says "Hurt · 4 of 6"', () => {
+test('the Party card draws one smooth strip per bar (its length the value, its colour the bar\'s, dulled by step) and says "Hurt · 4/6"', () => {
     const el = party();
     const card = el.querySelector('.rpg-card[data-character="Wessel"]');
     const meter = name => card.querySelector(`.rpg-bar[data-bar="${name}"] .ss-w-meter`);
-    assert.deepEqual(['health', 'stamina', 'mana'].map(name => meter(name).querySelectorAll('.ss-w-meter-cell').length), [6, 5, 4]);
-    assert.deepEqual(['health', 'stamina', 'mana'].map(name => meter(name).querySelectorAll('.ss-w-on').length), [4, 2, 4]);
-    assert.match(card.querySelector('.rpg-bar[data-bar="health"]').textContent, /Hurt · 4 of 6/);
-    assert.match(card.querySelector('.rpg-bar[data-bar="stamina"]').textContent, /Tired · 2 of 5/);
+    assert.deepEqual(['health', 'stamina', 'mana'].map(name => meter(name).querySelectorAll('.ss-w-meter-cell').length), [0, 0, 0], 'no cells: one strip');
+    const ratio = name => meter(name).querySelector('.ss-w-meter-track').style.getPropertyValue('--ss-w-ratio');
+    assert.deepEqual(['health', 'stamina', 'mana'].map(ratio), ['0.6667', '0.4', '1'], 'the strip is as long as the value is full');
+    assert.deepEqual(['health', 'stamina', 'mana'].map(name => meter(name).className.split(" ").filter(item => /^ss-w-(bar|step)-/.test(item)).join(' ')),
+        ['ss-w-bar-health ss-w-step-mid', 'ss-w-bar-stamina ss-w-step-mid', 'ss-w-bar-mana ss-w-step-full']);
+    assert.match(card.querySelector('.rpg-bar[data-bar="health"]').textContent, /Hurt · 4\/6/);
+    assert.match(card.querySelector('.rpg-bar[data-bar="stamina"]').textContent, /Tired · 2\/5/);
     assert.equal(meter('health').getAttribute('aria-valuemax'), '6');
 });
 
@@ -63,22 +66,23 @@ test('the pencil on a Standard bar offers every count from empty to full, each w
     const bar = el.querySelector('.rpg-card[data-character="Wessel"] .rpg-bar[data-bar="health"]');
     bar.querySelector('.ss-w-editable-pencil').click();
     assert.deepEqual(bar.querySelectorAll('option').map(node => node.textContent),
-        ['Down · 0 of 6', 'Badly wounded · 1 of 6', 'Wounded · 2 of 6', 'Hurt · 3 of 6', 'Hurt · 4 of 6', 'Scratched · 5 of 6', 'Unhurt · 6 of 6']);
+        ['Down · 0/6', 'Badly wounded · 1/6', 'Wounded · 2/6', 'Hurt · 3/6', 'Hurt · 4/6', 'Scratched · 5/6', 'Unhurt · 6/6']);
 });
 
 test('the header\'s hero bars have the same sizes and the word', () => {
     const lead = heroLead(state(), { own: 'Wessel', roleOf });
     assert.deepEqual(lead.bars.slice(0, 3), [
-        { kind: 'hp', label: 'Health', value: 4, max: 6, text: 'Hurt' }, { kind: 'mp', label: 'Mana', value: 4, max: 4, text: 'Fresh' }, { kind: 'sp', label: 'Stamina', value: 2, max: 5, text: 'Tired' }]);
+        { kind: 'hp', label: 'Health', value: 4, max: 6, text: 'Hurt · 4/6' }, { kind: 'mp', label: 'Mana', value: 4, max: 4, text: 'Fresh · 4/4' }, { kind: 'sp', label: 'Stamina', value: 2, max: 5, text: 'Tired · 2/5' }]);
 });
 
 test('foe groups have Health by level: level 35 has 5 blocks, level 15 has 4, the words spread over them', () => {
     assert.deepEqual(readFoes(state(), { roleOf }).map(foe => [foe.name, foe.hurt, foe.max, foe.word]), [['Weir-drake', 5, 5, 'Unhurt'], ['Sluice Rat', 1, 4, 'Badly wounded']]);
     const el = draw(createFightWidget, { headState: state, readerName: () => 'Wessel', roleOf, battleLog: { latest: () => null } });
     const bar = name => el.querySelector(`.rpg-foe[data-foe="${name}"] .ss-w-meter`);
-    assert.deepEqual([bar('Weir-drake'), bar('Sluice Rat')].map(node => node.querySelectorAll('.ss-w-meter-cell').length), [5, 4]);
-    assert.match(el.querySelector('.rpg-foe[data-foe="Weir-drake"]').textContent, /Unhurt · 5 of 5/);
-    assert.match(el.querySelector('.rpg-foe[data-foe="Sluice Rat"]').textContent, /Badly wounded · 1 of 4/);
+    assert.deepEqual([bar('Weir-drake'), bar('Sluice Rat')].map(node => node.querySelectorAll('.ss-w-meter-cell').length), [0, 0], 'the same smooth strip as the party\'s');
+    assert.deepEqual([bar('Weir-drake'), bar('Sluice Rat')].map(node => node.className.split(" ").filter(item => /^ss-w-(bar|step)-/.test(item)).join(' ')), ['ss-w-bar-health ss-w-step-full', 'ss-w-bar-health ss-w-step-low']);
+    assert.match(el.querySelector('.rpg-foe[data-foe="Weir-drake"]').textContent, /Unhurt · 5\/5/);
+    assert.match(el.querySelector('.rpg-foe[data-foe="Sluice Rat"]').textContent, /Badly wounded · 1\/4/);
     assert.match(el.querySelector('.rpg-fight-note').textContent, /^Foe Health grows with level: 4 \+ level\/30 blocks/);
     assert.deepEqual(readFight(state(), { roleOf }).map(foe => foe.stages.length), [6, 5]);
     assert.equal(el.querySelector('.rpg-order'), null, 'no recorded order, no row');

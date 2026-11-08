@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
-import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { barFields, stageText } from '../../../src/v2/lean-rpg/blocks.js';
 import { success } from '../data-modules/helpers.js';
@@ -12,7 +12,7 @@ import { legacyPlanner } from './legacy-planner.js';
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
 
-const standard = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
+const standard = name => (name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition));
 
 // A whole host on the Standard formula with Wessel, his skills and a foe group of level 35, and a planner that keeps asking for a fight.
 async function game(t, { answers, settings = {}, foes = [['Weir-drake', 1, 35]] } = {}) {

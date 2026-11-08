@@ -63,7 +63,7 @@ test('the header names the place when it is known, the note says the rolls are a
     assert.equal(draw(fakeState([foes({ foe2: '', foe3: '' })])).el.querySelector('.rpg-foe-count').textContent, '1 foe · 0 down');
 });
 
-test('a card per filled foe slot: name (× count), Class pill, five-cell health bar in the stage\'s tone, Down greyed', () => {
+test('a card per filled foe slot: name (× count), Class pill, smooth health strip in the stage\'s tone, Down greyed', () => {
     const state = fakeState([foes({ foe4: 'Rat Swarm', count4: 3, hurt4: 5 })]);
     const { el } = draw(state);
     assert.deepEqual(el.querySelectorAll('.rpg-foe').map(node => node.getAttribute('data-foe')), ['Sluice Rat A', 'Sluice Rat B', 'Sluice Rat C', 'Rat Swarm']);
@@ -73,7 +73,8 @@ test('a card per filled foe slot: name (× count), Class pill, five-cell health 
     assert.equal(foeCard(el, 'Sluice Rat B').querySelector('.ss-pill').textContent, 'Lv 15');
     const bar = name => foeCard(el, name).querySelector('.ss-w-meter');
     assert.equal(bar('Sluice Rat A').getAttribute('aria-valuemax'), '5');
-    assert.equal(bar('Sluice Rat A').querySelectorAll('.ss-w-meter-cell').length, 5, 'five cells');
+    assert.equal(bar('Sluice Rat A').querySelectorAll('.ss-w-meter-cell').length, 0, 'no cells: one smooth strip');
+    assert.match(bar('Sluice Rat A').className, /ss-w-bar-health/, 'the red Health strip');
     assert.match(foeCard(el, 'Sluice Rat A').textContent, /Wounded/);
     assert.match(foeCard(el, 'Sluice Rat B').textContent, /Scratched/);
     assert.deepEqual(['Sluice Rat A', 'Sluice Rat B', 'Rat Swarm'].map(name => bar(name).className.match(/ss-w-tone-(\w+)/)[1]), ['warn', 'good', 'good']);
