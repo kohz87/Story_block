@@ -92,3 +92,42 @@ test('a count above the Foes block maximum refuses the reading; the maximum itse
     assert.deepEqual(vetGroups([{ name: 'Rats', count: 100 }], { message: 'I attack the rats.', sheet }), []);
     assert.deepEqual(vetGroups([{ name: 'Rats', count: 99 }], { message: 'I attack the rats.', sheet }), [{ name: 'Rats', count: 99 }]);
 });
+
+// Attacks blended into the reader's own narration (strict word patterns, no model call).
+test('an attack blended into narration is read', () => {
+    for (const message of [
+        'After that I head out to clear the bog-boars, and when I approach them from the shadow, I immediately attacked them. Then I field-dressed the carcasses.',
+        'I slip along the peat-wall, cane in hand, and strike the larger sow before she can turn.',
+        'Drawing the shadow around me, I lunge at the sow and drive the ferrule into her eye, then haul the cart home.',
+        'I creep closer and attack the boars from behind the turf-stack, then load the meat onto the handcart.',
+        'Once they\'re distracted, I quickly stab the nearest boar.',
+        'Without a word I charge the two boars, cane raised.',
+        'My cane lashes out at the sow\'s throat.',
+        'I drive the iron ferrule into the boar\'s skull.',
+        'I creep up and, the moment the sow lifts her head, I bring my cane down on her.',
+        'I slip in from the shadows to take the boars by surprise.',
+        'I smash the boar\'s snout.',
+    ]) assert.equal(looksLikeAttack(message), true, message);
+});
+
+test('a third party, a question, a quote or a cart is not the reader attacking', () => {
+    for (const message of [
+        'the boar attacked me', 'they attacked the cart', 'she struck him, I watched', 'I ask whether I should attack', 'I don\'t attack',
+        '"I attack the boar"', 'my sister drives the cart into the yard', 'I drive the cart into town', 'I bring the meat down to the cellar',
+        'the sow\'s tusk goes for my leg', 'Grel\'s pistol smashes the lamp', 'I go for a walk', 'I rush at the chance',
+        'I wait for the sow to attack me',
+        'I drive my fingers into her hair.', 'My hand goes for her waist.', 'I bury my face into her neck.', 'I go for the stew.', 'I rush at the door.',
+        'My fist bangs on the table.', 'I crack a smile at her.', 'I crack the egg.', 'I take her by surprise with a kiss.', 'I sink into the bath.',
+        'I bring my hand down on her shoulder.', 'Without a word I hand her the note.', 'My cane lashes the mud from my boots.',
+        'I smash the lock off the chest.', 'I jab a finger at the map.', 'I plunge my hands into the water.', 'I go for Temiwa\'s lips.',
+        'With a grin I strike a deal with Grel.', 'I bash the door open.', 'My blade cuts the rope.',
+    ]) assert.equal(looksLikeAttack(message), false, message);
+});
+
+test('the standing-foe hold reads the same shapes', async () => {
+    const { knownFoeAction } = await import('../../../../src/v2/lean-rpg/board/action-gate.js');
+    const foes = { foes: [{ name: 'Bog Boar', filled: true, hurt: 2 }] };
+    for (const text of ['Without a word I charge the boars, cane raised.', 'My cane lashes out at the boar\'s throat.', 'I drive the iron ferrule into the boar\'s skull.',
+        'I slip in from the shadows to take the boars by surprise.']) assert.equal(knownFoeAction(text, foes), true, text);
+    for (const text of ['I drive the cart into town', 'the boar\'s tusk goes for my leg', 'I go for a walk']) assert.equal(knownFoeAction(text, foes), false, text);
+});
