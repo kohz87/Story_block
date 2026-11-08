@@ -8,14 +8,30 @@ import { offerLineData } from './start-view-data.js';
 
 const standing = state => state ? readSheet(state).foes.filter(foe => foe.filled && foe.hurt > 0) : [];
 const identity = foe => `${foe.slot}:${fold(foe.name)}`;
+const byIdentity = foes => new Map(foes.map(foe => [identity(foe), foe]));
+// A group is new when its slot:name was not standing before, when its count rose, or when the count is the same and its
+// Health is back up, or the reply itself set the slot (a slot cleared and set again, even with the same name and numbers).
+// Health alone falling or a smaller count is just the fight.
+const arrived = (foe, was, set) => set.has(foe.slot) || !was || foe.count > was.count || (foe.count === was.count && foe.hurt > was.hurt);
+
+// The foe slots a reply set with a set-slot line, read from its stored receipts.
+function slotsSetBy(store, index) {
+    const slots = new Set();
+    let entries = [];
+    try { entries = store.receipts?.() ?? []; } catch { /* no receipts to read */ }
+    for (const entry of entries) {
+        const found = entry?.index === index && entry.receipt?.type === 'capture.dm' ? /^set-slot-([1-4])$/u.exec(String(entry.receipt.data?.v2?.result?.kind ?? '')) : null;
+        if (found) slots.add(Number(found[1]));
+    }
+    return slots;
+}
 
 function findFightOffer(chat, store, meta, enabled = true) {
     if (!enabled || boardSession(meta)) return null;
     let current;
     try { current = standing(store.head()); } catch { return null; }
     if (!current.length) return null;
-    const wanted = new Set(current.map(identity));
-    let next = wanted;
+    let next = byIdentity(current);
     const messages = Array.isArray(chat) ? chat : [];
     for (let index = messages.length - 1; index >= 0; index -= 1) {
         const message = messages[index], record = readRecord(message);
@@ -24,8 +40,9 @@ function findFightOffer(chat, store, meta, enabled = true) {
         for (let i = index - 1; i >= 0; i -= 1) {
             if (!messages[i]?.is_user && readRecord(messages[i])) { try { before = store.at(i); } catch { /* no preceding state */ } break; }
         }
-        const prior = new Set(standing(before).map(identity));
-        const introduced = ![...next].some(key => prior.has(key));
+        const prior = byIdentity(standing(before));
+        const set = slotsSetBy(store, index);
+        const introduced = [...next].some(([key, foe]) => arrived(foe, prior.get(key), set));
         if (introduced) {
             if (meta?.rpgFightOffers?.[record.sid] === true) return null;
             return { index, sid: record.sid, fight: { groups: current.map(foe => foe.slot) } };
