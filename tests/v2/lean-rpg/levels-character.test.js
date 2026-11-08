@@ -11,6 +11,7 @@ import { reply, success, view, rebuilt } from '../data-modules/helpers.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { fakeState } from './view/helpers.js';
 import { hostAvailable } from '../../../testkit/index.js';
+import { seedCrypto } from '../qa/helpers/seeded.js';
 import { PARTY, character, rollReceipt, setup, sheetDomain } from './helpers.js';
 
 const templates = () => STANDARD_TEMPLATES.filter(entry => entry.name === 'Character').map(entry => structuredClone(entry.definition));
@@ -215,15 +216,14 @@ test('the Party tab prints the level where it printed the Soul Class: label "Lev
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
-// Ren may act first or Wessel may open the fight, so look for his roll in every line.
-const wesselOf = result => [...(result.opening ?? []), ...result.rounds.flatMap(round => round.lines)].find(entry => entry.kind === 'act' && entry.pc.who === 'Wessel').pc;
-// A durable foe and hero ensure Wessel can act even if Ren and the foe both go first.
-const levelled = () => {
-    const blocks = PARTY();
-    blocks.wessel.fields = character('Wessel', { soul: 2, level: 40, vit: 20, health: 8 });
-    Object.assign(blocks.foes.fields, { class1: 9, hurt1: 7 });
-    return blocks;
+// The dice come from crypto, so these two tests seed it (a seed where Wessel acts); his roll is looked for in every line, and a missing one fails with a message.
+const SEED = 1; // seed 6, for one, is a draw where Wessel never acts
+const wesselOf = result => {
+    const found = [...(result.opening ?? []), ...result.rounds.flatMap(round => round.lines)].find(entry => entry.kind === 'act' && entry.pc?.who === 'Wessel');
+    assert.ok(found, `Wessel has an 'act' line in the roll (seed ${SEED}); pick a seed where he acts`);
+    return found.pc;
 };
+const levelled = () => { const blocks = PARTY(); blocks.wessel.fields = character('Wessel', { soul: 2, level: 40 }); return blocks; };
 
 const sameStory = async host => {
     const live = JSON.stringify(host.head());
@@ -234,7 +234,8 @@ const sameStory = async host => {
     assert.deepEqual(host.store.problems(), []);
 };
 
-test('a new roll carries lv: 1 and the divisor in its numbers, rolls with floor(level / 5), and a Re-read, a rebuild and a reload keep it', { skip }, async () => {
+test('a new roll carries lv: 1 and the divisor in its numbers, rolls with floor(level / 5), and a Re-read, a rebuild and a reload keep it', { skip }, async t => {
+    t.after(seedCrypto(SEED));
     const { host } = await setup({ blocks: levelled() });
     await host.send('I hit the lead rat.', 'The rats scatter.');
     const receipt = rollReceipt(host, 2);
@@ -251,7 +252,8 @@ test('a new roll carries lv: 1 and the divisor in its numbers, rolls with floor(
     host.close();
 });
 
-test('a roll made before levels (no lv, numbers with no divisor) replays exactly as it was: the Soul Class term, through a Re-read, a rebuild and a reload', { skip }, async () => {
+test('a roll made before levels (no lv, numbers with no divisor) replays exactly as it was: the Soul Class term, through a Re-read, a rebuild and a reload', { skip }, async t => {
+    t.after(seedCrypto(SEED));
     const { host } = await setup({ blocks: levelled(), lvless: true });
     await host.send('I hit the lead rat.', 'The rats scatter.');
     const result = rollReceipt(host, 2).data.v2.result;
