@@ -18,18 +18,23 @@ export function capSetting(doc, cap) {
     const row = h(doc, 'div', 'rpg-board-cap-row');
     const shown = h(doc, 'b', 'rpg-board-cap-value', capWords(cap.value));
     row.append(shown, h(doc, 'span', 'rpg-set-help', '1 – 8, or until the end'));
-    const input = h(doc, 'input', 'rpg-board-cap-input');
+    const track = h(doc, 'div', 'ss-slider rpg-board-cap-slider');
+    const input = h(doc, 'input', 'ss-slider-input rpg-board-cap-input');
     input.type = 'range';
     input.min = String(AUTO_CAP.min);
     input.max = String(AUTO_CAP.max);
     input.step = '1';
     input.value = String(cap.value);
     input.setAttribute('aria-label', 'Most exchanges per reply');
-    input.addEventListener('input', () => { shown.textContent = capWords(Number(input.value)); });
+    // The shared slider paints its filled part from --ss-fill (0..1), like the form engine's slider.
+    const fill = () => input.style.setProperty('--ss-fill', String((Number(input.value) - AUTO_CAP.min) / (AUTO_CAP.max - AUTO_CAP.min)));
+    fill();
+    input.addEventListener('input', () => { shown.textContent = capWords(Number(input.value)); fill(); });
     input.addEventListener('change', () => cap.set(Math.min(AUTO_CAP.max, Math.max(AUTO_CAP.min, Math.round(Number(input.value))))));
     const ends = h(doc, 'div', 'rpg-board-cap-ends');
     for (const word of ['1', '8', 'Until the end']) ends.appendChild(h(doc, 'span', '', word));
-    box.append(row, input, ends, h(doc, 'p', 'rpg-set-help', 'Auto also stops when a hero takes 2 or more Health blocks in one exchange.'));
+    track.appendChild(input);
+    box.append(row, track, ends, h(doc, 'p', 'rpg-set-help', 'Auto also stops when a hero takes 2 or more Health blocks in one exchange.'));
     return box;
 }
 
