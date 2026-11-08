@@ -5,7 +5,7 @@
 import { fold } from '../read.js';
 import { packAttacks } from './members.js';
 import { bestDefence } from './rules.js';
-import { skillFlags, skillKey } from './flags.js';
+import { healingSkill, skillFlags, skillKey } from './flags.js';
 
 const find = (entries, name, field) => entries.find(entry => fold(entry[field]) === fold(name));
 const standing = character => character.alive !== false && character.health !== 0;
@@ -56,6 +56,13 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1, { members =
         const resource = skill?.uses === 'mana' ? 'mana' : 'stamina';
         if (skill && actor[resource] === 0) return { error: `${isEmpty(resource === 'mana' ? 'Mana' : 'Stamina')}.` };
         if (skill && area && bars && actor[resource] < 2) return { error: `Not enough ${resource === 'mana' ? 'Mana' : 'Stamina'} for an area skill (it costs 2).` };
+        if (bars && action.support === true) {
+            if (!skill || !healingSkill(skill) || area) return { error: 'That skill cannot heal a party member.' };
+            const mate = find((sheet?.characters ?? []).filter(person => person.alive !== false), action.target, 'who');
+            if (!mate) return { error: 'That party member is no longer here.' };
+            acts.push({ who: actor.who, skill: skill.name, target: mate.who, type: skill.uses === 'mana' ? 'magic' : 'physical', support: true, difficulty: 'normal' });
+            continue;
+        }
         let target = null, group;
         if (area) {
             if (grouped) {

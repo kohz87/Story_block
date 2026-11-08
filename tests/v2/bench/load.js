@@ -510,7 +510,8 @@ export async function runScenario(options = {}) {
         savesPerReply.push(totalSaves() - before);
         if (wanted.has(n)) {
             const problems = host.turn.problems();
-            out.problems.push(...problems.slice(counted).map(item => item.message));
+            // (the money guard's warnings about the load's repeated coin lines are not problems of the load)
+            out.problems.push(...problems.slice(counted).map(item => item.message).filter(message => !/applied; undo it/u.test(message)));
             counted = problems.length;
             const window = list => list.slice(Math.max(0, list.length - 100));
             const sizes = breakdown(ctx.chat);

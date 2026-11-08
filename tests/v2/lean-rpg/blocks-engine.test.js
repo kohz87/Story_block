@@ -151,6 +151,33 @@ test('Rest fills stamina and mana to the size their stats give', async t => {
     assert.deepEqual([sheet(host, 'character').stamina, sheet(host, 'character').mana], [6, 5], 'AGI 15 gives 6 stamina blocks, INT 10 gives 5 mana blocks');
 });
 
+test('the new pin runs words, growth, Down and Rest through the real block engine', async t => {
+    const host = await createHost(); t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    const fresh = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Character').definition);
+    success(await host.sdk.command('dm.define', { definition: fresh }));
+    assert.equal(fullModuleGrammar(fresh, 'character'), fullModuleGrammar(standard('Character'), 'character'));
+    for (const [index, word] of STAGES.health.entries()) {
+        await host.send('Health.', reply(say('character', 'set-health', ` | to: ${word}`)));
+        assert.equal(sheet(host, 'character').health, [0, 2, 4, 6, 8, 10][index], word);
+    }
+    for (const [index, word] of STAGES.stamina.entries()) {
+        await host.send('Recover.', reply(say('character', 'set-stamina', ` | to: ${word}`), say('character', 'set-mana', ` | to: ${STAGES.mana[index]}`)));
+        assert.deepEqual([sheet(host, 'character').stamina, sheet(host, 'character').mana], Array(2).fill([0, 3, 5, 8, 10][index]));
+    }
+    await host.send('Hurt.', reply(say('character', 'set-health', ' | to: Hurt'), say('character', 'set-stamina', ' | to: Tired'), say('character', 'set-mana', ' | to: Steady')));
+    assert.deepEqual(bars(host), [6, 5, 8]);
+    await set(host, 'character', { vit: 10, agi: 10, int: 10 });
+    assert.deepEqual(bars(host), [8, 7, 10], 'two new blocks arrive full on each bar');
+    await host.send('Down.', reply(say('character', 'set-health', ' | to: Down')));
+    await set(host, 'character', { vit: 15 });
+    assert.deepEqual([sheet(host, 'character').health, sheet(host, 'character')['health-blocks']], [0, 14]);
+    success(await host.sdk.command('dm.act', { module: 'pack.chat/character', kind: 'button-rest' }));
+    assert.deepEqual(bars(host), [0, 12, 12]);
+    rebuilt(host);
+    await reload(host);
+});
+
 test('a Foes group\'s Health is blocks left out of 4 + class/3: it arrives full, the story hurts it by words, and Down means 0', async t => {
     const host = await story(t, 'Character', 'Foes');
     await set(host, 'character', { who: 'Wessel', level: 35 });   // (level 35: a new foe may be 10 levels above the party's highest)

@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../../src/v2/lean-rpg/templates.js';
 import { openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
+import { runAuto } from '../../../../src/v2/lean-rpg/board/auto-run.js';
+import { readResolve } from '../../../../src/v2/lean-rpg/view/battle-log.js';
 import { prng, seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, levelFoeBlock, rollReceipt, setup, skillBlock } from '../helpers.js';
 
@@ -77,4 +79,30 @@ test('fights on an old pin replay as before and carry no mark at all', async () 
         assert.equal(Object.hasOwn(session.setup, 'bars'), false);
         assert.equal(JSON.stringify(record).includes('"bars"'), false);
     }
+});
+
+test('a marked Auto heal stages, tells the heal and survives rebuild, Re-read and reload', async () => {
+    const restore = seedCrypto(921);
+    const setupBlocks = blocks(STANDARD_TEMPLATES[0].definition);
+    setupBlocks.hero.fields.health = 4;
+    setupBlocks.skills.fields = skillBlock('Astra', [['Mend', 3, 'int', 'mana', 'heal an ally']]);
+    const { host } = await setup({ blocks: setupBlocks, board: true });
+    try {
+        const meta = host.ctx.chatMetadata;
+        open(host);
+        const played = runAuto({ meta, state: host.head(), rules: RULES, cap: 1 });
+        assert.equal(played.done, 1, played.error);
+        await host.send('Heal.', 'A spell is cast.');
+        const at = host.ctx.chat.length - 1, receipt = rollReceipt(host, at), record = receipt.data.v2.result;
+        assert.ok(record.rounds[0].lines.some(line => line.support && line.skill === 'Mend'));
+        assert.equal(readResolve(record, { summary: receipt.summary }).receipt, receipt.summary, 'the receipt is the exact settled board note');
+        const live = sheetOf(host);
+        host.store.rebuild();
+        assert.equal(sheetOf(host), live);
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.equal(sheetOf(host), live);
+        await host.store.flush();
+        await host.st.loadChat(structuredClone(host.st.saves.at(-1)), 'heal-replay');
+        assert.equal(sheetOf(host), live);
+    } finally { host.close(); restore(); }
 });

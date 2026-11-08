@@ -129,7 +129,7 @@ function whyOf(result, shape, summary) {
     const margin = Number.isSafeInteger(result.rules?.decisiveMargin) ? result.rules.decisiveMargin : null;
     const recorded = stop || pace || isRecord(result.rules);
     const areaBoard = list(result.rounds).some(round => list(round?.lines).some(line => line?.aoe === true));
-    const receipt = recorded ? (areaBoard && summary ? summary : cueOfResult(result, shape)) : '';
+    const receipt = recorded ? ((areaBoard || (result.bars === 2 && result.board)) && summary ? summary : cueOfResult(result, shape)) : '';
     return { stop, pace, flow, cap, board: isRecord(result.board) || result.board === true, ...(margin !== null ? { margin } : {}), ...(receipt ? { receipt } : {}) };
 }
 
