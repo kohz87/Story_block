@@ -290,7 +290,7 @@ test('host.css: subtle transitions, and none under prefers-reduced-motion', () =
     assert.match(css, /\.ss-l-meter-fill \{ transition: width/);
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
     assert.ok(reduced.length > 30, 'a reduced-motion block');
-    for (const selector of ['.ss-card', '.ss-hud', '.ss-gameview', '[data-ss-screen] *', '.story-suite-reply-note']) assert.ok(reduced.includes(selector), selector);
+    for (const selector of ['.ss-card', '.ss-hud', '.ss-gameview', '[data-ss-screen] *', '.story-suite-reply-note', '.rpg-fight-offer', '.rpg-fight-pause']) assert.ok(reduced.includes(selector), selector);
     assert.match(reduced, /transition: none !important;/);
     assert.match(reduced, /animation: none !important;/);
 });

@@ -1,3 +1,7 @@
+## Unreleased
+
+- **The fight offer's buttons are readable again.** Inside a chat message, "Fight on the board" and "Auto-fight" fell back to the browser's white buttons with the theme's light text. The fight offer and the fight pause now take Story Suite's own button and colour styles there.
+
 # Changelog
 
 ## 2.25.0
