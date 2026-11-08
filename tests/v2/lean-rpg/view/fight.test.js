@@ -63,7 +63,7 @@ test('the header names the place when it is known, the note says the rolls are a
     assert.equal(draw(fakeState([foes({ foe2: '', foe3: '' })])).el.querySelector('.rpg-foe-count').textContent, '1 foe · 0 down');
 });
 
-test('a card per filled foe slot: name (× count), Class pill, five-cell health bar in the stage\'s tone, Down greyed', () => {
+test('a card per filled foe slot: name (× count), Class pill, smooth health strip in the stage\'s tone, Down greyed', () => {
     const state = fakeState([foes({ foe4: 'Rat Swarm', count4: 3, hurt4: 5 })]);
     const { el } = draw(state);
     assert.deepEqual(el.querySelectorAll('.rpg-foe').map(node => node.getAttribute('data-foe')), ['Sluice Rat A', 'Sluice Rat B', 'Sluice Rat C', 'Rat Swarm']);
@@ -73,11 +73,12 @@ test('a card per filled foe slot: name (× count), Class pill, five-cell health 
     assert.equal(foeCard(el, 'Sluice Rat B').querySelector('.ss-pill').textContent, 'Lv 15');
     const bar = name => foeCard(el, name).querySelector('.ss-w-meter');
     assert.equal(bar('Sluice Rat A').getAttribute('aria-valuemax'), '5');
-    assert.equal(bar('Sluice Rat A').querySelectorAll('.ss-w-meter-cell').length, 5, 'five cells');
-    assert.match(foeCard(el, 'Sluice Rat A').textContent, /Wounded/);
+    assert.equal(bar('Sluice Rat A').querySelectorAll('.ss-w-meter-cell').length, 0, 'no cells: one smooth strip');
+    assert.match(bar('Sluice Rat A').className, /ss-w-bar-health/, 'the red Health strip');
+    assert.match(foeCard(el, 'Sluice Rat A').textContent, /Wounded · 2\/5/);
     assert.match(foeCard(el, 'Sluice Rat B').textContent, /Scratched/);
     assert.deepEqual(['Sluice Rat A', 'Sluice Rat B', 'Rat Swarm'].map(name => bar(name).className.match(/ss-w-tone-(\w+)/)[1]), ['warn', 'good', 'good']);
-    assert.match(foeCard(el, 'Sluice Rat C').textContent, /Down/);
+    assert.match(foeCard(el, 'Sluice Rat C').textContent, /Down · 0\/5/);
     assert.ok(foeCard(el, 'Sluice Rat C').classList.contains('rpg-down'), 'greyed');
     assert.ok(!foeCard(el, 'Sluice Rat A').classList.contains('rpg-down'));
     assert.deepEqual(readFight(state, { roleOf }).map(item => [item.name, item.tone, item.down]), [['Sluice Rat A', 'warn', false], ['Sluice Rat B', 'good', false], ['Sluice Rat C', 'bad', true], ['Rat Swarm', 'good', false]]);
@@ -116,7 +117,7 @@ test('a card per character with the three stage bars', () => {
     assert.deepEqual(el.querySelectorAll('.rpg-pc').map(node => node.getAttribute('data-character')), ['Wessel', 'Ren']);
     const mine = el.querySelector('.rpg-pc[data-character="Wessel"]');
     assert.deepEqual(mine.querySelectorAll('.rpg-bar').map(node => node.getAttribute('data-bar')), ['health', 'mana', 'stamina']);
-    assert.match(mine.querySelector('.rpg-bar[data-bar="health"]').textContent, /Hurt/);
+    assert.match(mine.querySelector('.rpg-bar[data-bar="health"]').textContent, /Hurt · 3\/5/);
     assert.match(mine.querySelector('.rpg-bar[data-bar="stamina"]').textContent, /Spent/);
     assert.equal(mine.querySelectorAll('.ss-w-editable-pencil').length, 0, 'read-only here: the Party tab edits them');
 });

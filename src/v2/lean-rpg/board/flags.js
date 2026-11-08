@@ -6,6 +6,11 @@ import { fold } from '../read.js';
 
 const AREA = /\b(?:area|all (?:foes|enemies|opponents|targets)|every (?:foe|enemy|opponent|target)|sweep(?:s|ing)?)\b/iu;
 const DEFENCE = /\b(?:dodge|dodges|dodging|evade|evades|evading|evasion|parry|parries|parrying|defen[cs]e|defend|defends|block|blocks|ward|wards|avoid|avoids)\b/iu;
+const HEALING = /\b(?:heal|heals|healing|mend|mends|mending|restore|restores|restoring|recover|recovers|recovering|remedy|remedies|cure|cures|curing|soothe|soothes|soothing|revive|revives|reviving)\b/iu;
+
+/** Whether a skill describes healing, as Auto and the marked board both understand it. */
+export const healingSkill = skill => skill?.healing === true || skill?.support === true || skill?.kind === 'heal'
+    || HEALING.test(`${skill?.name ?? ''} ${skill?.about ?? ''} ${skill?.describe ?? ''}`);
 
 /** The inferred flags are independent; a skill can attack an area and also defend. */
 export function defaultFlags(skill) {

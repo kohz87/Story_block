@@ -7,6 +7,7 @@
 import { CREATION, LEVEL, STATS, STAGES, USES } from './names.js';
 import { SIGNATURE_FIELD, SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { STANDARD_NUMBERS } from './formula.js';
+import { scaledCharacter } from './templates-bars.js';
 
 const names = (words, first = 0) => Object.fromEntries(words.map((word, index) => [String(index + first), word]));
 const HEALTH = names(STAGES.health);
@@ -173,7 +174,7 @@ const sizeRule = (id, key, sizeKey, size) => ({ id, when: ['ne', get(sizeKey), s
         // A bar that shrank holds at most its new size (its new size is never below 3, so a character who is up stays up).
         { op: 'set', path: [key], value: ['min', get(key), size] }] });
 
-const standardCharacter = {
+const standardCharacterV1 = {
     slug: 'character', name: 'Character', role: 'character', schema: 1, stateVersion: 2, scope: 'chat',
     prompt: 'One character: who they are, health, stamina and mana (words, shown as bars), seven stats 1 to 20, points, Level 1 to 99 and XP to 100. The narrator sets health, mana, stamina and XP by words. The story cannot kill them outright: they die only when Down before a reply and still Down at its end. The reader sets stats and points; XP at 100 raises the Level, and every third Level gives a point.',
     show: character.show,
@@ -210,6 +211,11 @@ const standardCharacter = {
     replyEnd: character.replyEnd,
     cards: character.cards,
 };
+
+/** The Character template as it was before the doubled bars (no `scale` mark: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5): a chat's earlier characters, and a companion joining a chat that has only those. */
+export const characterV1For = () => structuredClone(standardCharacterV1);
+// The template the chooser, the wizard and an import make blocks from: the same Character with the doubled bars (templates-bars.js).
+const standardCharacter = scaledCharacter(standardCharacterV1, SIZE);
 
 const standardFoes = {
     slug: 'foes', name: 'Foes', role: 'foes', schema: 1, stateVersion: 2, scope: 'chat',

@@ -12,6 +12,7 @@ import { readSheet } from '../read.js';
 import { planGear } from '../gear.js';
 import { isStandard } from '../rules.js';
 import { boardFlags } from './overrides.js';
+import { healthStrip } from './view-bars.js';
 import { boardChoices, memberGroups as groupsOfMembers, memberHealthWord, memberOrderLine, memberPackLine, memberTargetLine, pendingAwards, pendingAwardsLine, standingMembers, targetLabel } from './view-data.js';
 import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
 import { equipmentForBoard, playBoard } from './engine.js';
@@ -34,7 +35,7 @@ export const pressButton = (doc, text, cls, act) => {
 };
 const signed = n => n >= 0 ? `+${n}` : String(n);
 const labelLine = line => {
-    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.reduced ? `… also hits ${foe.name} (reduced)` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
+    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.support ? `${pc.who} heals ${line.target}` : line.reduced ? `… also hits ${foe.name} (reduced)` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
     const bonus = (pc.statBonus ?? 0) + (pc.classBonus ?? 0) + (pc.rank ?? 0) + (pc.edge ?? 0);
     const changes = [line.damage ? barMovement(line.damage) : '', line.cost ? barMovement(line.cost, true) : ''].filter(Boolean);
     const skill = line.skill ? ` (${line.skill})` : '';
@@ -50,7 +51,7 @@ const labelAreaGroup = group => {
 };
 
 // A read-only member card in the Fight tab's own foe-card shape: name and level pills, then the existing segmented meter.
-function drawMemberCard(doc, parent, member, realFoes, handles) {
+export function drawMemberCard(doc, parent, member, realFoes, handles) {
     const real = (Array.isArray(realFoes) ? realFoes : []).find(foe => Number(foe.slot) === Number(member.group));
     const value = Math.max(0, Math.trunc(Number(member?.value ?? member?.hurt) || 0));
     const max = Math.max(1, Math.trunc(Number(member?.size) || 1)), shown = Math.min(value, max);
@@ -69,7 +70,7 @@ function drawMemberCard(doc, parent, member, realFoes, handles) {
     bar.setAttribute('data-foe-health', String(member?.slot ?? ''));
     bar.appendChild(slot);
     node.appendChild(bar);
-    handles.push(meter.render(slot, { label: 'Health', value: shown, max, tone: stageTone(shown, max), text: memberHealthWord(member), segments: max, icon: 'fa-heart' }, {}));
+    handles.push(meter.render(slot, healthStrip({ value: shown, max, tone: stageTone(shown, max), word: memberHealthWord(member), icon: 'fa-heart' }), {}));
     if (member?.pack && !down) node.appendChild(h(doc, 'p', 'rpg-pack-line', memberPackLine(member)));
 }
 
@@ -208,14 +209,14 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                 const card = h(doc, 'article', 'rpg-foe ss-glass');
                 card.appendChild(h(doc, 'p', 'rpg-name', `${foe.name} · ${foe.levelText}`));
                 const slot = h(doc, 'div', 'rpg-bar-meter'); card.appendChild(slot);
-                handles.push(meter.render(slot, { label: 'Health', value: foe.hurt, max: foe.max ?? 5, tone: foe.hurt ? 'warn' : 'bad', text: foe.word, segments: foe.max ?? 5 }, {}));
+                handles.push(meter.render(slot, healthStrip({ value: foe.hurt, max: foe.max ?? 5, tone: foe.hurt ? 'warn' : 'bad', word: foe.word }), {}));
                 cards.appendChild(card);
             }
         }
         for (const character of party) {
             const card = h(doc, 'article', 'rpg-pc ss-glass');
             card.appendChild(h(doc, 'p', 'rpg-name', character.name));
-            const bars = Object.fromEntries(Object.entries(character.bars).map(([key, bar]) => [key, { ...bar, text: bar.word }]));
+            const bars = Object.fromEntries(Object.entries(character.bars).map(([key, bar]) => [key, { ...bar, text: bar.text ?? bar.word }]));
             drawStageBars(doc, card, { ...character, bars }, { api: null, handles });
             cards.appendChild(card);
         }
@@ -235,6 +236,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             for (const round of result.rounds ?? []) {
                 logContent.appendChild(h(doc, 'p', 'rpg-board-round', `Exchange ${round.n}`));
                 for (const group of areaLineGroups(round.lines)) logContent.appendChild(h(doc, 'p', '', group[0].aoe ? labelAreaGroup(group) : labelLine(group[0])));
+                for (const item of round.idle ?? []) if (item.why === 'no-resource') logContent.appendChild(h(doc, 'p', '', `${item.who} cannot heal: the skill's resource is Empty.`));
             }
         }
         if (!logContent.childNodes.length) logContent.appendChild(h(doc, 'p', '', 'Choose an action to begin.'));
@@ -281,6 +283,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                     targeting = null;
                 }
                 else if (item.action.kind === 'flee') chosen = [item.action];
+                else if (item.action.support) chosen.push(item.action);
                 else if (item.action.area && members) {
                     if (memberGroupList.length > 1) targeting = { groupMode: true, action: item.action };
                     else chosen.push({ ...item.action, ...(memberGroupList[0] ? { group: memberGroupList[0].group } : {}) });

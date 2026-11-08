@@ -39,6 +39,8 @@ test('the page is its own rail entry after Features, with its cards in order and
     assert.deepEqual(rail(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
     assert.equal(root.querySelector('.ss-settings-page-sub').textContent, 'How the dice work, and what the narrator is told.');
     assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Gear in fights', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Companions who join']);
+    assert.match(card('formula').textContent, /New character bars: Health 2 × \(4 \+ VIT\/5\)/);
+    assert.match(card('formula').textContent, /Earlier characters keep Health 4 \+ VIT\/5/);
     assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: code rolls the dice for the fights you play on the fight board\. Off: no dice; the story decides\./);
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);

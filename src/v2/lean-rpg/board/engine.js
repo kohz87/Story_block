@@ -120,6 +120,8 @@ export function playBoard(state, setup, exchanges) {
     if (setup.invalidated) return { error: 'The earlier fight was taken back. Restore that reply or discard this fight.' };
     if (setup.witness?.offset === setup.offset && setup.witness.hash !== boardWitness(state, setup))
         return { error: 'The sheet or gear changed after the fight was rolled. Restore it or discard the fight (Fight tab, Discard fight).' };
+    const bars = setup.bars === 2;
+    if (setup.bars !== undefined && !(bars && readSheet(state).characters.every(actor => actor.scale === 2))) return { error: 'The sheet changed after the fight was rolled. Restore it or discard the fight (Fight tab, Discard fight).' };
     const copy = structuredClone(state), domain = copy.domains.dataModules, rules = setup.rules, limits = maxOf(domain);
     const startSheet = readSheet(copy), members = setup.members === 1, realFoes = members ? startSheet.foes : null;
     const boardFoeList = members ? splitFoes(realFoes, { carried: setup.carriedMembers, maxOf: limits }) : null;
@@ -133,7 +135,7 @@ export function playBoard(state, setup, exchanges) {
         const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
         const number = setup.offset + at + 1, sheet = applyGear(readSheet(copy), equipment.gear);
         const fightSheet = members ? { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) } : sheet;
-        const built = exchangePlan(fightSheet, choices?.actions, setup.flags, number, { members, aoe: setup.aoe === 1 });
+        const built = exchangePlan(fightSheet, choices?.actions, setup.flags, number, { members, aoe: setup.aoe === 1, bars });
         if (built.error) return { error: built.error };
         const standingGroups = real => (boardFoeList ?? []).some(foe => (Number.isInteger(foe.group) ? foe.group : foe.slot) === real.slot && values.get(foe.slot) > 0);
         const fleeFoes = members ? realFoes.filter(standingGroups) : sheet.foes;
@@ -146,7 +148,7 @@ export function playBoard(state, setup, exchanges) {
         const hooks = members ? memberRolls(built.plan) : null;
         const prepared = prepareStandard(built.plan, fightSheet, rules, { maxOf: limits, lv: hasLevels(rules), fix: true, then: true, memberRolls: hooks });
         weaponSides(prepared, fightSheet, equipment.weapons);
-        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, memberRolls: hooks, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
+        const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, scaled: bars, memberRolls: hooks, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
         const lines = rolled.rounds[0]?.lines ?? [];
         for (const line of lines) if (line.aoe) line.aoeName = areaGroupName(realFoes.find(foe => foe.slot === line.aoeGroup));
         if (equipment.gear) {
@@ -190,7 +192,7 @@ export function playBoard(state, setup, exchanges) {
         const fightSheet = { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) };
         order = openingOrder(copy, setup, fightSheet, rules);
     }
-    const result = { rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
+    const result = { ...(bars ? { bars: 2 } : {}), rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
         summary: summaryStd([], rounds, refused) };
     if (members) result.members = boardFoes(realFoes, values, { maxOf: limits, carried: setup.carriedMembers });
     return { state: copy, result };

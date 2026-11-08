@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { STANDARD_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, SKILL_SETS, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { CREATION, ROLES, STATS, USES } from '../../../src/v2/lean-rpg/index.js';
 import { validateDataModules, DM_LIMITS as L } from '../../../src/v2/data-modules/check.js';
 
@@ -50,10 +50,10 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
     assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');
     assert.equal(state.about.edit, undefined, 'and the reader can edit it');
-    // (the bars are rows of blocks: health up to 8, stamina and mana up to 7, each with a hidden field that remembers its size; no stage names)
-    assert.deepEqual([state.health.min, state.health.max, state.health.blocks], [0, 8, 'health']);
-    assert.deepEqual([state.mana.min, state.mana.max, state.mana.blocks], [0, 7, 'mana']);
-    assert.deepEqual([state.stamina.min, state.stamina.max, state.stamina.blocks], [0, 7, 'stamina']);
+    // (the bars are rows of blocks with the doubled sizes, scale 2: up to 2 x (4 + 20/5) = 16 each, with a hidden field that remembers its size; no stage names)
+    assert.deepEqual([state.health.min, state.health.max, state.health.blocks, state.health.scale], [0, 16, 'health', 2]);
+    assert.deepEqual([state.mana.min, state.mana.max, state.mana.blocks, state.mana.scale], [0, 16, 'mana', 2]);
+    assert.deepEqual([state.stamina.min, state.stamina.max, state.stamina.blocks, state.stamina.scale], [0, 16, 'stamina', 2]);
     for (const key of ['health-blocks', 'stamina-blocks', 'mana-blocks']) assert.deepEqual([state[key].edit, state[key].prompt], [false, false], key);
     for (const stat of STATS) assert.deepEqual([state[stat].min, state[stat].max], [1, 20], stat);
     assert.deepEqual([state.points.min, state.points.max], [0, 60]);
@@ -157,7 +157,7 @@ test('the combat rules text is the [COMBAT SYSTEM] prompt with a line on rolls a
 // 2.7 definition: the shapes the RPG adds sit only in those keys.
 test('without the new block-engine keys, each template passes the data-module checker', () => {
     for (const { definition } of STANDARD_TEMPLATES) {
-        const legacy = structuredClone(definition);
+        const legacy = definition.role === 'character' ? characterV1For() : structuredClone(definition);
         // (pinned change, extra skill slots: the Skills block's eight slots need the role's larger field limit, so its role stays)
         if (definition.role !== 'skills') delete legacy.role;
         delete legacy.replyEnd;

@@ -34,6 +34,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/charfile.js`: builds, validates and parses the saved-character file used by Party Import and Export.
 - `src/v2/lean-rpg/cue.js`: writes compact narrator roll cues under the prompt budget.
 - `src/v2/lean-rpg/join.js`: reads party join and leave lines, then builds companion definitions and offer cards.
+- `src/v2/lean-rpg/templates-bars.js`: turns the old Character template into the doubled-bars one (`scale: 2`: size expressions, grow rules, bar maximum and default).
 - `src/v2/lean-rpg/levels.js`: level, rank, level-cap and XP-rate helpers plus the RPG rank query.
 - `src/v2/lean-rpg/noroll.js`: replay-only: shows and re-reads the per-reply receipt an old chat's retired roll planner left when it gave no usable plan.
 - `src/v2/lean-rpg/open.js`: checks and fills new foes that the roll planner opens during a fight.
@@ -41,6 +42,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/board/auto.js`: chooses deterministic Auto-fight actions by the party policy and decides why Auto stops.
 - `src/v2/lean-rpg/board/auto-run.js`: plays Auto exchanges on the staged board fight until the cap, a won or lost fight or a badly hurt hero, and words why it stopped.
 - `src/v2/lean-rpg/board/precheck.js`: pure foe pre-check prompt, tolerant JSON reader, group vetting and typed-attack test for opening a fight from a message.
+- `src/v2/lean-rpg/board/view-bars.js`: the board's Health strip text ("Hurt · 5/10") and meter props.
 - `src/v2/lean-rpg/board/precheck-run.js`: the pre-check's one Assist call (20 s limit) and the opening it records for a typed attack on new foes.
 - `src/v2/lean-rpg/board/resume.js`: finds the last ended board fight's exact foe bars when the collapsed Foes block still matches them.
 - `src/v2/lean-rpg/resolve.js`: prepares and rolls planned checks, acts and foe attacks into a replayable RPG receipt.
@@ -49,6 +51,7 @@ Last checked: 2026-11-07.
 
 ## src/v2/lean-rpg/view/
 - `src/v2/lean-rpg/view/bars.js`: draws shared Health, Mana and Stamina stage bars and their edit payloads.
+- `src/v2/lean-rpg/view/bars.css`: the smooth red, green and blue Health, Stamina and Mana strip, dulled in three steps as it empties.
 - `src/v2/lean-rpg/view/changes-lines.js`: builds RPG lines for the Changed this reply card from receipts and state changes.
 - `src/v2/lean-rpg/view/distribute.js`: draws the Spend points and Stats sheet with bars, stat steppers, radar and one save.
 - `src/v2/lean-rpg/view/export.js`: draws the Export character dialog and creates its saved character file.

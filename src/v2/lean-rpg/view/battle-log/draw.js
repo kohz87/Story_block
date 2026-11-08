@@ -2,6 +2,7 @@
 // checks, ambush, opening and rounds, breakdown on tap, status bars, foes the why-it-ended line, the Receipt row and the no-rolls wording.
 
 import { RPG_STRINGS, fill } from '../../strings.js';
+import { barStep } from '../../../view/widgets/dom.js';
 import { stopLine, stopHint } from './stop.js';
 import { buildReceipt } from './receipt.js';
 import { B, FOE_WORDS, DECISIVE_WORDS, BATTLE_ROOT, BATTLE_ID, IDLE } from './constants.js';
@@ -151,12 +152,14 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
             const cells = el(doc, 'div', 'rpg-bl-stats');
             row.appendChild(cells);
             for (const bar of who.rows) {
-                const cell = el(doc, 'span', `rpg-bl-stat rpg-bl-${bar.key} rpg-bl-tone-${bar.tone ?? 'neutral'}`);
+                const ratio = bar.max > 0 ? bar.value / bar.max : 0;
+                const cell = el(doc, 'span', `rpg-bl-stat rpg-bl-${bar.key} rpg-bl-tone-${bar.tone ?? 'neutral'} rpg-bl-step-${barStep(ratio)}`);
                 const track = el(doc, 'span', 'rpg-bl-track');
                 track.setAttribute('aria-hidden', 'true');
-                track.style.setProperty('--rpg-fill', String(bar.max > 0 ? Math.round((bar.value / bar.max) * 1000) / 1000 : 0));
+                track.style.setProperty('--rpg-fill', String(Math.round(ratio * 1000) / 1000));
                 track.appendChild(el(doc, 'span', 'rpg-bl-fill'));
-                cell.append(el(doc, 'span', 'rpg-bl-label', bar.label), track, el(doc, 'span', 'rpg-bl-word', bar.word));
+                const text = bar.text ?? fill(RPG_STRINGS.blocks.of, { word: bar.word, n: bar.value, max: bar.max });
+                cell.append(el(doc, 'span', 'rpg-bl-label', bar.label), track, el(doc, 'span', 'rpg-bl-word', text));
                 cells.appendChild(cell);
             }
             status.appendChild(row);

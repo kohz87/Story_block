@@ -4,14 +4,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { STANDARD_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
+import { STANDARD_TEMPLATES, SKILL_SETS, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/index.js';
 import { summaryOf } from '../../../src/v2/data-modules/part.js';
 import { DM_LIMITS } from '../../../src/v2/data-modules/schema.js';
 import { estimateTokens } from '../../../src/v2/assist/common.js';
 import { reply, success, view, rebuilt } from '../data-modules/helpers.js';
 
-const definition = name => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition);
+const definition = name => (name === 'Character' ? characterV1For() : structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === name).definition));
 // A line's sign is its kind's op: `+` for the add kinds (add-xp, practice-N), `~` for the set kinds.
 const line = (slug, kind, extra = '') => `${/^(add-|practice-)/.test(kind) ? '+' : '~'} dm ${slug} — why | kind: ${kind}${extra}`;
 const sheet = (host, slug) => view(host, `pack.chat/${slug}`).chat;

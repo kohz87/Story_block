@@ -2,7 +2,7 @@
 export const CHARACTER_STRINGS = Object.freeze({
     // The Standard formula's bars (a row of blocks) and what the Party and Fight tabs and the battle log say about them and the turn order.
     blocks: Object.freeze({
-        of: '{word} · {n} of {max}',
+        of: '{word} · {n}/{max}',
         growthHealth: 'Health {n} blocks (VIT {stat}, next at {next})',
         growthStamina: 'Stamina {n} (AGI {stat}, next at {next})',
         growthMana: 'Mana {n} (INT {stat}, next at {next})',
@@ -28,9 +28,10 @@ export const CHARACTER_STRINGS = Object.freeze({
             beaten: '{who} does not act: beaten before its turn.',
             down: '{who} does not act: down.',
             'no-target': '{who} does not act: nothing left to act on.',
+            'no-resource': '{who} does not act: the skill\'s resource is Empty.',
         }),
-        foeNote: 'Foe Health grows with class: 4 + class/3 blocks. A hit takes 1 block, a Decisive hit 2.',
-        foeNoteLevel: 'Foe Health grows with level: 4 + level/30 blocks. A hit takes 1 block, a Decisive hit 2.',
+        foeNote: 'Foe Health grows with class: 4 + class/3 blocks. A plain hit takes 1 block, a Decisive hit 2.',
+        foeNoteLevel: 'Foe Health grows with level: 4 + level/30 blocks. A plain hit takes 1 block, a Decisive hit 2.',
     }),
     party: Object.freeze({
         title: 'Party',

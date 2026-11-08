@@ -73,7 +73,7 @@ function standardLine(line, { names, shown, word, who, legacy = false }) {
     return `${who} \u2192 ${shown(line.foe.name)}${by}${bare}${line.area ? (line.reduced ? ' (area, reduced)' : ' (area)') : ''}: ${verdict} ${numbers(line)}${hit}`;
 }
 
-const IDLE_WHY = Object.freeze({ down: 'Down', beaten: 'beaten', 'no-target': 'no target left' });
+const IDLE_WHY = Object.freeze({ down: 'Down', beaten: 'beaten', 'no-target': 'no target left', 'no-resource': 'the skill\'s resource is Empty' });
 
 /** The bars the told lines moved, from `start` (id → bar): [{ id, kind, name, module, field, from, to, size }] (one per bar). */
 export function hurtsOf(start, lines) {

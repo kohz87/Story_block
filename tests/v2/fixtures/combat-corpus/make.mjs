@@ -3,7 +3,7 @@
 // and rpg.practice. It writes chats.json and goldens.json beside this file.
 
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
@@ -11,6 +11,7 @@ import { character, foeBlock, levelFoeBlock, PARTY, setup, skillBlock } from '..
 import { boardSession, markSend, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { dropOf } from '../../../../src/v2/lean-rpg/ambush.js';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { pendingStart } from '../../../../src/v2/turn/fight-start.js';
 import { capture } from './corpus.mjs';
 
@@ -231,6 +232,28 @@ async function practice(seed) {
     } finally { host.close(); }
 }
 
+// A chat whose character is made on today's template, the doubled bars (the pin carries `scale: 2`): the fight is marked `bars: 2`, a skill hits for 2, an area skill costs 2.
+// (The other cases keep the stage-field pins of the test helpers, which never carried the mark, so their goldens are the old rule's.)
+async function boardScaled(seed) {
+    const hero = { role: 'character', definition: structuredClone(STANDARD_TEMPLATES[0].definition), fields: character('Astra', { str: 20, dex: 20, vit: 5, agi: 10, int: 5, health: 10, stamina: 12, mana: 10 }) };
+    const skills = { role: 'skills', fields: skillBlock('Astra', [['Cut', 3, 'str', 'stamina', 'cut one foe'], ['Sweep', 3, 'str', 'stamina', 'sweep every foe']]) };
+    const options = opts({ hero, skills, foes: { role: 'foes', fields: levelFoeBlock([['Bristle-boar', 2, 20, 6]]) } }, true);
+    const { host } = await setup(options);
+    try {
+        openKnown(host);
+        const meta = host.ctx.chatMetadata;
+        assert.equal(boardSession(meta).setup.bars, 2);
+        let staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true, group: 1 }]);
+        assert.equal(staged.error, undefined, staged.error);
+        staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 11 }]);
+        assert.equal(staged.error, undefined, staged.error);
+        assert.equal(staged.preview.result.bars, 2);
+        await host.send('I sweep the boars, then cut the nearest.', 'The boars scatter.');
+        assert.equal(rollAt(host, 2).data.v2.result.bars, 2);
+        return await take(host, 2, seed, options);
+    } finally { host.close(); }
+}
+
 const CASES = [
     ['board-fled', boardFled],
     ['board-members', boardMembers],
@@ -242,19 +265,24 @@ const CASES = [
     ['planner-fight-start-held', fightStartHeld],
     ['planner-standard-opened', plannerStandard],
     ['practice', practice],
+    ['board-scaled', boardScaled],
 ];
 
-const chats = {}, goldens = {};
+// (`ONLY=board-scaled node make.mjs`: builds just the named cases and merges them into the files, leaving every other chat and golden as it is)
+const only = (process.env.ONLY ?? '').split(',').filter(Boolean);
+const read = file => (only.length ? JSON.parse(readFileSync(join(HERE, file), 'utf8')) : {});
+const chats = read('chats.json'), goldens = read('goldens.json');
 for (const [name, build] of CASES) {
+    if (only.length && !only.includes(name)) continue;
     const index = CASES.findIndex(entry => entry[0] === name);
     const restore = seedCrypto(900 + index);
     try {
         chats[name] = await build(901 + index);
     } finally { restore(); }
 }
-for (const [name] of CASES) {
+for (const [name] of CASES.filter(([name]) => !only.length || only.includes(name))) {
     goldens[name] = await replay(name, chats[name]);
     console.log(`${name}: ${chats[name].chat.length} messages, replay ok, ${goldens[name].cues.length} cue(s)`);
 }
-writeFileSync(join(HERE, 'chats.json'), `${JSON.stringify(chats, null, 2)}\n`);
-writeFileSync(join(HERE, 'goldens.json'), `${JSON.stringify(goldens, null, 2)}\n`);
+writeFileSync(join(HERE, 'chats.json'), `${JSON.stringify(Object.fromEntries(Object.entries(chats).sort(([a], [b]) => (a < b ? -1 : 1))), null, 2)}\n`);
+writeFileSync(join(HERE, 'goldens.json'), `${JSON.stringify(Object.fromEntries(Object.entries(goldens).sort(([a], [b]) => (a < b ? -1 : 1))), null, 2)}\n`);
