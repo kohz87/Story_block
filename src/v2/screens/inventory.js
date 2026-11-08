@@ -53,7 +53,7 @@ function group(kind, gear = false) {
     const edit = `{"value":"{{ it.name }}","itemCount":{{ q.counts[it.stack] }},"itemNote":"{{ it.note }}","displayValue":false,"kind":"item","label":"${jsonText(S.editItem)}","command":"inventory.edit","payload":{"stack":"{{ it.stack }}","group":true}${gear
         ? `,"gear":{"kind":"{{ it.kind }}","stack":"{{ it.stack }}","owner":"{{ it.owner }}","by":"{{ ${row}.byId }}","place":"{{ ${row}.place }}","slot":"{{ ${row}.slotKey }}","bound":"{{ ${row}.bound.who }}","def":"{{ it.def }}","rarity":"{{ it.rarity }}","row":{{ ${row} }},"kit":{{ q.gx.kit.open }},"owners":{{ q.gx.owners }}}` : ''}}`;
     // A story item's small Carry edit (gear on): this one field, set by the reader only (the item's own Edit form has it for a piece they added).
-    const carryEdit = `{"value":"","displayValue":false,"kind":"fields","label":"${jsonText(G.form.carryEdit)}","command":"inventory.carry","payload":{"stack":"{{ it.stack }}"},"help":"${jsonText(G.form.carryHelp)}","fields":[{"key":"carry","label":"${jsonText(G.form.carry)}","type":"number","value":"{{ ${row}.carry }}","min":0,"max":500}]}`;
+    const carryEdit = `{"value":"{{ ${row}.carryWord }}","displayValue":true,"kind":"fields","label":"${jsonText(G.form.carryEdit)}","command":"inventory.carry","payload":{"stack":"{{ it.stack }}"},"help":"${jsonText(G.form.carryHelp)}","fields":[{"key":"carry","label":"${jsonText(G.form.carry)}","type":"number","value":"{{ ${row}.carry }}","min":0,"max":500}]}`;
     // The chips and the condition of a row: today's, or (gear on) the slot, who wears it and the condition bar with its word.
     const chips = gear ? `
           <span class="rarity">{{ it.rarity }}</span>
@@ -335,7 +335,13 @@ const CSS = `${BASE_CSS}
 .inv.gear .g-l2 .chip.eq { display: inline-flex; align-items: center; }
 .inv.gear .item.grow .g-l3 { font-size: 1em; }
 .inv.gear .g-l3 .note { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-.inv.gear .item.grow:has(.ss-w-editable-item-form) > .body > :is(.g-l2, .g-l3) { display: none; }
+.inv.gear .item.grow:has(.ss-w-editable-item-form) > .body > :is(.g-l2:not(:has(.ss-w-editable-item-form)), .g-l3) { display: none; }
+/* The small Carry control (line 2): a chip with its word and pencil; its open form unfolds the row like the Edit form (line 2 stays, shows only the form). */
+.inv.gear .item-carry .ss-w-editable { display: inline-flex; align-items: center; gap: 2px; height: 16px; padding: 0 2px 0 6px; border: 1px solid color-mix(in srgb, var(--sb-accent) 45%, transparent); border-radius: 999px; font-size: 10px; }
+.inv.gear .item-carry .ss-w-editable-pencil { height: 14px; min-height: 0; min-width: 0; padding: 0 2px; margin: 0; }
+.inv.gear .g-l2:has(.ss-w-editable-item-form) { display: flex; flex-wrap: wrap; height: auto; overflow: visible; white-space: normal; }
+.inv.gear .g-l2:has(.ss-w-editable-item-form) > :not(.item-carry) { display: none; }
+.inv.gear .item-carry:has(.ss-w-editable-item-form), .inv.gear .item-carry .ss-w-editable:has(.ss-w-editable-item-form) { display: block; width: 100%; height: auto; padding: 0; border: 0; border-radius: 0; font-size: inherit; }
 .chip.bound { display: inline-flex; align-items: center; }
 .bound > .bound-lock { display: inline-flex; flex: none; margin: 0 3px 0 0; }
 .bound > .bound-lock .ss-w-badge { padding: 0; border: 0; background: none; min-height: 0; gap: 0; }
