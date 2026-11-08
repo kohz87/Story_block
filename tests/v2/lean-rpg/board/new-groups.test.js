@@ -7,6 +7,8 @@ import { CORE_FEATURE } from '../../../../src/v2/features.js';
 import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { boardReplyGrammar } from '../../../../src/v2/lean-rpg/index.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/index.js';
+import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
+import { boardSession, openBoard } from '../../../../src/v2/lean-rpg/board/session.js';
 import { createFightOffers } from '../../../../src/v2/lean-rpg/board/offers.js';
 
 async function world() {
@@ -71,5 +73,37 @@ test('a foe healing (same count, Health back up) is not a new arrival and moves 
         assert.equal((await host.sdk.command('dm.set', { module: mod, fields: { hurt1: 5 } })).ok, true);
         assert.ok(health() > low, 'the foe really healed');
         assert.equal(offerIndex(host), first, 'Health rising with the count unchanged keeps the first offer');
+    } finally { host.close(); }
+});
+
+test('a board carried on from an earlier fight does not hide the offer of a new group; one the reader opened on the reply, or with staged exchanges, does', async () => {
+    const host = await world();
+    try {
+        const arrives = n => `Story.\n<Changes>\n- dm foes — gone | kind: clear-1 | why: gone\n+ dm foes — new | kind: set-slot-1 | name: Bandit ${n} | count: 1 | level: 1\n~ dm foes — blow | kind: hurt-1 | to: Hurt\n</Changes>`;
+        await host.send('Scout.', arrives(1));
+        const meta = host.ctx.chatMetadata, sid = () => host.store.carrierSid(host.store.headIndex());
+        assert.equal(offerIndex(host), host.store.headIndex());
+        // The reader opened the board on this reply.
+        const opened = openBoard(meta, host.head(), { sid: sid(), rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        assert.equal(opened.error, undefined);
+        assert.equal(offerIndex(host), null, 'a board the reader opened on this very reply is the fight in hand');
+        await host.send('Scout again.', arrives(2));
+        assert.ok(boardSession(meta)?.carried, 'the session went on with the reply as a carried segment');
+        assert.equal(offerIndex(host), host.store.headIndex(), 'the new group arrived after it: it gets its offer');
+        boardSession(meta).exchanges.push({ actions: [] });
+        assert.equal(offerIndex(host), null, 'staged exchanges are never clobbered by an offer');
+    } finally { host.close(); }
+});
+
+test('a carried board with no new group does not bring the offer back under the reply that started the fight', async () => {
+    const host = await world();
+    try {
+        const arrives = `Story.\n<Changes>\n- dm foes — gone | kind: clear-1 | why: gone\n+ dm foes — new | kind: set-slot-1 | name: Bandit | count: 1 | level: 1\n~ dm foes — blow | kind: hurt-1 | to: Hurt\n</Changes>`;
+        await host.send('Scout.', arrives);
+        const meta = host.ctx.chatMetadata;
+        assert.equal(openBoard(meta, host.head(), { sid: host.store.carrierSid(host.store.headIndex()), rules: { ...STANDARD_FORMULA, levelDivisor: 5 } }).error, undefined);
+        await host.send('Wait.', 'Nothing changes.');
+        assert.ok(boardSession(meta)?.carried, 'the session went on as a carried segment');
+        assert.equal(offerIndex(host), null, 'the fight in hand is not offered again under its first reply');
     } finally { host.close(); }
 });
