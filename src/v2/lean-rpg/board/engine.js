@@ -15,6 +15,7 @@ import { boardDice } from './dice.js';
 import { fleeRoll } from './flee.js';
 import { memberRolls } from './member-rolls.js';
 import { boardFoes, collapseFoes, memberSize, splitFoes } from './members.js';
+import { areaGroupName } from './order.js';
 import { exchangePlan } from './plan.js';
 import { attackStat } from './rules.js';
 
@@ -132,7 +133,7 @@ export function playBoard(state, setup, exchanges) {
         const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
         const number = setup.offset + at + 1, sheet = applyGear(readSheet(copy), equipment.gear);
         const fightSheet = members ? { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) } : sheet;
-        const built = exchangePlan(fightSheet, choices?.actions, setup.flags, number, { members });
+        const built = exchangePlan(fightSheet, choices?.actions, setup.flags, number, { members, aoe: setup.aoe === 1 });
         if (built.error) return { error: built.error };
         const standingGroups = real => (boardFoeList ?? []).some(foe => (Number.isInteger(foe.group) ? foe.group : foe.slot) === real.slot && values.get(foe.slot) > 0);
         const fleeFoes = members ? realFoes.filter(standingGroups) : sheet.foes;
@@ -147,6 +148,7 @@ export function playBoard(state, setup, exchanges) {
         weaponSides(prepared, fightSheet, equipment.weapons);
         const rolled = rollStandard(built.plan, prepared, source, rules, { carried: order, flow: 2, fix: true, then: true, board: true, memberRolls: hooks, ...(number === 1 && setup.drop ? { drop: setup.drop } : {}) });
         const lines = rolled.rounds[0]?.lines ?? [];
+        for (const line of lines) if (line.aoe) line.aoeName = areaGroupName(realFoes.find(foe => foe.slot === line.aoeGroup));
         if (equipment.gear) {
             noteGear([...rolled.opening, ...lines], equipment.gear);
             wear.push(...stagingWear(copy, equipment.gear, { opening: rolled.opening, rounds: [{ n: number, lines }], rules }));

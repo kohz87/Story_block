@@ -200,7 +200,7 @@ export function wearGear(ctx, gear, { opening = [], rounds = [], rules, condWord
     if (!gear) return events;
     const told = [...opening.map(line => ({ n: rounds[0]?.n ?? 1, line })), ...rounds.flatMap(round => round.lines.map(line => ({ n: round.n, line })))];
     for (const { n, line } of told) {
-        if (!['act', 'foe'].includes(line.kind) || line.support || line.outcome !== 'fail' || !isDecisive(line, rules)) continue;
+        if (!['act', 'foe'].includes(line.kind) || line.support || line.aoeFollowup === true || line.outcome !== 'fail' || !isDecisive(line, rules)) continue;
         const slots = line.kind === 'foe' ? ['body', 'off-hand'] : ['weapon'];
         for (const owner of gear.who?.[fold(line.pc.who)]?.own ?? []) {
             const worn = ctx.query('inventory.gear', { owner, recorded: true })?.slots ?? {};
@@ -226,6 +226,6 @@ export function earnedLegend(dice, sheet, levelled) {
     if (!levelled || dice.stop !== 'won') return false;
     const party = Math.max(0, ...(sheet?.characters ?? []).map(character => character.level ?? 0));
     const lines = [...(dice.opening ?? []), ...dice.rounds.flatMap(round => round.lines)];
-    const foes = Math.max(0, ...lines.filter(line => line.foe).map(line => line.foe.classValue ?? 0));
+    const foes = Math.max(0, ...lines.filter(line => line.foe).map(line => line.aoe && Number.isFinite(line.aoeLevel) ? line.aoeLevel : line.foe.classValue ?? 0));
     return party > 0 && foes >= party + GAP;
 }

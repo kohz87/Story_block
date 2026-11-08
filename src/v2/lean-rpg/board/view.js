@@ -16,6 +16,7 @@ import { boardChoices, memberGroups as groupsOfMembers, memberHealthWord, member
 import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
 import { equipmentForBoard, playBoard } from './engine.js';
 import { barMovement, settledNote } from './note.js';
+import { areaLineGroups } from './order.js';
 import { dropOf } from '../ambush.js';
 import { AUTO_CAP, autoExchanges } from '../names.js';
 import { autoNote, runAuto } from './auto-run.js';
@@ -33,12 +34,19 @@ export const pressButton = (doc, text, cls, act) => {
 };
 const signed = n => n >= 0 ? `+${n}` : String(n);
 const labelLine = line => {
-    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
+    const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.reduced ? `… also hits ${foe.name} (reduced)` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
     const bonus = (pc.statBonus ?? 0) + (pc.classBonus ?? 0) + (pc.rank ?? 0) + (pc.edge ?? 0);
     const changes = [line.damage ? barMovement(line.damage) : '', line.cost ? barMovement(line.cost, true) : ''].filter(Boolean);
     const skill = line.skill ? ` (${line.skill})` : '';
     const verdict = `${line.kind === 'foe' ? `${pc.who}'s defence${skill}: ` : ''}${String(line.outcome).toUpperCase()}`;
     return `${who}${line.kind === 'foe' ? '' : skill}: d20 ${pc.die} ${signed(bonus)} = ${pc.total} vs ${foe.total ?? line.dc} — ${verdict}${line.decisive ? ', DECISIVE' : ''}${changes.length ? ` · ${changes.join(' · ')}` : ''}`;
+};
+const labelAreaGroup = group => {
+    const line = group[0], name = line.aoeName || line.foe?.name || '';
+    const changes = group.flatMap(item => [item.damage ? barMovement(item.damage) : '', item.cost ? barMovement(item.cost, true) : '']).filter(Boolean);
+    if (line.reduced) return `… also ${line.outcome === 'fail' ? 'targets' : 'hits'} ${name} (reduced)${changes.length ? ` → ${changes.join(', ')}` : line.outcome === 'fail' ? ' — FAIL' : ''}`;
+    const base = labelLine({ ...line, foe: { ...line.foe, name }, damage: undefined, cost: undefined });
+    return `${base}${line.aoeNoTarget ? ' · main target Down' : ''}${changes.length ? ` → ${changes.join(', ')}` : ''}`;
 };
 
 // A read-only member card in the Fight tab's own foe-card shape: name and level pills, then the existing segmented meter.
@@ -223,7 +231,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             for (const line of result.opening ?? []) logContent.appendChild(h(doc, 'p', '', `Opening · ${labelLine(line)}`));
             for (const round of result.rounds ?? []) {
                 logContent.appendChild(h(doc, 'p', 'rpg-board-round', `Exchange ${round.n}`));
-                for (const line of round.lines) logContent.appendChild(h(doc, 'p', '', labelLine(line)));
+                for (const group of areaLineGroups(round.lines)) logContent.appendChild(h(doc, 'p', '', group[0].aoe ? labelAreaGroup(group) : labelLine(group[0])));
             }
         }
         if (!logContent.childNodes.length) logContent.appendChild(h(doc, 'p', '', 'Choose an action to begin.'));
@@ -231,7 +239,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         root.appendChild(log);
         const panel = h(doc, 'div', 'rpg-board-controls');
         const gear = session.setup.gear ? equipmentForBoard(state, session.setup.gear) : {};
-        const memberGroupList = members ? groupsOfMembers(members, foes) : null;
+        const memberGroupList = members ? groupsOfMembers(members, foes, { aoe: session.setup.aoe === 1 }) : null;
         const data = boardChoices(state, { ...session.setup, ...gear }, chosen, memberGroupList), ended = played.result.stop !== 'open', sending = ended && Boolean(start?.sending?.());
         const standing = members ? standingMembers(members) : data.foes;
         if (confirm) confirmDiscard(panel);
@@ -250,11 +258,13 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             }));
         } else {
             if (autoLine) panel.appendChild(h(doc, 'p', 'rpg-board-auto-note', autoLine));
-            panel.appendChild(h(doc, 'p', 'rpg-board-prompt', targeting ? (targeting.groupMode ? 'Choose a group' : 'Choose a target') : `${data.actor?.who ?? 'Party'}: choose an action`));
+            const mainTarget = Boolean(targeting?.groupMode) && session.setup.aoe === 1;
+            panel.appendChild(h(doc, 'p', 'rpg-board-prompt', mainTarget ? `${data.actor?.who ?? 'Party'}: ${targeting.action.skill} (area)` : targeting ? (targeting.groupMode ? 'Choose a group' : 'Choose a target') : `${data.actor?.who ?? 'Party'}: choose an action`));
+            if (mainTarget) panel.appendChild(h(doc, 'p', 'rpg-board-area-note', 'Hits every enemy group. The group you pick takes the full effect, and the others take one Health block less.'));
             if (!targeting) panel.appendChild(h(doc, 'p', 'rpg-board-defence', `Defence: ${data.defence ?? 'plain defence'}, automatic`));
             const list = h(doc, 'div', 'rpg-board-choices');
             const options = targeting ? (targeting.groupMode
-                ? memberGroupList.map((group, at) => ({ label: `${at + 1}. ${group.label}`, group: group.group, literal: true }))
+                ? memberGroupList.map((group, at) => ({ label: mainTarget ? `Main target: ${group.label}` : `${at + 1}. ${group.label}`, group: group.group, literal: true }))
                 : standing.map((foe, at) => members
                     ? { label: memberTargetLine(foe, at + 1), target: foe.slot, literal: true }
                     : { label: targetLabel(foe), target: foe.slot }))
