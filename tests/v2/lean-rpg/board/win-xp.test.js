@@ -77,6 +77,16 @@ test('a board win that leaves the block as it was carries no groups (the record 
     } finally { host.close(); restore(); }
 });
 
+test('a board win with the groups still holds back the narrator\'s own XP line in that reply (one payment)', async () => {
+    const restore = seedCrypto(35), host = await world();
+    try {
+        const want = memberXp([{ count: 1, level: 1 }], 1);
+        await winWith(host, NEW.replace('</Changes>', '+ dm character — big | kind: add-xp | amount: 50\n</Changes>'));
+        assert.equal(fights(host).length, 1);
+        assert.equal(hero(host).xp, want, 'the code\'s XP only; the narrator\'s 50 is not used');
+    } finally { host.close(); restore(); }
+});
+
 // fightHook on its own: the groups come from the sheet the reply began with, or from the roll's opened foes
 const wonReceipt = (groups, opened) => ({ type: 'rpg.resolve', data: { v2: { result: { stop: 'won', board: { groups }, ...(opened ? { opened } : {}) } } } });
 const viewOf = (now, before) => ({ feature: () => true, state: { domains: { dataModules: sheetDomain(now) } }, before: () => ({ domains: { dataModules: sheetDomain(before) } }), settings: () => ({}) });
