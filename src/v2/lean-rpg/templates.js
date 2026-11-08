@@ -237,6 +237,9 @@ const standardFoes = {
  * The Combat rules text: the base one, a little shorter (the block's prompt holds at most 1200 characters), with the roll types and the
  * blocks in words. No numbers: the roll table, the odds and the foe's numbers are the rules' (Settings → RPG); the narrator follows the told result.
  */
+/** The most one Foes group may count: read from the stock Foes definition, so the pre-check never exceeds its own block. */
+export const FOE_COUNT_MAX = standardFoes.state.count1.max;
+
 export const COMBAT_PROMPT_STANDARD = [
     '[COMBAT SYSTEM]',
     'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Level all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',

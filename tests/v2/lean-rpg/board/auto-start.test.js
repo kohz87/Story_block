@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
 import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { boardSession } from '../../../../src/v2/lean-rpg/board/session.js';
+import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { begin, makeBlocks, page, settle } from '../view/page.js';
 
+const SEED = 1; // the dice are seeded so the weak hero's draw is the same every run
 async function world(t, { hero = { agi: 20, str: 20 }, foe = 'name: Rat | count: 1 | level: 1', settings = null } = {}) {
     const app = await page(t, { formula: 'standard' });
     const { host } = app;
@@ -56,7 +58,9 @@ test('the attack hold names the cap in its Auto-fight button', async t => {
 });
 
 test('Auto is a button beside the choices; a manual pick takes over and clears its note; Auto again plays on', async t => {
-    const { doc, host, ui } = await world(t, { hero: { agi: 1, str: 1, vit: 20 }, foe: 'name: Ogre | count: 1 | level: 40' });
+    t.after(seedCrypto(SEED));
+    // Auto cap 1: one Auto run is one exchange, so the vit-20 hero cannot be downed in it and the fight stays open.
+    const { doc, host, ui } = await world(t, { hero: { agi: 1, str: 1, vit: 20 }, foe: 'name: Ogre | count: 1 | level: 40', settings: { rpgAutoCap: 1 } });
     ui.mounts.screen.open('story-block/fight');
     await settle();
     fightScreen(doc).querySelector('.rpg-board-open').click();
