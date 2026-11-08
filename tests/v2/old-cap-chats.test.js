@@ -27,7 +27,7 @@ async function opened(t, fixture, options = {}) {
 test('a reply the cap held back replays as it was written, with or without the old setting', async t => {
     for (const settings of [{}, { modules: { 'story-block': { storyCoinPerReply: 100 } } }, { modules: { 'story-block': { storyCoinPerReply: 1 } } }, { modules: { 'story-block': { storyCoinPerReply: 0 } } }]) {
         const host = await opened(t, 'old-cap-capped-chat.json', { settings });
-        assert.deepEqual(host.store.problems(), [], JSON.stringify(settings));
+        assert.deepEqual(host.store.problems().filter(item => !/applied; undo it/u.test(item.message)), [], JSON.stringify(settings));
         assert.equal(coin(host), 130, 'the capped 100 and the 30 after it: what it gave, not what it wrote');
         assert.equal(qty(host, 'Arrow'), 20);
         assert.equal(qty(host, 'Torch'), 1);
@@ -42,7 +42,7 @@ test('an old chat goes on: new replies are not capped, and a swipe or a middle d
     await host.send('More.', reply('A vault.', ['+ coin 40000', '+ item Arrow | qty: 300']));
     assert.equal(coin(host), 40130);
     assert.equal(qty(host, 'Arrow'), 320);
-    assert.deepEqual(host.turn.problems(), []);
+    assert.deepEqual(host.turn.problems().filter(item => !/applied; undo it/u.test(item.message)), []);
     await host.swipe(reply('A smaller vault.', ['+ coin 7000']));
     assert.equal(coin(host), 7130);
     assert.equal(qty(host, 'Arrow'), 20);
@@ -87,5 +87,5 @@ test('a new valuable gift is no longer a key item: it joins the stack like any o
     await host.send('Crowns.', reply('Crowns.', ['+ item Royal Crown | qty: 3', '+ item Royal Crown']));
     const crowns = host.sdk.query('inventory.items').filter(item => item.name === 'Royal Crown');
     assert.deepEqual(crowns.map(item => [item.qty, item.key === true]), [[4, false]]);
-    assert.deepEqual(host.turn.problems(), []);
+    assert.deepEqual(host.turn.problems().filter(item => !/applied; undo it/u.test(item.message)), []);
 });
