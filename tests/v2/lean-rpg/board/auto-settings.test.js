@@ -42,6 +42,15 @@ test('the slider spans 1 to the "Until the end" stop, shows its value above it a
     assert.deepEqual(saved, [9, 1, 9], 'values are held to 1..9');
 });
 
+test('the cap card draws the value line, the shared slider and the three stop labels', () => {
+    const node = capSetting(setupDom(), { value: 3, set() {} });
+    assert.equal(node.querySelector('.rpg-board-cap-value').textContent, '3 exchanges');
+    const input = node.querySelector('.ss-slider > input.ss-slider-input');
+    assert.equal(input.type, 'range');
+    assert.equal(input.style.getPropertyValue('--ss-fill'), String(2 / 8));
+    assert.deepEqual([...node.querySelectorAll('.rpg-board-cap-ends span')].map(n => n.textContent), ['1', '8', 'Until the end']);
+});
+
 test('the board setting shows the slider only when the caller gives one', () => {
     const doc = setupDom(), feature = { on: () => true, set() {} };
     assert.equal(boardSetting(doc, feature, () => {}).querySelector('.rpg-board-cap-input'), null);
