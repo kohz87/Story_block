@@ -2,7 +2,7 @@
 // (Stamina and Mana), a Full rest button (all three bars) joins it, and the story gets `rest`, `full-rest` (not twice within 6 story hours: data-modules/part/act.js
 // asks recovery.js) and `heal` (amount 1 to 3, one line per reply). Raising a bar by `set-*` is refused in act.js, not here (a size expression nests too deep).
 // Pure: it only reshapes the definition it is given. A hidden field keeps the story minute of the last full rest.
-import { RESTED_FIELD, RESTED_MAX } from '../data-modules/recovery.js';
+import { RESTED_FIELD, RESTED_KNOWN } from '../data-modules/recovery.js';
 
 const get = field => ['get', [field]];
 const refill = bars => bars.map(bar => ({ op: 'set', path: [bar], value: get(`${bar}-blocks`) }));
@@ -22,7 +22,8 @@ export function withRecovery(scaled) {
         'button-rest': { op: '!', ui: true, title: 'Short rest', labels: {}, effects: refill(['stamina', 'mana']) },
         'button-full-rest': { op: '!', ui: true, title: 'Full rest', labels: {}, effects: refill(['health', 'stamina', 'mana']) },
     });
-    definition.state[RESTED_FIELD] = { type: 'int', min: 0, max: RESTED_MAX, default: 0, label: 'Last full rest', prompt: false, edit: false };
+    definition.state[RESTED_FIELD] = { type: 'int', min: Number.MIN_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER, default: 0, label: 'Last full rest', prompt: false, edit: false };
+    definition.state[RESTED_KNOWN] = { type: 'bool', default: false, label: 'Full rest recorded', prompt: false, edit: false };
     definition.prompt = PROMPT;
     return definition;
 }

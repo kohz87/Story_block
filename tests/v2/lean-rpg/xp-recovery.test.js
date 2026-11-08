@@ -7,11 +7,13 @@ import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { memberXp, fightGuard } from '../../../src/v2/lean-rpg/fight.js';
 import { isMarkedCharacter, fullRestTooSoon, recoveryNote } from '../../../src/v2/data-modules/recovery.js';
+import { directorStub, reload } from '../data-modules/helpers.js';
+import { cueOfResult } from '../../../src/v2/lean-rpg/cue.js';
+import { grammarFor } from '../../../src/v2/data-modules/part/views.js';
 
-const NOW = { minutes: null };
-async function world({ old = false, clock = false } = {}) {
+async function world({ old = false, clock = false, minute = 1000 } = {}) {
     const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } },
-        ...(clock ? { modules: [{ id: 'story-director', name: 'Director', version: '1', domains: {}, queries: { 'director.time': () => ({ minutes: NOW.minutes }) } }] } : {}) });
+        ...(clock ? { modules: [directorStub({ minute })] } : {}) });
     host.features.set(CORE_FEATURE.leanRpg, true);
     await host.send('Begin.', 'Opening.');
     for (const { definition } of STANDARD_TEMPLATES) {
@@ -110,17 +112,16 @@ test('rest refills Stamina and Mana; full-rest also Health; heal adds at most 3 
 test('full-rest from the story is refused under 6 story hours after the last; no clock: allowed', async () => {
     const host = await world({ clock: true });
     try {
-        NOW.minutes = 1000;
         await set(host, { health: 1 });
         await say(host, ['~ dm character — a bed | kind: full-rest']);
         const top = fields(host).health;
         assert.ok(top > 1);
-        NOW.minutes = 1000 + 359;
+        assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 359 })).ok, true);
         await set(host, { health: 1 });
         await say(host, ['~ dm character — a bed | kind: full-rest']);
         assert.equal(fields(host).health, 1);
         assert.ok(problems(host).includes(recoveryNote.fullRest('Astra')), problems(host));
-        NOW.minutes = 1000 + 360;
+        assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 360 })).ok, true);
         await say(host, ['~ dm character — a bed | kind: full-rest']);
         assert.equal(fields(host).health, top);
         same(host);
@@ -134,6 +135,61 @@ test('full-rest from the story is refused under 6 story hours after the last; no
     } finally { bare.close(); }
     assert.equal(fullRestTooSoon(null, 5), false);
     assert.equal(fullRestTooSoon(100, 0), false);
+});
+
+test('the clock records negative, zero and large safe minutes and still enforces six hours', async () => {
+    for (const minute of [-100, 0, 2_000_000_001]) {
+        const host = await world({ clock: true, minute });
+        try {
+            await set(host, { health: 1 });
+            await say(host, ['~ dm character — bed | kind: full-rest']);
+            assert.equal(fields(host)['rested-at'], minute);
+            await set(host, { health: 1 });
+            await say(host, ['~ dm character — bed | kind: full-rest']);
+            assert.equal(fields(host).health, 1);
+            assert.equal(host.turn.problems().at(-1).message, recoveryNote.fullRest('Astra'));
+            same(host);
+        } finally { host.close(); }
+    }
+});
+
+test('deleting the time advance cannot replay a full rest less than six hours after the previous one', async () => {
+    const host = await world({ clock: true });
+    try {
+        await set(host, { health: 1 });
+        await say(host, ['~ dm character — first | kind: full-rest']);
+        await set(host, { health: 1 });
+        await say(host, ['! time 360']);
+        const timeReply = host.store.headIndex();
+        await say(host, ['~ dm character — second | kind: full-rest']);
+        assert.ok(fields(host).health > 1);
+        await reload(host);
+        await host.st.deleteMessage(timeReply);
+        await host.st.deleteMessage(timeReply - 1);
+        assert.equal(fields(host).health, 1);
+        same(host);
+        assert.equal((await host.turn.reread(host.store.headIndex())).ok, true);
+        assert.equal(fields(host).health, 1);
+        assert.ok(problems(host).includes(recoveryNote.fullRest('Astra')));
+        await reload(host);
+    } finally { host.close(); }
+});
+
+test('a marked pin with an old combat rules block cannot prompt for story XP', async () => {
+    const host = await world();
+    try {
+        const definition = structuredClone(STANDARD_TEMPLATES.find(entry => entry.definition.role === 'rules').definition);
+        definition.prompt += '\nXP guide: Other deeds 5 to 40.';
+        assert.equal((await host.sdk.command('dm.redefine', { module: 'pack.chat/combat-rules', definition })).ok, true);
+        assert.doesNotMatch(grammarFor(host.head()), /XP guide|Other deeds/);
+        assert.doesNotMatch(grammarFor(host.head(), { rules: { skip: true, keep: /XP guide:.*$/u } }), /XP guide|Other deeds/);
+    } finally { host.close(); }
+});
+
+test('a marked roll cue does not ask for XP; a saved old roll keeps its wording', () => {
+    const base = { checks: [], rounds: [{ n: 1, lines: [] }], flow: 2, stop: 'won' };
+    assert.match(cueOfResult(base), /write no XP line/);
+    assert.doesNotMatch(cueOfResult({ ...base, noXp: true }), /XP/);
 });
 
 test('the Short rest and Full rest buttons (reader) refill their bars', async () => {

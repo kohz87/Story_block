@@ -154,7 +154,7 @@ export function fightHook(view, info) {
     if (board && !board.won) return undefined;
     const sheet = readSheet(view.state);
     // XP is combat on the board only (owner, 9 Nov): on the new rules a fight the story settles without the board pays nothing.
-    if (!board && sheet.characters.some(character => character.scale === 2)) return undefined;
+    if (!board && sheet.characters.length && sheet.characters.every(character => character.scale === 2)) return undefined;
     const filled = sheet.foes.filter(foe => foe.filled);
     // (cheap first: a fight can only be won now if every filled group is Down; a board win is known by its receipt instead)
     if (!board && (!filled.length || !filled.every(foe => foe.hurt === 0))) return undefined;

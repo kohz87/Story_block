@@ -9,9 +9,9 @@ const BAR_FIELDS = ['health', 'stamina', 'mana'];
 
 /** Story hours between two full rests of one character. */
 export const FULL_REST_HOURS = 6;
-/** The hidden field that keeps the story minute (plus one) of the character's last full rest; 0 = never. */
+/** The hidden fields that keep the story minute of the character's last full rest. */
 export const RESTED_FIELD = 'rested-at';
-export const RESTED_MAX = 2_000_000_000;
+export const RESTED_KNOWN = 'rested-known';
 /** The upward-set kinds and the bar each writes. */
 export const SET_KINDS = Object.freeze({ 'set-health': 'health', 'set-stamina': 'stamina', 'set-mana': 'mana' });
 
@@ -29,4 +29,5 @@ export const recoveryNote = {
 };
 
 /** Whether a story full rest is too soon: the clock reads `now` (story minutes, null = no clock) and `last` is the stored mark. */
-export const fullRestTooSoon = (now, last) => Number.isSafeInteger(now) && Number.isSafeInteger(last) && last > 0 && now + 1 - last < FULL_REST_HOURS * 60;
+export const fullRestTooSoon = (now, last, known = undefined) => Number.isSafeInteger(now) && Number.isSafeInteger(last)
+    && (known === undefined ? last > 0 && now - (last - 1) < FULL_REST_HOURS * 60 : known === true && now - last < FULL_REST_HOURS * 60);

@@ -355,7 +355,7 @@ export function createCaptureFlow(s, deps) {
             if (!result?.ok) {
                 // A line refused because a feature the reader turned off answered it (another module's
                 // command it called, MODULES §F100): listed quietly, like a line of a kind that is off.
-                found.push(problem({ module: entry.moduleId, index, line: line.raw, code: result?.code ?? 'FAILED', message: `"${line.raw}" was not used: ${result?.message ?? 'unknown error'}`, ...(result?.code === 'FEATURE_OFF' ? { quiet: true } : {}) }));
+                found.push(problem({ module: entry.moduleId, index, line: line.raw, code: result?.code ?? 'FAILED', message: result?.code === 'RECOVERY_REFUSED' ? result.message : `"${line.raw}" was not used: ${result?.message ?? 'unknown error'}`, ...(result?.code === 'FEATURE_OFF' ? { quiet: true } : {}) }));
                 continue;
             }
             state = result.state ?? (base ? state : store.head());
