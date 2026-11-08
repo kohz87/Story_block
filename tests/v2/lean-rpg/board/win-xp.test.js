@@ -6,7 +6,7 @@ import { createHost } from '../../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
 import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
-import { fightHook, fightGuard, fightXp, groupsOf, memberXp } from '../../../../src/v2/lean-rpg/fight.js';
+import { fightHook, fightGuard, fightXp, groupsOf, memberXp, openedSlots } from '../../../../src/v2/lean-rpg/fight.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
@@ -122,4 +122,23 @@ test('rpg.fight with groups: pays from them, refuses damaged ones, and the guard
     const state = { domains: { dataModules: domain } };
     const guard = { version: 2, rulesHash: null, predicate: { kind: 'rpg.fight' }, inputHash: null };
     assert.equal(fightGuard({ state, hash: ctx.hash }, { guard, source: {}, recorded: { was: [1], groups: [{ ...groups[0], count: 0 }] } }).ok, false);
+});
+
+// the owner's reply: the foe pre-check receipt opens the group, the board receipt wins with groups [1] and no opened, the narrator clears the slot
+const openingReceipt = opened => ({ type: 'rpg.resolve', data: { v2: { result: { opened } } } });
+const bogBoars = [{ slot: 1, name: 'bog-boars', count: 2, level: 3 }];
+
+test('fightHook: a foe opening in an earlier roll of the reply names the group a later board win cleared', () => {
+    const none = { ...party, foes: { role: 'foes', fields: levelFoeBlock([]) } };
+    const view = viewOf(none, none);
+    const out = fightHook(view, { type: 'normal', receipts: [openingReceipt(bogBoars), wonReceipt([1])] });
+    assert.deepEqual(out.commands[0].payload.groups, bogBoars);
+    assert.equal(memberXp(out.commands[0].payload.groups, 1), memberXp([{ count: 2, level: 3 }], 1));
+    assert.deepEqual(openedSlots([openingReceipt(bogBoars), wonReceipt([1])]), [1]);
+    // a later receipt's entry for the same slot wins
+    const later = [openingReceipt(bogBoars), wonReceipt([1], [{ slot: 1, name: 'Wolves', count: 1, level: 2 }])];
+    assert.deepEqual(fightHook(view, { type: 'normal', receipts: later }).commands[0].payload.groups, [{ slot: 1, name: 'Wolves', count: 1, level: 2 }]);
+    // the same shape lost pays nothing
+    const lost = { type: 'rpg.resolve', data: { v2: { result: { stop: 'lost', board: { groups: [1] } } } } };
+    assert.equal(fightHook(view, { type: 'normal', receipts: [openingReceipt(bogBoars), lost] }), undefined);
 });
