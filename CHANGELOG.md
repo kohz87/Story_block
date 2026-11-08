@@ -1,7 +1,7 @@
 # Changelog
 
 ## 2.27.0
-- **Items: the Carry control shows its word.** A story item's Carry control now reads "Carry" (or "Carry +N") and its form opens in view under the row instead of being hidden. Each inventory row has one pencil (Carry is also in the Edit form), shows +N carry on line 2 only when you set one, and keeps the bonus, condition and note on line 3 with clear gaps.
+- **Inventory rows are tidier.** Each row has one pencil: the Carry field (0-500, yours only) is in every item's Edit form, story items too. Line 2 shows +N carry only when set, and line 3 reads bonus · condition · note with clear gaps.
 - **Inner chatter can be up to 240 characters** (it was 140).
 - **Attacks are read from narration.** The check for a typed attack now also catches attacks written into a sentence ("I immediately attacked them", ", I struck the boar", driving a weapon into a foe), with the reader's weapon as the subject. Idioms and bare hands never count. The gate that decides whether to look is loose: any attack word outside quotes goes to the Assist profile, which decides, and the hold on a standing foe judges every attack word in a clause.
 - **Fight set-up from your attack is better.**
@@ -11,6 +11,9 @@
 - **The fight board's buttons share one row.** Auto / Back and Discard fight sit 8px apart, with Discard at the far end.
 - **A money warning.** When a reply pays the same amount from the same source as one of the last four replies, or pays far more than the purse holds, Problems shows a warning. The payment still applies, and nothing is blocked. The coin rule tells the narrator to pay each find once.
 - **Internal:** the state fuzz test runs as four files in parallel in CI.
+- **After a fight, new foes get their offer again.** A fight that went on could hide the fight offer under later replies.
+- **Discard fight is always reachable.** The Fight tab now stays while a fight is staged or held, so the notice's "(Fight tab, Discard fight)" always has somewhere to go.
+- **Fixed: a send after deleting a reply** could lose the fight check and show two errors.
 - **New chats only: new combat rules.** A chat you started before 2.27.0 keeps its old rules, bars and XP. A new chat's first character (and a companion who joins an empty party) gets:
   - **Bigger bars.** Health is 2 x (4 + VIT/5), Stamina 2 x (4 + AGI/5), Mana 2 x (4 + INT/5): 10 each for a fresh character, 16 at most. Gear does not grow a bar.
   - **Skills hit harder.** A skill aimed at one foe takes 2 (3 when decisive) in place of 1 (2). A plain attack stays 1 (2). A skill that hits every foe costs 2 and cannot be picked with 1 left. Auto stops when a hero has lost a fifth of the bar.
