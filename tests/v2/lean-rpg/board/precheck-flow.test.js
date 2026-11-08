@@ -103,6 +103,17 @@ test('a timeout, an error, an unreadable answer or no group sends as today, with
     }
 });
 
+test('a line the loose gate passes (a third party attacking) with Assist {"groups":[]} is a plain send, no Fight screen', async () => {
+    const restore = seedCrypto(704), { host, callModel } = await make({ answers: [JSON.stringify({ groups: [] })] });
+    try {
+        const sent = await host.send('The rats attack me and I watch from the door.', 'The narrator goes on.');
+        assert.equal(sent.aborted, undefined);
+        assert.equal(callModel.calls.length, 1);
+        assert.equal(pendingStart(host.ctx.chatMetadata, host.ctx.chat), null);
+        assert.equal(host.ctx.chatMetadata.rpgFightStart, undefined);
+    } finally { host.close(); restore(); }
+});
+
 test('a working hold is active only in the page that started it and cannot clear a newer choice', async () => {
     const restore = seedCrypto(707), { host, part, callModel } = await make();
     try {
