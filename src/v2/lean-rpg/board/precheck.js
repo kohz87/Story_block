@@ -10,6 +10,9 @@ import { FOE_LEVEL, foeLevelCap, partyLevels } from '../foes.js';
 /** The pre-check's own bounds before a caller narrows them with `limits`. */
 export const PRECHECK_LIMITS = Object.freeze({ groups: FOE_SLOTS, count: FOE_COUNT_MAX, name: OPEN_MAX_NAME });
 
+/** How many characters of the reply before the message the prompt keeps (its end; the foes are often described earlier in a long reply). */
+export const PREVIOUS_CHARS = 4000;
+
 const STOP = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'to', 'in', 'on']);
 const WHOLE = /\d+(?:\.\d+)?/u;
 const UNCERTAIN = /\b(?:not|never|no|avoid|avoidance|instead|if|unless|whether|would|could|might|maybe|consider|discuss|ask|tell|say|says|said|warn|threaten|talk|speak|don't|dont|won't|wont|cannot|can't|cant)\b/iu;
@@ -67,11 +70,12 @@ function partyLine(sheet, roster) {
  */
 export function precheckPrompt({ message = '', previous = '', sheet = null, roster = null } = {}) {
     const text = oneLine(message).slice(0, 1200);
-    const before = oneLine(previous).slice(-1200);
+    const before = oneLine(previous).slice(-PREVIOUS_CHARS);
     const foes = [...new Set((sheet?.foes ?? []).map(foe => oneLine(foe?.name)).filter(Boolean))];
     const party = partyLine(sheet, roster);
     return [
         'Read the reader\'s message and list only the enemy groups it attacks that are not already on the Foes block.',
+        'First decide whether the reader is really starting a fight.',
         'Do not choose later actions, turns or outcomes.',
         '',
         'Reader\'s message:',
@@ -82,9 +86,11 @@ export function precheckPrompt({ message = '', previous = '', sheet = null, rost
         `Party: ${party || 'none'}`,
         '',
         'Rules:',
+        '- If the reader is not attacking anyone (an idiom such as "hit the road", "punch the dough", "kill time", a threat, a question, a plan for later, or someone else attacking), reply {"groups":[]}.',
         '- List only enemies the reader explicitly attacks. Ignore allies, bystanders and groups already on the sheet.',
         `- Give each group a short natural name (at most ${PRECHECK_LIMITS.name} characters), using the words of the message or of the reply before it.`,
-        `- count is the whole number of foes in that group, from 1 to ${PRECHECK_LIMITS.count}. Resolve amounts: "six" = 6, "a dozen" = 12, "4 scores" = 80. If unclear, use 1.`,
+        `- count is the whole number of foes in that group, from 1 to ${PRECHECK_LIMITS.count}. Resolve amounts: "six" = 6, "a dozen" = 12, "4 scores" = 80.`,
+        '- The count is the number the reader\'s message gives. If the message gives none, use the number the reply just before it gives for that group ("two massive bog-boars" = 2). Only if neither says, use 1.',
         '- level is optional. Give a whole level only when the message makes it clear; otherwise leave the key out.',
         '',
         'Reply with JSON only, in this shape:',

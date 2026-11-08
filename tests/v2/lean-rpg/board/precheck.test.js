@@ -131,3 +131,19 @@ test('the standing-foe hold reads the same shapes', async () => {
         'I slip in from the shadows to take the boars by surprise.']) assert.equal(knownFoeAction(text, foes), true, text);
     for (const text of ['I drive the cart into town', 'the boar\'s tusk goes for my leg', 'I go for a walk']) assert.equal(knownFoeAction(text, foes), false, text);
 });
+
+test('the prompt carries the count rule, the not-a-fight rule and up to 4000 characters of the reply before', () => {
+    const prompt = precheckPrompt({ message: 'I attack the boars.', sheet });
+    assert.match(prompt, /If the message gives none, use the number the reply just before it gives/u);
+    assert.match(prompt, /"two massive bog-boars" = 2/u);
+    assert.match(prompt, /Only if neither says, use 1/u);
+    assert.match(prompt, /not attacking anyone .*hit the road.*punch the dough.*kill time.*\{"groups":\[\]\}/u);
+    const previous = `${'a'.repeat(1000)}${'b'.repeat(4000)}`;
+    const kept = /The reply just before it[^\n]*\n(\w+)\n/u.exec(precheckPrompt({ message: 'I attack.', previous, sheet }))[1];
+    assert.equal(kept, 'b'.repeat(4000));
+});
+
+test('an empty groups answer (not a fight) is a plain send', () => {
+    assert.deepEqual(parsePrecheck('{"groups":[]}'), []);
+    assert.deepEqual(vetGroups(parsePrecheck('{"groups":[]}'), { message: 'I hit the road.', sheet }), []);
+});
