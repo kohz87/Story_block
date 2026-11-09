@@ -296,7 +296,7 @@ async function reloaded(host) {
 
 test('a fight with a bonus, a wear step and a break: the record, the bonus going with the broken piece, and live = rebuild = reload = Re-read = middle delete', { skip }, async t => {
     fixedSeeds(t);
-    const host = await world(t, { fields: { level: 5, vit: 20 }, foeLevel: 99 });
+    const host = await world(t, { fields: { level: 5, vit: 20 }, foeLevel: 15 });   // (15: the level this fight had under the old party + 10 cap, with the party at level 5)
     const steps = [], order = ['good', 'worn', 'torn', 'broken'];
     let n = 0;
     while (slotsOf(host).body.cond > 0 && n < 40) {

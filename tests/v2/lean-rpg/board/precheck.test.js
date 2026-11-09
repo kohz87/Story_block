@@ -70,7 +70,7 @@ test('plural whole words, the sheet, count bounds and clamped levels follow the 
         { name: 'Tunnel Rats', count: 2 },
     ];
     assert.deepEqual(vetGroups(groups, { message: 'I attack the tunnel rats with 4 scores of bilge boars and a dozen silt wolves.', sheet }),
-        [{ name: 'Tunnel Rat', count: 99, level: 15 }, { name: 'Bilge Boars', count: 80, level: 1 }, { name: 'Silt Wolves', count: 12, level: 5 }]);
+        [{ name: 'Tunnel Rat', count: 99, level: 25 }, { name: 'Bilge Boars', count: 80, level: 1 }, { name: 'Silt Wolves', count: 12, level: 5 }]);
     assert.deepEqual(vetGroups([{ name: 'Silt Hounds', count: 2 }], { message: 'I attack the silt hounds.', sheet }), [], 'already on the sheet');
     assert.deepEqual(vetGroups([{ name: 'Rats', count: 20 }, { name: 'Rats', count: 3 }], { message: 'I attack the rats.', sheet, limits: { count: 10 } }),
         [], 'a narrower limit refuses a larger group');
@@ -166,7 +166,7 @@ test('the prompt requires a level; a missing or invalid level is the party\'s to
         { message: 'I attack the rats, wolves and boars.', sheet: mixed });
     assert.deepEqual(said.map(group => group.level), [9, 9, 7], 'missing or invalid = the top level; a given level stays');
     assert.equal(vetGroups([{ name: 'Rats', count: 1 }], { message: 'I attack the rats.', sheet: { characters: [], foes: [] } })[0].level, 1, 'no party: level 1');
-    assert.equal(vetGroups([{ name: 'Rats', count: 1, level: 80 }], { message: 'I attack the rats.', sheet: mixed })[0].level, 19, 'a given level is still held to one band above the party');
+    assert.equal(vetGroups([{ name: 'Rats', count: 1, level: 80 }], { message: 'I attack the rats.', sheet: mixed })[0].level, 29, 'a given level is still held to the party\'s highest + 20');
 });
 
 test('an old recorded opening with no level still replays as it was: resolve draws near the party average', async () => {
@@ -215,10 +215,10 @@ test('a person the message or the reply before it names gives a bounded role lin
     assert.doesNotMatch(precheckPrompt({ message: 'I attack.', sheet, known: [] }), /Already known/u);
 });
 
-test('the cap stays: 25 at party level 2 comes out 12, 1 stays 1, an invalid level is the party top', () => {
+test('the cap stays: 25 at party level 2 comes out 22, 1 stays 1, an invalid level is the party top', () => {
     const party = { characters: [{ who: 'Astra', level: 2, alive: true }], foes: [] };
     const run = level => vetGroups([{ name: 'Vorn', count: 1, level }], { message: 'I attack Vorn.', sheet: party })[0].level;
-    assert.equal(run(25), 12);
+    assert.equal(run(25), 22);
     assert.equal(run(1), 1);
     assert.equal(run('strong'), 2);
     assert.equal(run(undefined), 2);

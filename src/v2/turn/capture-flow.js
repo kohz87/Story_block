@@ -271,6 +271,7 @@ export function createCaptureFlow(s, deps) {
         return always || Object.keys(caps).length ? markCaps(mes, caps, from) : mes;
     };
 
+    const FOE_LINE = /\|\s*kind\s*:\s*set-slot-\d\b/iu;
     async function captureEach(index, lines, receipts, found, base = null, seeds = null, shown = new Map(), assist = null, plan = null) {
         const collected = [];
         const firstProblem = found.length;
@@ -288,6 +289,12 @@ export function createCaptureFlow(s, deps) {
         if (readRecord(message)?.practiceRule === 'rolls') carrier.practiceRule = 'rolls';
         else if (base === null && lines.some(line => PRACTICE_LINE.test(line.raw ?? '')) && practiceFromRollsOnly(registry.featureOn?.(LEAN_RPG_FEATURE) === true, settings?.('story-block'))) {
             try { store.setPracticeRule?.(index); carrier.practiceRule = 'rolls'; } catch { /* an unmarked reply is judged as before */ }
+        }
+        // The foe level cap recorded with the reply: a new foe's guessed level may reach the party's highest + 20 (data-modules/part/act.js). A reply captured live with a
+        // foe line (a set-slot line) is marked; a Re-read or an edit goes by the mark the reply has, so an older reply keeps its +10 cap.
+        if (readRecord(message)?.foeCap === 20) carrier.foeCap = 20;
+        else if (base === null && lines.some(line => FOE_LINE.test(line.raw ?? ''))) {
+            try { store.setFoeCap?.(index); carrier.foeCap = 20; } catch { /* an unmarked reply keeps the old cap */ }
         }
         // The message right before the reply (system messages aside), and only when it is the reader's: a reply that
         // follows another reply has no message of the reader's to quote (proof, EVIDENCE.md).

@@ -49,7 +49,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/board/view-bars.js`: the board's Health strip text ("Hurt · 5/10") and meter props.
 - `src/v2/lean-rpg/board/precheck-run.js`: the pre-check's one Assist call (20 s limit) and the opening it records for a typed attack on new foes.
 - `src/v2/lean-rpg/board/precheck-known.js`: the pre-check prompt's read-only extras: the pack's rank scale line and short dossier lines for named people.
-- `src/v2/lean-rpg/board/stated-level.js`: a foe's Level field on an NSD dossier (number, Lv, rank or two ranks): the parse and the dossier lookup the pre-check reads before it records the opening; passes the party + 10 cap.
+- `src/v2/lean-rpg/board/stated-level.js`: a foe's Level field on an NSD dossier (number, Lv, rank or two ranks): the parse and the dossier lookup the pre-check reads before it records the opening; passes the party + 20 cap.
 - `src/v2/lean-rpg/board/resume.js`: finds the last ended board fight's exact foe bars when the collapsed Foes block still matches them.
 - `src/v2/lean-rpg/resolve.js`: prepares and rolls planned checks, acts and foe attacks into a replayable RPG receipt.
 - `src/v2/lean-rpg/soul.js`: reads a renamed Soul Class field label and names, with stock fallbacks.

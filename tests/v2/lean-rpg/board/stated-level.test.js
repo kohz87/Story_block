@@ -1,4 +1,4 @@
-// A person's Level field on their NPC State Delta dossier sets their foe level and passes the party + 10 cap; guessed levels stay capped.
+// A person's Level field on their NPC State Delta dossier sets their foe level and passes the party + 20 cap; guessed levels stay capped.
 // Pure parsing, each path that vets a level (pre-check vetGroups, the old planner's vetOpen), the narrator's foe line (stays capped: it re-runs on replay),
 // and the replay rules: the stated level is read BEFORE the opening is recorded, so rebuild, Re-read, reload and swipe agree even after the field changes.
 import test from 'node:test';
@@ -52,15 +52,15 @@ test('field 30 at party level 2: 30 on the pre-check path, it beats the narrator
     assert.deepEqual(vet(world({ dossiers: [vorn('level 30')] }), 'Vorn', 3), [{ name: 'Vorn', count: 1, level: 30 }]);
 });
 
-test('no field, an unmatched name, junk or no NSD: today\'s rules, capped at party + 10', () => {
+test('no field, an unmatched name, junk or no NSD: today\'s rules, capped at party + 20', () => {
     for (const query of [world({ dossiers: [vorn()] }), world({ dossiers: [vorn('high')] }), world({ dossiers: [vorn('')] }), world({ dossiers: [vorn('C'), ] , ranks: null }),
         world({ dossiers: [{ name: 'Vorn', customFields: { Rank: '30' } }] }), () => null, null, () => { throw new Error('boom'); }]) {
-        assert.equal(vet(query, 'Vorn', 25)[0].level, 12, 'level 25 gives 12');
+        assert.equal(vet(query, 'Vorn', 25)[0].level, 22, 'level 25 gives 22');
         assert.equal(vet(query, 'Vorn', 5)[0].level, 5);
         assert.equal(vet(query, 'Vorn', undefined)[0].level, 2);
     }
-    assert.equal(vet(world({ dossiers: [vorn('30')] }), 'Dott', 25, 'I attack Dott.')[0].level, 12, 'a name that matches no dossier');
-    assert.equal(vet(world({ dossiers: [vorn('30')] }), 'Vornic', 25, 'I attack Vornic.')[0].level, 12, 'whole words only');
+    assert.equal(vet(world({ dossiers: [vorn('30')] }), 'Dott', 25, 'I attack Dott.')[0].level, 22, 'a name that matches no dossier');
+    assert.equal(vet(world({ dossiers: [vorn('30')] }), 'Vornic', 25, 'I attack Vornic.')[0].level, 22, 'whole words only');
 });
 
 test('a dossier matches by alias, and the field name is any case', () => {
@@ -73,7 +73,7 @@ test('a rank field records the rank band; the draw is the resolver\'s seeded one
     const [group] = vet(world({ dossiers: [vorn('C')] }), 'Vorn', 3);
     assert.deepEqual(group, { name: 'Vorn', count: 1, rank: 'C', from: 30, to: 49 });
     assert.deepEqual(vet(world({ dossiers: [vorn('C-D')] }), 'Vorn', 3)[0], { name: 'Vorn', count: 1, rank: 'C', from: 20, to: 49 });
-    assert.deepEqual(vet(world({ dossiers: [vorn('C')], ranks: null }), 'Vorn', 25)[0], { name: 'Vorn', count: 1, level: 12 }, 'a pack with no ranks: ignored');
+    assert.deepEqual(vet(world({ dossiers: [vorn('C')], ranks: null }), 'Vorn', 25)[0], { name: 'Vorn', count: 1, level: 22 }, 'a pack with no ranks: ignored');
 });
 
 test('the old planner\'s vetOpen honours it the same way, and keeps its cap otherwise', () => {
@@ -81,8 +81,8 @@ test('the old planner\'s vetOpen honours it the same way, and keeps its cap othe
     const sheet = { characters: [{ who: 'Astra', level: 2 }], foes: [] };
     const run = (requested, options) => vetOpen(requested, sheet, ['I attack Vorn.'], options).open;
     assert.deepEqual(run([{ name: 'Vorn', level: '5' }], { rankAt, stated: name => statedLevel(query, name) }), [{ name: 'Vorn', count: 1, level: 30 }]);
-    assert.deepEqual(run([{ name: 'Vorn', level: '25' }], { rankAt }), [{ name: 'Vorn', count: 1, level: 12 }]);
-    assert.deepEqual(run([{ name: 'Vorn', level: '25' }], { rankAt, stated: () => null }), [{ name: 'Vorn', count: 1, level: 12 }]);
+    assert.deepEqual(run([{ name: 'Vorn', level: '25' }], { rankAt }), [{ name: 'Vorn', count: 1, level: 22 }]);
+    assert.deepEqual(run([{ name: 'Vorn', level: '25' }], { rankAt, stated: () => null }), [{ name: 'Vorn', count: 1, level: 22 }]);
 });
 
 test('runPrecheck reads the field before anything is recorded; without a field the groups are byte-identical to the old ones', async () => {
@@ -91,7 +91,7 @@ test('runPrecheck reads the field before anything is recorded; without a field t
     assert.deepEqual(withField, [{ name: 'Vorn', count: 1, level: 30 }]);
     for (const query of [world({ dossiers: [vorn()] }), null]) {
         const plain = await runPrecheck({ message: 'I attack Vorn.', sheet: party, query, callModel: answer });
-        assert.equal(JSON.stringify(plain), '[{"name":"Vorn","count":1,"level":12}]');
+        assert.equal(JSON.stringify(plain), '[{"name":"Vorn","count":1,"level":22}]');
     }
 });
 
@@ -165,19 +165,19 @@ test('a rank field is drawn once from the reply\'s seed, inside the band, and re
     } finally { host.close(); restore(); }
 });
 
-test('no Level field: the fight is as before (level 4 stays, a model\'s 25 becomes 12) and the record has no band', async () => {
+test('no Level field: the fight is as before (level 4 stays, a model\'s 25 becomes 22) and the record has no band', async () => {
     const plain = await fought([vorn()], 813);
     try {
         assert.equal(foesOf(plain.host).level1, 4);
         assert.deepEqual(plain.host.ctx.chat.at(-1).extra.storySuite.receipts.filter(receipt => receipt.type === 'rpg.resolve')[0].replan.payload.plan.open, [{ name: 'Vorn', count: 1, level: 4 }]);
     } finally { plain.host.close(); plain.restore(); }
     const high = await fought([], 814, [JSON.stringify({ groups: [{ name: 'Vorn', count: 1, level: 25 }] })]);
-    try { assert.equal(foesOf(high.host).level1, 12); } finally { high.host.close(); high.restore(); }
+    try { assert.equal(foesOf(high.host).level1, 22); } finally { high.host.close(); high.restore(); }
 });
 
 test('a group of several named after the person keeps the normal rules: the Level is one person\'s', () => {
     const stated = () => ({ level: 30 });
     const groups = count => vetGroups([{ name: 'Vorn', count, level: 25 }], { message: 'I attack Vorn.', sheet: { characters: [{ who: 'Astra', level: 2 }], foes: [] }, stated });
     assert.equal(groups(1)[0].level, 30);
-    assert.equal(groups(5)[0].level, 12);
+    assert.equal(groups(5)[0].level, 22);
 });
