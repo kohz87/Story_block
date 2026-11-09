@@ -49,13 +49,13 @@ const equip = async (host, name) => {
     assert.equal(out.ok, true, out.message);
 };
 
-test('the stat budget is by rarity (0, 1, 2, 3, 4); a pack item may set its own 0…6; the story never does', () => {
-    assert.deepEqual(['common', 'uncommon', 'rare', 'epic', 'legendary'].map(rarity => gearBudget({ id: 'story/x', rarity })), [0, 1, 2, 3, 4]);
+test('the stat budget is by rarity (1, 2, 3, 4, 5); a pack item may set its own 0…6; the story never does', () => {
+    assert.deepEqual(['common', 'uncommon', 'rare', 'epic', 'legendary'].map(rarity => gearBudget({ id: 'story/x', rarity })), [1, 2, 3, 4, 5]);
     assert.equal(gearBudget({ id: 'pack.p/sword', rarity: 'common', bonus: 6 }), 6, 'a pack item\'s own bonus');
     assert.equal(gearBudget({ id: 'pack.p/sword', rarity: 'rare', bonus: 0 }), 0, 'even 0');
-    assert.equal(gearBudget({ id: 'pack.p/sword', rarity: 'rare', bonus: 7 }), 2, 'out of range: the rarity\'s');
-    assert.equal(gearBudget({ id: 'story/sword', rarity: 'rare', bonus: 6 }), 2, 'a story def\'s bonus is not read');
-    assert.deepEqual(GEAR.budget, { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 });
+    assert.equal(gearBudget({ id: 'pack.p/sword', rarity: 'rare', bonus: 7 }), 3, 'out of range: the rarity\'s');
+    assert.equal(gearBudget({ id: 'story/sword', rarity: 'rare', bonus: 6 }), 3, 'a story def\'s bonus is not read');
+    assert.deepEqual(GEAR.budget, { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 });
     // The validator holds a def's bonus to 0…6.
     const module = core();
     const state = stocked(module);
@@ -113,8 +113,8 @@ test('a story + item line gets its slot and rarity from words only; numbers are 
     };
     const sword = add('Iron Sword', { rarity: 'rare', atk: '9', bonus: '6', carry: '99', value: '500' });
     assert.deepEqual([sword.slot, sword.kind, sword.rarity, sword.stack, sword.bonus, sword.carry, sword.atk], ['weapon', 'equipment', 'rare', false, undefined, undefined, undefined]);
-    assert.equal(gearBudget(sword), 2);
-    assert.deepEqual(sword.stats, { DEX: 2 }, 'a sword raises DEX by its whole budget');
+    assert.equal(gearBudget(sword), 3);
+    assert.deepEqual(sword.stats, { DEX: 3 }, 'a sword raises DEX by its whole budget');
     const shield = add('Oak Shield', { quality: 'fine' });
     assert.deepEqual([shield.slot, shield.rarity], ['off-hand', 'uncommon']);
     const mail = add('Chain Mail', { rarity: 'legendary' });
@@ -153,11 +153,11 @@ test('inventory.gear: the worn pieces with their stats and condition; a broken p
     const gear = () => host.sdk.query('inventory.gear', { owner: 'party' });
     const slot = place => gear().slots[place];
     assert.deepEqual([slot('weapon'), slot('off-hand'), slot('body')], [
-        { name: 'Iron Sword', stats: { DEX: 2 }, cond: 100, broken: false }, { name: 'Oak Shield', stats: { VIT: 1 }, cond: 100, broken: false }, { name: 'Chain Mail', stats: { VIT: 3 }, cond: 100, broken: false }]);
-    assert.deepEqual(gear().statBonus, { ...zero, DEX: 2, VIT: 4 }, 'summed over what is worn');
+        { name: 'Iron Sword', stats: { DEX: 3 }, cond: 100, broken: false }, { name: 'Oak Shield', stats: { VIT: 2 }, cond: 100, broken: false }, { name: 'Chain Mail', stats: { VIT: 4 }, cond: 100, broken: false }]);
+    assert.deepEqual(gear().statBonus, { ...zero, DEX: 3, VIT: 6 }, 'summed over what is worn');
     assert.deepEqual(host.sdk.query('inventory.statBonus', { owner: 'party' }), gear().statBonus);
     await host.send('Fight.', reply('A hard blow.', ['~ hit weapon 1']));
-    assert.deepEqual(slot('weapon'), { name: 'Iron Sword', stats: { DEX: 2 }, cond: 69, broken: false }, 'worn still gives its stats');
+    assert.deepEqual(slot('weapon'), { name: 'Iron Sword', stats: { DEX: 3 }, cond: 69, broken: false }, 'worn still gives its stats');
     assert.equal(host.sdk.receipts().at(-1).receipt.summary, 'Iron Sword wears (100 → 69).');
     assert.equal(host.sdk.receipts().at(-1).receipt.data.steps, 1);
     const stackId = wear(host, 'Iron Sword').stack;
@@ -166,11 +166,11 @@ test('inventory.gear: the worn pieces with their stats and condition; a broken p
     assert.equal(slot('weapon').cond, 39, 'worn → torn');
     await host.send('Last.', reply('It snaps.', ['~ hit weapon 1']));
     assert.deepEqual(slot('weapon'), { name: 'Iron Sword', stats: {}, cond: 0, broken: true }, 'broken: no stats');
-    assert.deepEqual(gear().statBonus, { ...zero, VIT: 4 });
+    assert.deepEqual(gear().statBonus, { ...zero, VIT: 6 });
     assert.equal(host.sdk.receipts().at(-1).receipt.summary, 'Iron Sword breaks.');
     await host.send('Again.', reply('Splinters.', ['~ hit weapon 1']));
     assert.equal(host.sdk.receipts().at(-1).receipt.summary, 'Iron Sword is already broken.');
-    assert.deepEqual([slot('off-hand').stats, slot('body').stats], [{ VIT: 1 }, { VIT: 3 }], 'the other pieces are as they were');
+    assert.deepEqual([slot('off-hand').stats, slot('body').stats], [{ VIT: 2 }, { VIT: 4 }], 'the other pieces are as they were');
     // Two steps at once; the defence slot is the body armour, else the off-hand.
     await host.send('Smash.', reply('Crack.', ['~ hit defence 2']));
     assert.deepEqual([slot('body').cond, slot('off-hand').cond], [39, 100], 'good → worn → torn');
@@ -331,7 +331,7 @@ test('a def renamed from a pack item loses the pack\'s bonus; the story-made cop
     assert.equal(gearBudget(state.domains.inventory.defs['pack.fantasy/dagger']), 5);
     assert.equal(h.run('inventory.edit', { stack: 'it_dagg0001', name: 'Rusty Knife' }).ok, true);
     const copy = Object.values(h.state.domains.inventory.defs).find(item => item.name === 'Rusty Knife');
-    assert.deepEqual([copy.id.startsWith('story/'), copy.bonus, gearBudget(copy)], [true, undefined, 2]);
+    assert.deepEqual([copy.id.startsWith('story/'), copy.bonus, gearBudget(copy)], [true, undefined, 3]);
     assert.deepEqual(statsFor(state.domains.inventory.defs['pack.fantasy/dagger']), { DEX: 5 }, 'a pack item\'s budget of 5 on the dagger\'s stat');
 });
 
@@ -519,10 +519,10 @@ test('the narrator\'s equipped: word puts a new item on, rarity: and slot: words
     assert.equal(on('Rope').equipped, null, 'goods are not worn');
     assert.equal(on('Oak Shield').equipped, null, 'a word that is no slot, or does not fit, is passed over');
     assert.equal(Object.hasOwn(on('Rope'), 'equippedBy'), false, 'only what is worn');
-    // Head, cloak, feet and accessories are shown and give no bonus yet.
+    // A common piece gives its one point (every rarity has a budget now).
     const gear = host.sdk.query('inventory.gear', { owner: 'party' });
-    assert.deepEqual(gear.slots.weapon, { name: 'Hunting Knife', stats: {}, cond: 100, broken: false }, 'a common piece gives nothing');
-    assert.deepEqual(gear.slots.head, { name: 'Wool Cap', stats: {}, cond: 100, broken: false });
+    assert.deepEqual(gear.slots.weapon, { name: 'Hunting Knife', stats: { STR: 1 }, cond: 100, broken: false }, 'a common piece gives one point');
+    assert.deepEqual(gear.slots.head, { name: 'Wool Cap', stats: { VIT: 1 }, cond: 100, broken: false });
     assert.equal(gear.slots['accessory-1'].name, 'Amber Ring');
     assert.equal(gear.slots['accessory-2'].name, 'Onyx Ring');
     assert.equal(gear.slots.cloak, null);
@@ -530,7 +530,7 @@ test('the narrator\'s equipped: word puts a new item on, rarity: and slot: words
     const sword = on('Iron Sword').stack;
     assert.equal((await host.sdk.command('item.equip', { stack: sword, owner: 'party', slot: 'weapon' })).ok, true);
     assert.equal(host.sdk.query('inventory.items').find(item => item.name === 'Hunting Knife').equipped, null, 'the knife is put away');
-    assert.deepEqual(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.DEX, 2);
+    assert.deepEqual(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.DEX, 3);
     const refuse = async payload => (await host.sdk.command('item.equip', payload)).ok;
     assert.equal(await refuse({ stack: sword, slot: 'head' }), false, 'a sword does not fit the head');
     assert.equal(await refuse({ stack: sword, owner: 'ac_other001', slot: 'weapon' }), false, 'not that owner\'s');
@@ -563,21 +563,21 @@ test('stats: the narrator\'s named stats are held to the budget; with none named
     const h = createHarness([core()]);
     const add = (name, labels) => { assert.equal(h.capture(line('+', 'item', name, labels), ON).ok, true); return Object.values(h.state.domains.inventory.defs).find(item => item.name === name); };
     assert.deepEqual(add('Cane Sword', { rarity: 'rare', dex: '+2' }).stats, { DEX: 2 });
-    assert.deepEqual(add('Hexed Hammer', { rarity: 'rare', str: '2', int: '2' }).stats, { STR: 2 }, 'held to a budget of 2');
+    assert.deepEqual(add('Hexed Hammer', { rarity: 'rare', str: '2', int: '2' }).stats, { STR: 2, INT: 1 }, 'held to a budget of 3');
     assert.deepEqual(add('Split Axe', { rarity: 'epic', str: '1', agi: '1', cha: '9' }).stats, { STR: 1, AGI: 1 }, 'at most two stats');
-    assert.deepEqual(add('Plain Dirk', { dex: '3' }).stats, {}, 'a common piece has no budget');
-    assert.deepEqual(add('Iron Helm', { rarity: 'uncommon' }).stats, { VIT: 1 });
-    assert.deepEqual(add('Silk Cloak', { rarity: 'fine' }).stats, { AGI: 1 });
-    assert.deepEqual(add('Jade Ring', { rarity: 'rare' }).stats, { LUK: 2 });
-    assert.deepEqual(add('Plain Belt', { rarity: 'rare' }).stats, { LUK: 2 }, 'a belt is an accessory: the slot\'s own');
+    assert.deepEqual(add('Plain Dagger', { dex: '3' }).stats, { DEX: 1 }, 'a common piece is held to its budget of 1');
+    assert.deepEqual(add('Iron Helm', { rarity: 'uncommon' }).stats, { VIT: 2 });
+    assert.deepEqual(add('Silk Cloak', { rarity: 'fine' }).stats, { AGI: 2 });
+    assert.deepEqual(add('Jade Ring', { rarity: 'rare' }).stats, { LUK: 3 });
+    assert.deepEqual(add('Plain Belt', { rarity: 'rare' }).stats, { LUK: 3 }, 'a belt is an accessory: the slot\'s own');
     assert.equal(add('Rope', { rarity: 'rare', dex: '2' }).stats && Object.keys(add('Rope', {}).stats).length, 0, 'no slot, no stats');
     // A pack lists its own stats, held to the rarity's budget unless the pack sets a budget of its own.
     const rare = { id: 'pack.p/blade', name: 'Sun Blade', kind: 'equipment', slot: 'weapon', rarity: 'rare' };
     assert.deepEqual(statsFor({ ...rare, stats: { DEX: 2 } }), { DEX: 2 });
-    assert.deepEqual(statsFor({ ...rare, stats: { DEX: 5 } }), { DEX: 2 }, 'held to the rarity budget');
+    assert.deepEqual(statsFor({ ...rare, stats: { DEX: 5 } }), { DEX: 3 }, 'held to the rarity budget');
     assert.deepEqual(statsFor({ ...rare, stats: { DEX: 5 }, bonus: 5 }), { DEX: 5 }, 'unless the pack sets its own budget');
-    assert.deepEqual(statsFor({ ...rare }), { DEX: 2 }, 'none listed: the name\'s pick');
-    assert.deepEqual(statsFor({ ...rare, rarity: 'common' }), {});
+    assert.deepEqual(statsFor({ ...rare }), { DEX: 3 }, 'none listed: the name\'s pick');
+    assert.deepEqual(statsFor({ ...rare, rarity: 'common' }), { DEX: 1 });
     assert.equal(GEAR.effectiveMax, 30);
 });
 
@@ -585,7 +585,7 @@ test('every slot gives its stats through inventory.gear, and a broken piece take
     const host = await fresh(t);
     await host.send('Loot.', reply('Gear.', ['+ item Oak Staff | rarity: rare | equipped: weapon', '+ item Iron Helm | rarity: uncommon | equipped: head', '+ item Silk Cloak | rarity: uncommon | equipped: cloak', '+ item Walking Boots | rarity: uncommon | equipped: feet', '+ item Jade Ring | rarity: epic | equipped: accessory', '+ item Travel Pack']));
     const bonus = () => host.sdk.query('inventory.statBonus', { owner: 'party' });
-    assert.deepEqual(bonus(), { STR: 0, VIT: 1, AGI: 2, DEX: 0, INT: 2, LUK: 3, CHA: 0 });
+    assert.deepEqual(bonus(), { STR: 0, VIT: 2, AGI: 4, DEX: 0, INT: 3, LUK: 4, CHA: 0 });
     await host.send('Smash.', reply('Crash.', ['~ hit weapon 3']));
     assert.equal(bonus().INT, 0, 'broken: no stats');
     assert.equal(host.sdk.query('inventory.items').find(item => item.name === 'Travel Pack').equipped, null, 'a bag is worn nowhere');
@@ -604,7 +604,7 @@ test('repair in the story: mend is one condition word up, restore is back to Goo
     assert.deepEqual([condNow(), gear().statBonus.DEX], [0, 0], 'broken: no stats');
     await next('~ item Cane Sword — the smith reground it | repair: mend');
     assert.equal(host.sdk.receipts().at(-2).receipt.summary, 'Cane Sword is mended (0 → 39/100).');
-    assert.deepEqual([condNow(), gear().statBonus.DEX], [39, 2], 'torn: its stats are back');
+    assert.deepEqual([condNow(), gear().statBonus.DEX], [39, 3], 'torn: its stats are back');
     assert.match(tail(host), /^Equipped: Cane Sword \(torn\) \[weapon\]$/m);
     await next('~ item Cane Sword | repair: patched');
     assert.match(tail(host), /^Equipped: Cane Sword \(worn\) \[weapon\]$/m);
@@ -648,9 +648,9 @@ test('any stat on any item: a blade with AGI and DEX, held to the budget and two
     const h = createHarness([gearCore()]);
     const add = (name, labels) => { assert.equal(h.capture(line('+', 'item', name, labels, 'forged by a master in Auvoth'), ON).ok, true); return Object.values(h.state.domains.inventory.defs).find(item => item.name === name); };
     assert.deepEqual(add('Shadowsteel Blade', { rarity: 'rare', agi: '+1', dex: '+1' }).stats, { AGI: 1, DEX: 1 }, 'a blade with AGI is fine');
-    assert.deepEqual(add('Heavy Blade', { rarity: 'rare', str: '+5' }).stats, { STR: 2 }, 'held to the budget of 2');
-    assert.deepEqual(add('Odd Blade', { rarity: 'legendary', str: '1', agi: '1', dex: '1', int: '1' }).stats, { STR: 1, AGI: 1 }, 'epic here (3), two stats');
-    assert.deepEqual(add('Bare Blade', { rarity: 'rare' }).stats, { DEX: 2 }, 'none named: the default, the whole budget');
+    assert.deepEqual(add('Heavy Blade', { rarity: 'rare', str: '+5' }).stats, { STR: 3 }, 'held to the budget of 3');
+    assert.deepEqual(add('Odd Blade', { rarity: 'legendary', str: '1', agi: '1', dex: '1', int: '1' }).stats, { STR: 1, AGI: 1 }, 'epic here (4), two stats');
+    assert.deepEqual(add('Bare Blade', { rarity: 'rare' }).stats, { DEX: 3 }, 'none named: the default, the whole budget');
     assert.deepEqual(add('Wool Hood', { rarity: 'uncommon', cha: '1' }).stats, { CHA: 1 }, 'any item');
 });
 

@@ -58,9 +58,9 @@ test('kit open: Kind, Slot, Rarity and a Bonus within the budget are kept on the
 
 test('a bonus over the rarity\'s budget is refused by the command, with the form\'s sentence, and nothing is added', { skip }, async t => {
     const host = await world(t);
-    await refused(add(host, { name: 'Greedy Cap', kind: 'equipment', slot: 'head', rarity: 'rare', stats: { VIT: 2, AGI: 1 } }), /^A rare piece gives at most 2 points\.$/);
-    await refused(add(host, { name: 'Greedy Cap', kind: 'equipment', slot: 'head', rarity: 'uncommon', stats: { VIT: 2 } }), /^An uncommon piece gives at most 1 point\.$/);
-    await refused(add(host, { name: 'Greedy Cap', kind: 'equipment', slot: 'head', stats: { VIT: 1 } }), /^A common piece gives no bonus\.$/);
+    await refused(add(host, { name: 'Greedy Cap', kind: 'equipment', slot: 'head', rarity: 'rare', stats: { VIT: 3, AGI: 1 } }), /^A rare piece gives at most 3 points\.$/);
+    await refused(add(host, { name: 'Greedy Cap', kind: 'equipment', slot: 'head', rarity: 'uncommon', stats: { VIT: 3 } }), /^An uncommon piece gives at most 2 points\.$/);
+    await refused(add(host, { name: 'Greedy Cap', kind: 'equipment', slot: 'head', stats: { VIT: 2 } }), /^A common piece gives at most 1 point\.$/);
     assert.equal(rowOf(host, 'Greedy Cap'), undefined);
     assert.equal(defOf(host, 'Greedy Cap'), undefined);
 });
@@ -180,8 +180,8 @@ test('Edit: Kind, Slot, Rarity and Bonus of a piece the reader added change whil
     assert.equal(out.ok, true, out.message);
     const def = defOf(host, 'Lucky Bone Ring');
     assert.deepEqual([def.rarity, def.stats, def.slot], ['rare', { LUK: 2 }, 'accessory']);
-    await refused(host.sdk.command('inventory.edit', { stack, group: true, stats: { LUK: 3 } }), /^A rare piece gives at most 2 points\.$/);
-    await refused(host.sdk.command('inventory.edit', { stack, group: true, rarity: 'common' }), /^A common piece gives no bonus\.$/);
+    await refused(host.sdk.command('inventory.edit', { stack, group: true, stats: { LUK: 4 } }), /^A rare piece gives at most 3 points\.$/);
+    await refused(host.sdk.command('inventory.edit', { stack, group: true, rarity: 'common' }), /^A common piece gives at most 1 point\.$/);
     assert.deepEqual(defOf(host, 'Lucky Bone Ring').stats, { LUK: 2 });
 });
 
@@ -250,7 +250,7 @@ test('unknown kind, rarity or stats are refused as malformed', { skip }, async t
     await refused(host.sdk.command('inventory.edit', { stack: rowOf(host, 'Y').stack, group: true, kind: 'weapon' }), /The kind of an item is one of/);
 });
 
-test('a saved character\'s gear (starting: true) comes as written while the kit is open (slot and bonus kept); after it, Common with no bonus and a Problems line says so', { skip }, async t => {
+test('a saved character\'s gear (starting: true) comes as written while the kit is open (slot and bonus kept); after it, Common and a Problems line says so', { skip }, async t => {
     const host = await world(t);
     const first = await add(host, { name: 'Family Blade', kind: 'equipment', rarity: 'epic', slot: 'weapon', stats: { STR: 2, DEX: 1 }, starting: true });
     assert.equal(first.ok, true, first.message);
@@ -258,8 +258,8 @@ test('a saved character\'s gear (starting: true) comes as written while the kit 
     await host.send('Hello.', 'The road.');
     const out = await add(host, { name: 'Late Blade', kind: 'equipment', rarity: 'epic', slot: 'weapon', stats: { STR: 2 }, starting: true });
     assert.equal(out.ok, true, out.message);
-    assert.deepEqual([defOf(host, 'Late Blade').kind, defOf(host, 'Late Blade').rarity, defOf(host, 'Late Blade').stats], ['equipment', 'common', {}]);
-    assert.match(JSON.stringify(host.turn.problems()), /Late Blade came in as a Common piece with no bonus/);
+    assert.deepEqual([defOf(host, 'Late Blade').kind, defOf(host, 'Late Blade').rarity, defOf(host, 'Late Blade').stats], ['equipment', 'common', { DEX: 1 }]);
+    assert.match(JSON.stringify(host.turn.problems()), /Late Blade came in as a Common piece: /);
 });
 
 test('after the kit, "+ Add item" with the name of a story or pack piece makes the reader\'s own Common piece, never a copy of its rarity or bonus; a hand piece still stacks', { skip }, async t => {
@@ -270,6 +270,7 @@ test('after the kit, "+ Add item" with the name of a story or pack piece makes t
     assert.equal(defOf(host, 'Ash-grey Longsword').rarity, 'rare');
     const own = defOf(host, 'Your Ash-grey Longsword');
     assert.deepEqual([own.kind, own.slot, own.rarity, own.stats, own.hand], ['equipment', 'weapon', 'common', {}, true]);
+    assert.deepEqual(host.sdk.query('gear.view').rows[rowOf(host, 'Your Ash-grey Longsword').stack].stats, { STR: 1 }, 'no stat chosen: the usual pick, the common one point');
     assert.equal(host.sdk.query('inventory.items').filter(item => item.name === 'Ash-grey Longsword').length, 1);
     const again = await add(host, { name: 'Your Ash-grey Longsword', kind: 'equipment' });
     assert.equal(again.ok, true, again.message);
@@ -318,7 +319,7 @@ test('a saved character keeps a hand-set piece exactly: the file carries its slo
     assert.equal(defOf(fresh, 'Wolfskin Cap').hand, true);
 });
 
-test('after the kit, a pack piece not held yet (equipment or above Common) added by name makes the reader\'s own Common "Your <name>" with no bonus, worn; the same by a starting: true import', { skip }, async t => {
+test('after the kit, a pack piece not held yet (equipment or above Common) added by name makes the reader\'s own Common "Your <name>" (stored without stats; the usual one point applies), worn; the same by a starting: true import', { skip }, async t => {
     const items = [...ITEMS, { name: 'Storm Hood', kind: 'equipment', slot: 'head', rarity: 'epic', stats: { VIT: 2 } }];
     const host = await world(t, { packs: true, items });
     await host.send('Hello.', 'The road.');
@@ -343,7 +344,7 @@ test('after the kit, a pack piece not held yet (equipment or above Common) added
     assert.equal(imp.ok, true, imp.message);
     assert.equal(defOf(fresh, 'Rain-Veil Hood'), undefined);
     const mine = defOf(fresh, 'Your Rain-Veil Hood');
-    assert.deepEqual([mine.rarity, mine.stats], ['common', {}]);
+    assert.deepEqual([mine.rarity, mine.stats], ['common', { VIT: 1 }]);
 });
 
 test('the kit is open while the chat holds only greetings: a group chat with two member greetings opens it; a reader message or a Story Block reply closes it; deleting only your own messages after replies keeps it closed', { skip }, async t => {

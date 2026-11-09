@@ -1,6 +1,7 @@
 // Dialogs and wizards (SPEC §13.4, §13.6): head + draft, steps sharing one draft, Back/Next, the last step
 // submits one command, Random previews and Accept commits that exact token.
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createDialogMount } from '../../../../src/v2/view/mounts/dialog.js';
 import { fakeApi, fakeChat, fakeQuery, fakeRenderer, screensWith, setupDom } from './helpers.js';
@@ -195,4 +196,11 @@ test('Esc closes only the topmost dialog', () => {
     assert.equal(dialogs.current(), first);
     dialogs.closeAll();
     assert.equal(first.isOpen(), false);
+});
+
+test('the step row keeps its full height: flex none, so the scrolling body cannot slide under it', () => {
+    const css = readFileSync(new URL('../../../../src/v2/view/mounts.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.ss-dialog-steps \{([^}]*)\}/u)[1];
+    assert.match(rule, /flex:\s*none/u);
+    assert.match(rule, /overflow-x:\s*auto/u, 'an overflow container in a flex column would shrink to 0 without flex: none');
 });

@@ -270,7 +270,7 @@ Health, Mana and Stamina are words, not numbers, and each word is drawn as a bar
 | Unhurt, Scratched, Hurt, Wounded, Badly wounded, Down | Fresh, Steady, Low, Drained, Empty | Fresh, Winded, Tired, Spent, Empty |
 
 Stamina and Mana come back to Fresh when the character rests: the **Rest** button on the Character block sets both
-to Fresh. Health only goes back up when the story heals it. (An old pin; a new Character has **Short rest** and **Full rest**, see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character).)
+to Fresh. Health only goes back up when the story heals it. (An old pin; a new Character has no rest button: the narrator writes `rest`, `full-rest` and `heal`, see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character).)
 
 ### Standard formula: bars of blocks
 
@@ -478,8 +478,8 @@ deeds 5 to 40.
 
 A Character pinned with `scale: 2` (`templates-recovery.js`, `data-modules/recovery.js`) has no `add-xp` kind: **XP comes from board fights only**, and the Combat rules text says nothing about XP lines. A narrator `add-xp` line is refused with one Problems note (code RECOVERY_REFUSED); the reader's own edit of XP stays.
 - **Fight XP.** In a fight marked `bars: 2` each foe group pays `(15 + 2 x (count - 1)) x max(1, ceil(foe level / 10))`, times the level-gap percent as above; the groups are added, rounded down, held between 1 and 60 (0 pays nothing). One foe of the member's level gives 15, two give 17. A marked fight never holds a narrator XP line. A fight the narrator settled, a pre-check or narrator-won fight, and a mixed party are unmarked and pay the old sum.
-- **Recovery.** Story kinds: `rest` (Stamina and Mana), `full-rest` (all three bars; refused when the last full rest was under 6 story hours earlier; no story clock means allowed; the minute is stored in the action, so rebuild and Re-read never ask the clock again) and `heal` (amount 1 to 3, one line a reply). The buttons are **Short rest** (Stamina and Mana) and **Full rest** (all three). Hidden fields `rested-at` and `rested-known` keep the minute of the last full rest.
-- **No story raising.** `set-health`, `set-stamina` and `set-mana` may lower a bar but a raise is refused with one note; only rest, heal and the buttons refill.
+- **Recovery.** Story kinds: `rest` (Stamina and Mana), `full-rest` (all three bars; refused when the last full rest was under 6 story hours earlier; no story clock means allowed; the minute is stored in the action, so rebuild and Re-read never ask the clock again) and `heal` (amount 1 to 3, one line a reply). There are no rest buttons: resting is narrative only (the sheet shows none, and a Character pinned earlier with Short rest and Full rest buttons shows none either; their recorded lines still replay). Hidden fields `rested-at` and `rested-known` keep the minute of the last full rest.
+- **No story raising.** `set-health`, `set-stamina` and `set-mana` may lower a bar but a raise is refused with one note; only rest, full-rest and heal refill.
 
 ## Down and death
 
@@ -497,7 +497,7 @@ with the pencils on the block.
 
 | Template | What it holds |
 |---|---|
-| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (1 more every third level), level, cap, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. This row is the old pin; the new Character (`scale: 2`) has no narrator XP and gains Short rest, Full rest and heal, see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character). The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a level-up gives points as above; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
+| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (1 more every third level), level, cap, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. This row is the old pin; the new Character (`scale: 2`) has no narrator XP and gains the story's rest, full-rest and heal (no buttons), see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character). The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a level-up gives points as above; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
 | **Skills** | Up to five skills (a new chat's typed block: eleven slots, each combat or utility, see [Skill slots](#skill-slots)), each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
 | **Foes** | Up to four foe groups, one slot each (`level1` to `level4` for the level, which replaces `class1` to `class4`): the name, how many are left (0 means the slot is empty), the level and the group's health (Standard: 0 to 8 blocks, `4 + floor(level/30)` when the group arrives). |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |

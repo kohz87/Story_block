@@ -129,8 +129,8 @@ The eleven who can be romanced use NPC State Delta's companion meters (Trust, Af
 ### Signature gear
 
 `content.items` holds sixteen pieces of equipment the cast are known for, each worn from the owner's `wears` text. Their numbers follow
-Story Block's gear rules (`story-block.gear`, GEAR.md): the stats use the whole budget of the rarity (uncommon 1, rare 2, epic 3,
-legendary 4; common none) and a piece raises two stats at most.
+Story Block's gear rules (`story-block.gear`, GEAR.md): the stats stay inside the budget of the rarity (common 1, uncommon 2, rare 3, epic 4,
+legendary 5; the listed numbers were set at the older, lower budgets and are kept, so they use less than the whole) and a piece raises two stats at most. Fang Charm lists none: the slot's pick gives its one point.
 
 | Item | Owner | Slot | Rarity | Stats |
 |---|---|---|---|---|

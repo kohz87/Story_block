@@ -562,6 +562,8 @@
 }
 
 .ss-dialog-steps {
+    /* keeps its full height: an overflow container in a flex column has min-height 0 and would shrink under the body, cutting the pill */
+    flex: none;
     display: flex;
     gap: 4px;
     margin: 0;

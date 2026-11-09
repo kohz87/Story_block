@@ -105,8 +105,8 @@ test('the template\'s set-health line turns a word into the same share of the bi
     const run = (word, vit) => Math.floor((Math.floor(word * 2 * (4 + Math.floor(vit / 5)) * 1) + 2) / 5);
     assert.equal(JSON.stringify(effect).includes('"mul",["arg","to"],2'), true, 'the 2 is on the word, one level shallower');
     assert.deepEqual([3, 5].map(word => run(word, 5)), [6, 10]);
-    // (the Short rest refills to the size each bar holds in its hidden `-blocks` field, which the grow rules keep at the new size)
-    assert.deepEqual(NEW.kinds['button-rest'].effects.map(step => JSON.stringify(step.value)), [JSON.stringify(['get', ['stamina-blocks']]), JSON.stringify(['get', ['mana-blocks']])]);
+    // (the story's rest refills to the size each bar holds in its hidden `-blocks` field, which the grow rules keep at the new size)
+    assert.deepEqual(NEW.kinds.rest.effects.map(step => JSON.stringify(step.value)), [JSON.stringify(['get', ['stamina-blocks']]), JSON.stringify(['get', ['mana-blocks']])]);
     assert.equal(size(5), 10);
     assert.deepEqual(NEW.rules.map(rule => rule.id), ['health-grow', 'health-bar', 'stamina-grow', 'stamina-bar', 'mana-grow', 'mana-bar', 'level-up', 'xp-cap']);
 });

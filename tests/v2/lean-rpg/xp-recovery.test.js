@@ -6,7 +6,7 @@ import { createHost } from '../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { memberXp, fightGuard } from '../../../src/v2/lean-rpg/fight.js';
-import { isMarkedCharacter, fullRestTooSoon, recoveryNote } from '../../../src/v2/data-modules/recovery.js';
+import { hasRestButtons, isMarkedCharacter, fullRestTooSoon, recoveryNote } from '../../../src/v2/data-modules/recovery.js';
 import { directorStub, reload } from '../data-modules/helpers.js';
 import { cueOfResult } from '../../../src/v2/lean-rpg/cue.js';
 import { grammarFor } from '../../../src/v2/data-modules/part/views.js';
@@ -41,12 +41,14 @@ test('the unmarked fight sum is what it was (count x bands x 2)', () => {
     assert.equal(memberXp([{ count: 6, level: 4 }], 4, false), 12);
 });
 
-test('the template carries the mark, no add-xp, and the two rest buttons', () => {
+test('the template carries the mark, no add-xp, and no rest buttons (rest is the narrator\'s)', () => {
     const definition = STANDARD_TEMPLATES[0].definition;
     assert.equal(isMarkedCharacter(definition), true);
     assert.equal(isMarkedCharacter(characterV1For()), false);
     assert.equal(definition.kinds['add-xp'], undefined);
-    assert.deepEqual(['button-rest', 'button-full-rest'].map(key => definition.kinds[key].title), ['Short rest', 'Full rest']);
+    assert.deepEqual(['button-rest', 'button-full-rest'].map(key => definition.kinds[key]), [undefined, undefined]);
+    assert.deepEqual(Object.values(definition.kinds).filter(kind => kind.ui), []);
+    assert.equal(hasRestButtons(definition), false);
     assert.ok(characterV1For().kinds['add-xp'] && characterV1For().kinds['button-rest'].title === 'Rest');
     const lines = JSON.stringify(STANDARD_TEMPLATES.map(entry => entry.definition.prompt));
     assert.equal(/add-xp|XP line|XP guide/.test(lines), false);
@@ -192,9 +194,20 @@ test('a marked roll cue does not ask for XP; a saved old roll keeps its wording'
     assert.doesNotMatch(cueOfResult({ ...base, noXp: true }), /XP/);
 });
 
-test('the Short rest and Full rest buttons (reader) refill their bars', async () => {
-    const host = await world();
+// A Character pinned before the buttons went (the two kinds are still in its definition): its recorded button lines replay, the sheet draws nothing.
+const REFILL = bars => bars.map(bar => ({ op: 'set', path: [bar], value: ['get', [`${bar}-blocks`]] }));
+test('a Character pinned with the Short rest and Full rest buttons still replays their recorded lines', async () => {
+    const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } } });
     try {
+        host.features.set(CORE_FEATURE.leanRpg, true);
+        await host.send('Begin.', 'Opening.');
+        const pinned = structuredClone(STANDARD_TEMPLATES[0].definition);
+        Object.assign(pinned.kinds, {
+            'button-rest': { op: '!', ui: true, title: 'Short rest', labels: {}, effects: REFILL(['stamina', 'mana']) },
+            'button-full-rest': { op: '!', ui: true, title: 'Full rest', labels: {}, effects: REFILL(['health', 'stamina', 'mana']) },
+        });
+        assert.equal(hasRestButtons(pinned), true, 'the block screen hides these two for such a pin');
+        assert.equal((await host.sdk.command('dm.define', { definition: pinned })).ok, true);
         await set(host, { health: 1, stamina: 1, mana: 1 });
         const short = await host.sdk.command('dm.act', { module: 'pack.chat/character', kind: 'button-rest' });
         assert.equal(short.ok, true, JSON.stringify(short));

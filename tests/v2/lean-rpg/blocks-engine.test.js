@@ -147,7 +147,7 @@ test('Rest fills stamina and mana to the size their stats give', async t => {
     await set(host, 'character', { agi: 15, int: 10 });
     await host.send('Run.', reply(say('character', 'set-stamina', ' | to: Empty'), say('character', 'set-mana', ' | to: Empty')));
     assert.deepEqual([sheet(host, 'character').stamina, sheet(host, 'character').mana], [0, 0]);
-    success(await host.sdk.command('dm.act', { module: 'pack.chat/character', kind: 'button-rest' }));
+    success(await host.sdk.command('dm.act', { module: 'pack.chat/character', kind: 'button-rest' })); // (an old pin keeps its Rest button)
     assert.deepEqual([sheet(host, 'character').stamina, sheet(host, 'character').mana], [6, 5], 'AGI 15 gives 6 stamina blocks, INT 10 gives 5 mana blocks');
 });
 
@@ -156,10 +156,11 @@ test('the new pin runs words, growth, Down and Rest through the real block engin
     await host.send('Begin.', 'Opening.');
     const fresh = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Character').definition);
     success(await host.sdk.command('dm.define', { definition: fresh }));
-    // (the marked Character's grammar differs from the earlier one by design: no add-xp, rest / full-rest / heal, two buttons; xp-recovery.test.js holds the rules)
+    // (the marked Character's grammar differs from the earlier one by design: no add-xp, rest / full-rest / heal, no buttons; xp-recovery.test.js holds the rules)
     const grammar = fullModuleGrammar(fresh, 'character');
     assert.doesNotMatch(grammar, /kind: add-xp/);
-    for (const kind of ['rest', 'full-rest', 'heal | amount: 1..3', 'button-rest', 'button-full-rest']) assert.ok(grammar.includes(`kind: ${kind}`), kind);
+    for (const kind of ['rest', 'full-rest', 'heal | amount: 1..3']) assert.ok(grammar.includes(`kind: ${kind}`), kind);
+    for (const kind of ['button-rest', 'button-full-rest']) assert.ok(!grammar.includes(`kind: ${kind}`), kind);
     // (the story only lowers a marked bar, so the words go from the top stage down)
     for (const [index, word] of [...STAGES.health.entries()].reverse()) {
         await host.send('Health.', reply(say('character', 'set-health', ` | to: ${word}`)));
@@ -169,7 +170,7 @@ test('the new pin runs words, growth, Down and Rest through the real block engin
         await host.send('Recover.', reply(say('character', 'set-stamina', ` | to: ${word}`), say('character', 'set-mana', ` | to: ${STAGES.mana[index]}`)));
         assert.deepEqual([sheet(host, 'character').stamina, sheet(host, 'character').mana], Array(2).fill([0, 3, 5, 8, 10][index]));
     }
-    success(await host.sdk.command('dm.act', { module: 'pack.chat/character', kind: 'button-full-rest' })); // (the bars are at the bottom; only a rest raises them)
+    await host.send('Rest.', reply(say('character', 'full-rest', ''))); // (the bars are at the bottom; only a rest raises them)
     await host.send('Hurt.', reply(say('character', 'set-health', ' | to: Hurt'), say('character', 'set-stamina', ' | to: Tired'), say('character', 'set-mana', ' | to: Steady')));
     assert.deepEqual(bars(host), [6, 5, 8]);
     await set(host, 'character', { vit: 10, agi: 10, int: 10 });
@@ -177,7 +178,7 @@ test('the new pin runs words, growth, Down and Rest through the real block engin
     await host.send('Down.', reply(say('character', 'set-health', ' | to: Down')));
     await set(host, 'character', { vit: 15 });
     assert.deepEqual([sheet(host, 'character').health, sheet(host, 'character')['health-blocks']], [0, 14]);
-    success(await host.sdk.command('dm.act', { module: 'pack.chat/character', kind: 'button-rest' }));
+    await host.send('Rest.', reply(say('character', 'rest', '')));
     assert.deepEqual(bars(host), [0, 12, 12]);
     rebuilt(host);
     await reload(host);
