@@ -44,6 +44,10 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
 - Markup never comes from text: names flattened (`flatName`), lines cut by code points (`cutLine`,
   `MAX_LINE` 2000), the hidden marker defanged in story text (`defangMarker`).
 
+## Money guard
+
+`turn/money-guard.js` reads receipts only and writes no state: after a line applies it warns (Problems, code LIMITED, never blocks) about a `+` coin or money-item line that repeats a same-source, same-amount payment in this reply or the last 4, or is over 5 x a non-empty purse and over 10. The coin grammar says "Pay each find once. Do not repeat loot already paid in an earlier reply." Applied in every chat. A refused story `add-xp`, a raised Health, Stamina or Mana, or an early `full-rest` on a marked Character is one `RECOVERY_REFUSED` note (`capture-flow.js`).
+
 ## Key files and functions
 
 - `src/v2/capture.js`: `parseChanges`, `lineBody`, `extractBlock`, `stripBlock`, `hideBlock`, `hasHidden`,

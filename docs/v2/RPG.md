@@ -51,7 +51,7 @@ the equipped weapon, a skill with one target or every foe in reach, or Flee. Tap
 more than one foe group, choose the target next, or press Esc to go back. A line that cannot be used stays visible with its
 reason. Defence is automatic: the best usable defence skill, else the plain defence roll. Foes act by code.
 
-**Auto** plays up to the cap's exchanges for you (the **Auto-fight cap** setting, 1 to 8 or **Until the end**, default 3) with ordinary attacks. It stops on a win, a loss, a badly hurt hero (2 or more Health blocks lost in one exchange) or the cap, and it never flees. After it stops, **Auto again** plays on and **Send with this fight** sends the reply. A fight against foes that a fled or lost fight left starts from their exact bars; the board says "These foes are as you left them: N of M standing, with their bars from the last fight."
+**Auto** plays up to the cap's exchanges for you (the **Auto-fight cap** setting, 1 to 8 or **Until the end**, default 3) with ordinary attacks. It stops on a win, a loss, a badly hurt hero (2 or more Health blocks lost in one exchange; in a fight with doubled bars, a loss of a fifth of the bar, see [Doubled bars](#doubled-bars-new-chats)) or the cap, and it never flees. After it stops, **Auto again** plays on and **Send with this fight** sends the reply. A fight against foes that a fled or lost fight left starts from their exact bars; the board says "These foes are as you left them: N of M standing, with their bars from the last fight."
 
 The bars stay above a scrolling battle log, and the next choices stay at the bottom on a phone. Each rolled exchange is final.
 **Discard fight** asks first and gives the next opening a new seed. A changed sheet or equipment holds a staged board fight until
@@ -89,7 +89,7 @@ Weir-drake d20 9 + 3 + Lv 7 ÷ 5 = 1 = 13 · Weir-drake loses 1 block (5 of 6)")
    you type is yours. The **Starting level** (1 to 99, held to the story's level cap) is set here too.
 2. **Stats.** The same steppers and radar as Spend points. On the **Standard** formula (the default) every stat starts at 5 and you have
    10 points to spend; a stat can go down to 3 to free a point and up to 10, and a line under the steppers says what the next points
-   buy: `Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)`. Points you leave unspent stay on the character for Spend points. Spend
+   buy: `Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)` (the old-pin sizes; a new chat's Character shows 10 / 10 / 10 at stat 5, 12 at stat 10, see [Doubled bars](#doubled-bars-new-chats)). Points you leave unspent stay on the character for Spend points. Spend
    points shows the same line and keeps it up to date as you move the steppers.
 3. **Skills.** Start from a template (Guild fighter, River scout, Hedge mage, Field medic, Silver tongue, and the sets a
    pack adds) or write your own. Up to five skills, each with a name, what it does (up to 120 characters, which the
@@ -232,6 +232,8 @@ and the setting is not Off; with the RPG off, nothing is told and nothing change
 
 ## Skill slots
 
+**Combat and utility (new chats).** A Skills block with a `type1` field is typed: 11 slots, each with a `type<n>` of combat (default) or utility. Combat keeps the slots below (five, +1 at Lv 20, 40, 60, at most eight); utility has **three slots of its own**. The learn line takes an optional `type:`; the pool is the line's type, the first empty slot of it, and a refusal names the pool ("No free utility skill slot"). A utility skill has no target, area or defence, so it stays off the fight board, Auto and the defence pick; the narrator's tail lists it tagged "utility". The sheet shows "Combat skills 3 of 5" and "Utility skills 2 of 3" and a **Used for** switch (a full pool disables its option). Limits: `skillsFields 80`, `skillsKinds 22`; a block with no `type1` field (`skillsLegacyFields 56`) is all combat, eight slots, and never gains slots. Pack cast skills have no `type` (always combat), and the pre-check's gate still reads utility skills. What follows is the combat rule, the only rule of an old block.
+
 A character has five skill slots, a sixth from Lv 20, a seventh from Lv 40 and an eighth from Lv 60 (`skillSlots(level)` in `lean-rpg/names.js`). The `learn-N` and `practice-N` lines run N = 1..8; a learn line for a new skill goes to slot N if it is empty and open, else the first open slot, else it is refused with one Problems line that says when the next slot opens ("No free skill slot for X. The next slot opens at Lv 20."). A level drop never deletes a skill: the extra slots are kept, there are just no new learns. A character file holds up to eight skills; creation still starts at five. A Skills block made before 2.22 (five slots, no signature mark) is extended by Story Block itself, the first time it is needed: a learn line that would otherwise be refused for lack of a slot (every slot the block has is full) once the character's level has opened one the block lacks, or a returning cast member's skills to mark. A learn line that names a slot the block lacks while a lower one is free goes to the free one, and the block stays as it is. The block's pin is replaced by the same definition with the missing slots, kinds, rules and mark added (nothing removed or renamed; every skill keeps its rank and practice; its text is unchanged). The upgrade is part of that action's changes, so rebuild, reload and Re-read agree and a swipe takes it back. The Skills block's tail may say 47 tokens more for each skill it holds past five (the longest line one skill makes, a 40-character name and 120 of text, is 188 characters); an empty slot reserves nothing.
 
 ## Signature skills
@@ -268,9 +270,11 @@ Health, Mana and Stamina are words, not numbers, and each word is drawn as a bar
 | Unhurt, Scratched, Hurt, Wounded, Badly wounded, Down | Fresh, Steady, Low, Drained, Empty | Fresh, Winded, Tired, Spent, Empty |
 
 Stamina and Mana come back to Fresh when the character rests: the **Rest** button on the Character block sets both
-to Fresh. Health only goes back up when the story heals it.
+to Fresh. Health only goes back up when the story heals it. (An old pin; a new Character has **Short rest** and **Full rest**, see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character).)
 
 ### Standard formula: bars of blocks
+
+This section is the **old-pin** rule: a Character pinned before the doubled bars (no `scale` mark) keeps it, with its old damage and costs. New chats use the doubled bars below.
 
 With the Standard formula a bar is a row of **blocks**. The stored value counts the blocks left (Health 0 to 8, Stamina 0 to
 7, Mana 0 to 7); how many blocks the bar has comes from the stats when it is read: **Health 4 + VIT/5, Stamina 3 + AGI/5, Mana
@@ -294,6 +298,22 @@ same live, after a reload and after a rebuild.
 A field says it is such a bar with `blocks` on its definition (`"blocks": "health" | "stamina" | "mana"` on a Character block's
 bars, `"foe"` on a Foes block's `hurtN`); a field without it is a stage bar and is read as before. A kind's number
 label may carry its own `names`, which is how the story's words reach a value its effect works out.
+
+### Doubled bars (new chats)
+
+A Character made in a new chat (the chooser, the wizard, an import, a first companion) is pinned with `scale: 2` on its three bars (`templates-bars.js scaledCharacter`; the frozen old Character is `characterV1For()`). Each bar is twice as long, and the stored value counts blocks left:
+**Health 2 x (4 + VIT/5), Stamina 2 x (4 + AGI/5), Mana 2 x (4 + INT/5)**, the stat divided and rounded down (`formula.js blocksFor(stats, scale)`). A character made fresh starts at 10 / 10 / 10; the most is 16 each, at a base stat of 20. Bars read the base stats: gear never grows a bar. Pack-defined characters keep their own sizes; a pinned bar with no mark keeps the old sizes, byte for byte. Rules and prompts name stage words only, never a block count.
+
+Look: every Health, Stamina and Mana bar (old pins too) is one smooth strip, red, green and blue, with the word and the number ("Hurt · 5/10"). The strip shortens with the value and dulls at 3/4 and at 1/3 (`view/widgets/dom.js barStep`, `lean-rpg/view/bars.css`; Stamina's green is `--ss-sp`, the same token as `--ss-tick`). Old stage bars get the number too.
+
+A companion who joins an existing chat is made on that chat's sizes (`join.js joinScale`): an old party stays old, an empty party gets the new Character, and a Re-read keeps a first companion's original pin. There is no conversion of an existing chat.
+
+**The fight mark `bars: 2`.** The board marks a fight (like `aoe` and `fix`) only when every sheet character is pinned at scale 2; the mark is in the fight's setup and result, and a mismatch with the pins reports a damaged save. Only in a marked fight:
+- a single-target skill hits for 2 blocks (3 when decisive); a plain attack stays 1 (decisive 2); an area skill is unchanged;
+- an area skill costs 2 of its resource and cannot be chosen with fewer than 2 left (the board says "Not enough ..."; Auto never picks it; mid-exchange it is rolled without the skill, as for an empty pool);
+- Auto stops when a hero has lost a fifth of the bar (loss x 5 >= size);
+- heals keep their number (1 block, 2 decisive); words keep their share of the bar.
+A mixed party leaves the fight unmarked, and a pre-check opening (which rolls no bars) is never marked; an old recorded fight keeps its own rules.
 
 ## Rolls
 
@@ -388,11 +408,11 @@ the type's own stat.
   15–16 +2..+4, 17–18 +2..+5, 19–20 +3..+5. A fresh character (LUK 5) has −2..+3.
 - **Foes.** A foe adds `foeBase + floor(its level ÷ 5)` to its d20 (the base is 2, 4 or 6 for Gentle, Standard and Harsh). A foe group has Health
   `4 + floor(level/30)` blocks and acts once a round whatever its count.
-- **Hits.** A hit takes 1 block of Health from its target, a decisive hit 2. A party member's action hits on a success or a success at a cost;
+- **Hits.** A hit takes 1 block of Health from its target, a decisive hit 2 (a single-target skill in a fight marked `bars: 2` takes 2, decisive 3; see [Doubled bars](#doubled-bars-new-chats)). A party member's action hits on a success or a success at a cost;
   a foe's attack hits when the defender fails. Decisive is the winner's natural 20, the loser's natural 1, or a lead of 8. Code writes the
   new Health to the sheet and tells the narrator which bars it moved, in words ("Bars now: Wessel Hurt; Sluice Rats Down"), never to set
-  them for a rolled hit, heal or skill cost. Bars are clamped to their size (`blocksFor`: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5).
-- **Skills cost a block.** Each time an action uses a skill (an attack, a heal, a defence with a skill, a check), code takes one block from that
+  them for a rolled hit, heal or skill cost. Bars are clamped to their size (`blocksFor`: old pin Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5; a pin with `scale: 2` has 2 x (4 + stat/5) for all three).
+- **Skills cost a block.** Each time an action uses a skill (an attack, a heal, a defence with a skill, a check), code takes one block (2 for an area skill in a `bars: 2` fight) from that
   skill's resource: Stamina for a Stamina skill, Mana for a Mana skill, never below 0. With the resource empty, the action is rolled without the
   skill (no skill, rank 0, the type's own stat) and the log says so. A swipe, a Re-read and a rebuild agree with it like they do with hits.
 - **Area.** An area skill rolls once against each standing foe group's own roll; each group's bar moves on its own.
@@ -448,11 +468,18 @@ records the rate it was made with, so a later change never moves a past reply.
 
 **Skill ranks** run Novice, Adept, Expert, Master, and a Master keeps practice at 100.
 
-**XP for a won fight is given by code.** When a reply takes the fight from "a foe group is still standing" to "every filled foe group is Down"
+**XP for a won fight is given by code (old pins).** When a reply takes the fight from "a foe group is still standing" to "every filled foe group is Down"
 (by the dice, or by the narrator's own Foes lines), every party member who has not Left (a Down member too; a dead one is not paid) gets XP of their own, once for that fight. For each foe group a member gets `count × max(1, ceil(foe level ÷ 10)) × 2`, times 100 % plus 10 % for each level the foe is above the member (minus 10 % for each level below), held between 0 % and 200 %. The groups are added and rounded down; a total above 0 is held between 1 and 60, and a total of 0 gives no XP and no line. Level 5 against six level 5 foes gives 12 to each member; a level 25 member against them gives 0. The fight's groups are the ones that were standing when the reply began and are still on the Foes block, so a beaten group that stays on the block pays nothing again, and a later reply that fills a slot again and wins is a new fight. "Changed this reply" says so ("Astra +12 XP (fight won)"), a level-up follows the block's own rule, and a swipe, a Re-read, a delete in the middle, a rebuild and a reload all give the same XP. In that reply the narrator's own XP line for a party member is not used (one line in the Problems list says "XP for the fight is given by code; the narrator's XP line was not used."); XP lines in any other reply (a quest, a discovery) are the narrator's as before. A group the narrator clears from the block is gone, not Down (it fled, yielded or was taken), so the cue tells the narrator to leave a beaten group on the block, Down, in the reply it falls. The Combat rules text of a new chat says so too; a chat's stored text is not rewritten.
 
-The narrator gives XP for other deeds with lines in the story (the XP rate applies to those too). The Combat rules text says: XP for a won fight is given by code, other
+The narrator gives XP for other deeds with lines in the story (the XP rate applies to those too). The Combat rules text of an old pin says: XP for a won fight is given by code, other
 deeds 5 to 40.
+
+### Recovery and XP on a new Character
+
+A Character pinned with `scale: 2` (`templates-recovery.js`, `data-modules/recovery.js`) has no `add-xp` kind: **XP comes from board fights only**, and the Combat rules text says nothing about XP lines. A narrator `add-xp` line is refused with one Problems note (code RECOVERY_REFUSED); the reader's own edit of XP stays.
+- **Fight XP.** In a fight marked `bars: 2` each foe group pays `(15 + 2 x (count - 1)) x max(1, ceil(foe level / 10))`, times the level-gap percent as above; the groups are added, rounded down, held between 1 and 60 (0 pays nothing). One foe of the member's level gives 15, two give 17. A marked fight never holds a narrator XP line. A fight the narrator settled, a pre-check or narrator-won fight, and a mixed party are unmarked and pay the old sum.
+- **Recovery.** Story kinds: `rest` (Stamina and Mana), `full-rest` (all three bars; refused when the last full rest was under 6 story hours earlier; no story clock means allowed; the minute is stored in the action, so rebuild and Re-read never ask the clock again) and `heal` (amount 1 to 3, one line a reply). The buttons are **Short rest** (Stamina and Mana) and **Full rest** (all three). Hidden fields `rested-at` and `rested-known` keep the minute of the last full rest.
+- **No story raising.** `set-health`, `set-stamina` and `set-mana` may lower a bar but a raise is refused with one note; only rest, heal and the buttons refill.
 
 ## Down and death
 
@@ -470,8 +497,8 @@ with the pencils on the block.
 
 | Template | What it holds |
 |---|---|
-| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (1 more every third level), level, cap, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a level-up gives points as above; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
-| **Skills** | Up to five skills, each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
+| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (1 more every third level), level, cap, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. This row is the old pin; the new Character (`scale: 2`) has no narrator XP and gains Short rest, Full rest and heal, see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character). The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a level-up gives points as above; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
+| **Skills** | Up to five skills (a new chat's typed block: eleven slots, each combat or utility, see [Skill slots](#skill-slots)), each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
 | **Foes** | Up to four foe groups, one slot each (`level1` to `level4` for the level, which replaces `class1` to `class4`): the name, how many are left (0 means the slot is empty), the level and the group's health (Standard: 0 to 8 blocks, `4 + floor(level/30)` when the group arrives). |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
@@ -496,7 +523,7 @@ The templates are in `src/v2/lean-rpg/templates.js`. They use these keys, which 
 A block with a `role` is held to these rules, and is told like any other block while the RPG is switched off:
 
 - A field drawn as a bar (`health`, `mana`, `stamina`, a foe's `hurt1` to `hurt4`) has at most 10 stages, counted up from 0; a
-  longer one is refused when the block is made.
+  longer one is refused when the block is made. A Character's three bars may carry `scale: 2` (only 2, only on the `health`, `stamina` and `mana` bars, and all three together): they then hold up to 17 stages (`DM_LIMITS.scaledStages`) and the block marks a doubled-bars Character (see [Doubled bars](#doubled-bars-new-chats)). A Skills block with a `type1` field has up to 80 fields and 22 kinds (`skillsFields`, `skillsKinds`; a block without one keeps `skillsLegacyFields` 56).
 - `prompt: false` is honoured for every field the RPG tells the narrator about: a skill's name, what it does, a foe's name or
   level, and `who`. The same holds for the rolls: a hidden foe name is "Foe 2" (its slot) there,
   a hidden skill name is not offered, and a hidden `who` is the block's own name. A hidden number (health, a stat, level, a

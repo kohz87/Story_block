@@ -820,7 +820,10 @@ sdk.registerModule({
   * The fight board's unsent exchanges, discard counts and last payload live in `chatMetadata.rpgFightBoard`,
     `chatMetadata.rpgFightAttempts` and `chatMetadata.rpgFightLast`; they are not game state and add no prompt text. Its
     committed rolls are ordinary reply-bound `rpg.resolve` receipts. Explicit skill flags are reserved under the
-    `dataModules.boardFlags` scratch map, keyed by reply `sid`, block, slot and skill name (DATA_MODULES.md).
+    `dataModules.boardFlags` scratch map, keyed by reply `sid`, block, slot and skill name (DATA_MODULES.md). A fight records
+    `bars: 2` in its setup and result (like `aoe` and `fix`) only when every sheet character is pinned `scale: 2`; only then
+    single-target skills hit 2 (3 decisive), an area skill costs 2 and Auto stops at a fifth of the bar. An unmarked fight and
+    a pre-check opening keep the old rules (RPG.md "Doubled bars"; MODULES §F130).
   * A module without `features` behaves as before. On a host older than features, `features` and the
     `feature` keys are warned about and ignored (everything is on), and `context.parts` is ignored too:
     a module that must run there checks `sdk.feature?.(id) ?? true` and keeps its core text in
