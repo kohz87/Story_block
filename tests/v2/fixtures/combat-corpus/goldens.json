@@ -4907,6 +4907,2217 @@
       "problems": []
     }
   },
+  "board-soak": {
+    "state": {
+      "v": 2,
+      "meta": {
+        "rev": 2,
+        "claims": {
+          "rpg:resolve:b:sw_5aed844f67d4%3A0:sw_5aed844f67d4:0:reply:sw_2b8e188fc8b8": true
+        }
+      },
+      "domains": {
+        "dataModules": {
+          "pins": {
+            "h0": {
+              "definition": {
+                "slug": "hero",
+                "name": "hero",
+                "role": "character",
+                "schema": 1,
+                "stateVersion": 2,
+                "scope": "chat",
+                "prompt": "One character: who they are, health, stamina and mana (words, shown as bars), seven stats 1 to 20, points, Level 1 to 99 and XP to 100. The narrator may lower health, mana and stamina, never raise them: rest, full-rest (once in 6 story hours) and heal (amount 1 to 3) do. They die only when Down before a reply and still Down at its end. The reader sets stats and points; at 100 XP the Level rises, and every third Level gives a point.",
+                "show": {
+                  "tab": true,
+                  "card": false,
+                  "tabName": "Character",
+                  "icon": "ph-user"
+                },
+                "state": {
+                  "who": {
+                    "type": "text",
+                    "max": 40,
+                    "default": "",
+                    "label": "Name"
+                  },
+                  "about": {
+                    "type": "text",
+                    "max": 240,
+                    "default": "",
+                    "label": "Who they are"
+                  },
+                  "health": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 16,
+                    "default": 10,
+                    "label": "Health",
+                    "blocks": "health",
+                    "scale": 2
+                  },
+                  "mana": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 16,
+                    "default": 10,
+                    "label": "Mana",
+                    "blocks": "mana",
+                    "scale": 2
+                  },
+                  "stamina": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 16,
+                    "default": 10,
+                    "label": "Stamina",
+                    "blocks": "stamina",
+                    "scale": 2
+                  },
+                  "str": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 5,
+                    "label": "STR"
+                  },
+                  "vit": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 5,
+                    "label": "VIT"
+                  },
+                  "agi": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 5,
+                    "label": "AGI"
+                  },
+                  "dex": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 5,
+                    "label": "DEX"
+                  },
+                  "int": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 5,
+                    "label": "INT"
+                  },
+                  "luk": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 5,
+                    "label": "LUK"
+                  },
+                  "cha": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 5,
+                    "label": "CHA"
+                  },
+                  "points": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 60,
+                    "default": 0,
+                    "label": "Points"
+                  },
+                  "level": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 99,
+                    "default": 1,
+                    "label": "Level"
+                  },
+                  "xp": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 9999,
+                    "default": 0,
+                    "label": "XP"
+                  },
+                  "rise": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 99,
+                    "default": 0,
+                    "label": "Rise",
+                    "prompt": false,
+                    "edit": false
+                  },
+                  "cap": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 99,
+                    "default": 99,
+                    "label": "Level cap",
+                    "prompt": false
+                  },
+                  "down": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "Down",
+                    "prompt": false
+                  },
+                  "alive": {
+                    "type": "bool",
+                    "default": true,
+                    "label": "Alive"
+                  },
+                  "left": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "Left"
+                  },
+                  "health-blocks": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 16,
+                    "default": 10,
+                    "label": "Health blocks",
+                    "prompt": false,
+                    "edit": false
+                  },
+                  "stamina-blocks": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 16,
+                    "default": 10,
+                    "label": "Stamina blocks",
+                    "prompt": false,
+                    "edit": false
+                  },
+                  "mana-blocks": {
+                    "type": "int",
+                    "min": 0,
+                    "max": 16,
+                    "default": 10,
+                    "label": "Mana blocks",
+                    "prompt": false,
+                    "edit": false
+                  },
+                  "rested-at": {
+                    "type": "int",
+                    "min": -9007199254740991,
+                    "max": 9007199254740991,
+                    "default": 0,
+                    "label": "Last full rest",
+                    "prompt": false,
+                    "edit": false
+                  },
+                  "rested-known": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "Full rest recorded",
+                    "prompt": false,
+                    "edit": false
+                  }
+                },
+                "kinds": {
+                  "set-health": {
+                    "op": "~",
+                    "labels": {
+                      "to": {
+                        "type": "int",
+                        "min": 0,
+                        "max": 5,
+                        "names": {
+                          "0": "Down",
+                          "1": "Badly wounded",
+                          "2": "Wounded",
+                          "3": "Hurt",
+                          "4": "Scratched",
+                          "5": "Unhurt"
+                        }
+                      }
+                    },
+                    "effects": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "health"
+                        ],
+                        "value": [
+                          "floorDiv",
+                          [
+                            "add",
+                            [
+                              "mul",
+                              [
+                                "mul",
+                                [
+                                  "arg",
+                                  "to"
+                                ],
+                                2
+                              ],
+                              [
+                                "floorDiv",
+                                [
+                                  "add",
+                                  [
+                                    "get",
+                                    [
+                                      "vit"
+                                    ]
+                                  ],
+                                  20
+                                ],
+                                5
+                              ]
+                            ],
+                            2
+                          ],
+                          5
+                        ]
+                      }
+                    ]
+                  },
+                  "set-mana": {
+                    "op": "~",
+                    "labels": {
+                      "to": {
+                        "type": "int",
+                        "min": 0,
+                        "max": 4,
+                        "names": {
+                          "0": "Empty",
+                          "1": "Drained",
+                          "2": "Low",
+                          "3": "Steady",
+                          "4": "Fresh"
+                        }
+                      }
+                    },
+                    "effects": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "mana"
+                        ],
+                        "value": [
+                          "floorDiv",
+                          [
+                            "add",
+                            [
+                              "mul",
+                              [
+                                "mul",
+                                [
+                                  "arg",
+                                  "to"
+                                ],
+                                2
+                              ],
+                              [
+                                "floorDiv",
+                                [
+                                  "add",
+                                  [
+                                    "get",
+                                    [
+                                      "int"
+                                    ]
+                                  ],
+                                  20
+                                ],
+                                5
+                              ]
+                            ],
+                            2
+                          ],
+                          4
+                        ]
+                      }
+                    ]
+                  },
+                  "set-stamina": {
+                    "op": "~",
+                    "labels": {
+                      "to": {
+                        "type": "int",
+                        "min": 0,
+                        "max": 4,
+                        "names": {
+                          "0": "Empty",
+                          "1": "Spent",
+                          "2": "Tired",
+                          "3": "Winded",
+                          "4": "Fresh"
+                        }
+                      }
+                    },
+                    "effects": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "stamina"
+                        ],
+                        "value": [
+                          "floorDiv",
+                          [
+                            "add",
+                            [
+                              "mul",
+                              [
+                                "mul",
+                                [
+                                  "arg",
+                                  "to"
+                                ],
+                                2
+                              ],
+                              [
+                                "floorDiv",
+                                [
+                                  "add",
+                                  [
+                                    "get",
+                                    [
+                                      "agi"
+                                    ]
+                                  ],
+                                  20
+                                ],
+                                5
+                              ]
+                            ],
+                            2
+                          ],
+                          4
+                        ]
+                      }
+                    ]
+                  },
+                  "rest": {
+                    "op": "~",
+                    "labels": {},
+                    "effects": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "stamina"
+                        ],
+                        "value": [
+                          "get",
+                          [
+                            "stamina-blocks"
+                          ]
+                        ]
+                      },
+                      {
+                        "op": "set",
+                        "path": [
+                          "mana"
+                        ],
+                        "value": [
+                          "get",
+                          [
+                            "mana-blocks"
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  "full-rest": {
+                    "op": "~",
+                    "labels": {},
+                    "effects": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "health"
+                        ],
+                        "value": [
+                          "get",
+                          [
+                            "health-blocks"
+                          ]
+                        ]
+                      },
+                      {
+                        "op": "set",
+                        "path": [
+                          "stamina"
+                        ],
+                        "value": [
+                          "get",
+                          [
+                            "stamina-blocks"
+                          ]
+                        ]
+                      },
+                      {
+                        "op": "set",
+                        "path": [
+                          "mana"
+                        ],
+                        "value": [
+                          "get",
+                          [
+                            "mana-blocks"
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  "heal": {
+                    "op": "~",
+                    "labels": {
+                      "amount": {
+                        "type": "int",
+                        "min": 1,
+                        "max": 3
+                      }
+                    },
+                    "effects": [
+                      {
+                        "op": "add",
+                        "path": [
+                          "health"
+                        ],
+                        "value": [
+                          "arg",
+                          "amount"
+                        ],
+                        "bounds": "clamp"
+                      }
+                    ]
+                  }
+                },
+                "rules": [
+                  {
+                    "id": "health-grow",
+                    "when": [
+                      "and",
+                      [
+                        "gt",
+                        [
+                          "get",
+                          [
+                            "health"
+                          ]
+                        ],
+                        0
+                      ],
+                      [
+                        "gt",
+                        [
+                          "mul",
+                          2,
+                          [
+                            "floorDiv",
+                            [
+                              "add",
+                              [
+                                "get",
+                                [
+                                  "vit"
+                                ]
+                              ],
+                              20
+                            ],
+                            5
+                          ]
+                        ],
+                        [
+                          "get",
+                          [
+                            "health-blocks"
+                          ]
+                        ]
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "add",
+                        "path": [
+                          "health"
+                        ],
+                        "value": [
+                          "sub",
+                          [
+                            "mul",
+                            2,
+                            [
+                              "floorDiv",
+                              [
+                                "add",
+                                [
+                                  "get",
+                                  [
+                                    "vit"
+                                  ]
+                                ],
+                                20
+                              ],
+                              5
+                            ]
+                          ],
+                          [
+                            "get",
+                            [
+                              "health-blocks"
+                            ]
+                          ]
+                        ],
+                        "bounds": "clamp"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "health-bar",
+                    "when": [
+                      "ne",
+                      [
+                        "get",
+                        [
+                          "health-blocks"
+                        ]
+                      ],
+                      [
+                        "mul",
+                        2,
+                        [
+                          "floorDiv",
+                          [
+                            "add",
+                            [
+                              "get",
+                              [
+                                "vit"
+                              ]
+                            ],
+                            20
+                          ],
+                          5
+                        ]
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "health-blocks"
+                        ],
+                        "value": [
+                          "mul",
+                          2,
+                          [
+                            "floorDiv",
+                            [
+                              "add",
+                              [
+                                "get",
+                                [
+                                  "vit"
+                                ]
+                              ],
+                              20
+                            ],
+                            5
+                          ]
+                        ]
+                      },
+                      {
+                        "op": "set",
+                        "path": [
+                          "health"
+                        ],
+                        "value": [
+                          "min",
+                          [
+                            "get",
+                            [
+                              "health"
+                            ]
+                          ],
+                          [
+                            "mul",
+                            2,
+                            [
+                              "floorDiv",
+                              [
+                                "add",
+                                [
+                                  "get",
+                                  [
+                                    "vit"
+                                  ]
+                                ],
+                                20
+                              ],
+                              5
+                            ]
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "id": "stamina-grow",
+                    "when": [
+                      "and",
+                      [
+                        "gt",
+                        [
+                          "get",
+                          [
+                            "stamina"
+                          ]
+                        ],
+                        0
+                      ],
+                      [
+                        "gt",
+                        [
+                          "mul",
+                          2,
+                          [
+                            "floorDiv",
+                            [
+                              "add",
+                              [
+                                "get",
+                                [
+                                  "agi"
+                                ]
+                              ],
+                              20
+                            ],
+                            5
+                          ]
+                        ],
+                        [
+                          "get",
+                          [
+                            "stamina-blocks"
+                          ]
+                        ]
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "add",
+                        "path": [
+                          "stamina"
+                        ],
+                        "value": [
+                          "sub",
+                          [
+                            "mul",
+                            2,
+                            [
+                              "floorDiv",
+                              [
+                                "add",
+                                [
+                                  "get",
+                                  [
+                                    "agi"
+                                  ]
+                                ],
+                                20
+                              ],
+                              5
+                            ]
+                          ],
+                          [
+                            "get",
+                            [
+                              "stamina-blocks"
+                            ]
+                          ]
+                        ],
+                        "bounds": "clamp"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "stamina-bar",
+                    "when": [
+                      "ne",
+                      [
+                        "get",
+                        [
+                          "stamina-blocks"
+                        ]
+                      ],
+                      [
+                        "mul",
+                        2,
+                        [
+                          "floorDiv",
+                          [
+                            "add",
+                            [
+                              "get",
+                              [
+                                "agi"
+                              ]
+                            ],
+                            20
+                          ],
+                          5
+                        ]
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "stamina-blocks"
+                        ],
+                        "value": [
+                          "mul",
+                          2,
+                          [
+                            "floorDiv",
+                            [
+                              "add",
+                              [
+                                "get",
+                                [
+                                  "agi"
+                                ]
+                              ],
+                              20
+                            ],
+                            5
+                          ]
+                        ]
+                      },
+                      {
+                        "op": "set",
+                        "path": [
+                          "stamina"
+                        ],
+                        "value": [
+                          "min",
+                          [
+                            "get",
+                            [
+                              "stamina"
+                            ]
+                          ],
+                          [
+                            "mul",
+                            2,
+                            [
+                              "floorDiv",
+                              [
+                                "add",
+                                [
+                                  "get",
+                                  [
+                                    "agi"
+                                  ]
+                                ],
+                                20
+                              ],
+                              5
+                            ]
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "id": "mana-grow",
+                    "when": [
+                      "and",
+                      [
+                        "gt",
+                        [
+                          "get",
+                          [
+                            "mana"
+                          ]
+                        ],
+                        0
+                      ],
+                      [
+                        "gt",
+                        [
+                          "mul",
+                          2,
+                          [
+                            "floorDiv",
+                            [
+                              "add",
+                              [
+                                "get",
+                                [
+                                  "int"
+                                ]
+                              ],
+                              20
+                            ],
+                            5
+                          ]
+                        ],
+                        [
+                          "get",
+                          [
+                            "mana-blocks"
+                          ]
+                        ]
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "add",
+                        "path": [
+                          "mana"
+                        ],
+                        "value": [
+                          "sub",
+                          [
+                            "mul",
+                            2,
+                            [
+                              "floorDiv",
+                              [
+                                "add",
+                                [
+                                  "get",
+                                  [
+                                    "int"
+                                  ]
+                                ],
+                                20
+                              ],
+                              5
+                            ]
+                          ],
+                          [
+                            "get",
+                            [
+                              "mana-blocks"
+                            ]
+                          ]
+                        ],
+                        "bounds": "clamp"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "mana-bar",
+                    "when": [
+                      "ne",
+                      [
+                        "get",
+                        [
+                          "mana-blocks"
+                        ]
+                      ],
+                      [
+                        "mul",
+                        2,
+                        [
+                          "floorDiv",
+                          [
+                            "add",
+                            [
+                              "get",
+                              [
+                                "int"
+                              ]
+                            ],
+                            20
+                          ],
+                          5
+                        ]
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "mana-blocks"
+                        ],
+                        "value": [
+                          "mul",
+                          2,
+                          [
+                            "floorDiv",
+                            [
+                              "add",
+                              [
+                                "get",
+                                [
+                                  "int"
+                                ]
+                              ],
+                              20
+                            ],
+                            5
+                          ]
+                        ]
+                      },
+                      {
+                        "op": "set",
+                        "path": [
+                          "mana"
+                        ],
+                        "value": [
+                          "min",
+                          [
+                            "get",
+                            [
+                              "mana"
+                            ]
+                          ],
+                          [
+                            "mul",
+                            2,
+                            [
+                              "floorDiv",
+                              [
+                                "add",
+                                [
+                                  "get",
+                                  [
+                                    "int"
+                                  ]
+                                ],
+                                20
+                              ],
+                              5
+                            ]
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "id": "level-up",
+                    "when": [
+                      "and",
+                      [
+                        "ge",
+                        [
+                          "get",
+                          [
+                            "xp"
+                          ]
+                        ],
+                        100
+                      ],
+                      [
+                        "lt",
+                        [
+                          "get",
+                          [
+                            "level"
+                          ]
+                        ],
+                        [
+                          "get",
+                          [
+                            "cap"
+                          ]
+                        ]
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "rise"
+                        ],
+                        "value": [
+                          "min",
+                          [
+                            "floorDiv",
+                            [
+                              "get",
+                              [
+                                "xp"
+                              ]
+                            ],
+                            100
+                          ],
+                          [
+                            "sub",
+                            [
+                              "get",
+                              [
+                                "cap"
+                              ]
+                            ],
+                            [
+                              "get",
+                              [
+                                "level"
+                              ]
+                            ]
+                          ]
+                        ]
+                      },
+                      {
+                        "op": "add",
+                        "path": [
+                          "points"
+                        ],
+                        "value": [
+                          "sub",
+                          [
+                            "floorDiv",
+                            [
+                              "add",
+                              [
+                                "get",
+                                [
+                                  "level"
+                                ]
+                              ],
+                              [
+                                "get",
+                                [
+                                  "rise"
+                                ]
+                              ]
+                            ],
+                            3
+                          ],
+                          [
+                            "floorDiv",
+                            [
+                              "get",
+                              [
+                                "level"
+                              ]
+                            ],
+                            3
+                          ]
+                        ],
+                        "bounds": "clamp"
+                      },
+                      {
+                        "op": "add",
+                        "path": [
+                          "level"
+                        ],
+                        "value": [
+                          "get",
+                          [
+                            "rise"
+                          ]
+                        ],
+                        "bounds": "clamp"
+                      },
+                      {
+                        "op": "add",
+                        "path": [
+                          "xp"
+                        ],
+                        "value": [
+                          "mul",
+                          [
+                            "get",
+                            [
+                              "rise"
+                            ]
+                          ],
+                          -100
+                        ],
+                        "bounds": "clamp"
+                      },
+                      {
+                        "op": "set",
+                        "path": [
+                          "rise"
+                        ],
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "xp-cap",
+                    "when": [
+                      "and",
+                      [
+                        "ge",
+                        [
+                          "get",
+                          [
+                            "level"
+                          ]
+                        ],
+                        [
+                          "get",
+                          [
+                            "cap"
+                          ]
+                        ]
+                      ],
+                      [
+                        "gt",
+                        [
+                          "get",
+                          [
+                            "xp"
+                          ]
+                        ],
+                        100
+                      ]
+                    ],
+                    "then": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "xp"
+                        ],
+                        "value": 100
+                      }
+                    ]
+                  }
+                ],
+                "replyEnd": [
+                  {
+                    "type": "reply-end",
+                    "when": [
+                      "and",
+                      [
+                        "eq",
+                        [
+                          "get",
+                          [
+                            "health"
+                          ]
+                        ],
+                        0
+                      ],
+                      [
+                        "get",
+                        [
+                          "down"
+                        ]
+                      ]
+                    ],
+                    "effects": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "alive"
+                        ],
+                        "value": false
+                      }
+                    ]
+                  },
+                  {
+                    "type": "reply-end",
+                    "when": true,
+                    "effects": [
+                      {
+                        "op": "set",
+                        "path": [
+                          "down"
+                        ],
+                        "value": [
+                          "eq",
+                          [
+                            "get",
+                            [
+                              "health"
+                            ]
+                          ],
+                          0
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "cards": [
+                  {
+                    "type": "card",
+                    "when": [
+                      "not",
+                      [
+                        "get",
+                        [
+                          "alive"
+                        ]
+                      ]
+                    ],
+                    "tone": "end",
+                    "title": "The story ends here",
+                    "text": "This character has died. Swipe or delete the reply that ended it to take that back."
+                  }
+                ],
+                "id": "pack.chat/hero"
+              },
+              "packId": "chat",
+              "interpreter": 1
+            },
+            "h1": {
+              "definition": {
+                "id": "pack.chat/skills",
+                "slug": "skills",
+                "name": "skills",
+                "role": "skills",
+                "schema": 1,
+                "scope": "chat"
+              },
+              "packId": "chat",
+              "interpreter": 1
+            },
+            "h2": {
+              "definition": {
+                "id": "pack.chat/foes",
+                "slug": "foes",
+                "name": "foes",
+                "role": "foes",
+                "schema": 1,
+                "scope": "chat"
+              },
+              "packId": "chat",
+              "interpreter": 1
+            }
+          },
+          "active": {
+            "pack.chat/hero": {
+              "hash": "h0",
+              "generation": 1,
+              "subjects": [
+                "chat"
+              ]
+            },
+            "pack.chat/skills": {
+              "hash": "h1",
+              "generation": 1,
+              "subjects": [
+                "chat"
+              ]
+            },
+            "pack.chat/foes": {
+              "hash": "h2",
+              "generation": 1,
+              "subjects": [
+                "chat"
+              ]
+            }
+          },
+          "instances": {
+            "pack.chat/hero": {
+              "chat": {
+                "fields": {
+                  "who": "Astra",
+                  "health": 16,
+                  "mana": 10,
+                  "stamina": 9,
+                  "str": 10,
+                  "vit": 20,
+                  "agi": 10,
+                  "dex": 10,
+                  "int": 5,
+                  "luk": 9,
+                  "cha": 10,
+                  "points": 0,
+                  "soul": 2,
+                  "xp": 0,
+                  "down": false,
+                  "alive": true
+                },
+                "timers": {},
+                "offers": {},
+                "settled": {}
+              }
+            },
+            "pack.chat/skills": {
+              "chat": {
+                "fields": {
+                  "who": "Astra",
+                  "skill1": "Cut",
+                  "skill2": "Shadow Step",
+                  "skill3": "",
+                  "skill4": "",
+                  "skill5": "",
+                  "rank1": 3,
+                  "rank2": 1,
+                  "rank3": "",
+                  "rank4": "",
+                  "rank5": "",
+                  "practice1": 0,
+                  "practice2": 9,
+                  "practice3": "",
+                  "practice4": "",
+                  "practice5": "",
+                  "stat1": "str",
+                  "stat2": "agi",
+                  "stat3": "",
+                  "stat4": "",
+                  "stat5": "",
+                  "uses1": "stamina",
+                  "uses2": "stamina",
+                  "uses3": "",
+                  "uses4": "",
+                  "uses5": "",
+                  "about1": "cut one foe",
+                  "about2": "dodge a blow",
+                  "about3": "",
+                  "about4": "",
+                  "about5": ""
+                },
+                "timers": {},
+                "offers": {},
+                "settled": {}
+              }
+            },
+            "pack.chat/foes": {
+              "chat": {
+                "fields": {
+                  "foe1": "Cellar Brute",
+                  "foe2": "",
+                  "foe3": "",
+                  "foe4": "",
+                  "count1": 1,
+                  "count2": "",
+                  "count3": "",
+                  "count4": "",
+                  "level1": 40,
+                  "level2": "",
+                  "level3": "",
+                  "level4": "",
+                  "hurt1": 2,
+                  "hurt2": "",
+                  "hurt3": "",
+                  "hurt4": ""
+                },
+                "timers": {},
+                "offers": {},
+                "settled": {}
+              }
+            }
+          },
+          "perReply": {}
+        }
+      }
+    },
+    "problems": [],
+    "cues": [
+      {
+        "index": 2,
+        "cue": "Tell the settled fight results in order; do not reroll them. | Write [battle] on its own line where the fight is told. | Code has already moved the bars for these results; never set those yourself. | Exchange 1: Astra attacks Cellar Brute: success at a cost; Cellar Brute health Unhurt → Scratched | Cellar Brute attacks Astra: Astra's defence (Shadow Step): success, decisive; Astra stamina Fresh → Winded. | Exchange 2: Astra attacks Cellar Brute: success, decisive; Cellar Brute health Scratched → Wounded | Cellar Brute attacks Astra: Astra's defence (Shadow Step): the blow glances off and does no harm. | Exchange 3: Astra attacks Cellar Brute: fail, decisive | Cellar Brute attacks Astra: Astra's defence (Shadow Step): success, decisive. | The fight is still open. | The fight is still in progress; do not tell a post-fight aftermath yet."
+      }
+    ],
+    "battle": [
+      {
+        "index": 0,
+        "model": null,
+        "note": null
+      },
+      {
+        "index": 2,
+        "model": {
+          "rounds": [
+            {
+              "n": 1,
+              "lines": [
+                {
+                  "outcome": "cost",
+                  "total": 15,
+                  "vs": 16,
+                  "skill": "",
+                  "breakdown": "Physical: d20 5 + (STR 10 + DEX 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 15 · vs Cellar Brute d20 4 + 4 + Lv 40 ÷ 5 = 8 = 16 · Cellar Brute loses 1 block (4 of 5)",
+                  "arrows": [],
+                  "who": "Astra",
+                  "target": "Cellar Brute",
+                  "stat": "STR",
+                  "foe": false
+                },
+                {
+                  "outcome": "success",
+                  "total": 13,
+                  "vs": 30,
+                  "skill": "",
+                  "breakdown": "Defence, dodge: d20 16 + (AGI 10 + VIT 20/2)/2 = 10 + Adept 1 + Lv 15 ÷ 5 = 3 = 30 · vs Cellar Brute d20 1 + 4 + Lv 40 ÷ 5 = 8 = 13 · Decisive",
+                  "arrows": [
+                    "Astra Stamina Winded"
+                  ],
+                  "cost": "stamina",
+                  "recordedCost": "stamina",
+                  "decisive": true,
+                  "who": "Cellar Brute",
+                  "target": "Astra",
+                  "defence": "Shadow Step",
+                  "stat": "AGI",
+                  "foe": true
+                }
+              ]
+            },
+            {
+              "n": 2,
+              "lines": [
+                {
+                  "outcome": "success",
+                  "total": 30,
+                  "vs": 31,
+                  "skill": "",
+                  "breakdown": "Physical: d20 20 + (STR 10 + DEX 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 30 · vs Cellar Brute d20 19 + 4 + Lv 40 ÷ 5 = 8 = 31 · Cellar Brute loses 2 blocks (2 of 5) · Decisive",
+                  "arrows": [],
+                  "decisive": true,
+                  "who": "Astra",
+                  "target": "Cellar Brute",
+                  "stat": "STR",
+                  "foe": false
+                },
+                {
+                  "outcome": "fail",
+                  "total": 24,
+                  "vs": 20,
+                  "skill": "",
+                  "breakdown": "Defence, dodge: d20 6 + (AGI 10 + VIT 20/2)/2 = 10 + Adept 1 + Lv 15 ÷ 5 = 3 = 20 · vs Cellar Brute d20 12 + 4 + Lv 40 ÷ 5 = 8 = 24",
+                  "arrows": [
+                    "Astra Stamina Winded"
+                  ],
+                  "cost": "stamina",
+                  "recordedCost": "stamina",
+                  "soaked": true,
+                  "who": "Cellar Brute",
+                  "target": "Astra",
+                  "defence": "Shadow Step",
+                  "stat": "AGI",
+                  "foe": true
+                }
+              ]
+            },
+            {
+              "n": 3,
+              "lines": [
+                {
+                  "outcome": "fail",
+                  "total": 11,
+                  "vs": 27,
+                  "skill": "",
+                  "breakdown": "Physical: d20 1 + (STR 10 + DEX 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 11 · vs Cellar Brute d20 15 + 4 + Lv 40 ÷ 5 = 8 = 27 · Decisive",
+                  "arrows": [],
+                  "decisive": true,
+                  "who": "Astra",
+                  "target": "Cellar Brute",
+                  "stat": "STR",
+                  "foe": false
+                },
+                {
+                  "outcome": "success",
+                  "total": 20,
+                  "vs": 34,
+                  "skill": "",
+                  "breakdown": "Defence, dodge: d20 20 + (AGI 10 + VIT 20/2)/2 = 10 + Adept 1 + Lv 15 ÷ 5 = 3 = 34 · vs Cellar Brute d20 8 + 4 + Lv 40 ÷ 5 = 8 = 20 · Decisive",
+                  "arrows": [
+                    "Astra Stamina Winded",
+                    "Cellar Brute Wounded"
+                  ],
+                  "cost": "stamina",
+                  "recordedCost": "stamina",
+                  "decisive": true,
+                  "who": "Cellar Brute",
+                  "target": "Astra",
+                  "defence": "Shadow Step",
+                  "stat": "AGI",
+                  "foe": true
+                }
+              ]
+            }
+          ],
+          "checks": [],
+          "refused": [],
+          "order": [
+            "Astra",
+            "Cellar Brute"
+          ],
+          "virtualGroups": [],
+          "orderEntries": [
+            {
+              "id": "c:astra",
+              "name": "Astra",
+              "total": 27,
+              "party": true,
+              "level": 15
+            },
+            {
+              "id": "f:1",
+              "name": "Cellar Brute",
+              "total": 13,
+              "party": false,
+              "level": 40
+            }
+          ],
+          "quickStart": [
+            {
+              "who": "Astra",
+              "against": "Cellar Brute"
+            }
+          ],
+          "stop": "open",
+          "pace": "careful",
+          "flow": 2,
+          "cap": 8,
+          "board": true,
+          "margin": 8,
+          "receipt": "Tell the settled fight results in order; do not reroll them. | Write [battle] on its own line where the fight is told. | Code has already moved the bars for these results; never set those yourself. | Exchange 1: Astra attacks Cellar Brute: success at a cost; Cellar Brute health Unhurt → Scratched | Cellar Brute attacks Astra: Astra's defence (Shadow Step): success, decisive; Astra stamina Fresh → Winded. | Exchange 2: Astra attacks Cellar Brute: success, decisive; Cellar Brute health Scratched → Wounded | Cellar Brute attacks Astra: Astra's defence (Shadow Step): the blow glances off and does no harm. | Exchange 3: Astra attacks Cellar Brute: fail, decisive | Cellar Brute attacks Astra: Astra's defence (Shadow Step): success, decisive. | The fight is still open. | The fight is still in progress; do not tell a post-fight aftermath yet.",
+          "status": [
+            {
+              "name": "Astra",
+              "rows": [
+                {
+                  "key": "health",
+                  "value": 16,
+                  "max": 16,
+                  "word": "Unhurt",
+                  "text": "Unhurt · 16/16",
+                  "tone": "good",
+                  "blocks": true,
+                  "label": "Health"
+                },
+                {
+                  "key": "mana",
+                  "value": 10,
+                  "max": 10,
+                  "word": "Fresh",
+                  "text": "Fresh · 10/10",
+                  "tone": "good",
+                  "blocks": true,
+                  "label": "Mana"
+                },
+                {
+                  "key": "stamina",
+                  "value": 9,
+                  "max": 12,
+                  "word": "Winded",
+                  "text": "Winded · 9/12",
+                  "tone": "good",
+                  "blocks": true,
+                  "label": "Stamina"
+                }
+              ]
+            }
+          ],
+          "foes": [
+            {
+              "text": "Cellar Brute · Lv 40: Wounded"
+            }
+          ]
+        },
+        "note": null
+      }
+    ],
+    "reread": {
+      "ok": true,
+      "receipts": [
+        {
+          "id": "rc_e1sorjy4",
+          "type": "rpg.resolve",
+          "module": "story-block",
+          "cause": "system",
+          "seed": 999530452,
+          "summary": "Tell the settled fight results in order; do not reroll them. | Write [battle] on its own line where the fight is told. | Code has already moved the bars for these results; never set those yourself. | Exchange 1: Astra attacks Cellar Brute: success at a cost; Cellar Brute health Unhurt → Scratched | Cellar Brute attacks Astra: Astra's defence (Shadow Step): success, decisive; Astra stamina Fresh → Winded. | Exchange 2: Astra attacks Cellar Brute: success, decisive; Cellar Brute health Scratched → Wounded | Cellar Brute attacks Astra: Astra's defence (Shadow Step): the blow glances off and does no harm. | Exchange 3: Astra attacks Cellar Brute: fail, decisive | Cellar Brute attacks Astra: Astra's defence (Shadow Step): success, decisive. | The fight is still open. | The fight is still in progress; do not tell a post-fight aftermath yet.",
+          "narrate": true,
+          "data": {
+            "v2": {
+              "schema": 2,
+              "key": "rpg:resolve:b:sw_5aed844f67d4%3A0:sw_5aed844f67d4:0:reply:sw_2b8e188fc8b8",
+              "result": {
+                "v": 1,
+                "key": "b:sw_5aed844f67d4%3A0:sw_5aed844f67d4:0",
+                "pace": "careful",
+                "rules": {
+                  "formula": "standard",
+                  "foeBase": 4,
+                  "foeClassWeight": 3,
+                  "classWeight": 2,
+                  "costMargin": 2,
+                  "decisiveMargin": 8,
+                  "roundCap": 8,
+                  "startStat": 5,
+                  "createPoints": 10,
+                  "createMin": 3,
+                  "createMax": 10,
+                  "pointsPerSoul": 4,
+                  "statMax": 20,
+                  "quickStartMargin": 10,
+                  "levelDivisor": 5
+                },
+                "flow": 2,
+                "fix": 3,
+                "practice": 3,
+                "lv": 1,
+                "checks": [],
+                "bars": 2,
+                "soak": 1,
+                "rounds": [
+                  {
+                    "n": 1,
+                    "decisive": true,
+                    "lines": [
+                      {
+                        "kind": "act",
+                        "type": "physical",
+                        "skill": null,
+                        "pc": {
+                          "who": "Astra",
+                          "type": "physical",
+                          "stat": "str",
+                          "second": "dex",
+                          "mainValue": 10,
+                          "secondValue": 10,
+                          "statBonus": 7,
+                          "classValue": 15,
+                          "classBonus": 3,
+                          "rank": 0,
+                          "window": {
+                            "min": -1,
+                            "max": 3
+                          },
+                          "situation": 0,
+                          "edge": 0,
+                          "die": 5,
+                          "total": 15
+                        },
+                        "foe": {
+                          "slot": 1,
+                          "name": "Cellar Brute",
+                          "base": 4,
+                          "classValue": 40,
+                          "classBonus": 8,
+                          "die": 4,
+                          "total": 16
+                        },
+                        "outcome": "cost",
+                        "decisive": false,
+                        "damage": {
+                          "id": "f:1",
+                          "kind": "foe",
+                          "name": "Cellar Brute",
+                          "blocks": 1,
+                          "from": 5,
+                          "to": 4,
+                          "size": 5
+                        }
+                      },
+                      {
+                        "kind": "foe",
+                        "type": "defence",
+                        "skill": "Shadow Step",
+                        "pc": {
+                          "who": "Astra",
+                          "type": "defence",
+                          "stat": "agi",
+                          "second": "vit",
+                          "mainValue": 10,
+                          "secondValue": 20,
+                          "statBonus": 10,
+                          "style": "dodge",
+                          "classValue": 15,
+                          "classBonus": 3,
+                          "rank": 1,
+                          "window": {
+                            "min": -1,
+                            "max": 3
+                          },
+                          "situation": 0,
+                          "edge": 0,
+                          "die": 16,
+                          "total": 30
+                        },
+                        "foe": {
+                          "slot": 1,
+                          "name": "Cellar Brute",
+                          "base": 4,
+                          "classValue": 40,
+                          "classBonus": 8,
+                          "die": 1,
+                          "total": 13
+                        },
+                        "outcome": "success",
+                        "decisive": true,
+                        "cost": {
+                          "id": "c:astra:stamina",
+                          "kind": "char",
+                          "name": "Astra",
+                          "blocks": 1,
+                          "from": 12,
+                          "to": 11,
+                          "size": 12
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "n": 2,
+                    "decisive": true,
+                    "lines": [
+                      {
+                        "kind": "act",
+                        "type": "physical",
+                        "skill": null,
+                        "pc": {
+                          "who": "Astra",
+                          "type": "physical",
+                          "stat": "str",
+                          "second": "dex",
+                          "mainValue": 10,
+                          "secondValue": 10,
+                          "statBonus": 7,
+                          "classValue": 15,
+                          "classBonus": 3,
+                          "rank": 0,
+                          "window": {
+                            "min": -1,
+                            "max": 3
+                          },
+                          "situation": 0,
+                          "edge": 0,
+                          "die": 20,
+                          "total": 30
+                        },
+                        "foe": {
+                          "slot": 1,
+                          "name": "Cellar Brute",
+                          "base": 4,
+                          "classValue": 40,
+                          "classBonus": 8,
+                          "die": 19,
+                          "total": 31
+                        },
+                        "outcome": "success",
+                        "decisive": true,
+                        "damage": {
+                          "id": "f:1",
+                          "kind": "foe",
+                          "name": "Cellar Brute",
+                          "blocks": 2,
+                          "from": 4,
+                          "to": 2,
+                          "size": 5
+                        }
+                      },
+                      {
+                        "kind": "foe",
+                        "type": "defence",
+                        "skill": "Shadow Step",
+                        "pc": {
+                          "who": "Astra",
+                          "type": "defence",
+                          "stat": "agi",
+                          "second": "vit",
+                          "mainValue": 10,
+                          "secondValue": 20,
+                          "statBonus": 10,
+                          "style": "dodge",
+                          "classValue": 15,
+                          "classBonus": 3,
+                          "rank": 1,
+                          "window": {
+                            "min": -1,
+                            "max": 3
+                          },
+                          "situation": 0,
+                          "edge": 0,
+                          "die": 6,
+                          "total": 20
+                        },
+                        "foe": {
+                          "slot": 1,
+                          "name": "Cellar Brute",
+                          "base": 4,
+                          "classValue": 40,
+                          "classBonus": 8,
+                          "die": 12,
+                          "total": 24
+                        },
+                        "outcome": "fail",
+                        "decisive": false,
+                        "soaked": 5,
+                        "cost": {
+                          "id": "c:astra:stamina",
+                          "kind": "char",
+                          "name": "Astra",
+                          "blocks": 1,
+                          "from": 11,
+                          "to": 10,
+                          "size": 12
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "n": 3,
+                    "decisive": true,
+                    "lines": [
+                      {
+                        "kind": "act",
+                        "type": "physical",
+                        "skill": null,
+                        "pc": {
+                          "who": "Astra",
+                          "type": "physical",
+                          "stat": "str",
+                          "second": "dex",
+                          "mainValue": 10,
+                          "secondValue": 10,
+                          "statBonus": 7,
+                          "classValue": 15,
+                          "classBonus": 3,
+                          "rank": 0,
+                          "window": {
+                            "min": -1,
+                            "max": 3
+                          },
+                          "situation": 0,
+                          "edge": 0,
+                          "die": 1,
+                          "total": 11
+                        },
+                        "foe": {
+                          "slot": 1,
+                          "name": "Cellar Brute",
+                          "base": 4,
+                          "classValue": 40,
+                          "classBonus": 8,
+                          "die": 15,
+                          "total": 27
+                        },
+                        "outcome": "fail",
+                        "decisive": true
+                      },
+                      {
+                        "kind": "foe",
+                        "type": "defence",
+                        "skill": "Shadow Step",
+                        "pc": {
+                          "who": "Astra",
+                          "type": "defence",
+                          "stat": "agi",
+                          "second": "vit",
+                          "mainValue": 10,
+                          "secondValue": 20,
+                          "statBonus": 10,
+                          "style": "dodge",
+                          "classValue": 15,
+                          "classBonus": 3,
+                          "rank": 1,
+                          "window": {
+                            "min": -1,
+                            "max": 3
+                          },
+                          "situation": 0,
+                          "edge": 0,
+                          "die": 20,
+                          "total": 34
+                        },
+                        "foe": {
+                          "slot": 1,
+                          "name": "Cellar Brute",
+                          "base": 4,
+                          "classValue": 40,
+                          "classBonus": 8,
+                          "die": 8,
+                          "total": 20
+                        },
+                        "outcome": "success",
+                        "decisive": true,
+                        "cost": {
+                          "id": "c:astra:stamina",
+                          "kind": "char",
+                          "name": "Astra",
+                          "blocks": 1,
+                          "from": 10,
+                          "to": 9,
+                          "size": 12
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "opening": [],
+                "order": [
+                  {
+                    "id": "c:astra",
+                    "name": "Astra",
+                    "total": 27,
+                    "die": 19,
+                    "bonus": 8,
+                    "agi": 10,
+                    "party": true,
+                    "fresh": false
+                  },
+                  {
+                    "id": "f:1",
+                    "name": "Cellar Brute",
+                    "total": 13,
+                    "die": 5,
+                    "bonus": 8,
+                    "agi": 0,
+                    "party": false,
+                    "fresh": false,
+                    "left": 2
+                  }
+                ],
+                "quickStart": [
+                  {
+                    "who": "Astra",
+                    "against": "Cellar Brute"
+                  }
+                ],
+                "idle": [],
+                "hurts": [
+                  {
+                    "id": "f:1",
+                    "kind": "foe",
+                    "name": "Cellar Brute",
+                    "module": "pack.chat/foes",
+                    "field": "hurt1",
+                    "from": 5,
+                    "to": 2,
+                    "size": 5
+                  },
+                  {
+                    "id": "c:astra:stamina",
+                    "kind": "char",
+                    "name": "Astra",
+                    "module": "pack.chat/hero",
+                    "field": "stamina",
+                    "from": 12,
+                    "to": 9,
+                    "size": 12
+                  }
+                ],
+                "refused": [],
+                "stop": "open",
+                "summary": {
+                  "exchanges": 3,
+                  "acts": [
+                    {
+                      "kind": "act",
+                      "who": "Astra",
+                      "target": "Cellar Brute",
+                      "skill": null,
+                      "stat": "str",
+                      "outcomes": [
+                        "cost",
+                        "success",
+                        "fail"
+                      ]
+                    },
+                    {
+                      "kind": "foe",
+                      "who": "Cellar Brute",
+                      "target": "Astra",
+                      "skill": "Shadow Step",
+                      "stat": "agi",
+                      "outcomes": [
+                        "success",
+                        "fail",
+                        "success"
+                      ]
+                    }
+                  ],
+                  "refused": 0
+                },
+                "members": [
+                  {
+                    "slot": 1,
+                    "group": 1,
+                    "n": 1,
+                    "name": "Cellar Brute",
+                    "value": 2,
+                    "size": 5,
+                    "pack": false,
+                    "count": 1,
+                    "left": 1,
+                    "attacks": 1,
+                    "standing": true
+                  }
+                ],
+                "board": {
+                  "id": "sw_5aed844f67d4:0",
+                  "seed": 1879365092,
+                  "offset": 0,
+                  "groups": [
+                    1
+                  ]
+                }
+              },
+              "epoch": "ep_00000000",
+              "rulesHash": null,
+              "source": {
+                "sid": "sr_dxji7x1r",
+                "swipeKey": "sw_a6ggk644",
+                "evidence": "ev_ajm0tl5w",
+                "ordinal": 2
+              },
+              "guard": {
+                "owner": "story-block",
+                "version": 2,
+                "epoch": "ep_00000000",
+                "rulesHash": null,
+                "predicate": {
+                  "kind": "rpg.resolve",
+                  "board": 1,
+                  "key": "b:sw_5aed844f67d4%3A0:sw_5aed844f67d4:0",
+                  "setup": "e8f1e40e31a0014bdc1de5310510fd4f4b25077bf67b31740e0f90e383fef828",
+                  "rules": "1ca152f9a1945953bd0be03002fc8f943c9d4fb6e47c6c65e048c6cb4617b478",
+                  "practice": 3,
+                  "bars": 2,
+                  "soak": 1
+                },
+                "inputHash": "f661658036f5a57b585dd93f769a9bf9705ecacb725de2b320f7576927264b1c"
+              }
+            }
+          },
+          "rev": 1,
+          "replan": {
+            "payload": {
+              "key": "b:sw_5aed844f67d4%3A0:sw_5aed844f67d4:0",
+              "board": {
+                "id": "sw_5aed844f67d4:0",
+                "anchor": "sw_5aed844f67d4",
+                "groups": [
+                  1
+                ],
+                "setup": {
+                  "seed": 1879365092,
+                  "offset": 0,
+                  "rules": {
+                    "formula": "standard",
+                    "foeBase": 4,
+                    "foeClassWeight": 3,
+                    "classWeight": 2,
+                    "costMargin": 2,
+                    "decisiveMargin": 8,
+                    "roundCap": 8,
+                    "startStat": 5,
+                    "createPoints": 10,
+                    "createMin": 3,
+                    "createMax": 10,
+                    "pointsPerSoul": 4,
+                    "statMax": 20,
+                    "quickStartMargin": 10,
+                    "levelDivisor": 5
+                  },
+                  "members": 1,
+                  "aoe": 1,
+                  "bars": 2,
+                  "soak": 1,
+                  "flags": {},
+                  "weapons": {},
+                  "witness": {
+                    "offset": 0,
+                    "hash": "4ed175d0c22edd91e1e43f9c9b73fbadadcf27bbf2f803ea0cee8f3b63fdc192"
+                  }
+                },
+                "exchanges": [
+                  {
+                    "actions": [
+                      {
+                        "who": "Astra",
+                        "kind": "attack",
+                        "target": 1
+                      }
+                    ]
+                  },
+                  {
+                    "actions": [
+                      {
+                        "who": "Astra",
+                        "kind": "attack",
+                        "target": 1
+                      }
+                    ]
+                  },
+                  {
+                    "actions": [
+                      {
+                        "who": "Astra",
+                        "kind": "attack",
+                        "target": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "practice": 3
+            }
+          },
+          "guarded": true,
+          "afterCapture": true,
+          "beforeGenerate": true
+        }
+      ],
+      "steps": [
+        {
+          "id": "rc_35pq5o8d",
+          "type": "rpg.practice",
+          "module": "story-block",
+          "cause": "system",
+          "seed": 3905779401,
+          "summary": "Practice: Astra's Shadow Step +9.",
+          "narrate": false,
+          "data": {
+            "v2": {
+              "schema": 2,
+              "result": {
+                "practice": {
+                  "skills": [
+                    {
+                      "who": "Astra",
+                      "skill": "Shadow Step",
+                      "slot": 2,
+                      "amount": 9
+                    }
+                  ]
+                }
+              },
+              "epoch": "ep_00000000",
+              "rulesHash": null,
+              "source": {
+                "sid": "sr_dxji7x1r",
+                "swipeKey": "sw_a6ggk644",
+                "evidence": "ev_ajm0tl5w",
+                "ordinal": 3
+              },
+              "guard": {
+                "owner": "story-block",
+                "version": 2,
+                "epoch": "ep_00000000",
+                "rulesHash": null,
+                "predicate": {
+                  "kind": "rpg.practice"
+                },
+                "inputHash": "6c3cc9e2e6432d3c711d9d099e6214ecbae7822a7beffd3cd16e44441472cac8"
+              }
+            }
+          },
+          "rev": 2,
+          "replan": {
+            "payload": {
+              "uses": [
+                {
+                  "who": "Astra",
+                  "skill": "Shadow Step",
+                  "n": 3
+                }
+              ],
+              "perUse": 3
+            }
+          },
+          "guarded": true,
+          "afterCapture": true
+        }
+      ],
+      "problems": []
+    }
+  },
   "board-won": {
     "state": {
       "v": 2,

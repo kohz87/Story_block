@@ -13,7 +13,7 @@ import { RPG_STRINGS, fill } from '../strings.js';
 import { drawStageBars } from './bars.js';
 import { newSession, renderDistribute } from './distribute.js';
 import { growthText, readParty, xpLine } from './party-data.js';
-import { dressParty } from './gear-stats.js';
+import { dressParty, effOf } from './gear-stats.js';
 import { newGearSession, renderGearCard } from './gear-card.js';
 import { newSkillsSession, renderSkills } from './skills.js';
 
@@ -115,7 +115,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 node.appendChild(stats);
                 if (character.skillsBlock) node.appendChild(h(doc, 'div', 'rpg-skills', character.skills.length ? character.skills.map(skill => `${skill.name} (${skill.rankName})`).join(' · ') : P.noSkills));
                 // The Standard formula's bars grow with VIT, AGI and INT: how many blocks each has and the stat that earns the next one, and Luck's next step.
-                if (character.growth) node.appendChild(h(doc, 'p', 'rpg-growth', growthText(character.growth)));
+                if (character.growth) node.appendChild(h(doc, 'p', 'rpg-growth', growthText(character.growth, character.scale === 2 ? effOf(character.stats.find(stat => stat.key === 'vit')) : null)));
                 const actions = h(doc, 'div', `rpg-card-actions${gearOn() ? ' rpg-card-actions-gear' : ''}`);
                 const spend = character.points > 0;
                 button(actions, spend ? P.spend : P.stats, `ss-button${spend ? ' ss-button-primary' : ''} rpg-open`, () => openSheet(character));

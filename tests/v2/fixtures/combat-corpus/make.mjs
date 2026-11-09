@@ -254,6 +254,28 @@ async function boardScaled(seed) {
     } finally { host.close(); }
 }
 
+// A chat on today's template with a VIT 20 hero against a strong foe, the soak mark: the fight is marked `soak: 1`, and a hit that only just lands is soaked.
+async function boardSoak(seed) {
+    const hero = { role: 'character', definition: structuredClone(STANDARD_TEMPLATES[0].definition), fields: character('Astra', { str: 10, dex: 10, vit: 20, agi: 10, int: 5, health: 16, stamina: 12, mana: 10 }) };
+    const skills = { role: 'skills', fields: skillBlock('Astra', [['Cut', 3, 'str', 'stamina', 'cut one foe'], ['Shadow Step', 1, 'agi', 'stamina', 'dodge a blow']]) };
+    const options = opts({ hero, skills, foes: { role: 'foes', fields: levelFoeBlock([['Cellar Brute', 1, 40, 8]]) } }, true);
+    const { host } = await setup(options);
+    try {
+        openKnown(host);
+        const meta = host.ctx.chatMetadata;
+        assert.deepEqual([boardSession(meta).setup.bars, boardSession(meta).setup.soak], [2, 1]);
+        for (let n = 0; n < 3; n += 1) {
+            const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+            assert.equal(staged.error, undefined, staged.error);
+        }
+        await host.send('I hold the brute off.', 'The brute swings and misses.');
+        const result = rollAt(host, 2).data.v2.result;
+        assert.equal(result.soak, 1);
+        assert.ok(result.rounds.some(round => round.lines.some(line => line.soaked)), 'a hit was soaked');
+        return await take(host, 2, seed, options);
+    } finally { host.close(); }
+}
+
 const CASES = [
     ['board-fled', boardFled],
     ['board-members', boardMembers],
@@ -266,6 +288,7 @@ const CASES = [
     ['planner-standard-opened', plannerStandard],
     ['practice', practice],
     ['board-scaled', boardScaled],
+    ['board-soak', boardSoak],
 ];
 
 // (`ONLY=board-scaled node make.mjs`: builds just the named cases and merges them into the files, leaving every other chat and golden as it is)
