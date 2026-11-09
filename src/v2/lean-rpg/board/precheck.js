@@ -194,7 +194,8 @@ export function vetGroups(groups, { message = '', previous = '', sheet = null, l
         if (Number.isInteger(rawCount) && rawCount > maxCount) return []; // a group past the block's maximum: refuse the whole reading, the send goes plain
         const count = Math.max(1, Number.isInteger(rawCount) ? rawCount : 1);
         let given = null;
-        try { given = typeof stated === 'function' ? stated(name) : null; } catch { given = null; }
+        // One person's Level: a group of several ("Vorn's men") is not that person, and keeps the normal rules.
+        try { given = count === 1 && typeof stated === 'function' ? stated(name) : null; } catch { given = null; }
         if (given && Number.isInteger(given.level)) { accepted.push({ name, count, level: Math.max(FOE_LEVEL.min, Math.min(FOE_LEVEL.max, given.level)) }); continue; }
         if (given && typeof given.rank === 'string' && Number.isInteger(given.from) && Number.isInteger(given.to) && given.from <= given.to) { accepted.push({ name, count, rank: given.rank, from: given.from, to: given.to }); continue; }
         const rawLevel = levelOf(group.level);

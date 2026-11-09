@@ -174,3 +174,10 @@ test('no Level field: the fight is as before (level 4 stays, a model\'s 25 becom
     const high = await fought([], 814, [JSON.stringify({ groups: [{ name: 'Vorn', count: 1, level: 25 }] })]);
     try { assert.equal(foesOf(high.host).level1, 12); } finally { high.host.close(); high.restore(); }
 });
+
+test('a group of several named after the person keeps the normal rules: the Level is one person\'s', () => {
+    const stated = () => ({ level: 30 });
+    const groups = count => vetGroups([{ name: 'Vorn', count, level: 25 }], { message: 'I attack Vorn.', sheet: { characters: [{ who: 'Astra', level: 2 }], foes: [] }, stated });
+    assert.equal(groups(1)[0].level, 30);
+    assert.equal(groups(5)[0].level, 12);
+});

@@ -73,7 +73,7 @@ export function vetOpen(requested, sheet, texts, { rankAt = null, stated = null 
         const counted = Number.isInteger(count) ? Math.max(1, Math.min(OPEN_MAX_COUNT, count)) : 1;
         // A person's own Level (stated-level.js, read by the caller before the plan is recorded) passes the cap and wins over what the entry wrote.
         let given = null;
-        try { given = typeof stated === 'function' ? stated(name) : null; } catch { given = null; }
+        try { given = counted === 1 && typeof stated === 'function' ? stated(name) : null; } catch { given = null; }
         if (given && Number.isInteger(given.level)) { open.push({ name, count: counted, level: levelOf(given.level) }); continue; }
         if (given && typeof given.rank === 'string' && Number.isInteger(given.from) && Number.isInteger(given.to) && given.from <= given.to) { open.push({ name, count: counted, rank: given.rank, from: given.from, to: given.to }); continue; }
         const level = levelWritten(entry.level) ?? (oneLine(entry.rank) ? null : classWritten(entry.class));
