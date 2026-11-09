@@ -17,7 +17,7 @@ const chats = JSON.parse(readFileSync(join(ROOT, 'chats.json'), 'utf8'));
 const goldens = JSON.parse(readFileSync(join(ROOT, 'goldens.json'), 'utf8'));
 const names = Object.keys(chats).sort();
 const EXPECTED = [
-    'board-fled', 'board-members', 'board-open', 'board-packs', 'board-scaled', 'board-won', 'noroll',
+    'board-fled', 'board-members', 'board-open', 'board-packs', 'board-scaled', 'board-soak', 'board-won', 'noroll',
     'planner-fight-start-board', 'planner-fight-start-held', 'planner-standard-opened', 'practice',
 ];
 

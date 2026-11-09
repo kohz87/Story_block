@@ -11,6 +11,8 @@ export const CHARACTER_STRINGS = Object.freeze({
         growthManaTop: 'Mana {n} (INT {stat})',
         luck: 'Edge {min}..{max} (next at LUK {next})',
         luckTop: 'Edge {min}..{max}',
+        soak: 'Soak +{n} (next at VIT {next})',
+        soakTop: 'Soak +{n}',
         orderHead: 'Turn order',
         orderEntry: '{n} {name}',
         orderNote: 'Rolled at the start of this fight (d20 + level ÷ 5 + AGI/2; foes the same with their own level). A swipe rolls it again.',

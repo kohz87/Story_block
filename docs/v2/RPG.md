@@ -281,7 +281,7 @@ With the Standard formula a bar is a row of **blocks**. The stored value counts 
 3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + floor(level/30)` blocks (`foeBlocksByLevel`; the older `foeHealthBlocks` is `4 + class/3`). The Party card,
 the Fight tab and the game view's header draw one cell for each block and read "Hurt · 4 of 6"; under the skills the card says how
 many blocks each bar has and the stat that earns the next one ("Health 6 blocks (VIT 10, next at 15) · … · Edge −2..+3 (next at LUK
-7)").
+7) · Soak +3 (next at VIT 16)"; Soak is shown for a character with the doubled bars, from the VIT a roll uses, worn gear included, as the stat cell shows it).
 
 The stage words are the same, spread over the bar: 0 blocks is the first word (Down, Empty), a full bar the last (Unhurt, Fresh),
 every count in between the nearest of the words between (`blocks.js spreadWord`). The narrator reads and writes words, never block
@@ -313,6 +313,7 @@ A companion who joins an existing chat is made on that chat's sizes (`join.js jo
 - an area skill costs 2 of its resource and cannot be chosen with fewer than 2 left (the board says "Not enough ..."; Auto never picks it; mid-exchange it is rolled without the skill, as for an empty pool);
 - Auto stops when a hero has lost a fifth of the bar (loss x 5 >= size);
 - heals keep their number (1 block, 2 decisive); words keep their share of the bar.
+**The fight mark `soak: 1`** (VIT soak). Set with `bars: 2` for a new board fight, and recorded in the setup, the result, the guard's predicate and its shape check (`soak` without `bars: 2` is a damaged save). On a party member's defence in a marked fight (with a skill or without, physical or magic), a foe's hit lands only if the foe beats the defender by more than `2 + S`, where `S = min(5, floor(effective VIT / 4))`. Effective VIT is what the fight rolls with: the stat plus worn gear (a broken piece gives nothing), held to 30. A decisive hit (a natural 20 by the foe, a natural 1 by the defender, or a lead of the decisive margin) always lands, at its usual damage. A hit that is soaked does no damage; the line records `soaked: S`, the battle log says "Glanced off", and the narrator is told "the blow glances off and does no harm" (no number). A defence with a skill pays its cost as ever. Only the party's defences soak; foes get none; bars, Health formula, costs and damage amounts are unchanged. `2 + 5 = 7` stays under the default decisive margin of 8, so at the cap the band is whole; a pack's decisive margin set from 4 to 7 makes a decisive hit land first, so the band is cut short at that margin. A fight recorded without `soak` (including one already fought on a marked pin) replays with no soak; the non-board (narrator-settled) path has no marks and no soak. Auto picks actions without predicting hits, so it needs no change.
 A mixed party leaves the fight unmarked, and a pre-check opening (which rolls no bars) is never marked; an old recorded fight keeps its own rules.
 
 ## Rolls

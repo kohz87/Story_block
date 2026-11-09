@@ -90,6 +90,20 @@ test('a companion\'s own gear shows on their card only; the reader\'s party bag 
     assert.equal(cell(el, 'Astra', 'vit').textContent, 'VIT12+2');
 });
 
+test('both cards show soak from the same effective VIT as their rolls, including broken gear and the cap', () => {
+    const options = { ren: [['cap', 'Iron Cap', 'head', { VIT: 3 }, 'rare'], ['robe2', 'Robe', 'cloak', { VIT: 3 }, 'rare']] };
+    const w = world(options), { el } = draw(w);
+    const growth = name => el.querySelector(`.rpg-card[data-character="${name}"] .rpg-growth`).textContent;
+    const rolled = applyGear(readSheet(w.s), w.plan()).characters;
+    assert.deepEqual(rolled.map(actor => actor.stats.vit), [12, 16]);
+    assert.match(growth('Astra'), /Soak \+3 \(next at VIT 16\)$/);
+    assert.match(growth('Ren'), /Soak \+4 \(next at VIT 20\)$/);
+    const broken = draw(world({ ...options, cond: { cap: 0, robe2: 0 } })).el;
+    assert.match(broken.querySelector('.rpg-card[data-character="Ren"] .rpg-growth').textContent, /Soak \+2 \(next at VIT 12\)$/);
+    const capped = draw(world({ ...options, extra: { vit: 20 } })).el;
+    assert.match(capped.querySelector('.rpg-card[data-character="Ren"] .rpg-growth').textContent, /Soak \+5$/);
+});
+
 test('the sum is held to 30', () => {
     const { el } = draw(world({ extra: { vit: 20 }, ren: [['plate', 'Plate', 'body', { VIT: 5 }, 'legendary'], ['helm', 'Helm', 'head', { VIT: 5 }, 'legendary'], ['mail', 'Mail', 'feet', { VIT: 5 }, 'legendary']] }));
     assert.equal(cell(el, 'Ren', 'vit').querySelector('b').textContent, '30');

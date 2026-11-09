@@ -35,6 +35,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/charfile.js`: builds, validates and parses the saved-character file used by Party Import and Export.
 - `src/v2/lean-rpg/cue.js`: writes compact narrator roll cues under the prompt budget.
 - `src/v2/lean-rpg/join.js`: reads party join and leave lines, then builds companion definitions and offer cards.
+- `src/v2/lean-rpg/soak.js`: the VIT soak numbers (S, the soaked test, the Party card's next step) for the fight mark `soak: 1`.
 - `src/v2/lean-rpg/templates-bars.js`: turns the old Character template into the doubled-bars one (`scale: 2`: size expressions, grow rules, bar maximum and default).
 - `src/v2/lean-rpg/templates-recovery.js`: the marked Character's recovery kinds (rest, full-rest, heal, Short rest and Full rest buttons), no narrator `add-xp`, its prompt.
 - `src/v2/lean-rpg/templates-skills.js`: turns the eight-slot Skills template into the typed one (three utility slots 9 to 11, a `type` per slot, the learn line's optional `type` label, matching rank-up rules).
