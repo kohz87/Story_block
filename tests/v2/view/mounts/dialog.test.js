@@ -200,7 +200,7 @@ test('Esc closes only the topmost dialog', () => {
 
 test('the step row keeps its full height: flex none, so the scrolling body cannot slide under it', () => {
     const controls = readFileSync(new URL('../../../../src/v2/view/controls.css', import.meta.url), 'utf8');
-    assert.match(controls, /\.ss-dialog-steps\s*\{\s*flex:\s*none;\s*\}/u);
+    assert.match(controls, /:where\([^)]*\.ss-dialog[,) ][^)]*\) \.ss-dialog-steps\s*\{\s*flex:\s*none;\s*\}/u);
     const mounts = readFileSync(new URL('../../../../src/v2/view/mounts.css', import.meta.url), 'utf8');
     const rule = mounts.slice(mounts.indexOf('.ss-dialog-steps {'), mounts.indexOf('}', mounts.indexOf('.ss-dialog-steps {')));
     assert.match(rule, /overflow-x:\s*auto/u, 'an overflow container in a flex column would shrink to 0 without flex: none');
