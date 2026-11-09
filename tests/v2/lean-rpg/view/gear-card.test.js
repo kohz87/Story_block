@@ -80,7 +80,7 @@ test('Inventory opens the slot card: eight equal tiles, each with its place, and
     const tile = place => view.querySelector(`.rpg-slot[data-slot="${place}"]`);
     // Weapon: the rare sword, +2 DEX, rarity colour class, no condition mark (Good).
     assert.equal(tile('weapon').querySelector('.rpg-slot-name').textContent, 'Cane Sword');
-    assert.equal(tile('weapon').querySelector('.rpg-slot-bonus').textContent, '+2 DEX');
+    assert.equal(tile('weapon').querySelector('.rpg-slot-bonus').textContent, '+3 DEX');
     assert.ok(tile('weapon').classList.contains('r-rare'));
     assert.ok(!tile('weapon').classList.contains('w-worn') && !tile('weapon').classList.contains('w-torn') && !tile('weapon').classList.contains('w-broken'));
     assert.ok(tile('weapon').querySelector('.rpg-slot-cond'), 'every worn tile has its 3px line; the colour says the condition');
@@ -108,7 +108,7 @@ test('a companion\'s slot card shows what they wear; switching gear off while it
     card(el, 'Ren').querySelector('.rpg-gear-open').click();
     const tile = place => el.querySelector(`.rpg-gear .rpg-slot[data-slot="${place}"]`);
     assert.equal(tile('head').querySelector('.rpg-slot-name').textContent, 'Iron Cap');
-    assert.equal(tile('head').querySelector('.rpg-slot-bonus').textContent, '+1 VIT');
+    assert.equal(tile('head').querySelector('.rpg-slot-bonus').textContent, '+2 VIT');
     assert.equal(tile('weapon').classList.contains('rpg-slot-empty'), true, 'the sword is Wessel\'s');
     live = false;
     el.querySelector('.rpg-gear-back').click();

@@ -65,8 +65,7 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     assert.equal(state.down.type, 'bool');
     assert.equal(state.down.prompt, false, 'Down is hidden from the narrator');
     assert.equal(state.alive.type, 'bool');
-    assert.deepEqual(Object.keys(kinds), ['set-health', 'set-mana', 'set-stamina', 'rest', 'full-rest', 'heal', 'button-rest', 'button-full-rest']);
-    assert.equal(kinds['button-rest'].ui, true);
+    assert.deepEqual(Object.keys(kinds), ['set-health', 'set-mana', 'set-stamina', 'rest', 'full-rest', 'heal']);
     // Stats and points are set by the reader only: no kind writes them.
     const touched = Object.values(kinds).flatMap(kind => kind.effects.map(effect => effect.path[0]));
     for (const field of [...STATS, 'points']) assert.ok(!touched.includes(field), field);

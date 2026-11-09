@@ -23,18 +23,21 @@ function draw(state, { api = {}, own = 'Wessel', openWizard = null } = {}) {
 const buttons = (root, text) => root.querySelectorAll('button').filter(node => node.textContent === text);
 const card = (el, name) => el.querySelector(`.rpg-card[data-character="${name}"]`);
 
-test('marked character cards show the two rest buttons and send their actions; older cards stay unchanged', async () => {
-    const definition = { ...structuredClone(STANDARD_TEMPLATES[0].definition), slug: 'wessel' };
-    const calls = [];
-    const state = fakeState([{ definition, fields: { who: 'Wessel' } }, ren]);
-    const { el } = draw(state, { api: { command: async (type, payload) => { calls.push([type, payload]); return { ok: true }; } } });
-    const mine = card(el, 'Wessel');
-    assert.deepEqual(mine.querySelectorAll('.rpg-rest-row button').map(node => node.textContent), ['Short rest', 'Full rest']);
-    assert.equal(mine.querySelector('.rpg-rest-hint').textContent, 'Short rest: Stamina and Mana. Full rest: Health too.');
-    for (const node of mine.querySelectorAll('.rpg-rest-row button')) node.click();
-    await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(calls, [['dm.act', { module: 'pack.chat/wessel', kind: 'button-rest' }], ['dm.act', { module: 'pack.chat/wessel', kind: 'button-full-rest' }]]);
-    assert.equal(card(el, 'Ren').querySelector('.rpg-rest-row'), null);
+test('marked character cards show no rest buttons or hint, new pin or one pinned with them; older cards stay unchanged', () => {
+    const fresh = { ...structuredClone(STANDARD_TEMPLATES[0].definition), slug: 'wessel' };
+    const pinned = structuredClone(fresh);
+    const refill = bars => bars.map(bar => ({ op: 'set', path: [bar], value: ['get', [`${bar}-blocks`]] }));
+    pinned.kinds['button-rest'] = { op: '!', ui: true, title: 'Short rest', labels: {}, effects: refill(['stamina', 'mana']) };
+    pinned.kinds['button-full-rest'] = { op: '!', ui: true, title: 'Full rest', labels: {}, effects: refill(['health', 'stamina', 'mana']) };
+    for (const definition of [fresh, pinned]) {
+        const { el } = draw(fakeState([{ definition, fields: { who: 'Wessel' } }, ren]), { api: { command: async () => ({ ok: true }) } });
+        const mine = card(el, 'Wessel');
+        assert.ok(mine);
+        assert.equal(mine.querySelector('.rpg-rest-row'), null);
+        assert.equal(mine.querySelector('.rpg-rest-hint'), null);
+        assert.deepEqual(mine.querySelectorAll('button').filter(node => /rest/i.test(node.textContent)), []);
+        assert.equal(card(el, 'Ren').querySelector('.rpg-rest-row'), null);
+    }
 });
 
 test('the reader\'s own character comes first, then block order; each card reads its block', () => {

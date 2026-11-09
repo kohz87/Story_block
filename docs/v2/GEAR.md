@@ -13,7 +13,7 @@ defence term. Every slot gives them: weapon, body (armour), off-hand (shield), h
 
 | | |
 |---|---|
-| Budget (total stat points) | by rarity: common 0, uncommon 1, rare 2, epic 3, legendary 4 (`GEAR.budget`, src/v2/domains/gear.js) |
+| Budget (total stat points) | by rarity: common 1, uncommon 2, rare 3, epic 4, legendary 5 (`GEAR.budget`, src/v2/domains/gear.js) |
 | Pack override | a pack item's `bonus` 0–6 is its budget instead (pack.json, validated; a `pack.` def only; the story and a renamed copy never keep it) |
 | Which stats | a pack item's `stats: { DEX: 2 }`, held to the budget; with none listed, the pick below |
 | Effective stats | part 2 adds `statBonus` to the stats the rolls and bars use; the result may pass 20 but never `GEAR.effectiveMax` (30) |
@@ -191,13 +191,13 @@ is as before; the new words are refused ("Gear in fights is not switched on.") a
   another name." Items saved as goods (for example a character file's): Remove the piece, then add it again as Equipment (Equip on works in the same add).
 * **A slot is needed.** Equipment with no Slot chosen, no slot word in the name and no slot on its def is refused: "Choose a slot for <name>: its name does not say where it is worn."
   (a saved character's starting things are not held to it).
-* **The budget** is the rarity's (common 0 … legendary 4), held by the command: "A rare piece gives at most 2 points." (common: "A common piece gives no bonus."). A rare piece with no
+* **The budget** is the rarity's (common 1 … legendary 5), held by the command: "A rare piece gives at most 3 points.". A rare piece with no
   stat chosen gives the usual pick (the name's or the slot's stat) over the whole budget, as for the story's items.
 * **The starting kit** is open while the line of history is only the opening greeting (`env.readers() === 0` and `env.greetingOnly() !== false`: no reader message and no other message after it; a swipe of the greeting keeps it open,
   deleting every message after it opens it again, deleting only the reader's messages while a reply stays does not; a chat with no greeting is closed). Closed: Rarity above Common and any Bonus are refused ("Rarity and bonuses come from the story after the first message.") by
-  `inventory.add` and `inventory.edit`. A saved character's starting things (`starting: true`, the wizard's import) keep the kind, rarity, slot and bonus of their file only while the kit is open; later they are Common with no bonus and a Problems line says so. After the kit a name that a non-hand story or pack piece has (equipment, or above Common) is made as the reader's own Common piece named "Your <name>". `gear.view` answers `kit: { open, empty? }` (`empty` for a chat with no message: "+ Add item" says why it cannot add).
+  `inventory.add` and `inventory.edit`. A saved character's starting things (`starting: true`, the wizard's import) keep the kind, rarity, slot and bonus of their file only while the kit is open; later they are Common and a Problems line says so. After the kit a name that a non-hand story or pack piece has (equipment, or above Common) is made as the reader's own Common piece named "Your <name>". `gear.view` answers `kit: { open, empty? }` (`empty` for a chat with no message: "+ Add item" says why it cannot add).
 * **`inventory.edit { stack, kind?, slot?, rarity?, stats? }`** changes a def marked `hand: true` that has no story-given stack (and is not bound or a pack's: "Kind, slot and rarity come from the pack." /
-  "... the story."). Kind may change at any time: Equipment later means Common with no Bonus (or the words asked, while the kit is open) and a Count above 1 becomes separate pieces; leaving Equipment
+  "... the story."). Kind may change at any time: Equipment later means Common (or the words asked, while the kit is open) and a Count above 1 becomes separate pieces; leaving Equipment
   drops slot and bonus and takes the piece off. A slot that no longer fits takes the piece off. Words as they stand are no change.
 * **Screens:** `gear.view` rows carry `hand`, `defSlot` and `stats` for such a piece; the item Edit takes `gear.row`, `gear.kit` and `gear.def`.
   The form is `view/gear-form.js` over `ss.editable` kind `fields` (field `showWhen`, `disabled`, and the entries `note` and `points`).

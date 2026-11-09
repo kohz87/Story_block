@@ -59,20 +59,20 @@ test('Inventory rows, gear on: rarity colour and word, slot chip, Equipped · ow
     assert.equal(text(cane.querySelector('.rarity')), 'rare');
     assert.equal(text(cane.querySelector('.chip.slot')), 'weapon');
     assert.equal(text(cane.querySelector('.chip.worn-by')), 'Equipped · You');
-    assert.equal(text(cane.querySelector('.gear-line .bonus')), '+2 DEX');
+    assert.equal(text(cane.querySelector('.gear-line .bonus')), '+3 DEX');
     assert.equal(text(cane.querySelector('.cword')), 'Worn', 'one step down: worn');
     assert.ok(cane.querySelector('.cbar.w-worn'));
     const cap = rowOf(el, 'Iron Cap');
     assert.equal(text(cap.querySelector('.cword')), 'Good');
     assert.equal(cap.querySelector('.cbar').classList.contains('w-worn'), false);
-    assert.equal(text(cap.querySelector('.gear-line .bonus')), '+1 VIT');
+    assert.equal(text(cap.querySelector('.gear-line .bonus')), '+2 VIT');
     const jerkin = rowOf(el, 'Boiled Leather Jerkin');
     assert.equal(text(jerkin.querySelector('.cword')), 'Torn', 'two steps: torn (the body armour takes the blow)');
     assert.ok(jerkin.querySelector('.cbar.w-torn'));
     const buckler = rowOf(el, 'Oak Buckler');
     assert.equal(text(buckler.querySelector('.cword')), 'Broken — no bonus', 'three steps: broken');
     assert.ok(buckler.querySelector('.cbar.w-broken') && buckler.classList.contains('broken'));
-    assert.equal(text(buckler.querySelector('.gear-line .bonus')), '+1 VIT', 'what it would give is still shown; the word says it gives none');
+    assert.equal(text(buckler.querySelector('.gear-line .bonus')), '+2 VIT', 'what it would give is still shown; the word says it gives none');
     // Not worn: no Equipped chip; goods and consumables have no bar.
     const salve = rowOf(el, 'Healing Salve');
     assert.equal(salve.querySelector('.chip.worn-by'), null);
@@ -128,7 +128,7 @@ test('Edit, gear on: Slot (the eight places or none) and Equipped by (a member o
     again.querySelector('.ss-w-editable-save').click();
     await settle();
     assert.deepEqual([swordRow().equipped, swordRow().equippedBy], ['weapon', 'party']);
-    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.DEX, 2);
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.DEX, 3);
     const calls = second.calls.map(([type, payload]) => [type, payload.slot ?? null]);
     assert.deepEqual(calls, [['item.equip', 'weapon']]);
     assert.deepEqual(first.calls.map(([type]) => type), ['inventory.unequip']);
@@ -180,7 +180,7 @@ test('gear.view: the persona is the main wearer, members follow; the breakdown, 
     assert.equal(view.rows.it_dagg0001.by, 'Ren');
     assert.equal(view.rows.it_sword001.by, '');
     const ren = h.query('gear.view', { who: 'Ren' });
-    assert.deepEqual([ren.owner, ren.slots.weapon.name, ren.slots.weapon.bonus, ren.slots.head], ['ac_ren00001', 'Dagger', '+2 DEX', null]);
+    assert.deepEqual([ren.owner, ren.slots.weapon.name, ren.slots.weapon.bonus, ren.slots.head], ['ac_ren00001', 'Dagger', '+3 DEX', null]);
     const own = h.query('gear.view', { who: 'Whoever', own: true });
     assert.equal(own.owner, 'party', 'the reader\'s own card is the party\'s bag');
     assert.deepEqual(Object.values(h.query('gear.view', { who: 'Nobody' }).slots).filter(Boolean), [], 'an unknown name wears nothing');
