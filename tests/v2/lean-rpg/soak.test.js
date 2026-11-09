@@ -16,15 +16,20 @@ import { playBoard } from '../../../src/v2/lean-rpg/board/engine.js';
 import { boardGuard } from '../../../src/v2/lean-rpg/board/commit.js';
 import { openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
 import { settledNote } from '../../../src/v2/lean-rpg/board/note.js';
+import { autoStop, hurtHeroes } from '../../../src/v2/lean-rpg/board/auto.js';
 import { growthOf } from '../../../src/v2/lean-rpg/blocks.js';
 import { growthText } from '../../../src/v2/lean-rpg/view/party-data.js';
-import { readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
+import { buildPanel, panelModel, readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
+import { cueTokens } from '../../../src/v2/lean-rpg/cue.js';
+import { LIMITS } from '../../../src/v2/lean-rpg/names.js';
 import { SOAK_MAX, soakGrowth, soakOf } from '../../../src/v2/lean-rpg/soak.js';
+import { setupDom } from '../view/mounts/helpers.js';
 import { prng, seedCrypto } from '../qa/helpers/seeded.js';
 import { character, levelFoeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 
 const rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const NEW = STANDARD_TEMPLATES[0].definition, OLD = characterV1For();
+const markedCharacter = (who, over) => ({ ...Object.fromEntries(Object.entries(NEW.state).filter(([, field]) => Object.hasOwn(field, 'default')).map(([key, field]) => [key, structuredClone(field.default)])), ...character(who, over) });
 const PLAIN = [['Cut', 3, 'str', 'stamina', 'cut one foe']], SKILLS = [...PLAIN, ['Shadow Step', 3, 'agi', 'stamina', 'dodge a blow']];
 const stateOf = (over = {}, definition = NEW, level = 1, skills = PLAIN) => ({ domains: { dataModules: sheetDomain({
     hero: { role: 'character', definition, fields: character('Astra', { str: 10, dex: 10, vit: 12, agi: 10, int: 5, health: 10, stamina: 12, mana: 10, ...over }) },
@@ -32,16 +37,17 @@ const stateOf = (over = {}, definition = NEW, level = 1, skills = PLAIN) => ({ d
     foes: { role: 'foes', fields: levelFoeBlock([['Rat', 1, level, 4]]) },
 }) } });
 // The foe's attack on Astra, rolled with the given dice (her die, the foe's die); `gear` is a gear record, `soak` the fight's mark.
-function defend(state, pcDie, foeDie, { soak = true, gear = null } = {}) {
+function defenceRoll(state, pcDie, foeDie, { soak = true, gear = null, rollRules = rules, againstMagic = false } = {}) {
     const base = applyGear(readSheet(state), gear), sheet = { ...base, foes: splitFoes(base.foes, {}) };
-    const actions = [{ who: 'Astra', kind: 'attack', target: 1 }];
+    const actions = sheet.characters.map(actor => ({ who: actor.who, kind: 'attack', target: sheet.foes[0].slot }));
     const built = exchangePlan(sheet, actions, {}, 1, { members: true, aoe: true, bars: true });
     assert.equal(built.error, undefined, built.error);
-    const hooks = memberRolls(built.plan), prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true, memberRolls: hooks });
-    const source = kind => { const list = kind === 'foe' ? [pcDie, foeDie] : []; return () => (list.length ? list.shift() : 10); };
-    const rolled = rollStandard(built.plan, prepared, source, rules, { flow: 2, fix: true, then: true, board: true, scaled: true, soak, memberRolls: hooks });
-    return rolled.rounds[0].lines.find(line => line.kind === 'foe');
+    if (againstMagic) for (const foe of built.plan.foes) foe.againstMagic = true;
+    const hooks = memberRolls(built.plan), prepared = prepareStandard(built.plan, sheet, rollRules, { lv: true, fix: true, then: true, memberRolls: hooks });
+    const source = kind => { const list = kind === 'foe' ? [pcDie, foeDie] : kind === 'act' ? [2, 19] : []; return () => (list.length ? list.shift() : 10); };
+    return rollStandard(built.plan, prepared, source, rollRules, { flow: 2, fix: true, then: true, board: true, scaled: true, soak, memberRolls: hooks });
 }
+const defend = (state, pcDie, foeDie, options) => defenceRoll(state, pcDie, foeDie, options).rounds[0].lines.find(line => line.kind === 'foe');
 const margin = line => line.foe.total - line.pc.total;
 
 test('S is floor(VIT / 4) up to 5, and the card\'s next step is the VIT that adds one', () => {
@@ -79,6 +85,51 @@ test('a hit the mark does not cover is as before: no mark, no soak at any VIT', 
     }
 });
 
+test('zero extra soak still protects the fixed margin with custom cost rules; decisive and wider cost margins keep their priority', () => {
+    for (const costMargin of [0, 1]) {
+        const custom = { ...rules, costMargin, decisiveMargin: 15 }, seen = new Set();
+        for (let pc = 2; pc < 20; pc += 1) for (let foe = 2; foe < 20; foe += 1) {
+            const line = defend(stateOf({ vit: 1 }), pc, foe, { rollRules: custom });
+            const lead = margin(line);
+            if (line.outcome !== 'fail' || lead > 3) continue;
+            if (lead <= 2) { assert.equal(line.soaked, 0); assert.equal(line.damage, undefined); seen.add(lead); }
+            else { assert.equal(line.soaked, undefined); assert.equal(line.damage.blocks, 1); seen.add(3); }
+        }
+        assert.deepEqual([...seen].sort(), Array.from({ length: 3 - costMargin }, (_, n) => n + costMargin + 1));
+    }
+    const smallDecisive = { ...rules, costMargin: 0, decisiveMargin: 4 };
+    const wideCost = { ...rules, costMargin: 5, decisiveMargin: 15 };
+    const find = (custom, lead) => {
+        for (let pc = 2; pc < 20; pc += 1) for (let foe = 2; foe < 20; foe += 1) {
+            const line = defend(stateOf({ vit: 20 }), pc, foe, { rollRules: custom });
+            if (margin(line) === lead) return line;
+        }
+        assert.fail(`no roll with margin ${lead}`);
+    };
+    assert.equal(find(smallDecisive, 4).damage.blocks, 2);
+    const cost = find(wideCost, 5);
+    assert.equal(cost.outcome, 'cost');
+    assert.equal(cost.soaked, undefined);
+    assert.equal(cost.damage, undefined);
+});
+
+test('a soaked failed defence cannot hurt, take a hero Down, or stop Auto as badly hurt', () => {
+    const state = stateOf({ vit: 20, health: 1 });
+    let found;
+    for (let pc = 2; pc < 20 && !found; pc += 1) for (let foe = 2; foe < 20 && !found; foe += 1) {
+        const rolled = defenceRoll(state, pc, foe);
+        if (rolled.rounds[0].lines.some(line => Number.isInteger(line.soaked))) found = rolled;
+    }
+    assert.ok(found);
+    assert.equal(found.rounds[0].lines.find(line => line.kind === 'foe').outcome, 'fail');
+    assert.equal(found.hurts.some(hurt => hurt.id === 'c:astra'), false);
+    assert.notEqual(found.stop, 'heavy');
+    assert.notEqual(found.stop, 'lost');
+    const boardResult = { ...found, bars: 2, stop: 'open' };
+    assert.deepEqual(hurtHeroes(boardResult), []);
+    assert.equal(autoStop(boardResult, { cap: 8, done: 1 }), null);
+});
+
 test('effective VIT counts worn gear, and a broken piece gives nothing', () => {
     // VIT 10 is S 2; a worn +2 makes 12, S 3: a hit 5 ahead is soaked with the piece, lands without it.
     const state = stateOf({ vit: 10 }), sheet = readSheet(state);
@@ -96,6 +147,36 @@ test('effective VIT counts worn gear, and a broken piece gives nothing', () => {
     assert.equal(bare.damage.blocks, 1);
 });
 
+test('lead and companion defences use their own effective VIT, including broken gear', () => {
+    const state = { domains: { dataModules: sheetDomain({
+        hero: { role: 'character', definition: NEW, fields: character('Astra', { vit: 10, health: 12 }) },
+        companion: { role: 'character', definition: NEW, fields: character('Ren', { vit: 10, health: 12 }) },
+        foes: { role: 'foes', fields: levelFoeBlock([['Rat', 2, 1, 4]]) },
+    }) } };
+    const query = broken => (name, args) => {
+        if (name === 'party.actors') return [{ id: 'ren-owner', name: 'Ren' }];
+        if (name !== 'inventory.gear') return null;
+        if (args.owner === 'party') return { on: true, statBonus: { VIT: 2 }, slots: {}, carry: {} };
+        if (args.owner === 'ren-owner') return { on: true, statBonus: broken ? {} : { VIT: 6 }, slots: { body: { name: 'Coat', stats: { VIT: 3 }, broken }, head: { name: 'Cap', stats: { VIT: 3 }, broken } }, carry: {} };
+        return null;
+    };
+    for (const broken of [false, true]) {
+        const gear = planGear(readSheet(state), query(broken), 'Astra');
+        const sheet = applyGear(readSheet(state), gear);
+        assert.deepEqual(Object.fromEntries(sheet.characters.map(actor => [actor.key, actor.stats.vit])), { ren: broken ? 10 : 16, astra: 12 });
+        for (const [who, expected] of [['Astra', 3], ['Ren', broken ? 2 : 4]]) {
+            let line;
+            for (let pc = 2; pc < 20 && !line; pc += 1) for (let foe = 2; foe < 20 && !line; foe += 1) {
+                const rolled = defenceRoll(state, pc, foe, { gear });
+                line = rolled.rounds[0].lines.find(item => item.kind === 'foe' && item.pc.who === who && Number.isInteger(item.soaked));
+            }
+            assert.ok(line, `${who} has a soaked defence`);
+            assert.equal(line.soaked, expected);
+            assert.equal(line.damage, undefined);
+        }
+    }
+});
+
 test('a soaked defence with a skill still pays the skill\'s cost, as any defence does', () => {
     let found = null;
     for (let foe = 2; foe <= 19; foe += 1) for (let pc = 2; pc <= 19 && !found; pc += 1) { const line = defend(stateOf({ vit: 20 }, NEW, 1, SKILLS), pc, foe); if (line.soaked) found = line; }
@@ -103,6 +184,21 @@ test('a soaked defence with a skill still pays the skill\'s cost, as any defence
     assert.equal(found.damage, undefined);
     assert.equal(found.cost?.blocks, 1, 'one Stamina block');
     assert.equal(found.skill, 'Shadow Step');
+});
+
+test('soak covers ordinary and magic defences with or without a skill', () => {
+    for (const againstMagic of [false, true]) for (const skills of [PLAIN, SKILLS]) {
+        let found;
+        for (let pc = 2; pc < 20 && !found; pc += 1) for (let foe = 2; foe < 20 && !found; foe += 1) {
+            const line = defend(stateOf({ vit: 20 }, NEW, 1, skills), pc, foe, { againstMagic });
+            if (Number.isInteger(line.soaked)) found = line;
+        }
+        assert.ok(found, `magic ${againstMagic}, skill ${skills === SKILLS}`);
+        assert.equal(found.soaked, 5);
+        assert.equal(found.damage, undefined);
+        assert.equal(Boolean(found.skill), skills === SKILLS);
+        if (skills === SKILLS) assert.equal(found.cost.blocks, 1);
+    }
 });
 
 test('foes get no soak: the party\'s hits on a foe are unchanged by the mark', () => {
@@ -119,8 +215,6 @@ test('foes get no soak: the party\'s hits on a foe are unchanged by the mark', (
     };
     assert.deepEqual(act(true), act(false));
 });
-
-// ---- the mark -------------------------------------------------------------------------------------------------------------------------
 
 test('a new fight is marked `soak: 1` with `bars: 2` (setup, result, predicate); a mixed party and an old pin are not', () => {
     const state = stateOf(), opened = openBoard({}, state, { sid: 's1', rules });
@@ -169,13 +263,44 @@ test('an old fight on a marked pin (bars: 2, no soak) replays with no soak: the 
     }
 });
 
-// ---- replay ---------------------------------------------------------------------------------------------------------------------------
+test('a fight staged before the update is sent and replayed without gaining soak', async () => {
+    const restore = seedCrypto(519);
+    const blocks = { hero: { role: 'character', definition: structuredClone(NEW), fields: markedCharacter('Astra', { vit: 20, health: 16, stamina: 12, mana: 10 }) },
+        skills: { role: 'skills', fields: skillBlock('Astra', SKILLS) }, foes: { role: 'foes', fields: levelFoeBlock([['Rat', 1, 40, 8]]) } };
+    const { host } = await setup({ blocks, board: true });
+    try {
+        await host.send('Earlier.', 'The rat approaches.');
+        const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+        const opened = openBoard(meta, host.head(), { sid, rules });
+        delete opened.session.setup.soak;
+        const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+        assert.equal(staged.error, undefined, staged.error);
+        const expected = structuredClone(staged.preview.result);
+        await host.send('Strike.', 'The fight.');
+        const at = host.ctx.chat.length - 1, receipt = rollReceipt(host, at);
+        assert.equal(receipt.replan.payload.board.setup.bars, 2);
+        assert.equal(Object.hasOwn(receipt.replan.payload.board.setup, 'soak'), false);
+        assert.deepEqual(receipt.data.v2.result.rounds, expected.rounds);
+        assert.deepEqual(receipt.data.v2.result.hurts, expected.hurts);
+        assert.equal(Object.hasOwn(receipt.data.v2.result, 'soak'), false);
+        const live = JSON.stringify(host.head()), bytes = JSON.stringify(receipt.data.v2.result);
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live);
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.equal(JSON.stringify(rollReceipt(host, at).data.v2.result), bytes);
+        await host.store.flush();
+        const saved = structuredClone(host.st.saves.at(-1)), savedMeta = structuredClone(meta);
+        await host.st.loadChat(saved, 'old-staged-soak');
+        host.ctx.chatMetadata = savedMeta;
+        assert.equal(JSON.stringify(rollReceipt(host, at).data.v2.result), bytes);
+    } finally { host.close(); restore(); }
+});
 
 const sheetOf = host => JSON.stringify(host.head().domains.dataModules.instances);
 
 async function play(seed) {
     const restore = seedCrypto(seed), random = prng(seed);
-    const blocks = { hero: { role: 'character', definition: structuredClone(NEW), fields: character('Astra', { str: 10, dex: 10, vit: 20, agi: 10, int: 5, health: 16, stamina: 12, mana: 10 }) },
+    const blocks = { hero: { role: 'character', definition: structuredClone(NEW), fields: markedCharacter('Astra', { str: 10, dex: 10, vit: 20, agi: 10, int: 5, health: 16, stamina: 12, mana: 10 }) },
         skills: { role: 'skills', fields: skillBlock('Astra', SKILLS) }, foes: { role: 'foes', fields: levelFoeBlock([['Cellar Rat', 1, 40, 8]]) } };
     const { host } = await setup({ blocks, board: true });
     try {
@@ -214,15 +339,13 @@ test('a soak fight replays: rebuild == live == Re-read == reload, and the record
     assert.ok(soaked > 0, 'the seeds soaked at least one hit');
 });
 
-// ---- words ----------------------------------------------------------------------------------------------------------------------------
-
 const soakedLine = { kind: 'foe', type: 'defence', skill: 'Shadow Step', outcome: 'fail', decisive: false, soaked: 3,
     pc: { who: 'Astra', stat: 'agi', die: 10, total: 14, mainValue: 10, secondValue: 12, statBonus: 11, classBonus: 0, rank: 3, edge: 0 }, foe: { name: 'Rat', slot: 1, die: 14, total: 18, base: 5, classBonus: 0 }, cost: { id: 'c:astra:stamina', kind: 'char', name: 'Astra', blocks: 1, from: 12, to: 11, size: 12 } };
 
 test('the narrator\'s note says the blow glances off, with no number, and the log draws "Glanced off"', () => {
     const result = { bars: 2, soak: 1, rounds: [{ n: 1, decisive: false, lines: [soakedLine] }], opening: [], stop: 'open', hurts: [] };
-    const note = settledNote(result, null);
-    assert.match(note, /Astra's defence \(Shadow Step\): the blow glances off and does no harm/);
+    const note = settledNote(result);
+    assert.match(note, /Rat attacks Astra: blow glances off \(Shadow Step\)/);
     assert.doesNotMatch(note.split('Exchange 1:')[1].split('|')[0], /soak|\b3\b/u, 'no soak number in the line told');
     assert.doesNotMatch(note, /Astra's defence \(Shadow Step\): fail/);
     const plain = settledNote({ ...result, rounds: [{ n: 1, decisive: false, lines: [{ ...soakedLine, soaked: undefined }] }] }, null);
@@ -231,6 +354,32 @@ test('the narrator\'s note says the blow glances off, with no number, and the lo
     const line = model.rounds[0].lines[0];
     assert.equal(line.soaked, true);
     assert.equal(line.outcome, 'fail', 'the recorded outcome stays');
+    for (const s of [0, 3]) {
+        const zeroOrMore = { ...result, rounds: [{ n: 1, lines: [{ ...soakedLine, soaked: s }] }] };
+        assert.match(settledNote(zeroOrMore), /blow glances off/);
+        const resolved = readResolve({ v: 1, key: 'k', rules, flow: 2, ...zeroOrMore });
+        const panel = buildPanel(setupDom(), panelModel({ resolve: resolved, state: { domains: {} }, roleOf: () => null }));
+        assert.match(panel.querySelector('.rpg-act-text').textContent, /Glanced off/);
+        assert.ok(panel.querySelector('.rpg-out').classList.contains('rpg-out-cost'));
+    }
+});
+
+test('a normal eight-exchange board note with soaked defences stays within the roll cue budget', () => {
+    const rounds = Array.from({ length: 8 }, (_, at) => ({ n: at + 1, lines: [soakedLine] }));
+    const note = settledNote({ rounds, opening: [], stop: 'open' });
+    assert.equal((note.match(/blow glances off/gu) ?? []).length, 8);
+    assert.ok(cueTokens(note) <= LIMITS.cueTokens);
+});
+
+test('even a long board note spends no more space on soaked lines than on failed defences', () => {
+    for (const who of ['A', 'Astra']) for (const skill of [null, 'Shadow Step']) {
+        const line = { ...soakedLine, skill, pc: { ...soakedLine.pc, who } };
+        const rounds = Array.from({ length: 99 }, (_, at) => ({ n: at + 1, lines: [line] }));
+        const glance = settledNote({ rounds, stop: 'open' });
+        const fails = settledNote({ rounds: rounds.map(round => ({ ...round, lines: [{ ...line, soaked: undefined }] })), stop: 'open' });
+        assert.ok(glance.length <= fails.length);
+        assert.equal((glance.match(/blow glances off/gu) ?? []).length, 99);
+    }
 });
 
 test('the Party card\'s growth line gains "Soak +3 (next at VIT 16)" from the effective VIT, and only for the doubled bars', () => {

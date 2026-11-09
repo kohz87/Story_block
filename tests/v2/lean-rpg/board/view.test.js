@@ -182,7 +182,7 @@ test('the end card uses the current XP rate and practice setting', async t => {
     assert.ok(awards.includes(`Wessel: Cut +${Math.min(20, uses * 5)}`));
 });
 
-for (const outcome of ['success', 'fail']) test(`the log labels a defence ${outcome} and uses words for bars`, async t => {
+for (const outcome of ['success', 'fail', 'soaked']) test(`the log labels a defence ${outcome} and uses words for bars`, async t => {
     const { doc, host, ui } = await page(t, { formula: 'standard' });
     await begin(host);
     await makeBlocks(host);
@@ -192,7 +192,7 @@ for (const outcome of ['success', 'fail']) test(`the log labels a defence ${outc
     for (let attempt = 0; attempt < 200; attempt += 1) {
         openBoard(meta, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
         result = stageExchange(meta, host.head(), [{ who: 'Wessel', kind: 'attack', target: 11 }]).preview?.result;
-        defence = result?.rounds.flatMap(round => round.lines).find(line => line.kind === 'foe' && line.outcome === outcome);
+        defence = result?.rounds.flatMap(round => round.lines).find(line => line.kind === 'foe' && (outcome === 'soaked' ? Number.isInteger(line.soaked) : line.outcome === outcome && line.soaked === undefined));
         if (defence) break;
         discardBoard(meta);
     }
@@ -200,7 +200,7 @@ for (const outcome of ['success', 'fail']) test(`the log labels a defence ${outc
     ui.mounts.screen.open('story-block/fight');
     await settle();
     const log = doc.querySelector('.rpg-board-log').textContent;
-    assert.match(log, new RegExp(`Rats 1 attacks Wessel.*Wessel's defence: ${outcome.toUpperCase()}`));
+    assert.match(log, new RegExp(`Rats 1 attacks Wessel.*Wessel's defence: ${outcome === 'soaked' ? 'GLANCED OFF' : outcome.toUpperCase()}`));
     assert.match(log, /d20 \d+ [+-]\d+ = \d+ vs \d+/);
     assert.doesNotMatch(log, /(?:health|mana|stamina)\s+\d+\s*→\s*\d+/i);
     if (defence.damage) assert.ok(log.includes(`Wessel health ${stageWord(STAGES.health, defence.damage.from, defence.damage.size)} → ${stageWord(STAGES.health, defence.damage.to, defence.damage.size)}`));

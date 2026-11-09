@@ -174,7 +174,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
         const rolled = contested(entry, pcDie, foeDie, rules);
         // (a marked fight, `soak`: a hit that is not decisive and is within 2 + S of the defender's total glances off; the skill's cost is paid as ever)
         const s = soak && !rolled.pcWins ? soakOf(me.character.stats?.vit) : 0;
-        const glance = s > 0 && soaked(s, rolled.foe.total - rolled.pc.total, rolled.decisive);
+        const glance = soak && !rolled.pcWins && soaked(s, rolled.foe.total - rolled.pc.total, rolled.decisive);
         const damage = rolled.pcWins || glance ? undefined : damageOf(me, rolled.decisive ? 2 : 1);
         return { lines: [{ kind: 'foe', type: 'defence', skill: entry.skill, pc: rolled.pc, foe: rolled.foe, outcome: rolled.outcome, decisive: rolled.decisive, ...(glance ? { soaked: s } : {}), ...(damage ? { damage } : {}) }] };
     };
