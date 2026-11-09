@@ -48,6 +48,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/board/precheck.js`: pure foe pre-check prompt, tolerant JSON reader, group vetting and typed-attack test for opening a fight from a message.
 - `src/v2/lean-rpg/board/view-bars.js`: the board's Health strip text ("Hurt · 5/10") and meter props.
 - `src/v2/lean-rpg/board/precheck-run.js`: the pre-check's one Assist call (20 s limit) and the opening it records for a typed attack on new foes.
+- `src/v2/lean-rpg/board/precheck-known.js`: the pre-check prompt's read-only extras: the pack's rank scale line and short dossier lines for named people.
 - `src/v2/lean-rpg/board/resume.js`: finds the last ended board fight's exact foe bars when the collapsed Foes block still matches them.
 - `src/v2/lean-rpg/resolve.js`: prepares and rolls planned checks, acts and foe attacks into a replayable RPG receipt.
 - `src/v2/lean-rpg/soul.js`: reads a renamed Soul Class field label and names, with stock fallbacks.
