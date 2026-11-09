@@ -13,6 +13,7 @@ import { RPG_STRINGS, fill } from '../strings.js';
 import { drawStageBars } from './bars.js';
 import { newSession, renderDistribute } from './distribute.js';
 import { growthText, readParty, xpLine } from './party-data.js';
+import { dressParty } from './gear-stats.js';
 import { newGearSession, renderGearCard } from './gear-card.js';
 import { newSkillsSession, renderSkills } from './skills.js';
 
@@ -40,7 +41,7 @@ const sameCharacter = (a, b) => a.module === b.module && a.subject === b.subject
  * session and `shared.skills` the Skills view's; at most one of them is open.
  */
 export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openWizard = null, exportCharacter = null, rules = undefined, rolled = () => false, levels = () => ({}), gear = null, board = null } = {}) {
-    // `gear` ({ on(), view(args) }, none without a host): while Gear in fights is on a card has an Inventory button that opens the slot card (gear-card.js).
+    // `gear` ({ on(), view(args), plan() }, none without a host): while Gear in fights is on a card has an Inventory button that opens the slot card (gear-card.js).
     const shared = { open: null, skills: null, gear: null };
     const live = new Set();
     const tell = () => { for (const redraw of [...live]) redraw(); };
@@ -53,7 +54,9 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
             const main = h(doc, 'div', 'rpg-main'), host = h(doc, 'div', 'rpg-sheet-host');
             root.append(main, host);
 
-            const read = () => readParty(headState(), { own: readerName(), roleOf, ...levels() });
+            // (while Gear in fights is on, each stat gear moves carries `eff` and `add`: the number the roll uses, gear-stats.js)
+            const planned = () => { try { return gear?.on?.() === true ? gear.plan?.() ?? null : null; } catch { return null; } };
+            const read = () => dressParty(readParty(headState(), { own: readerName(), roleOf, ...levels() }), planned());
             const clear = () => {
                 for (const handle of handles) handle.destroy?.();
                 handles = [];
@@ -103,7 +106,10 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 for (const stat of character.stats) {
                     const cell = h(doc, 'span', 'rpg-stat');
                     cell.setAttribute('data-stat', stat.key);
-                    cell.append(stat.label, h(doc, 'b', '', String(stat.value)));
+                    // Gear on this stat: the number a roll uses (coloured), the gear's +N under it; else the block's number alone, as before.
+                    if (stat.add) cell.append(stat.label, h(doc, 'b', stat.add > 0 ? 'rpg-stat-up' : 'rpg-stat-down', String(stat.eff)), h(doc, 'span', 'rpg-stat-add', `${stat.add > 0 ? '+' : ''}${stat.add}`));
+                    else cell.append(stat.label, h(doc, 'b', '', String(stat.value)));
+                    if (stat.add) cell.classList.add('rpg-stat-gear');
                     stats.appendChild(cell);
                 }
                 node.appendChild(stats);

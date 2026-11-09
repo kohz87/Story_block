@@ -59,6 +59,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/view/distribute.js`: draws the Spend points and Stats sheet with bars, stat steppers, radar and one save.
 - `src/v2/lean-rpg/view/export.js`: draws the Export character dialog and creates its saved character file.
 - `src/v2/lean-rpg/view/gear-card.js`: draws the Party Inventory slot card and the gear worn in each place.
+- `src/v2/lean-rpg/view/gear-stats.js`: lays what worn gear adds (the rolls' own `planGear` + `applyGear`) on the Party cards' stats as `eff` and `add`.
 - `src/v2/lean-rpg/view/lean-rpg.css`: styles the RPG Party, sheets, battle log and settings screens responsively.
 - `src/v2/lean-rpg/view/party-data.js`: maps Character, Skills and Foes blocks into plain records and display words for RPG screens.
 - `src/v2/lean-rpg/view/party.js`: draws Party tab cards and opens the spend, skills, gear, wizard and export views.
