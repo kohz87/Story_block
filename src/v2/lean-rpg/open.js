@@ -58,7 +58,7 @@ const RANK_MAX = 12;
  */
 export function vetOpen(requested, sheet, texts, { rankAt = null, stated = null } = {}) {
     const open = [], refused = [];
-    // A new foe with a GUESSED level is at most one band (10 levels) above the party's highest level: a level or rank above that is held down to it.
+    // A new foe with a GUESSED level is at most the party's highest level + 20: a level or rank above that is held down to it.
     const cap = foeLevelCap(partyLevels(sheet));
     // (a standing group is already there; a Down one is beaten and a new group of its name is new: openFoes replaces it)
     const known = new Set((sheet?.foes ?? []).filter(foe => foe.filled && foe.hurt > 0).map(foe => fold(foe.name)));

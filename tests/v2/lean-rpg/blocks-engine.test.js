@@ -186,7 +186,7 @@ test('the new pin runs words, growth, Down and Rest through the real block engin
 
 test('a Foes group\'s Health is blocks left out of 4 + class/3: it arrives full, the story hurts it by words, and Down means 0', async t => {
     const host = await story(t, 'Character', 'Foes');
-    await set(host, 'character', { who: 'Wessel', level: 35 });   // (level 35: a new foe may be 10 levels above the party's highest)
+    await set(host, 'character', { who: 'Wessel', level: 35 });   // (level 35: a new foe may be up to 20 levels above the party's highest)
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35', '+ dm foes — why | kind: set-slot-2 | name: Sluice Rat | count: 2 | level: 5'));
     assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [foeHealthBlocks(4), foeHealthBlocks(1)]);
     assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [5, 4]);
@@ -208,7 +208,7 @@ test('the tail says the bars in words spread over the size (never block counts),
     assert.match(line, /^Wessel — health Hurt; stamina Tired; STR 5 /, '4 of 6 is Hurt, 2 of 5 is Tired');
     assert.doesNotMatch(line, /\b(of 6|blocks|health 4|stamina 2)\b/);
     assert.doesNotMatch(line, /health-blocks|stamina-blocks|mana-blocks/, 'the sizes are the rules\' own');
-    await set(host, 'character', { level: 35 });   // (a new foe may be 10 levels above the party's highest)
+    await set(host, 'character', { level: 35 });   // (a new foe may be up to 20 levels above the party's highest)
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35'));
     assert.equal(summaryOf(host.head(), 'pack.chat/foes'), 'Foes: Weir-drake (Lv 35).');
     await host.send('Hit.', reply(say('foes', 'hurt-1', ' | to: Scratched')));

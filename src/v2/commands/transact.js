@@ -223,7 +223,7 @@ export function createTransact({ store, registry, resolve, internal, internalMes
         if (!isRecord(carrier) || !Number.isInteger(carrier.index)) return null;
         const swipe = Number.isInteger(carrier.swipe) ? carrier.swipe : 0;
         const key = `${carrier.index}:${swipe}`;
-        const out = { index: carrier.index, swipe, sid: typeof carrier.sid === 'string' ? carrier.sid : null, key, ...(carrier.practiceRule === 'rolls' ? { practiceRule: 'rolls' } : {}) };
+        const out = { index: carrier.index, swipe, sid: typeof carrier.sid === 'string' ? carrier.sid : null, key, ...(carrier.practiceRule === 'rolls' ? { practiceRule: 'rolls' } : {}), ...(carrier.foeCap === 20 ? { foeCap: 20 } : {}) };
         Object.defineProperty(out, 'toString', { value: () => key });
         return Object.freeze(out);
     }

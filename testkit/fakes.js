@@ -96,6 +96,11 @@ export function createFakeStore({ chat, save = async () => {} }) {
             sync(index);
             dirty = true;
         },
+        setFoeCap(index) {
+            data(index).foeCap = 20;
+            sync(index);
+            dirty = true;
+        },
         setNarrated(index, ids) {
             data(index).narrated = [...ids];
             sync(index);

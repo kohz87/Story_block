@@ -49,6 +49,8 @@ New board fight records carry a scoped guard witness (`board/commit.js`: the dom
 
 A fight is marked `bars: 2` (setup, result, guard; `board/session.js`, `engine.js`, `commit.js`) only when every sheet character is pinned at scale 2; the mark changes skill damage (2/3), the area cost (2) and Auto's hurt stop, and an old fight keeps its recorded rules. A pre-check opening is unmarked and its foe `level` is required (`board/precheck.js vetGroups`: missing = the party's top level, held to the cap). Utility skills have no flags, so the board, Auto and the defence pick ignore them (`board/flags.js skillFlags`).
 
+A new foe's guessed level (pre-check, vetOpen, the narrator's set-slot line) is held to the party's highest level + 20 (`foes.js foeLevelCap`; a person's Level field passes it). A reply captured before that rule has no `foeCap: 20` mark and keeps the + 10 cap on a Re-read; recorded plans and ops are never re-capped.
+
 Before step 1, an explicit attack against a known standing foe holds the send (title 'This is an attack on <foes>') with only **Fight on the board** and **Auto-fight**; ambiguous actions continue normally. No model call is made and nothing waits.
 The offer under a reply that opens foes has the same two choices. **Auto** stages ordinary exchanges through the same path as a chosen exchange, then **Auto again** and **Send with this fight** are offered. `openBoard({records})` resumes
 foes a fled or lost fight left, with the note 'These foes are as you left them: N of M standing, with their bars from the last fight.' Both previews and capture verify the inputs.

@@ -1,6 +1,6 @@
 // A foe's stated level: a person the owner or the story has marked. When a foe group's name matches an NPC State Delta dossier (its name or an alias) whose
 // custom field "Level" (any case) holds a whole number 1..99 ("30", "Lv 30", "level 30") or one or two of the story's own rank names ("C", "rank C", "C-D",
-// "C or D"), that is the foe's level: it passes the party + 10 cap that guessed levels keep, and it wins over any level or rank the pre-check or the narrator gave.
+// "C or D"), that is the foe's level: it passes the party + 20 cap that guessed levels keep, and it wins over any level or rank the pre-check or the narrator gave.
 // Anything else (empty, "high", a rank the pack does not name, no ranks at all) is ignored and the normal rules apply.
 // REPLAY: the dossier is NSD's sidecar, not chat state. This file is only READ by the host's pre-check step (precheck-run.js), BEFORE the opening is recorded:
 // the result goes into the recorded `plan.open` (a `level`, or a rank band `rank`/`from`/`to` that resolve.js draws from the reply's seed and records), so replay,
