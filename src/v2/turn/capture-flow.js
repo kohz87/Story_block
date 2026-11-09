@@ -17,6 +17,7 @@ import { within, TIMED_OUT } from './text.js';
 import { occurrenceOf, operationKey } from '../evidence.js';
 import { hash, readRecord } from '../persist.js';
 import { LEAN_RPG_FEATURE, practiceFromRollsOnly } from '../lean-rpg/names.js';
+import { ruleMarksFor, ruleMarksOf } from './rule-marks.js';
 import { boardFailure, boardStep } from './held-board.js';
 import { earlierReceipts, moneyWarning } from './money-guard.js';
 
@@ -296,6 +297,10 @@ export function createCaptureFlow(s, deps) {
         else if (base === null && lines.some(line => FOE_LINE.test(line.raw ?? ''))) {
             try { store.setFoeCap?.(index); carrier.foeCap = 20; } catch { /* an unmarked reply keeps the old cap */ }
         }
+        // Rule marks (rule-marks.js): a reply captured live with a line a newer rule covers is marked; a Re-read goes by the marks it has (a module reads `ctx.carrier.rules`).
+        const marks = ruleMarksOf(readRecord(message)?.rules), fresh = base === null ? ruleMarksFor(lines).filter(name => !marks.includes(name)) : [];
+        if (fresh.length) { try { store.setRuleMarks?.(index, fresh); marks.push(...fresh); } catch { /* an unmarked reply keeps the old rule */ } }
+        if (marks.length) carrier.rules = marks;
         // The message right before the reply (system messages aside), and only when it is the reader's: a reply that
         // follows another reply has no message of the reader's to quote (proof, EVIDENCE.md).
         const before = (ctx?.chat ?? []).slice(0, index).findLast(item => !item?.is_system);

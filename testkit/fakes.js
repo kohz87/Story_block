@@ -101,6 +101,11 @@ export function createFakeStore({ chat, save = async () => {} }) {
             sync(index);
             dirty = true;
         },
+        setRuleMarks(index, names) {
+            data(index).rules = [...new Set([...(data(index).rules ?? []), ...(names ?? [])])].sort();
+            sync(index);
+            dirty = true;
+        },
         setNarrated(index, ids) {
             data(index).narrated = [...ids];
             sync(index);

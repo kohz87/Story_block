@@ -94,6 +94,7 @@ Last checked: 2026-11-07.
 - `src/v2/timeline/util.js`: holds shared timeline ids, error codes, crash and stale-chat helpers.
 
 ## src/v2/turn/
+- `src/v2/turn/rule-marks.js`: per-reply rule marks (`rules` on the record, `ctx.carrier.rules` for a module); the table of rules and their line tests.
 - `src/v2/turn/money-guard.js`: money guard; warns in Problems (never blocks, writes nothing) on a coin line repeating a recent same-source payment or far above the purse.
 
 ## src/v2/ui/
