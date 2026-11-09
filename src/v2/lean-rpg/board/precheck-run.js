@@ -6,6 +6,7 @@ import { SETTING, withTimeout } from '../../assist/common.js';
 import { DICE_VERSION, FLOW_VERSION } from '../resolve.js';
 import { FIX_VERSION, LV_VERSION, PRACTICE, PRECHECK_LIMIT_MS, PRECHECK_SETTING, practiceOf, PRACTICE_SETTING } from '../names.js';
 import { knownLines, rankScale } from './precheck-known.js';
+import { statedLevel } from './stated-level.js';
 import { looksLikeAttack, parsePrecheck, precheckPrompt, vetGroups } from './precheck.js';
 
 const ANSWER_TOKENS = 300;
@@ -23,7 +24,7 @@ export async function runPrecheck({ callModel, message, previous = '', sheet, va
     try {
         const prompt = precheckPrompt({ message, previous, sheet, ranks: rankScale(query), known: knownLines(query, message, previous) });
         const answer = await withTimeout(() => callModel(prompt, { maxTokens: ANSWER_TOKENS, profile: String(values[SETTING.profile] ?? ''), helper: 'precheck', timeoutMs: limit }), limit, timer);
-        return vetGroups(parsePrecheck(answer), { message, previous, sheet });
+        return vetGroups(parsePrecheck(answer), { message, previous, sheet, stated: name => statedLevel(query, name) });
     } catch { return []; }
 }
 

@@ -9,7 +9,7 @@ import { bandsOf, packLevelsOf } from '../levels.js';
 export const KNOWN_LIMITS = Object.freeze({ people: 3, name: 40, role: 60, summary: 100, line: 170, scan: 80 });
 
 const cut = (value, max) => [...String(value ?? '').replace(/\s+/gu, ' ').trim()].slice(0, max).join('').trim();
-const wordsOf = text => String(text ?? '').normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+export const wordsOf = text => String(text ?? '').normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 const ask = (query, name, args) => { try { return typeof query === 'function' ? query(name, args) : null; } catch { return null; } };
 
 /** The scale as one line, "Ranks: F 1-9, E 10-19", or '' when the story has no ranks. */
@@ -19,7 +19,7 @@ export function rankScale(query) {
 }
 
 // Whether the words of `name` occur, whole and in a row, among `seen` (the message and the reply before it, as words).
-function occurs(name, seen) {
+export function occurs(name, seen) {
     const wanted = wordsOf(name);
     if (!wanted.length) return false;
     for (let at = 0; at + wanted.length <= seen.length; at += 1) if (wanted.every((word, i) => seen[at + i] === word)) return true;

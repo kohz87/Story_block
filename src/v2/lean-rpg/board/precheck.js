@@ -168,9 +168,10 @@ function levelOf(value) {
 /**
  * Vets parsed groups for an opening. `limits` may narrow `{ groups, count, name, levelMin, levelMax }`; its defaults are
  * `PRECHECK_LIMITS` and the Foes rules (a count above the Foes block's maximum refuses every group). Name words may come from `message` or `previous`. A level, when given, is held to 1..99 and to one band above the party's highest.
- * → `[{ name, count, level? }]`, in the exact form `openFoes` takes; a missing or invalid level is the party's top level (held to the same cap), never a random draw.
+ * `stated(name)` (stated-level.js, read by the caller BEFORE recording) gives a person's own Level: `{ level }` or a rank band `{ rank, from, to }`; it passes the cap and wins over the model's level, and the band is drawn later from the reply's seed.
+ * → `[{ name, count, level? } | { name, count, rank, from, to }]`, in the exact form `openFoes` takes; a missing or invalid level is the party's top level (held to the same cap), never a random draw.
  */
-export function vetGroups(groups, { message = '', previous = '', sheet = null, limits = null } = {}) {
+export function vetGroups(groups, { message = '', previous = '', sheet = null, limits = null, stated = null } = {}) {
     if (!Array.isArray(groups)) return [];
     const maxGroups = limitOf(limits, ['groups', 'maxGroups'], PRECHECK_LIMITS.groups);
     const maxCount = limitOf(limits, ['count', 'maxCount'], PRECHECK_LIMITS.count);
@@ -192,6 +193,10 @@ export function vetGroups(groups, { message = '', previous = '', sheet = null, l
         const rawCount = countOf(group.count);
         if (Number.isInteger(rawCount) && rawCount > maxCount) return []; // a group past the block's maximum: refuse the whole reading, the send goes plain
         const count = Math.max(1, Number.isInteger(rawCount) ? rawCount : 1);
+        let given = null;
+        try { given = typeof stated === 'function' ? stated(name) : null; } catch { given = null; }
+        if (given && Number.isInteger(given.level)) { accepted.push({ name, count, level: Math.max(FOE_LEVEL.min, Math.min(FOE_LEVEL.max, given.level)) }); continue; }
+        if (given && typeof given.rank === 'string' && Number.isInteger(given.from) && Number.isInteger(given.to) && given.from <= given.to) { accepted.push({ name, count, rank: given.rank, from: given.from, to: given.to }); continue; }
         const rawLevel = levelOf(group.level);
         const level = Math.max(levelMin, Math.min(cap, Number.isInteger(rawLevel) ? rawLevel : topLevel));
         accepted.push({ name, count, level });
