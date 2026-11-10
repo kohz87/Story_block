@@ -82,3 +82,15 @@ test('the difficulty numbers recorded with the reply are the ones used', () => {
     const found = validateCheck(parseCheckLine('? roll Astra | CHA | hard | 9'), { party, offeredDice, usedDice: [], dc: { easy: 8, normal: 12, hard: 17, 'very hard': 22 } });
     assert.equal(found.dc, 17);
 });
+
+test('an action in the name place rolls for a solo party and is refused for a party of two', () => {
+    const lines = ['? roll Hold the steps against Hulder\'s crew | cha | normal | 9', '? roll Carve Ash Stick-Sheath | DEX | normal | 9'];
+    for (const line of lines) {
+        const solo = validateCheck(parseCheckLine(line), { party: [astra], offeredDice, usedDice: [] });
+        assert.equal(solo.ok, true, line);
+        assert.equal(solo.member, astra);
+        assert.deepEqual(validateCheck(parseCheckLine(line), { party, offeredDice, usedDice: [] }), { ok: false, reason: 'unknown person' });
+    }
+    assert.equal(validateCheck(parseCheckLine(lines[1]), { party: [astra], offeredDice, usedDice: [] }).what, 'DEX', 'a stat in upper case is accepted');
+    assert.equal(validateCheck(parseCheckLine('? roll Nobody | OBSCURE | normal | 9'), { party: [astra], offeredDice, usedDice: [] }).skill.name, 'Obscure', 'a skill in any case is accepted');
+});

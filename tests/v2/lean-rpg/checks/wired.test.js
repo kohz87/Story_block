@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../../testkit/index.js';
-import { CHECKS_SETTING, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING, ROLLS_SETTING } from '../../../../src/v2/lean-rpg/index.js';
+import { CHECKS_SETTING, CHECK_GRAMMAR, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING, ROLLS_SETTING } from '../../../../src/v2/lean-rpg/index.js';
 import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { checksOf } from '../../../../src/v2/lean-rpg/practice.js';
 import { practiceLines } from '../../../../src/v2/lean-rpg/view/changes-lines.js';
@@ -82,15 +82,15 @@ test('a Re-read keeps the dice and the results; a swipe is a new reply with new 
 test('the outcome is the die plus the stat part, against the difficulty; a bad line is refused with one note and no roll', { skip }, async t => {
     const host = await world(t);
     await host.send('I try three things.', after(host, dice => ['Story.', '<Changes>',
-        `? roll Astra | cha | easy | ${dice[0]}`, `? roll Nobody | cha | easy | ${dice[1]}`, `? roll Astra | cha | hard | ${dice[1]}`, `? roll Astra | cha | normal | ${dice[0]}`, '</Changes>'].join('\n')));
+        `? roll Astra | cha | easy | ${dice[0]}`, `? roll Astra | juggling | easy | ${dice[1]}`, `? roll Astra | cha | hard | ${dice[1]}`, `? roll Astra | cha | normal | ${dice[0]}`, '</Changes>'].join('\n')));
     const results = checksOf(records(host).receipts), dice = diceOf(host);
-    assert.equal(results.length, 2, 'the unknown person is refused; the second use of the first die is refused too');
+    assert.equal(results.length, 2, 'the unknown skill is refused; the second use of the first die is refused too');
     assert.equal(results[0].die, dice[0]);
     assert.equal(results[0].total, dice[0] + results[0].bonus);
     const total = dice[0] + results[0].bonus;   // (a natural 20 always succeeds and a natural 1 always fails: outcomeOf)
     assert.equal(results[0].outcome, dice[0] === 20 || (dice[0] !== 1 && total >= 10) ? 'success' : (dice[0] !== 1 && total >= 8 ? 'cost' : 'fail'));
     assert.equal(results[1].die, dice[1], 'the refused line used no die: the next line takes the second');
-    assert.ok(messages(host).some(text => text.includes('was not used: unknown person')), 'one note for the unknown person');
+    assert.ok(messages(host).some(text => text.includes('was not used: unknown skill or stat')), 'one note for the unknown skill');
     assert.ok(messages(host).some(text => text.includes('die reused') || text.includes('out of order')), 'and one for the die used twice');
 });
 
@@ -152,7 +152,7 @@ test('the grammar line is constant text: told with or without a party', { skip }
     t.after(() => bare.close());
     bare.features.set(LEAN_RPG_FEATURE, true);
     await bare.send('Begin.', 'Opening.');
-    const line = '? roll Name | skill or stat | easy, normal, hard or very hard | die (an attempt that can fail, with one of this reply\'s dice, in order; at most 3)';
+    const line = CHECK_GRAMMAR.replaceAll('{{user}}', 'You');   // (the macro is filled in by SillyTavern: the fake reader is You)
     assert.ok(JSON.stringify(bare.st.requests.at(-1)).includes(line), 'no party');
     const host = await world(t);
     await host.send('I try.', 'The door sticks.');

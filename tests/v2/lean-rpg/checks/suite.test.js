@@ -33,6 +33,6 @@ test('with the real Story Director, `check` stays its word and `roll` is Story B
     await host.send('I try.', { toString() { const found = NOTE.exec(tailOf(host.st.requests.at(-1))); return `Story.\n<Changes>\n? roll Astra | cha | normal | ${found?.[1]}\n</Changes>`; } });
     const request = JSON.stringify(host.st.requests.at(-1));
     assert.ok(NOTE.test(tailOf(host.st.requests.at(-1))), 'the dice note is told');
-    assert.ok(request.includes('? roll Name | skill or stat'), 'Story Block\'s grammar line');
+    assert.ok(request.includes('? roll Who | skill or stat'), 'Story Block\'s grammar line');
     assert.equal(checksOf(host.ctx.chat.at(-1).extra.storySuite.receipts).length, 1, 'the roll line made a result');
 });

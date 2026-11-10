@@ -24,7 +24,7 @@ export const ROLL_KIND = 'roll';
 export const CHECKS_SETTING = 'rpgChecks';
 export const checksOn = values => values?.[CHECKS_SETTING] !== false;
 /** The static grammar line of the `? roll` kind: constant text, shown while the RPG and Story checks are on, whatever the party or Rolls say (the dice follow the same switch). */
-export const CHECK_GRAMMAR = '? roll Name | skill or stat | easy, normal, hard or very hard | die (an attempt that can fail, with one of this reply\'s dice, in order; at most 3)';
+export const CHECK_GRAMMAR = '? roll Who | skill or stat | easy, normal, hard or very hard | die (Who rolls: {{user}} or a party member, by name, never the action; an attempt that can fail, with one of this reply\'s dice, in order; at most 3; e.g. ? roll {{user}} | Obscure | normal | 14)';
 
 /** The step after a reply's lines that gives the party its XP for a won fight (fight.js); also the kind of its replay guard. */
 export const FIGHT = 'rpg.fight';

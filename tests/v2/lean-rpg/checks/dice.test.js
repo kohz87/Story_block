@@ -20,13 +20,14 @@ test('a reply gets three whole d20 from its seed, and the same seed gives the sa
 test('the note tells the dice, the difficulty numbers, the success rule and each member\'s exact bonus for every stat and skill', () => {
     const record = { list: [9, 17, 4], rules, dc: { ...LIMITS.dc }, perUse: 3, table: bonusTable([astra], rules) };
     // stat part floor((2 x main + dex) / 4) + floor(level 10 / 5) = 2 (STR: 6 + 2); a skill adds its rank (Obscure: 4 + 2 + 1); a skill with no stat leads with STR, as the fight code does (Lore: 6 + 2 + 0)
-    assert.equal(offerLine(record), 'Dice for this reply, in order: 9, 17, 4. Use one for each attempt that can fail (yours or a party member\'s): total = die + bonus, against easy 10 (routine for a trained person), normal 15 (a real chance to fail), hard 20 (a skilled person often fails), very hard 25 (rarely done). Total at the number or over: success; up to 2 short: success at a cost; less: fail; a natural 20 always succeeds and a natural 1 always fails. Bonus by stat or skill (level included): Astra: STR+8 VIT+7 AGI+9 DEX+6 INT+10 LUK+8 CHA+8; Obscure+7, Lore+8. The story must follow each result strictly. Report each: ? roll Name | skill or stat | difficulty | die.');
+    assert.equal(offerLine(record), 'Dice for this reply, in order: 9, 17, 4. Use one for each attempt that can fail (yours or a party member\'s): total = die + bonus, against easy 10 (routine for a trained person), normal 15 (a real chance to fail), hard 20 (a skilled person often fails), very hard 25 (rarely done). Total at the number or over: success; up to 2 short: success at a cost; less: fail; a natural 20 always succeeds and a natural 1 always fails. Bonus by stat or skill (level included): Astra: STR+8 VIT+7 AGI+9 DEX+6 INT+10 LUK+8 CHA+8; Obscure+7, Lore+8. The story must follow each result strictly. Report each: ? roll Who | skill or stat | difficulty | die, where Who is the person rolling (the reader\'s character or a party member, by name), never the action; for example ? roll Astra | Obscure | normal | 9.');
 });
 
 test('the margin the note names is the one recorded, not a fixed number', () => {
     const text = offerLine({ list: [1, 2, 3], rules: { ...rules, costMargin: 4 }, dc: { easy: 8, normal: 12, hard: 17, 'very hard': 22 }, table: [] });
     assert.ok(text.includes('up to 4 short') && text.includes('easy 8') && text.includes('very hard 22'));
     assert.equal(text.includes('Bonus by'), false, 'no party: no bonus list');
+    assert.ok(text.includes('for example ? roll Astra | Obscure | normal | 1.'), 'no party: a stock example with the first die');
 });
 
 test('a record is read back only whole: three dice in range, the rules, the difficulty numbers and a practice per use', () => {

@@ -71,7 +71,7 @@ test('a skill with no stored stat leads with the type\'s main stat, in the table
 test('workChecks uses the rules, difficulty numbers and practice recorded with the dice, never other numbers', () => {
     const dice = { list: [9, 17, 4], rules: { levelDivisor: 5, classWeight: 2, costMargin: 0, decisiveMargin: 4 }, dc: { easy: 8, normal: 12, hard: 17, 'very hard': 22 }, perUse: 5 };
     const lines = ['? roll Astra | Obscure | normal | 9', '? roll Astra | CHA | normal | 4', '? roll Nobody | CHA | easy | 17'];
-    const worked = workChecks(party, lines, dice);
+    const worked = workChecks([member, { ...member, name: 'Rook' }], lines, dice);
     assert.equal(worked.results.length, 1, 'the second line is out of order and the third has no one: refused');
     assert.equal(worked.notes.length, 2);
     const [first] = worked.results;

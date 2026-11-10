@@ -46,7 +46,8 @@ export function validateCheck(parsed, { party = [], offeredDice = [], usedDice =
     const difficulty = difficultyOf(parsed.difficulty);
     if (!Object.hasOwn(dc, difficulty)) return refusal('unknown difficulty');
 
-    const member = memberNamed(party, parsed.name);
+    // A narrator who puts the action where the name goes still means the one person there is; with two or more people the line is refused.
+    const member = memberNamed(party, parsed.name) ?? (Array.isArray(party) && party.length === 1 ? party[0] : null);
     if (!member) return refusal('unknown person');
 
     const what = clean(parsed.what);
