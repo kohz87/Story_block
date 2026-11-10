@@ -528,18 +528,18 @@ test('Edit first carries the signature skills: the offer records them, the card\
 
 // ---- Ersveil ----------------------------------------------------------------------------------------------------------------------------
 
-test('Ersveil gives each of its 12 cast members 2 to 4 skills, ranked by level, and the pack still checks', () => {
+test('Ersveil gives each of its 12 cast members exactly 2 skills (owner list, 10 Nov), and the pack still checks', () => {
     const raw = readFileSync(new URL('../../examples/packs/ersveil/pack.json', import.meta.url), 'utf8');
     const result = validatePack(raw);
     assert.equal(result.ok, true, JSON.stringify(result.errors?.slice(0, 3)));
     const cast = result.pack.content.cast;
     assert.equal(cast.length, 12);
+    for (const member of cast) assert.equal(member.skills.length, 2, member.name);
     const level = person => Number(person.fields?.Level);
-    for (const member of cast) assert.ok(member.skills.length >= 2 && member.skills.length <= 4, member.name);
     const rank = member => member.skills.map(skill => ['novice', 'adept', 'expert', 'master'].indexOf(skill.rank));
-    const low = cast.find(member => level(member) === 8), high = cast.find(member => level(member) === 56);
+    const low = cast.find(member => level(member) === 4), high = cast.find(member => level(member) === 56);
     assert.equal(low.name, 'Sister Temiwa');
-    assert.ok(rank(low).filter(r => r === 0).length >= 2 && Math.max(...rank(low)) <= 1, 'Lv 8: mostly Novice');
+    assert.deepEqual(rank(low), [0, 0], 'Lv 4: both Novice');
     assert.equal(high.name, 'Harrak');
-    assert.ok(rank(high).filter(r => r >= 2).length >= 3, 'Lv 56: mostly Expert or Master');
+    assert.deepEqual(rank(high), [2, 3], 'Lv 56: Expert and Master');
 });
