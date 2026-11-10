@@ -10,6 +10,7 @@ import { hasRestButtons, isMarkedCharacter, fullRestTooSoon, recoveryNote } from
 import { directorStub, reload } from '../data-modules/helpers.js';
 import { cueOfResult } from '../../../src/v2/lean-rpg/cue.js';
 import { grammarFor } from '../../../src/v2/data-modules/part/views.js';
+import { moduleGrammar } from '../../../src/v2/data-modules/grammar.js';
 
 async function world({ old = false, clock = false, minute = 1000 } = {}) {
     const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } },
@@ -236,4 +237,55 @@ test('a fight the story settles without the board pays no XP on the new rules; a
         if (!old) assert.equal(fields(host).xp, before);
         same(host);
     }
+});
+
+// The recovery line: one line after a marked Character's own lines, only for kinds the pin offers with their standard meaning.
+const pinState = definition => ({ domains: { dataModules: { active: { 'pack.chat/character': { hash: 'h' } }, pins: { h: { interpreter: 1, definition } } } } });
+const STANDARD_LINE = "Recovery: rest (an hour or two) refills mana and stamina; full-rest (a night's sleep, once in 6 story hours) also health; heal (1 to 3) only health.";
+const standardPin = () => structuredClone(STANDARD_TEMPLATES[0].definition);
+const lineOf = definition => grammarFor(pinState(definition)).split('\n').filter(text => text.startsWith('Recovery:')).join('|');
+
+test('the standard marked pin gets the recovery line after its own lines, and the pin is not touched', () => {
+    const definition = standardPin(), before = JSON.stringify(definition);
+    const text = grammarFor(pinState(definition));
+    assert.equal(text.endsWith(`\n${STANDARD_LINE}`), true, text);
+    assert.equal(text.includes(moduleGrammar(definition, 'character')), true, 'the old lines are all there');
+    assert.equal(JSON.stringify(definition), before);
+    assert.equal(STANDARD_LINE.length, 148);
+});
+
+test('an unmarked historical pin and a pre-recovery scaled pin (only button-rest) get no recovery line', () => {
+    const old = characterV1For();
+    assert.equal(grammarFor(pinState(old)).includes('Recovery:'), false);
+    assert.equal(grammarFor(pinState(old)).endsWith(moduleGrammar(old, 'character')), true);
+    const early = standardPin();
+    for (const name of ['rest', 'full-rest', 'heal']) delete early.kinds[name];
+    early.kinds['button-rest'] = { op: '!', ui: true, title: 'Short rest', labels: {}, effects: REFILL(['stamina', 'mana']) };
+    assert.equal(lineOf(early), '');
+});
+
+test('customised pins: heal bounds come from the pin; a rest that heals, or a screen-owned kind, is left out', () => {
+    const wide = standardPin();
+    wide.kinds.heal.labels.amount.max = 5;
+    assert.match(lineOf(wide), /heal \(1 to 5\) only health\.$/);
+    const heals = standardPin();
+    heals.kinds.rest.effects = REFILL(['health', 'stamina', 'mana']);
+    assert.equal(lineOf(heals), "Recovery: full-rest (a night's sleep, once in 6 story hours) refills health, stamina and mana; heal (1 to 3) only health.");
+    const owned = standardPin();
+    owned.kinds.heal.ui = true;
+    owned.kinds['full-rest'].effects = REFILL(['stamina', 'mana']);
+    assert.equal(lineOf(owned), 'Recovery: rest (an hour or two) refills mana and stamina.');
+    const odd = standardPin();
+    odd.kinds.heal.labels.amount.min = 0;
+    assert.doesNotMatch(lineOf(odd), /heal \(/);
+});
+
+test('pins at the prompt and grammar caps lose nothing to the recovery line', () => {
+    const full = standardPin();
+    full.prompt = 'x'.repeat(1200);
+    for (let n = 0; n < 12; n++) full.kinds[`note-${n}`] = { op: '~', labels: { text: { type: 'text' } }, effects: [] };
+    const own = moduleGrammar(full, 'character');
+    const text = grammarFor(pinState(full));
+    assert.equal(text.includes(own), true);
+    assert.equal(text.endsWith(`\n${STANDARD_LINE}`), true);
 });
