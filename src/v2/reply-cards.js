@@ -277,6 +277,19 @@ export function replyRules(record, problems = [], index = null, states = {}) {
     return out;
 }
 
+/**
+ * The too-soon full rests a reply counted as a short rest (a data-module receipt whose saved result says `fallback`): one applied line each, the receipt's own summary
+ * ("Astra: full rest too soon (under 6 story hours), counted as a short rest (Mana Low → Fresh)."), in the card's line shape. Replay-inactive receipts are skipped.
+ */
+export function replyRestFallbacks(record, problems = [], index = null) {
+    const skipped = new Set((Array.isArray(problems) ? problems : []).filter(problem => index === null || problem?.index === index)
+        .flatMap(problem => Array.isArray(problem?.receipts) ? problem.receipts : []));
+    return (Array.isArray(record?.receipts) ? record.receipts : [])
+        .filter(receipt => receipt?.data?.v2?.result?.fallback === true && !skipped.has(receipt.id))
+        .map(receipt => oneLine(receipt.summary ?? '', 300)).filter(Boolean)
+        .map(text => ({ text, summary: text, kind: 'line', tone: 'good', icon: 'fa-moon', flag: '', note: '', check: null }));
+}
+
 // ---- The one card under a reply ("This reply") ----------------------------------------------------------------------------
 // Every module's card screen (mount `card`: "Changed this reply" and every other module's) is a
 // section of one card. Closed, the card is one line: each section's own summary, joined with " · ". Pure; no DOM.

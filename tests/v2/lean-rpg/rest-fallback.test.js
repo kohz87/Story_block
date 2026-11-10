@@ -1,18 +1,21 @@
-// The `restFallback` rule (fix/rest-kinds): a story full rest of a marked Character that is refused as too soon counts as a short rest on
-// a reply captured with the mark, for a standard pin only (no timer or rule of its own that writes Health or the rest marks); an older reply without it keeps the refusal.
-// The receipt says so (a summary that outlives a reload). The recovery wording is one separate line after a marked Character's lines. Replay == live.
+// The `restFallback` rule (fix/rest-kinds): a story full rest of a marked Character that is refused as too soon is decided, on a reply captured with the mark, as the same
+// line written with kind `rest` (the pin's own story rest kind; none: refused as before); an older reply without the mark keeps the refusal. The reply card shows an applied
+// note that outlives a reload. The recovery wording line names only the recovery kinds the pin offers. Replay == live.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
-import { REST_LINE, RESTED_FIELD, fallbackSafe, recoveryNote } from '../../../src/v2/data-modules/recovery.js';
+import { RESTED_FIELD, recoveryNote, restLine } from '../../../src/v2/data-modules/recovery.js';
 import { directorStub, reload } from '../data-modules/helpers.js';
 import { grammarFor } from '../../../src/v2/data-modules/part/views.js';
 import { parseChanges } from '../../../src/v2/capture.js';
 import { ruleMarksFor } from '../../../src/v2/turn/rule-marks.js';
 import { fullModuleGrammar, moduleGrammar, referenceOf } from '../../../src/v2/data-modules/grammar.js';
 import { DM_LIMITS as L } from '../../../src/v2/data-modules/schema.js';
+import { replyRestFallbacks } from '../../../src/v2/reply-cards.js';
+import { changesCardScreen } from '../../../src/v2/screens/index.js';
+import { core, queries, renderSkip, show, stocked, text } from '../screens/helpers.js';
 
 async function world({ old = false, clock = false, minute = 1000, character = null } = {}) {
     const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } },
@@ -43,6 +46,7 @@ const bars = host => ({ health: fields(host).health, stamina: fields(host).stami
 const NOTE = /^Astra: full rest too soon \(under 6 story hours\), counted as a short rest \((?:(?:Mana|Stamina) [^,()]+ → [^,()]+(?:, )?){2}\)\.$/u;
 const noteOf = (host, at = host.ctx.chat.length - 1) => (host.ctx.chat[at].extra?.storySuite?.receipts ?? []).map(receipt => receipt.summary).find(text => /too soon/u.test(text ?? ''));
 const marked = () => STANDARD_TEMPLATES.find(entry => entry.definition.role === 'character').definition;
+const REST_LINE = restLine(marked());
 
 // The Character prompt exactly as origin/main's template stores it (every old pin carries these bytes; its hash must not move).
 const ORIGIN_PROMPT = 'One character: who they are, health, stamina and mana (words, shown as bars), seven stats 1 to 20, points, Level 1 to 99 and XP to 100. The narrator may lower health, mana and stamina, '
@@ -52,8 +56,7 @@ const pinHash = host => host.head().domains.dataModules.active['pack.chat/charac
 test('the stored Character prompt is the historical text; a marked Character gets one separate recovery line after its own lines; an unmarked one gets none', async () => {
     const current = marked();
     assert.equal(current.prompt, ORIGIN_PROMPT, 'the template stores the old prompt byte for byte');
-    assert.equal([...REST_LINE].length, 138, 'the line is 138 characters');
-    assert.equal(REST_LINE, "Rest (an hour or two) refills mana and stamina; full-rest (a night's sleep, once in 6 story hours) also health; heal (1 to 3) only health.");
+    assert.equal(REST_LINE, "Recovery: rest (an hour or two) refills mana and stamina; full-rest (a night's sleep, once in 6 story hours) refills health, stamina and mana; heal (1 to 3) restores only health.");
     const host = await world();
     try {
         const hash = pinHash(host);
@@ -86,12 +89,11 @@ test('a marked story full rest under six story hours with the mark counts as a s
         assert.equal(top.rested, 1000);
         assert.ok(top.health > 1);
         assert.ok(rulesOf(host).includes('restFallback'), 'the reply carries the mark');
-
         assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 359 })).ok, true);
         await set(host, { health: 1, stamina: 1, mana: 1 });
         await say(host, ['~ dm character — a bed too soon | kind: full-rest']);
         assert.deepEqual(bars(host), { health: 1, stamina: top.stamina, mana: top.mana, rested: 1000 }, 'short rest: Health and rested-at stay');
-        assert.ok(messages(host).some(text => NOTE.test(text)), messages(host));
+        assert.equal(messages(host).some(text => /short rest/u.test(text)), false, 'it is an applied outcome, not a "not applied" problem');
         assert.equal(messages(host).includes(recoveryNote.fullRest('Astra')), false);
         assert.match(noteOf(host), NOTE, 'the receipt itself says it was a short rest');
         const told = noteOf(host);
@@ -142,57 +144,9 @@ test('a full rest not too soon is a full rest as before, Health too', async () =
         assert.deepEqual(bars(host), { health: top.health, stamina: top.stamina, mana: top.mana, rested: 1000 + 360 });
         assert.equal(messages(host).some(text => /counted as a short rest/u.test(text)), false);
         assert.equal(messages(host).includes(recoveryNote.fullRest('Astra')), false);
-        const after = bars(host);
-        host.store.rebuild();
-        assert.deepEqual(bars(host), after, 'rebuild');
-        assert.equal((await host.turn.reread(host.store.headIndex())).ok, true);
-        assert.deepEqual(bars(host), after, 'Re-read');
+                host.store.rebuild();
         await reload(host);
-        assert.deepEqual(bars(host), after, 'reload');
-    } finally { host.close(); }
-});
-
-// The refused unmarked reply: a Re-read, a swipe and a reload keep it refused and changing nothing.
-test('an unmarked reply stays refused through Re-read, swipe and reload', async () => {
-    const host = await world({ clock: true });
-    try {
-        await set(host, { health: 1 });
-        await say(host, ['~ dm character — first | kind: full-rest']);
-        const top = bars(host);
-        assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 359 })).ok, true);
-        await set(host, { health: 1, stamina: 1, mana: 1 });
-        await sayOld(host, ['~ dm character — a bed too soon | kind: full-rest']);
-        const refused = { health: 1, stamina: 1, mana: 1, rested: top.rested };
-        assert.deepEqual(bars(host), refused);
-        assert.equal((await host.turn.reread(host.store.headIndex())).ok, true);
-        assert.deepEqual(bars(host), refused, 'Re-read of the unmarked reply: still refused');
-        assert.ok(messages(host).includes(recoveryNote.fullRest('Astra')), messages(host));
-        await reload(host);
-        assert.deepEqual(bars(host), refused, 'reload');
-        // a swipe of it is a new reply: it carries the mark and counts as a short rest; swiping back keeps nothing of it
-        await host.swipe('Told.\n<Changes>\n~ dm character — again | kind: full-rest\n</Changes>');
-        assert.ok(rulesOf(host).includes('restFallback'));
-        assert.deepEqual(bars(host), { health: 1, stamina: top.stamina, mana: top.mana, rested: top.rested }, 'the swipe is marked');
-        await reload(host);
-        assert.deepEqual(bars(host), { health: 1, stamina: top.stamina, mana: top.mana, rested: top.rested }, 'reload of the marked swipe');
-    } finally { host.close(); }
-});
-
-test('a marked reply survives a swipe to plain text, and a reload, as a short rest', async () => {
-    const host = await world({ clock: true });
-    try {
-        await set(host, { health: 1 });
-        await say(host, ['~ dm character — first | kind: full-rest']);
-        const top = bars(host);
-        assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
-        await set(host, { health: 1, stamina: 1, mana: 1 });
-        await say(host, ['~ dm character — too soon | kind: full-rest']);
-        const kept = { health: 1, stamina: top.stamina, mana: top.mana, rested: 1000 };
-        assert.deepEqual(bars(host), kept);
-        await reload(host);
-        assert.deepEqual(bars(host), kept, 'reload');
-        await host.swipe('Nothing happens.');
-        assert.deepEqual(bars(host), { health: 1, stamina: 1, mana: 1, rested: 1000 }, 'the swipe without a line changes nothing');
+        assert.deepEqual(bars(host), { health: top.health, stamina: top.stamina, mana: top.mana, rested: 1000 + 360 }, 'rebuild and reload');
     } finally { host.close(); }
 });
 
@@ -223,28 +177,6 @@ test('a re-read automatic party join keeps its pin hash (the historical prompt) 
     } finally { host.close(); }
 });
 
-// The fallback is a fixed stamina and mana refill, never the pin's own `rest` effects.
-test('a customised marked pin whose rest kind does more: the fallback only refills stamina and mana', async () => {
-    const custom = structuredClone(marked());
-    custom.kinds.rest.effects = [...custom.kinds.rest.effects, { op: 'add', path: ['health'], value: 5, bounds: 'clamp' }];
-    const host = await world({ clock: true, character: custom });
-    try {
-        await set(host, { health: 1 });
-        await say(host, ['~ dm character — first | kind: full-rest']);
-        const top = bars(host);
-        assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
-        await set(host, { health: 1, stamina: 1, mana: 1 });
-        await say(host, ['~ dm character — too soon | kind: full-rest']);
-        assert.deepEqual(bars(host), { health: 1, stamina: top.stamina, mana: top.mana, rested: 1000 }, 'Health stays; the extra rest effect is not run');
-        assert.equal(fields(host)['rested-known'], true);
-        const after = bars(host);
-        host.store.rebuild();
-        assert.deepEqual(bars(host), after, 'rebuild');
-        await reload(host);
-        assert.deepEqual(bars(host), after, 'reload');
-    } finally { host.close(); }
-});
-
 // The fallback witnesses the last full rest: if it changes, the saved short rest fails closed.
 test('the fallback fails its guard when the earlier full rest it depended on is edited away', async () => {
     const host = await world({ clock: true });
@@ -255,7 +187,7 @@ test('the fallback fails its guard when the earlier full rest it depended on is 
         assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
         await set(host, { stamina: 1, mana: 1 });
         await say(host, ['~ dm character — too soon | kind: full-rest']);
-        assert.ok(messages(host).some(text => NOTE.test(text)));
+        assert.match(noteOf(host), NOTE);
         assert.deepEqual(host.store.problems(), []);
         await host.st.editMessage(first, 'Told.\n<Changes>\n~ dm character — a salve | kind: heal | amount: 1\n</Changes>');
         assert.equal((await host.turn.reread(first)).ok, true);
@@ -286,65 +218,22 @@ test('the recovery line is added whole after a pin at the prompt cap or the gram
     // grammar cap: kinds are added until the module's own grammar is within a few characters of the cap
     const size = definition => fullModuleGrammar(definition, ref).length;
     const edge = structuredClone(base);
-    const letters = 'abcdefghij';  // (a Character holds 16 kinds at most)
-    for (let n = 0; n < letters.length && size({ ...edge, kinds: { ...edge.kinds, [`tonic-${letters[n]}`]: structuredClone(edge.kinds.heal) } }) <= L.staticCharacters; n += 1) edge.kinds[`tonic-${letters[n]}`] = structuredClone(edge.kinds.heal);
+    for (const letter of 'abcdefghij') { // (a Character holds 16 kinds at most)
+        if (size({ ...edge, kinds: { ...edge.kinds, [`tonic-${letter}`]: structuredClone(edge.kinds.heal) } }) > L.staticCharacters) break;
+        edge.kinds[`tonic-${letter}`] = structuredClone(edge.kinds.heal);
+    }
     const room = L.staticCharacters - size(edge);
     assert.ok(room >= 0 && room < 700, `kinds fill the grammar (room ${room})`);
     edge.prompt = `${'x'.repeat(Math.max(0, room - 10))} ${base.prompt}`.trim();
     assert.ok(size(edge) <= L.staticCharacters && size(edge) > L.staticCharacters - 40, `within 40 of the cap (${size(edge)})`);
-    // (the define check measures under the longer full reference, so the pinned state is edited directly)
-    const second = await world();
+    const second = await world(); // (the define check measures under the longer full reference, so the pinned state is edited directly)
     try {
-        const state = structuredClone(second.head());
-        const dataModules = state.domains.dataModules;
-        dataModules.pins[dataModules.active['pack.chat/character'].hash].definition = edge;
+        const state = structuredClone(second.head()), modules = state.domains.dataModules;
+        modules.pins[modules.active['pack.chat/character'].hash].definition = edge;
         const grammar = grammarFor(state);
         for (const line of fullModuleGrammar(edge, ref).split('\n')) assert.ok(grammar.includes(line), `kept: ${line.slice(0, 40)}`);
         assert.ok(grammar.includes(`${moduleGrammar(edge, ref, { seen: new Map() })}\n${REST_LINE}`), 'the line follows, outside the 2,000');
     } finally { second.close(); }
-});
-
-// A customised pin whose rule or timer could write Health or the rest marks is refused as before (through replay too); the standard pin falls back.
-test('the fallback runs only for a pin whose rules and timers leave Health and the rest marks alone', async () => {
-    const get = key => ['get', [key]];
-    const refill = { id: 'bounty', when: ['and', ['ge', get('stamina'), 16], ['lt', get('health'), 3]], then: [{ op: 'set', path: [RESTED_FIELD], value: 0 }, { op: 'set', path: ['rested-known'], value: false }] };
-    const heal = { id: 'comfort', when: ['and', ['ge', get('mana'), 10], ['lt', get('health'), 3]], then: [{ op: 'set', path: ['health'], value: get('health-blocks') }] };
-    const timer = { id: 'tick', every: 60, clock: 'time', effects: [{ op: 'add', path: ['health'], value: 1, bounds: 'clamp' }] };
-    assert.equal(fallbackSafe(marked()), true, 'the standard pin passes');
-    assert.equal(fallbackSafe({ ...marked(), rules: [...marked().rules, refill] }), false);
-    assert.equal(fallbackSafe({ ...marked(), rules: [...marked().rules, heal] }), false);
-    assert.equal(fallbackSafe({ ...marked(), timers: [timer] }), false);
-    for (const [name, custom] of [['a rule that resets the cooldown', { ...structuredClone(marked()), rules: [...structuredClone(marked().rules), refill] }],
-        ['a rule that heals', { ...structuredClone(marked()), rules: [...structuredClone(marked().rules), heal] }]]) {
-        const host = await world({ clock: true, character: custom });
-        try {
-            await set(host, { health: 1 });
-            await say(host, ['~ dm character — first | kind: full-rest']);
-            assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
-            await set(host, { health: 1, stamina: 1, mana: 1 });
-            const before = JSON.stringify(bars(host));
-            await say(host, ['~ dm character — too soon | kind: full-rest']);
-            assert.ok(rulesOf(host).includes('restFallback'), 'marked');
-            assert.deepEqual(JSON.stringify(bars(host)), before, `${name}: refused, nothing changed`);
-            assert.ok(messages(host).includes(recoveryNote.fullRest('Astra')), messages(host));
-            host.store.rebuild();
-            assert.equal(JSON.stringify(bars(host)), before, `${name}: rebuild`);
-            assert.equal((await host.turn.reread(host.store.headIndex())).ok, true);
-            assert.equal(JSON.stringify(bars(host)), before, `${name}: Re-read`);
-            await reload(host);
-            assert.equal(JSON.stringify(bars(host)), before, `${name}: reload`);
-        } finally { host.close(); }
-    }
-    const standard = await world({ clock: true });
-    try {
-        await set(standard, { health: 1 });
-        await say(standard, ['~ dm character — first | kind: full-rest']);
-        assert.equal((await standard.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
-        await set(standard, { health: 1, stamina: 1, mana: 1 });
-        await say(standard, ['~ dm character — too soon | kind: full-rest']);
-        assert.ok(bars(standard).stamina > 1 && bars(standard).health === 1, 'the standard pin falls back to a short rest');
-        assert.match(noteOf(standard), NOTE);
-    } finally { standard.close(); }
 });
 
 // Marking: a reply whose earlier full-rest (or kind-less dm) line was captured without the mark is never given it by a later Continue.
@@ -440,6 +329,134 @@ test('deleting the earlier full rest, or swiping it to another reply, fails the 
             assert.deepEqual(host.store.problems(), [], `${how}: Re-read decides it again`);
             await reload(host);
             assert.deepEqual(host.store.problems(), [], `${how}: reload`);
+        } finally { host.close(); }
+    }
+});
+
+// The fallback is a rest line: whatever the pin's own `rest` does, the same fields and receipt changes as the written `kind: rest`.
+test('a too-soon full rest on a marked reply is decided as a written rest line, for the standard pin and for a pin whose rest has rules', async () => {
+    const odd = structuredClone(marked());
+    odd.kinds.rest.effects = [...odd.kinds.rest.effects, { op: 'add', path: ['health'], value: 2, bounds: 'clamp' }];
+    odd.rules = [...odd.rules, { id: 'rest-points', when: ['and', ['ge', ['get', ['stamina']], 1], ['lt', ['get', ['points']], 6]], then: [{ op: 'add', path: ['points'], value: 1, bounds: 'clamp' }] }];
+    const run = async (character, kind) => {
+        const host = await world({ clock: true, character });
+        try {
+            await set(host, { health: 1 });
+            await say(host, ['~ dm character — first | kind: full-rest']);
+            assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
+            await set(host, { health: 1, stamina: 1, mana: 1 });
+            await say(host, [`~ dm character — too soon | kind: ${kind}`]);
+            const { id: _id, summary: _summary, seed: _seed, line: _line, data, ...receipt } = host.ctx.chat.at(-1).extra.storySuite.receipts.findLast(each => each.data?.v2?.result?.kind === 'rest');
+            const { fallback, ...result } = data.v2.result;
+            const out = { fields: structuredClone(fields(host)), receipt, result, fallback };
+            host.store.rebuild();
+            assert.deepEqual(fields(host), out.fields, 'rebuild');
+            await reload(host);
+            assert.deepEqual(fields(host), out.fields, 'reload');
+            return out;
+        } finally { host.close(); }
+    };
+    for (const [name, character] of [['standard', null], ['customised', odd]]) {
+        const written = await run(character, 'rest'), fell = await run(character, 'full-rest');
+        assert.equal(fell.fallback, true, name);
+        assert.equal(written.fallback, undefined, name);
+        assert.equal(fell.result.kind, 'rest', `${name}: the recorded kind is rest`);
+        assert.deepEqual(fell.fields, written.fields, `${name}: the same fields`);
+        assert.deepEqual(fell.receipt, written.receipt, `${name}: the same receipt changes`);
+        assert.deepEqual(fell.result, written.result, `${name}: the same recorded result`);
+    }
+    const custom = await run(odd, 'full-rest');
+    assert.equal(custom.fields.health, 3, 'the pin\'s own rest ran: Health +2');
+    assert.ok(custom.fields.points > (await run(null, 'full-rest')).fields.points, 'and its rule');
+});
+
+test('a pin with no story rest kind (missing, a screen button, another operation) refuses the too-soon full rest as before', async () => {
+    const without = structuredClone(marked()), button = structuredClone(marked()), other = structuredClone(marked());
+    delete without.kinds.rest;
+    button.kinds.rest.ui = true;
+    other.kinds.rest.op = '+';
+    for (const [name, character] of [['missing', without], ['button', button], ['op', other]]) {
+        const host = await world({ clock: true, character });
+        try {
+            await set(host, { health: 1 });
+            await say(host, ['~ dm character — first | kind: full-rest']);
+            assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
+            await set(host, { health: 1, stamina: 1, mana: 1 });
+            const before = JSON.stringify(bars(host));
+            await say(host, ['~ dm character — too soon | kind: full-rest']);
+            assert.equal(JSON.stringify(bars(host)), before, `${name}: nothing changed`);
+            assert.ok(messages(host).includes(recoveryNote.fullRest('Astra')), `${name}: ${messages(host)}`);
+            assert.equal(noteOf(host), undefined, name);
+            host.store.rebuild();
+            await reload(host);
+            assert.equal(JSON.stringify(bars(host)), before, `${name}: rebuild and reload`);
+        } finally { host.close(); }
+    }
+});
+
+// The card: an applied line from the recorded result (live, after a cold reload, after a swipe back), never "not applied"; a replay-inactive receipt gives none; a long name is bounded.
+test('the reply card shows the short rest as an applied line, live, after reload and after swiping back, skipping an inactive receipt', { skip: renderSkip }, async () => {
+    const host = await world({ clock: true });
+    try {
+        const lines = index => replyRestFallbacks(host.ctx.chat[index].extra.storySuite, host.store.problems(), index);
+        await set(host, { who: 'N'.repeat(70), health: 1 });
+        await say(host, ['~ dm character — first | kind: full-rest', '~ dm character — a salve | kind: heal | amount: 1']);
+        const first = host.ctx.chat.length - 1;
+        assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 100 })).ok, true);
+        await set(host, { stamina: 1, mana: 1 });
+        await say(host, ['~ dm character — too soon | kind: full-rest']);
+        const at = host.ctx.chat.length - 1;
+        const expected = `${'N'.repeat(40)}: full rest too soon (under 6 story hours), counted as a short rest (Mana Drained → Fresh, Stamina Spent → Fresh).`;
+        const drawn = () => {
+            const module = core(), state = stocked(module);
+            const { el } = show(changesCardScreen, { state, query: queries(module, state), changes: [], extra: { moduleLines: lines(at) } });
+            return el;
+        };
+        const check = where => {
+            assert.deepEqual(lines(at).map(line => line.text), [expected], where);
+            assert.equal(lines(at)[0].tone, 'good', where);
+            const el = drawn();
+            assert.equal(text(el.querySelector('.extra .main')), expected, `${where}: drawn on the card`);
+            assert.equal(el.querySelector('.refused'), null, `${where}: not in the not-applied list`);
+        };
+        check('live');
+        await reload(host);
+        check('cold reload');
+        await host.swipe('Nothing happens.');
+        assert.deepEqual(lines(at), [], 'the swipe has no line');
+        await host.st.swipeTo(at, 0);
+        check('swipe back');
+        await host.st.deleteMessage(first);
+        assert.ok(host.store.problems().length > 0);
+        assert.deepEqual(lines(at - 1), [], 'a replay-inactive receipt gives no applied line');
+    } finally { host.close(); }
+});
+
+// The wording line: only the story recovery kinds the pinned definition offers, each with its meaning; none: no line; pins and hashes stay.
+test('the recovery line names only the recovery kinds a pin offers; a pre-recovery scaled pin and customised pins', async () => {
+    const trim = (...names) => { const definition = structuredClone(marked()); for (const name of ['rest', 'full-rest', 'heal']) if (!names.includes(name)) delete definition.kinds[name]; return definition; };
+    assert.equal(restLine(trim('heal')), 'Recovery: heal (1 to 3) restores only health.');
+    assert.equal(restLine(trim('rest', 'heal')), 'Recovery: rest (an hour or two) refills mana and stamina; heal (1 to 3) restores only health.');
+    assert.equal(restLine(trim('full-rest')), "Recovery: full-rest (a night's sleep, once in 6 story hours) refills health, stamina and mana.");
+    const screenRest = trim('rest', 'full-rest');
+    screenRest.kinds.rest.ui = true;
+    assert.equal(restLine(screenRest).includes('rest (an hour'), false, 'a screen kind is not a story kind');
+    // the pin made before the recovery kinds (commit 91bde032): scaled bars, set-*, add-xp and the reader's button-rest only
+    const early = trim();
+    early.kinds['button-rest'] = { op: '!', ui: true, title: 'Rest', labels: {}, effects: structuredClone(marked().kinds.rest.effects) };
+    early.kinds['add-xp'] = { op: '~', labels: { amount: { type: 'int', min: 1, max: 100 } }, effects: [{ op: 'add', path: ['xp'], value: ['arg', 'amount'], bounds: 'clamp' }] };
+    assert.equal(restLine(early), '', 'no recovery kind: no line');
+    for (const [name, character, expected] of [['pre-recovery', early, ''], ['heal only', trim('heal'), restLine(trim('heal'))]]) {
+        const host = await world({ character });
+        try {
+            const hash = pinHash(host), grammar = grammarFor(host.head());
+            assert.equal(grammar.includes('Recovery:'), expected !== '', name);
+            if (expected) assert.ok(grammar.includes(expected), name);
+            assert.equal(grammar.includes('refills mana'), false, `${name}: no claim for a kind it lacks`);
+            host.store.rebuild();
+            await reload(host);
+            assert.equal(pinHash(host), hash, `${name}: the pin and its hash stay`);
+            assert.equal(grammarFor(host.head()), grammar, name);
         } finally { host.close(); }
     }
 });

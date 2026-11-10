@@ -3,7 +3,7 @@
 import { CHANGES_CARD_SCREEN_ID, replyCardLines } from '../screens/index.js';
 import { mergeRpgLines } from '../screens/changes-card.js';
 import { readRecord } from '../persist.js';
-import { laterStore, replyEdits, replyRules, scanReplyCards } from '../reply-cards.js';
+import { laterStore, replyEdits, replyRestFallbacks, replyRules, scanReplyCards } from '../reply-cards.js';
 import { drawReplyCard } from '../view/reply-cards-ui.js';
 
 export function createReplyCards({ runtime, ctx, doc, store, registry, events, queryAt, renderer, notes, screens, api, getRpg, getMounts }) {
@@ -15,6 +15,7 @@ export function createReplyCards({ runtime, ctx, doc, store, registry, events, q
         const lines = [
             ...replyCardLines(registry.hookEntries?.('replyCard') ?? [], { index, state, changes }),
             ...replyRules(recordAt(index), store.problems?.() ?? [], index, { state, before }),
+            ...replyRestFallbacks(recordAt(index), store.problems?.() ?? [], index),
         ];
         // The RPG's own lines (rolls, class and rank rises), only while its screens are mounted.
         return getRpg() ? mergeRpgLines(lines, getRpg().cardLines({ state, before, record: recordAt(index), problems: (store.problems?.() ?? []).filter(item => item?.index === index) })) : lines;

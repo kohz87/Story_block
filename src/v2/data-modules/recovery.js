@@ -5,9 +5,9 @@
 //   * `add-xp` from the story: not used (XP comes from won fights, by code; the reader's own edit stays).
 //   * `set-health`, `set-stamina`, `set-mana` may lower a bar, never raise it (a rest, a full rest or a heal does that).
 //   * `full-rest` from the story: not twice within 6 story hours for one character (no story clock: allowed). On a reply captured under the `restFallback` rule
-//     mark (turn/rule-marks.js) a refused one counts as a short rest instead (part/act.js).
-//   * The recovery line: one short line after a marked Character's own lines (REST_LINE, shown by grammarFor, outside the prompt and grammar caps); the pin is not touched.
-//   * The too-soon fallback runs only for a pin whose timers and rules cannot write Health, rested-at or rested-known (fallbackSafe).
+//     mark (turn/rule-marks.js) a refused one is decided as the same line with kind `rest` (the pin's own story rest kind; none: refused as before) (part/act.js).
+//   * The recovery line: one short line after a marked Character's own lines (restLine, shown by grammarFor, outside the prompt and grammar caps); it names only the recovery kinds
+//     the pin offers as story kinds, and the pin is not touched.
 const BAR_FIELDS = ['health', 'stamina', 'mana'];
 
 /** Story hours between two full rests of one character. */
@@ -25,29 +25,19 @@ export const isMarkedCharacter = definition => definition?.role === 'character'
 /** The two reader buttons an earlier marked Character was pinned with: never drawn now; their recorded lines still replay (part/act.js). */
 export const hasRestButtons = definition => isMarkedCharacter(definition) && ['button-rest', 'button-full-rest'].every(kind => definition.kinds?.[kind]?.ui);
 
-/** The one line that says what each recovery kind restores, shown after a marked Character's lines (views.js grammarFor). */
-export const REST_LINE = "Rest (an hour or two) refills mana and stamina; full-rest (a night's sleep, once in 6 story hours) also health; heal (1 to 3) only health.";
+/** The story kinds a Character is told about, with what each restores (the story kinds are those a screen does not own: `ui` is not true). */
+const RECOVERY_WORDS = Object.freeze([
+    ['rest', 'rest (an hour or two) refills mana and stamina'],
+    ['full-rest', `full-rest (a night's sleep, once in ${FULL_REST_HOURS} story hours) refills health, stamina and mana`],
+    ['heal', 'heal (1 to 3) restores only health'],
+]);
+/** The story kind `name` of a definition, or null: it exists and a screen does not own it. */
+export const storyKind = (definition, name) => (Object.hasOwn(definition?.kinds ?? {}, name) && definition.kinds[name]?.ui !== true ? definition.kinds[name] : null);
 
-/**
- * Whether the too-soon fallback is only a short rest for this pin: no timer writes Health, rested-at or rested-known, and no rule that reads what the refill writes
- * (stamina, mana, or a field another such rule writes) writes them either. The standard Character passes (its Health rules read Health, vit and the blocks only).
- * An effect on a path that is not a plain field name counts as a write to a protected field.
- */
-export const fallbackSafe = definition => {
-    const protectedFields = ['health', RESTED_FIELD, RESTED_KNOWN];
-    const found = (value, test, into = []) => {
-        if (Array.isArray(value)) { if (test(value)) into.push(value); value.forEach(item => found(item, test, into)); } else if (value && typeof value === 'object') { if (test(value)) into.push(value); Object.values(value).forEach(item => found(item, test, into)); }
-        return into;
-    };
-    const written = value => found(value, item => ['set', 'add', 'clamp'].includes(item?.op)).map(effect => (Array.isArray(effect.path) && typeof effect.path[0] === 'string' ? effect.path[0] : '?'));
-    const reads = value => found(value, item => Array.isArray(item) && item[0] === 'get' && Array.isArray(item[1])).map(item => item[1][0]);
-    if (written(definition?.timers ?? []).some(key => key === '?' || protectedFields.includes(key))) return false;
-    const rules = definition?.rules ?? [], tainted = new Set(['stamina', 'mana']);
-    for (let again = true; again;) {
-        again = false;
-        for (const rule of rules) if (reads(rule).some(key => tainted.has(key))) for (const key of written(rule)) if (!tainted.has(key)) { tainted.add(key); again = true; }
-    }
-    return !rules.some(rule => reads(rule).some(key => tainted.has(key)) && written(rule).some(key => key === '?' || protectedFields.includes(key)));
+/** The one line that says what the recovery kinds this pin offers restore, shown after a marked Character's lines (views.js grammarFor); '' when it offers none. */
+export const restLine = definition => {
+    const named = RECOVERY_WORDS.filter(([name]) => storyKind(definition, name)).map(([, words]) => words);
+    return named.length ? `Recovery: ${named.join('; ')}.` : '';
 };
 
 /** A name bounded to 40 characters, so a note built from it is never cut. */

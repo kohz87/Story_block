@@ -10,7 +10,7 @@ import { oneLine } from '../../../text.js';
 import { editableLayout } from '../editable-layout.js';
 import { blockTabScreen } from '../block-screen.js';
 import { boardGrammar, boardXpGuide } from '../board-static.js';
-import { isMarkedCharacter, REST_LINE } from '../recovery.js';
+import { isMarkedCharacter, restLine } from '../recovery.js';
 import { rpgLib } from '../../rpg-lazy.js';
 import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget } from './shared.js';
 
@@ -100,7 +100,8 @@ export function grammarFor(state, quiet = null, { rolled = false, board = false 
         const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
         const own = shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
         // A marked Character also gets one separate line on what each recovery kind restores: it has its own room (outside the prompt and grammar caps), so no old text or kind line is dropped.
-        return own && isMarkedCharacter(definition) ? `${own}\n${REST_LINE}` : own;
+        const recovery = own && isMarkedCharacter(definition) ? restLine(definition) : '';
+        return recovery ? `${own}\n${recovery}` : own;
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
 }
