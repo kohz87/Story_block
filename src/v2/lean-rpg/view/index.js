@@ -109,7 +109,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
     const offerView = createOfferLineView({ doc, onFight: data => offers.choose(data, 'board'), onAuto: data => offers.choose(data, 'auto') });
     offers = createFightOffers({ ctx, doc, store, meta, on: () => featureOn() && boardOn() && isStandard(rules()), view: offerView,
         open: ({ auto = false } = {}) => { if (!board.open()) return false; if (auto) board.auto(); openScreen(FIGHT_SCREEN_ID); return true; }, save, refresh });
-    const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf, levels, offer: offers });
+    const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf, readerName, levels, offer: offers });
     widgets[FIGHT_WIDGET] = createFightWidget({ headState, readerName, roleOf, battleLog, closeView, levels, board, start: fightStart });
     screens.setPack(PACK, [createPartyScreen(), createFightScreen({ roleOf, offer: () => Boolean(offers.find()), waiting: () => Boolean(fightStart.current()), kept: () => board.kept() }), wizard.screen, exporter.screen, start.holdScreen]);
     // The Fight screen opens only for a pause that is ready (foes found, a choice to make). A wait for the fight ("Setting up the fight…") opens nothing:
