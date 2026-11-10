@@ -128,7 +128,7 @@ async function world(t, { list = [person({ skills: SKILLS })], rpg = true, join 
     const built = validatePack(raw);
     assert.equal(built.ok, true, JSON.stringify(built.errors));
     const host = await createHost({
-        settings: { features: rpg ? { 'story-block.rpg': true } : {}, modules: { 'story-block': { rpgJoin: join, rpgFormula: 'classic', rpgRolls: 'off' } },
+        settings: { features: rpg ? { 'story-block.rpg': true } : {}, modules: { 'story-block': { rpgJoin: join, rpgFormula: 'classic', rpgRolls: 'off', rpgChecks: false } },
             packs: [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] },
     });
     t.after(() => host.close());

@@ -24,7 +24,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
         'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.portrait', 'packs.start', 'packs.weather', 'packs.youRank', 'party.actors', 'party.pc', 'rpg.joins', 'rpg.rank', 'rpg.rolls', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'scene.you', 'story.evidence', 'timeline.referenced']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterCapture', 'afterReceive', 'afterReply', 'beforeGenerate', 'canGenerate', 'item.resolve', 'replayGuard', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
-    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'you', 'mount', 'loot', 'choice', 'chatter', 'dm', 'party', 'check']);
+    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'you', 'mount', 'loot', 'choice', 'chatter', 'dm', 'party', 'roll']);
     // Choices and Inner chatter are display kinds under their features (MODULES §F115): no command runs for them.
     assert.deepEqual(['choice', 'chatter'].map(kind => [module.capture.kinds[kind].feature, Boolean(module.capture.kinds[kind].display)]), [['story-block.choices', true], ['story-block.chatter', true]]);
     assert.equal(module.capture.kinds.loot.feature, 'story-block.loot');
@@ -150,7 +150,7 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
     const part = createCorePart({ hooks: () => [] });
     const module = createCoreModule();
     // (The display kinds, Choices and Inner chatter, run no command, so the part has no handler for them.)
-    assert.deepEqual(Object.keys(part.kinds), Object.keys(module.capture.kinds).filter(kind => kind !== 'dm' && kind !== 'party' && kind !== 'check' && !module.capture.kinds[kind].display));
+    assert.deepEqual(Object.keys(part.kinds), Object.keys(module.capture.kinds).filter(kind => kind !== 'dm' && kind !== 'party' && kind !== 'roll' && !module.capture.kinds[kind].display));
     for (const [name, kind] of Object.entries(part.kinds)) {
         // `you`'s line is a function: no pack here gives it a Rank, so it is the base line.
         assert.equal(typeof kind.grammar === 'function' ? kind.grammar() : kind.grammar, CORE_KINDS[name].grammar);

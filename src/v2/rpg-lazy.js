@@ -31,7 +31,7 @@ const JOIN_NO = 'rpg.joinNo';
 const JOINS_QUERY = 'rpg.joins';
 const ROLLS_QUERY = 'rpg.rolls';
 // (`capture.party` is the receipt of a `+ party` line; the guarded block it makes is `dm.join`.)
-const GUARD_KINDS = new Set([RESOLVE, FIGHT, PRACTICE_STEP, CHECK_STEP, DICE, 'dm.join', 'capture.party', 'capture.check']);
+const GUARD_KINDS = new Set([RESOLVE, FIGHT, PRACTICE_STEP, CHECK_STEP, DICE, 'dm.join', 'capture.party', 'capture.roll']);
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /**

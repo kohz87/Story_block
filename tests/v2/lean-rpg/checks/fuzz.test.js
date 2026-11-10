@@ -1,5 +1,5 @@
 // A replay fuzz for story checks on the real host: sends, swipes, regenerates, Re-reads, deletes and reloads in a seeded random order, with replies that
-// carry `? check` lines (one that uses the reply's first die, one for no one, one with a die it was not offered, one for a skill the person lacks).
+// carry `? roll` lines (one that uses the reply's first die, one for no one, one with a die it was not offered, one for a skill the person lacks).
 // After every step the cold rebuild and a reload of the chat file equal the live story; a Re-read leaves a reply's dice and results as they were; a swipe
 // draws new dice; a utility skill's practice is never moved by a reply that is gone.
 import test from 'node:test';
@@ -31,7 +31,7 @@ function prng(seed) {
 const withChecks = (host, text, random) => (random() < 0.4 ? text : { toString() {
     const found = NOTE.exec(tailOf(host.st.requests.at(-1)));
     if (!found) return text;
-    return `${text}\n<Changes>\n? check Astra | Obscure | normal | ${found[1]}\n? check Nobody | cha | easy | ${found[2]}\n? check Astra | juggling | hard | ${found[2]}\n? check Astra | cha | very hard | ${found[3]}\n</Changes>`;
+    return `${text}\n<Changes>\n? roll Astra | Obscure | normal | ${found[1]}\n? roll Nobody | cha | easy | ${found[2]}\n? roll Astra | juggling | hard | ${found[2]}\n? roll Astra | cha | very hard | ${found[3]}\n</Changes>`;
 } });
 const records = host => host.ctx.chat.map((message, index) => ({ index, record: message.extra?.storySuite })).filter(entry => entry.record && entry.index > 0);
 const diceAt = (host, index) => host.ctx.chat[index].extra?.storySuite?.receipts?.find(receipt => receipt.type === 'rpg.dice')?.data.v2.dice.list ?? null;

@@ -1,10 +1,10 @@
-// One narrator check line: "? check Name | skill or stat | difficulty | die" parsed and checked against a reply's party and dice.
+// One narrator check line: "? roll Name | skill or stat | difficulty | die" parsed and checked against a reply's party and dice.
 // Pure: names and aliases match a whole folded name only; a refused line carries one short reason and is never rolled.
 
-import { LIMITS, STATS } from '../names.js';
+import { ROLL_KIND, LIMITS, STATS } from '../names.js';
 import { fold } from '../read.js';
 
-const LINE = /^\s*\?\s*check(?:\s+|$)(.*)$/iu;
+const LINE = new RegExp(`^\\s*\\?\\s*${ROLL_KIND}(?:\\s+|$)(.*)$`, 'iu');
 const DIE = /^\d+$/u;
 
 const refusal = reason => ({ ok: false, reason });
@@ -24,24 +24,27 @@ export function parseCheckLine(line) {
     return { ok: true, name, what, difficulty: difficultyOf(difficulty), die };
 }
 
-/** The member a whole name or alias names, case-insensitively, or null. */
+/** A whole name wins over aliases; a shared alias is ambiguous and names nobody. */
 export function memberNamed(party, name) {
     const wanted = fold(clean(name));
     if (!wanted) return null;
-    return (Array.isArray(party) ? party : []).find(member => fold(member?.name) === wanted
-        || (Array.isArray(member?.aliases) && member.aliases.some(alias => fold(alias) === wanted))) ?? null;
+    const members = Array.isArray(party) ? party : [];
+    const named = members.filter(member => fold(member?.name) === wanted);
+    if (named.length) return named.length === 1 ? named[0] : null;
+    const aliases = members.filter(member => Array.isArray(member?.aliases) && member.aliases.some(alias => fold(alias) === wanted));
+    return aliases.length === 1 ? aliases[0] : null;
 }
 
 /**
  * Validate a parsed check against { party, offeredDice, usedDice }.
- * → { ok, member, skill, stat, what, difficulty, dc, die, used } or { ok: false, reason }.
+ * → { ok, member, skill, stat (null for a skill with none), what, difficulty, dc, die, used } or { ok: false, reason }.
  */
-export function validateCheck(parsed, { party = [], offeredDice = [], usedDice = [] } = {}) {
+export function validateCheck(parsed, { party = [], offeredDice = [], usedDice = [], dc = LIMITS.dc } = {}) {
     if (!parsed || parsed.ok !== true) return parsed?.ok === false ? parsed : refusal('not a check line');
     if ((Array.isArray(usedDice) ? usedDice : []).length >= 3) return refusal('more than 3');
 
     const difficulty = difficultyOf(parsed.difficulty);
-    if (!Object.hasOwn(LIMITS.dc, difficulty)) return refusal('unknown difficulty');
+    if (!Object.hasOwn(dc, difficulty)) return refusal('unknown difficulty');
 
     const member = memberNamed(party, parsed.name);
     if (!member) return refusal('unknown person');
@@ -49,8 +52,8 @@ export function validateCheck(parsed, { party = [], offeredDice = [], usedDice =
     const what = clean(parsed.what);
     const skill = (Array.isArray(member.skills) ? member.skills : []).find(entry => fold(entry?.name) === fold(what)) ?? null;
     const plain = skill ? null : what.toLowerCase();
-    const skillStat = skill ? clean(skill.stat).toLowerCase() : null;
-    if (skill && !STATS.includes(skillStat)) return refusal('unknown skill or stat');
+    // A skill from an older Skills block has no stored stat: it is worked out as the fight code does (formula.js statPart: no stat of its own, the type's main one).
+    const skillStat = skill && STATS.includes(clean(skill.stat).toLowerCase()) ? clean(skill.stat).toLowerCase() : null;
     const stat = skill ? skillStat : (STATS.includes(plain) ? plain : null);
     if (!skill && !stat) return refusal('unknown skill or stat');
 
@@ -61,5 +64,5 @@ export function validateCheck(parsed, { party = [], offeredDice = [], usedDice =
     if (used.filter(value => value === die).length >= offered.filter(value => value === die).length) return refusal('die reused');
     if (die !== offered[used.length]) return refusal('out of order');
 
-    return { ok: true, member, skill, stat, what: skill?.name ?? stat.toUpperCase(), difficulty, dc: LIMITS.dc[difficulty], die, used: used.length };
+    return { ok: true, member, skill, stat, what: skill?.name ?? stat.toUpperCase(), difficulty, dc: dc[difficulty], die, used: used.length };
 }

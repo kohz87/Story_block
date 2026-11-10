@@ -6,8 +6,8 @@
 
 /** Rule name -> does this change line (`{ kind, raw }`) fall under it? Matched on the line as the story wrote it. */
 export const RULE_LINES = Object.freeze({
-    // `? check Name | skill | difficulty | die`: story checks (lean-rpg/checks). A reply with no mark keeps what it did before: the line is not used.
-    checks: line => line?.kind === 'check',
+    // `? roll Name | skill | difficulty | die`: story checks (lean-rpg/checks). A reply with no mark keeps what it did before: the line is not used.
+    checks: line => line?.kind === 'roll',
     // `- key Name | died`: a death counts for anyone, not only a pinned key person (Story Director keypeople). Same words as its death test.
     diedAny: line => line?.kind === 'key' && /(?<![\p{L}\p{N}])(?:died|dies|dead|death|killed|slain|murdered|perished)(?![\p{L}\p{N}])/iu.test(String(line.raw ?? '')),
 });

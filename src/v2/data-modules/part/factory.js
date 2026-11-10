@@ -41,11 +41,13 @@ export function createDataModulesPart(opts = {}) {
             'dm.join': Object.assign(wrap(d.addParty), { feature: LEAN_RPG_FEATURE }) },
         // `+ party Name | about: … | class: I | best: int` and `- party Name`: under the RPG feature, out of the grammar while Companions who join is Off, and
         // until the story has a Character block (a party line means something only once there is a party).
-        // `? check Name | skill or stat | difficulty | die`: story checks (lean-rpg/checks). Here the line is only read and kept; the reply's step after its lines
-        // (practice.js checkStep) checks it against the dice and the sheet. A reply with no `checks` rule mark (captured before them) does not use it.
-        kinds: { check: { fallback: true, grammar: CHECK_GRAMMAR, feature: LEAN_RPG_FEATURE, get enabled() { return checksOn(settings()) && readSheet(state()).characters.length > 0; },
+        // `? roll Name | skill or stat | difficulty | die`: story checks (lean-rpg/checks; Story Director owns `check`). Here the line is only read and kept; the reply's step after its
+        // lines (practice.js checkStep) works it against the dice recorded with the reply and the sheet. Which replies use it is the reply's own rule mark (`checks`, rule-marks.js),
+        // not today's switch: Story checks Off takes the grammar line and the dice away from new replies only (Rolls does not matter: it is for fights), and an earlier reply's lines keep their results on a Re-read.
+        // The grammar line is constant text: it does not depend on the party.
+        kinds: { roll: { grammar: () => (checksOn(settings()) ? CHECK_GRAMMAR : ''), feature: LEAN_RPG_FEATURE,
             apply(ctx, line) {
-                if (!ctx.carrier?.rules?.includes('checks')) return ctx.fail('INVALID', `No module keeps "check", so "${line?.raw}" was not used.`);
+                if (!ctx.carrier?.rules?.includes('checks')) return ctx.fail('INVALID', `This reply was written before story checks, so "${line?.raw}" was not used.`);
                 const parsed = rpgLib()?.parseCheckLine(line?.raw) ?? { ok: false, reason: 'the RPG is still loading' };
                 if (!parsed.ok) return ctx.fail('INVALID', `"${line?.raw}" was not used: ${parsed.reason}.`);
                 return { summary: '', narrate: false, data: { check: { raw: String(line.raw).slice(0, 200) } } };

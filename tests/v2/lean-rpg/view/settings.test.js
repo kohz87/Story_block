@@ -41,12 +41,30 @@ test('the page is its own rail entry after Features, with its cards in order and
     assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Gear in fights', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Companions who join']);
     assert.match(card('formula').textContent, /New character bars: Health 2 × \(4 \+ VIT\/5\)/);
     assert.match(card('formula').textContent, /Earlier characters keep Health 4 \+ VIT\/5/);
-    assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off', 'On', 'Off']);
+    assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: code rolls the dice for the fights you play on the fight board\. Off: no dice; the story decides\./);
+    assert.equal(card('checks').querySelector('b').textContent, 'Story checks');
+    assert.equal(card('checks').querySelector('.rpg-set-help').textContent, 'Rolls for attempts outside a fight, before the reply. Off: the narrator decides them, as now.');
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);
     assert.equal(card('difficulty').querySelector('[aria-pressed="true"]').textContent, 'Standard', 'Standard until the reader says otherwise');
     assert.equal(card('difficulty').querySelectorAll('.rpg-set-nums').length, 0, 'the numbers are for Custom');
     assert.match(card('difficulty').textContent, /Changes count from the next reply; rolls already made keep the numbers they were rolled with, and a Re-read keeps them too\./);
+});
+
+test('Story checks has a visible switch, on by default, which saves both choices', async t => {
+    const { card, stored, root } = await open(t);
+    const toggle = () => root.querySelector('[data-card="checks"] [role="switch"]');
+    assert.equal(toggle().getAttribute('aria-label'), 'Story checks');
+    assert.equal(toggle().getAttribute('aria-checked'), 'true');
+    toggle().click();
+    await settle();
+    assert.equal(stored().rpgChecks, false);
+    assert.equal(toggle().getAttribute('aria-checked'), 'false');
+    toggle().click();
+    await settle();
+    assert.equal(stored().rpgChecks, true);
+    assert.equal(toggle().getAttribute('aria-checked'), 'true');
+    assert.ok(card('checks').textContent.includes('Story checks'));
 });
 
 test('Rolls: Automatic or Off, through the existing setting', async t => {
@@ -247,6 +265,7 @@ test('searching finds the page by what it says; the page is hidden when nothing 
     assert.equal(body.filter('combat rules'), 1);
     assert.equal(body.filter('gentle harsh'), 1);
     assert.equal(body.filter('automatic'), 2, 'Rolls, and Companions who join (Automatically)');
+    assert.equal(body.filter('story checks'), 1, 'Rolls includes the Story checks switch');
     assert.equal(body.filter('companions'), 1);
     assert.equal(body.filter('nothing like it'), 0);
     assert.equal(body.el.querySelectorAll('.rpg-set-card').filter(node => !node.hidden).length, 0);

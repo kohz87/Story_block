@@ -41,9 +41,9 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/templates-skills.js`: turns the eight-slot Skills template into the typed one (three utility slots 9 to 11, a `type` per slot, the learn line's optional `type` label, matching rank-up rules).
 - `src/v2/lean-rpg/levels.js`: level, rank, level-cap and XP-rate helpers plus the RPG rank query.
 - `src/v2/lean-rpg/noroll.js`: replay-only: shows and re-reads the per-reply receipt an old chat's retired roll planner left when it gave no usable plan.
-- `src/v2/lean-rpg/checks/dice.js`: story checks: a reply's three d20 from its recorded seed (`replyDice`), the exact note the narrator reads (`offerLine`) and the `rpg.dice` prelude's handler.
-- `src/v2/lean-rpg/checks/line.js`: story checks: parses a narrator's `? check Name | skill or stat | difficulty | die` line and validates it against the party, the dice offered and the dice used.
-- `src/v2/lean-rpg/checks/result.js`: story checks: works one validated check (d20 + stat part + class term + rank against the difficulty): success, cost, fail, decisive, and the one practice use; no XP.
+- `src/v2/lean-rpg/checks/dice.js`: story checks: a reply's three d20 from its recorded seed, the rules, difficulty numbers, practice and bonus table recorded with them (`dicePayload`, `diceOf`) and the `rpg.dice` prelude's handler.
+- `src/v2/lean-rpg/checks/line.js`: story checks: parses a narrator's `? roll Name | skill or stat | difficulty | die` line and validates it against the party, the dice offered and the dice used.
+- `src/v2/lean-rpg/checks/result.js`: story checks: works a validated check (d20 + stat part + level term + rank against the recorded difficulty: success, cost, fail, decisive, one practice use, no XP), a reply's lines in order (`workChecks`) and the bonus table the note tells.
 - `src/v2/lean-rpg/open.js`: checks and fills new foes that the roll planner opens during a fight.
 - `src/v2/lean-rpg/quiet.js`: trims combat and foe prompt grammar on replies where rolls cannot be used.
 - `src/v2/lean-rpg/board/auto.js`: chooses deterministic Auto-fight actions by the party policy and decides why Auto stops.

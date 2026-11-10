@@ -2,6 +2,7 @@
 // story facts, using the page's shared card, chip and number-row builders.
 
 import { h } from '../../../view/widgets/dom.js';
+import { switchField } from '../../../view/form/fields.js';
 import { boardSetting } from '../../board/settings.js';
 import { AUTO_CAP_SETTING, CHECKS_SETTING, PRECHECK_SETTING, checksOn, precheckOn, LEVEL, LEVEL_CAP_SETTING, autoCapFrom, levelCapOf, JOIN_SETTING, PRACTICE, PRACTICE_SETTING, practiceOf } from '../../names.js';
 import { joinMode } from '../../join.js';
@@ -47,8 +48,13 @@ export function createBasicSections({ doc, card, chips, field, numberRow, packNo
         const box = card('rolls', S.rolls);
         chips(box, S.rolls, [['automatic', S.automatic], ['off', S.off]], rollsOf(settings), value => put(ROLLS_KEY, value));
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.rollsHelp));
-        chips(box, S.checks, [['on', S.gearOn], ['off', S.off]], checksOn(values()) ? 'on' : 'off', value => put(CHECKS_SETTING, value === 'on'));
-        box.appendChild(h(doc, 'p', 'rpg-set-help', S.checksHelp));
+        const row = h(doc, 'div', 'rpg-board-setting');
+        row.setAttribute('data-card', 'checks');
+        const copy = h(doc, 'div', 'rpg-board-setting-copy');
+        copy.append(h(doc, 'b', '', S.checks), h(doc, 'p', 'rpg-set-help', S.checksHelp));
+        const toggle = switchField({ doc, ariaLabel: S.checks, value: checksOn(values()), onChange: value => put(CHECKS_SETTING, value) });
+        row.append(copy, toggle.el);
+        box.appendChild(row);
         if (boardFeature) box.appendChild(boardSetting(doc, boardFeature, onChange, { value: autoCapFrom(values()), set: v => put(AUTO_CAP_SETTING, v) }, { value: precheckOn(values()), set: v => put(PRECHECK_SETTING, v === true) }));
     }
 

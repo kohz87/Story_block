@@ -26,7 +26,11 @@ test('the RPG off: the prompts, the draws of randomness and the receipts are tho
 test('the RPG on but no Character block in the chat: the same, and no model call', { skip }, async () => {
     const on = await fingerprint(createHost, host => host.features.set(LEAN_RPG_FEATURE, true));
     assert.equal(on.calls, 0);
-    assert.deepEqual(on, baseline);
+    // (the story-check grammar line, constant text, is the one thing the RPG adds to the static prompt without a party: the prompt hashes differ, nothing else does,
+    // and the prompt is the same from reply to reply)
+    assert.deepEqual({ ...on, prompts: null }, { ...baseline, prompts: null });
+    assert.notDeepEqual(on.prompts, baseline.prompts);
+    assert.equal(new Set(on.prompts.slice(1)).size, 1, 'the same prompt reply after reply');
 });
 
 test('Your look and mounts off: the fingerprint is the one from 2.9.4, exactly (only the prompt hashes differ with them on)', { skip }, async () => {

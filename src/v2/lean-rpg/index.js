@@ -64,13 +64,12 @@ export const ROLLS_QUERY = 'rpg.rolls';
  *   moduleId = 'story-block' (whose settings it reads)
  *   rosterOn() → whether the RPG and Gear in fights are both on (the roster is answered only then, or when asked for `recorded`)
  *   persona() → the reader's name, for `party.pc` (default: none, the first block)
- *   checksOwned() → whether Story Block's own `? check` kind is the one in use (another module may own the word; then no dice are offered; default: yes)
  *   callModel(prompt, { maxTokens, profile, helper, timeoutMs }) → text, onPlanning(working), timeoutMs, timer: the foe pre-check's one Assist call (none: no pre-check)
  * → { commands, queries, hooks, settings: { defaults }, guard }; `guard` is the replay guard for `rpg.resolve` blocks
  * (domains/index.js routes the guards of that predicate to it).
  */
-export function createLeanRpgPart({ chat = stChat, metadata = () => null, moduleId = 'story-block', checksOwned, persona = () => '', rosterOn, callModel, onPlanning, timeoutMs, timer } = {}) {
-    const precall = createPrecall({ chat, metadata, moduleId, checksOwned, skip: skipOf(metadata), callModel, onPlanning, timeoutMs, timer });
+export function createLeanRpgPart({ chat = stChat, metadata = () => null, moduleId = 'story-block', persona = () => '', rosterOn, callModel, onPlanning, timeoutMs, timer } = {}) {
+    const precall = createPrecall({ chat, metadata, moduleId, skip: skipOf(metadata), callModel, onPlanning, timeoutMs, timer });
     const board = createBoardPart();
     return {
         // A prelude: previewed before the reply and stored on it before its story lines (turn.js). Not tied to the
@@ -81,7 +80,7 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
             // The note that a live fight's planner (gone) gave nothing usable, kept with the reply; old records only (noroll.js). Not tied to the feature either.
             [NOROLL]: Object.assign((ctx, payload) => noRoll(ctx, payload), { prelude: true, internal: true }),
             // A reply's three story-check dice (checks/dice.js): a prelude, drawn from the receipt's seed, so a swipe rolls anew and a Re-read keeps them. Not tied to the feature either.
-            [DICE]: Object.assign(ctx => diceRecord(ctx), { prelude: true, internal: true }),
+            [DICE]: Object.assign((ctx, payload) => diceRecord(ctx, payload), { prelude: true, internal: true }),
             // The results of a reply's story checks, a step after its lines (practice.js). Not tied to the feature either: a Re-read keeps it.
             [CHECK_STEP]: Object.assign((ctx, payload) => checkStep(ctx, payload), { internal: true }),
             // XP for a won fight, a step after the reply's lines (fight.js). Not tied to the feature either: a Re-read keeps it.

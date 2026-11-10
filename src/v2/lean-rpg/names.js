@@ -1,7 +1,7 @@
-import { spreadWord } from './blocks.js';
-
 // The RPG's shared names (re-exported by index.js, which is where the other pieces import them from).
 // They live in a file of their own so the pieces that index.js imports can use them without an import cycle.
+
+import { spreadWord } from './blocks.js';
 
 /** The feature that switches all of it. */
 export const LEAN_RPG_FEATURE = 'story-block.rpg';
@@ -18,16 +18,13 @@ export const NOROLL = 'rpg.noroll';
 export const DICE = 'rpg.dice';
 /** The step after a reply's lines that records its story checks' results (practice.js `checkStep`). */
 export const CHECK_STEP = 'rpg.check';
-/** The exact prompt note from the approved mockup, with `dice` in the order they were rolled. */
-export function offerLine(dice) {
-    return `Dice for this reply, in order: ${(Array.isArray(dice) ? dice : []).join(', ')}. Use one for each attempt that can fail (yours or a party member's): d20 + stat part + skill rank against easy 10 (routine for a trained person), normal 15 (a real chance to fail), hard 20 (a skilled person often fails), very hard 25 (rarely done). The story must follow each result strictly. Report each: ? check Name | skill or stat | difficulty | die.`;
-}
-
-/** The setting (Fight & checks): story checks outside a fight, on unless set to false. Off: no dice note, `? check` lines are not used. */
+/** The narrator's kind word for a story check (`? roll …`): Story Director owns `check`, so this one is Story Block's own. */
+export const ROLL_KIND = 'roll';
+/** The setting (Fight & checks): story checks outside a fight, on unless set to false. Off: no dice and no grammar line from then on; results already recorded stay. Independent of Rolls (which is for fights): the dice and the grammar line follow this switch alone. */
 export const CHECKS_SETTING = 'rpgChecks';
 export const checksOn = values => values?.[CHECKS_SETTING] !== false;
-/** The static grammar line of the `? check` kind: constant text, shown while the RPG, Story checks and a party are all there. */
-export const CHECK_GRAMMAR = '? check Name | skill or stat | easy, normal, hard or very hard | die (an attempt that can fail, with one of this reply\'s dice, in order; at most 3)';
+/** The static grammar line of the `? roll` kind: constant text, shown while the RPG and Story checks are on, whatever the party or Rolls say (the dice follow the same switch). */
+export const CHECK_GRAMMAR = '? roll Name | skill or stat | easy, normal, hard or very hard | die (an attempt that can fail, with one of this reply\'s dice, in order; at most 3)';
 
 /** The step after a reply's lines that gives the party its XP for a won fight (fight.js); also the kind of its replay guard. */
 export const FIGHT = 'rpg.fight';

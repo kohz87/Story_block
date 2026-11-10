@@ -185,7 +185,7 @@ test('Settings has an RPG page of its own after Features while the feature is on
     const card = rpg.querySelector('[data-card="rolls"]');
     assert.ok(card.textContent.includes('Rolls'));
     const chips = card.querySelectorAll('.rpg-chip');
-    assert.deepEqual(chips.map(node => node.textContent), ['Automatic', 'Off', 'On', 'Off']);
+    assert.deepEqual(chips.map(node => node.textContent), ['Automatic', 'Off']);
     assert.equal(chips[0].getAttribute('aria-pressed'), 'true', 'automatic is the default');
     chips[1].click();
     await settle();
