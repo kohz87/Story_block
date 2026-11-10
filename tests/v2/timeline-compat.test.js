@@ -34,7 +34,7 @@ test('a chat that never uses the timeline has no savepoints domain, no archive a
     for (const message of host.ctx.chat) {
         const record = message.extra?.storySuite;
         if (!record) continue;
-        assert.equal(Object.keys(record).every(key => [...KEYS, 'checkpoint', 'covers', 'coverHash', 'guardEnv'].includes(key)), true, Object.keys(record).join());
+        assert.equal(Object.keys(record).every(key => [...KEYS, 'foeCap', 'rules', 'checkpoint', 'covers', 'coverHash', 'guardEnv'].includes(key)), true, Object.keys(record).join());
         for (const span of record.spans) assert.equal(Object.hasOwn(span, 'guard') && span.guard?.owner === 'story-block', false);
     }
 });

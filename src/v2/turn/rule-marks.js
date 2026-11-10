@@ -20,13 +20,14 @@ export const RULE_LINES = Object.freeze({
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
 export function foeLine(line, state = null) {
     if (line?.kind !== 'dm' || line.op !== '+') return false;
-    if (Object.hasOwn(line.labels ?? {}, 'kind')) return /^set-slot-\d$/u.test(String(line.labels.kind));
+    const named = Object.hasOwn(line.labels ?? {}, 'kind');
+    if (named && !/^set-slot-\d$/u.test(String(line.labels.kind))) return false;
     // Prior text may have used an older definition; a kind-less line could have been a foe, so do not change its rule.
     if (!state) return true;
     try {
         const definition = activeDefinition(state, resolveModule(state, line.name));
         if (definition?.role !== 'foes') return false;
-        const kind = withKind(definition, line).kind;
+        const kind = named ? line.labels.kind : withKind(definition, line).kind;
         return /^set-slot-\d$/u.test(String(kind ?? '')) && !!definition.kinds[kind]?.labels?.level;
     } catch { return false; }
 }
@@ -47,13 +48,16 @@ export function ruleMarksFor(lines) {
 
 /** Rules that cannot be newly marked on an existing reply without changing its earlier lines on Re-read. */
 export function previousMarks(before, heads, late = []) {
-    if (before === undefined) return { foe: false, rules: [] }; // A new reply or swipe.
+    if (before === undefined) return { foe: false, rules: [], first: true }; // A new reply or swipe: its first capture marks it with every rule.
     if (typeof before !== 'string') return { foe: true, rules: Object.keys(RULE_LINES) }; // Unknown previous text: stay conservative.
     const text = adoptLegacy(before).text;
     const block = extractBlock(text, 'Changes', null, { heads });
     const lines = [...parseChanges(block ?? '').lines, ...parseChanges(assistSections(text).now.join('\n')).lines, ...late];
     return { foe: lines.some(line => foeLine(line)), rules: ruleMarksFor(lines) };
 }
+
+/** Every rule a new reply is marked with at its first capture, whether or not it has such a line yet. */
+export const allRuleNames = () => Object.keys(RULE_LINES).sort();
 
 /** Only replies seen being created here may gain their first mark after their initial capture. */
 export function createMarkHistory() {
