@@ -89,7 +89,7 @@ export function createStore({
     chat, save, now = null, apply = applyOps, onSaveError = null, timers = globalThis,
     checkpointEvery = CHECKPOINT_EVERY, checkpointBytes = CHECKPOINT_BYTES, recordId = newRecordId, validate = null,
     chatId = () => undefined, place = () => null, rescue = null, scratch = null, receiptKeep = RECEIPT_KEEP,
-    confirm = null, memo = null, metadata = () => null, marked = () => false, replayEnv = () => '',
+    confirm = null, memo = null, hold = null, metadata = () => null, marked = () => false, replayEnv = () => '',
 } = {}) {
     if (typeof chat !== 'function') throw new TypeError('createStore needs a chat() function.');
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
@@ -236,7 +236,7 @@ export function createStore({
                 return result;
             });
         } : null,
-        target, check, onError: onSaveError, timers, verify, confirm, memo,
+        target, check, onError: onSaveError, timers, verify, confirm, memo, hold,
     });
 
     const list = () => {
@@ -380,6 +380,16 @@ export function createStore({
         /** A chat was opened: read-backs a reload of the page left for it go on (persist.js createSaver.resume). */
         resume() { return saver.resume(target()); },
         flush() { return saver.flush(); },
+        /** The wake check (runtime/wake.js): the open chat's copy is older than the server's; its unsaved changes are dropped. → how many records were unsaved. */
+        discardUnsaved() {
+            const id = chatId();
+            const n = [...s.unsaved.values()].filter(entry => entry.chatId === id).length;
+            saver.discard();
+            forget(id, Infinity);
+            return n;
+        },
+        /** How many records of the open chat are written but not yet saved. */
+        unsavedCount() { const id = chatId(); return [...s.unsaved.values()].filter(entry => entry.chatId === id).length; },
         dirty() { return saver.dirty(); },
         /** True while saves are failing (until one works again). */
         failing() { return saver.failing(); },

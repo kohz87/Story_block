@@ -42,7 +42,21 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
   chat suspect: rising `chat_metadata.storySuiteSave` stamps and read-backs over about five minutes.
 - Page hidden or closed with unsaved changes: keepalive send at once, within `KEEPALIVE_MAX` (60 KiB of UTF-8
   bytes); bigger, `beforeunload` asks first.
-- Not covered: two tabs on one chat (last writer wins).
+- **Wake check** (`runtime/wake.js`): a tab that becomes visible (`visibilitychange`, `pageshow`, a resumed page), or saves
+  after 10 minutes of doing nothing with the chat (an event missed), asks SillyTavern's chat list
+  (`/api/chats/search`, empty query: name, count, last message date and end per file; no chat file is read) before the
+  saver writes anything (the saver is held, 8 s at most; a server that does not answer leaves saving as it was and says
+  so). The tab's fingerprint (count, last date, last text) follows what it loaded and wrote itself, keepalive saves
+  included; a row equal to the chat as it is in the tab (SillyTavern saved it itself) is fine too.
+  * Changed on the server: its unsaved changes are dropped (`store.discardUnsaved`), the chat is reloaded, toast "This chat
+    changed on another device. Reloaded the newer copy." (+ " N unsaved changes in this tab were dropped.").
+  * Another chat file of the character or group with a later last message: toast "A newer chat exists for this character:
+    <name>. Open it from Manage chats." (once per file, no switch).
+  * Waits for a reply in progress to end. No file to list (testkit, temporary chat): no check.
+  * **Not covered:** SillyTavern's own saves of a stale tab are not held (its chat-changed or end-of-reply save can still
+    overwrite); a change on another device that leaves the count, last date and last text as they were (an edit of an
+    earlier message, metadata only) is not seen; a write of another device between the check and a save is not seen
+    (only SillyTavern's own integrity check covers it); two tabs both visible on one chat see each other only at a wake.
 
 ## Key files and functions
 
@@ -60,7 +74,7 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
 
 ## Tests that guard it
 
-- `tests/v2/store.test.js`, `persist.test.js`, `saving.test.js`, `storage-once.test.js`, `store-head-cache.test.js`,
+- `tests/v2/store.test.js`, `persist.test.js`, `saving.test.js`, `stale-tab.test.js`, `storage-once.test.js`, `store-head-cache.test.js`,
   `counters.test.js`, `replay-fit.test.js`, `long-chat.test.js`, `rewind.test.js`, `savepoints.test.js`, `ops.test.js`.
 - `tests/v2/replay-guard.test.js`, `replay-source.test.js`, `replay-chain.test.js` (guarded blocks, source map,
   checkpoint gaps, Re-read replan; the test-only owner is `tests/v2/helpers/guarded.js`).

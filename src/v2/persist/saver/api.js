@@ -41,6 +41,21 @@ export function createSaverApi({
         pending: () => state.timer !== null || state.deadline !== null || state.running !== null,
         /** True while a write of some chat timed out and its file is still to be read back. */
         suspect: () => suspects.size() > 0,
+        /**
+         * The wake check found this copy of the chat older than the server's: every change not yet written (the open
+         * chat's and any left behind) is dropped, and nothing waits to be saved. True when there was any.
+         */
+        discard() {
+            const had = state.version !== state.saved || state.orphans.length > 0;
+            cancel();
+            state.saved = state.version;
+            state.orphans.length = 0;
+            state.latest = null;
+            state.failures = 0;
+            state.told = false;
+            state.waited = 0;
+            return had;
+        },
         /** True while a save of the open chat is on its way (the server has not answered yet). */
         inFlight: () => state.sending !== null,
         /**

@@ -17,11 +17,11 @@ import { carryRecord } from '../persist.js';
  *   been failing.
  * Returns the createStore() options for it.
  */
-export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError = null, storage = null }) {
+export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError = null, storage = null, wrote = null }) {
     const context = () => {
         try { return live() ?? ctx; } catch { return ctx; }
     };
-    const file = createChatFile({ context, ...(fetch ? { fetch } : {}) });
+    const file = createChatFile({ context, ...(fetch ? { fetch } : {}), ...(wrote ? { onWrote: wrote } : {}) });
     // After a write timed out (persist.js createSaver): each later write of that chat carries a rising number
     // in its metadata (`stamp`), and this page keeps a copy of what it wrote (`kept`, by stamp, only until the
     // read-backs end) to put back when the file is found older and the chat is not the open one. Nothing is
@@ -41,6 +41,8 @@ export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError =
     }
     const memoKey = chatId => `${MEMO_PREFIX}${chatId}`;
     return {
+        // The chat file object (the wake check lists and reads through it).
+        chatFile: file,
         /**
          * Would a save of the open chat now go out with keepalive (a body of at most KEEPALIVE_MAX bytes as
          * UTF-8, B-a3-1)? Measured only when asked (the page is closing). True where this page does not write the file itself.

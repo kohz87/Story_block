@@ -42,6 +42,7 @@ import { createPublicApi } from './public-api.js';
 import { createPublicPaths } from './public-paths.js';
 import { initialWithStart, packsFor, withPackCurrency } from './runtime/start.js';
 import { pageStorage, saveOnUnload, storeSaving } from './runtime/saving.js';
+import { createWakeCheck } from './runtime/wake.js';
 export { initialWithStart, packsFor, withPackCurrency } from './runtime/start.js';
 export { SAVE_SEQ_KEY, MEMO_PREFIX, markUsed, saveOnUnload, storeSaving } from './runtime/saving.js';
 
@@ -63,7 +64,7 @@ export const VERSION = '2.27.0';
 export function createRuntime({
     ctx, packs = null, core = true, modules = [], createStore = realStore, createCommandBus = realBus,
     notify, onBlocked = null, onSaveError = null, onRegister = null, branch = null, callModel = null, modelTimeoutMs = undefined,
-    live = () => globalThis.SillyTavern?.getContext?.() ?? ctx, fetch = null, page = globalThis.window ?? null, timelineFaults = null, rpgLoad = undefined,
+    live = () => globalThis.SillyTavern?.getContext?.() ?? ctx, fetch = null, onWake = null, page = globalThis.window ?? null, timelineFaults = null, rpgLoad = undefined,
 } = {}) {
     let features = null;
     let events = null;
@@ -197,8 +198,10 @@ export function createRuntime({
             return [`The ${name} check failed: ${error?.message ?? error}`];
         }
     });
-    const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page) });
-    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name), replayEnv: () => registry.features().map(feature => `${feature.id}${registry.featureOn(feature.id) ? '+' : '-'}`).join(','), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
+    // The wake check (runtime/wake.js) is made below, once the turn exists; the saver asks it before each save.
+    let wake = null;
+    const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page), wrote: (place, messages) => wake?.wrote(place, messages) });
+    const store = createStore({ ...saving, hold: () => wake?.hold() ?? null, validate, scratch: name => registry.scratch(name), replayEnv: () => registry.features().map(feature => `${feature.id}${registry.featureOn(feature.id) ? '+' : '-'}`).join(','), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
     saveOnUnload(store, page, { fits: saving.keepaliveFits });
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();
@@ -294,6 +297,13 @@ export function createRuntime({
     turn = createTurn({ ctx, live, store, bus, timeline, registry, settings, events, onBlocked, initial, prepare: options => prepareLibs(options), ownPrompt: eventData => ownCalls.owns(eventData), ...(notify ? { notify } : {}) });
     // The public API (public-api.js, docs/v2/PUBLIC-API.md): the head state read through the queries and readers that exist, events after the store has written.
     const apiPersona = () => { try { return String((live() ?? ctx)?.name1 ?? ''); } catch { return String(ctx?.name1 ?? ''); } };
+    wake = createWakeCheck({
+        file: saving.chatFile, chat: () => ctx.chat, store, say: onWake,
+        replyBusy: () => turn?.replyBusy?.() === true, whenIdle: () => turn?.whenIdle?.() ?? Promise.resolve(),
+        reload: () => (live() ?? ctx)?.reloadCurrentChat?.(),
+    });
+    events.on('head', event => { if (event?.reason === 'chat') wake.loaded(); });
+    wake.attach(page);
     const api = createPublicApi({
         version: VERSION,
         hostReady: made.sdk.ready,

@@ -44,7 +44,7 @@ import { createIo } from './io.js';
 export function createSaver({
     save, onError = null, timers = globalThis, verify = null, target = null, check = null, rescue = null,
     retry = [1000, 2000, 4000, 8000, 15000], waitMs = 200, waits = 50, timeout = 20000,
-    confirm = null, recheck = RECHECK_MS, memo = null,
+    confirm = null, recheck = RECHECK_MS, memo = null, hold = null,
 } = {}) {
     if (typeof save !== 'function') throw new TypeError('createSaver needs a save function.');
     let version = 0;
@@ -225,6 +225,11 @@ export function createSaver({
     }
 
     async function saveNow(options = {}) {
+        // The wake check (runtime/wake.js): while it is pending, or due, nothing is written. A page going away (keepalive) is never held.
+        if (typeof hold === 'function' && !options.keepalive) {
+            const gate = hold();
+            if (gate) await gate;
+        }
         await rescueOrphans();
         let goal = 0;
         let token;

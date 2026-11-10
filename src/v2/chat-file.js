@@ -19,9 +19,14 @@
 //                                      it. `signal` (an AbortSignal) gives the request up (persist.js
 //                                      createSaver's timeout).
 //   read(place)                      → Promise<[header, ...messages]>: the file as the server has it.
+//   list(place, { signal })          → Promise<[{ file_name, file_size, message_count, last_mes, preview_message }]>:
+//                                      the character's (or group's) chat files as the server lists them, without
+//                                      their messages (the wake check, runtime/wake.js).
+//   onWrote(place, messages)         (an option of createChatFile) is told after the server accepted a write.
 
 const SAVE = { character: '/api/chats/save', group: '/api/chats/group/save' };
 const GET = { character: '/api/chats/get', group: '/api/chats/group/get' };
+const LIST = '/api/chats/search';   // an empty query lists every chat file of the character or group, one row each
 // Browsers send a keepalive request (one that outlives the page) only up to 64 KiB of body, counted in
 // bytes as sent (UTF-8), not in characters: a chat in Japanese or with emoji is 2-4 bytes a character
 // (B-a3-1). Kept under 64 KiB for the headers and other keepalive requests on their way.
@@ -40,7 +45,7 @@ export function utf8Bytes(text) {
     return bytes;
 }
 
-export function createChatFile({ context, fetch = (...args) => globalThis.fetch(...args) } = {}) {
+export function createChatFile({ context, fetch = (...args) => globalThis.fetch(...args), onWrote = null } = {}) {
     if (typeof context !== 'function') throw new TypeError('createChatFile needs a context() function.');
 
     function where() {
@@ -90,6 +95,7 @@ export function createChatFile({ context, fetch = (...args) => globalThis.fetch(
         }
         return Promise.resolve(request).then(async response => {
             if (!response?.ok) throw await refused(response ?? { status: 0 });
+            try { onWrote?.(place, messages); } catch { /* only a note of what was written */ }
         }, error => {
             throw new Error(`the server could not be reached (${error?.message ?? error})`);
         });
@@ -109,5 +115,19 @@ export function createChatFile({ context, fetch = (...args) => globalThis.fetch(
         return Array.isArray(data) ? data : [];
     }
 
-    return { where, write, read };
+    async function list(place, { signal = null } = {}) {
+        if (!place) throw new Error('there is no chat file to list');
+        const body = place.group ? { query: '', group_id: place.group } : { query: '', avatar_url: place.avatar };
+        let response;
+        try {
+            response = await post(LIST, body, { signal });
+        } catch (error) {
+            throw new Error(`the server could not be reached (${error?.message ?? error})`);
+        }
+        if (!response?.ok) throw await refused(response ?? { status: 0 });
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+    }
+
+    return { where, write, read, list };
 }

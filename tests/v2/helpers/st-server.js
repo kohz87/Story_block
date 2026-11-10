@@ -6,6 +6,8 @@ export function serveChats(t, h, { name = 'Narrator', avatar = 'narrator.png' } 
         files: {},
         requests: [],
         failing: false,
+        /** The chat list (/api/chats/search): 'fail' answers 500, 'hang' never answers, 'down' rejects like a dropped connection. */
+        listing: '',
         /** The messages of file `id` as saved (no header), or null. */
         messages: id => (server.files[id] ? structuredClone(server.files[id].slice(1)) : null),
     };
@@ -24,6 +26,16 @@ export function serveChats(t, h, { name = 'Narrator', avatar = 'narrator.png' } 
             if (body.avatar_url !== avatar || body.ch_name !== name) return reply(400, { error: 'wrong character' });
             server.files[body.file_name] = structuredClone(body.chat);
             return reply(200, { ok: true });
+        }
+        if (url === '/api/chats/search') {
+            if (server.listing === 'hang') return new Promise(() => {});
+            if (server.listing === 'down') throw new TypeError('network down');
+            if (server.listing === 'fail') return reply(500, { error: 'Search failed' });
+            const rows = Object.entries(server.files).map(([id, file]) => {
+                const last = file.at(-1) ?? {};
+                return { file_name: id, file_size: '1kb', message_count: file.length - 1, last_mes: file.length > 1 ? (last.send_date || '2020-01-01T00:00:00.000Z') : 0, preview_message: String(last.mes || '[The message is empty]') };
+            });
+            return reply(200, rows);
         }
         if (url === '/api/chats/get') return reply(200, server.files[body.file_name] ?? []);
         return reply(404, {});

@@ -38,6 +38,8 @@ function boot() {
             globalThis.toastr?.error?.(`The story could not be saved: ${error?.message ?? error}`, 'Story Block');
         },
         onRegister: () => ui?.syncScreens(),
+        // The wake check's toasts (src/v2/runtime/wake.js): a tab coming back asked the server first.
+        onWake: (text, kind) => globalThis.toastr?.[kind === 'info' ? 'info' : 'warning']?.(text, 'Story Block'),
     });
     const { sdk, api, turn, markReady } = runtime;
     // (An old v1 copy loaded before this one left its own object here: src/v2/v1-copy.js.)
