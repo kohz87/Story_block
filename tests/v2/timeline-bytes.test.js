@@ -6,7 +6,18 @@ import { rulesModule, clone, reload } from './helpers/timeline.js';
 import { historyCompat } from './helpers/history-compat.js';
 const main = JSON.parse(readFileSync(new URL('./helpers/fixtures/history-main.json', import.meta.url)));
 for (const guarded of [false, true]) test(`no-timeline ${guarded ? 'guarded' : 'legacy'} chat is byte-identical to main at ${guarded ? main.mergedMain : main.branchPoint}`, async () => {
-    assert.equal(JSON.stringify(await historyCompat(guarded)), JSON.stringify(main[guarded ? 'guarded' : 'plain']));
+    const now = await historyCompat(guarded);
+    // The one difference from main: every reply captured now carries its rule marks (turn/rule-marks.js), `foeCap: 20` and `rules: ['diedAny']`.
+    // The opening greeting is not captured by this code and has none. Swipe copies carry their reply's marks.
+    let marked = 0;
+    for (const message of now.chat) for (const record of [message.extra?.storySuite, ...(message.swipe_info ?? []).map(info => info.extra?.storySuite)]) {
+        if (!record?.receipts || !('foeCap' in record)) continue;
+        assert.equal(record.foeCap, 20);
+        assert.deepEqual(record.rules, ['diedAny']);
+        delete record.foeCap; delete record.rules; marked++;
+    }
+    assert.ok(marked >= 2);
+    assert.equal(JSON.stringify(now), JSON.stringify(main[guarded ? 'guarded' : 'plain']));
 });
 
 test('a guarded chat written at the branch point stays byte-identical on reload', async t => {

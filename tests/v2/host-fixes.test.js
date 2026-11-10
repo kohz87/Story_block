@@ -86,7 +86,7 @@ test('capture runs get ctx.carrier { index, swipe, sid, key } and ctx.chat { las
     // `sid` (B-b2-timeline-10): the reply's record ID, handed out before its first record is written.
     const sid = readRecord(host.ctx.chat[2]).sid;
     assert.match(sid, /^sw_/);
-    assert.deepEqual({ ...captures[0].carrier }, { index: 2, swipe: 0, sid, key: '2:0' });
+    assert.deepEqual({ ...captures[0].carrier }, { index: 2, swipe: 0, sid, key: '2:0', foeCap: 20, rules: ['diedAny'] });
     assert.equal(captures[1].carrier.sid, sid, 'every line of the reply has the same one');
     assert.equal(captures[0].key, '2:0', 'String(ctx.carrier) is its key');
     assert.deepEqual({ ...captures[0].chat }, { lastUser: 'I wave at Fenna.', reply: 'Fenna waves back.' });
