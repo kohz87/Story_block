@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.28.0
+
+- **Rest is told by the story.** Rest, a full rest (once in 6 story hours) and healing are the narrator's lines; the character sheet no longer has rest buttons. The story cannot raise Health, Mana or Stamina any other way.
+- **The Party card counts your gear.** A stat raised by equipment shows its real value in green with the bonus beside it (+2), and the skills line agrees.
+- **VIT softens blows.** A failed defence that only just misses does no damage; the margin it absorbs grows with VIT (up to 5). The fight log says "Glanced off", and the Party card shows the next step ("Soak +3, next at VIT 16").
+- **Foe levels follow the story.** The attack check judges each foe by who they are (role, experience, numbers), not by your level, with the story's rank scale and what NPC State Delta already knows about a named person.
+- **A new foe's level may reach your party's highest + 20** (it was + 10). It is only a ceiling. Replies written before this keep + 10 when read again.
+- **A person's Level field sets their foe level.** When a single foe's name is exactly a person's name or alias in NPC State Delta, and that person has a Level custom field (a number, a rank such as "C", or a range such as "C-D"), the fight uses it and may pass the + 20 ceiling. Groups and guessed levels keep the ceiling.
+- **A pack's cast skills can be utility skills.** A cast skill may say `type: "utility"`; it joins into a utility slot. Packs without it are unchanged.
+- **Replies carry rule marks.** Every new reply records which rules it was written under, so a rule added later never changes an old reply when it is read again.
+- **Fixed:** the steps row of the character wizard keeps its size on phones; gear values show on the Party card.
+- Example pack Ersveil: see its own entry.
+
 ## 2.27.0
 - **Inventory rows are tidier.** Each row has one pencil: the Carry field (0-500, yours only) is in every item's Edit form, story items too. Line 2 shows +N carry only when set, and line 3 reads bonus · condition · note with clear gaps.
 - **Inner chatter can be up to 240 characters** (it was 140).
