@@ -181,3 +181,10 @@ test('a group of several named after the person keeps the normal rules: the Leve
     assert.equal(groups(1)[0].level, 30);
     assert.equal(groups(5)[0].level, 22);
 });
+
+test('a possessive is another person: "Vorn\'s bodyguard" does not take Vorn\'s Level', () => {
+    const query = (name, args) => name === 'npc.known' ? ['Vorn'] : name === 'npc.dossier' ? { aliases: [], customFields: { Level: '30' } } : null;
+    assert.deepEqual(statedLevel(query, 'Branch Master Vorn'), { level: 30 });
+    assert.equal(statedLevel(query, 'Vorn’s bodyguard'), null);
+    assert.equal(statedLevel(query, "Vorn's bodyguard"), null);
+});
