@@ -1,6 +1,6 @@
-// Rule marks: a reply captured LIVE with a line a newer rule covers (a `- key Name | died` line: diedAny) carries `rules: ['diedAny']` on its record,
-// a module's apply reads it as `ctx.carrier.rules` (frozen), and a Re-read, a rebuild and a reload keep it. A reply without such a line has none, and an old
-// chat (recorded without the mark) stays byte-identical on rebuild, reload and Re-read: a Re-read never adds a mark to it.
+// Rule marks: every reply first captured live carries the current rules, including `diedAny` for `- key Name | died`, on its record.
+// A module's apply reads them as `ctx.carrier.rules` (frozen); Re-read, rebuild, reload and swipe keep them. An old reply without marks
+// keeps its old behavior: Re-read never adds marks to it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
@@ -162,6 +162,37 @@ test('the mark belongs to its swipe, including the saved swipe copy', async t =>
     assert.deepEqual(seen.at(-1).rules, ['diedAny']);
     await host.st.swipeTo(at, 1);
     assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+});
+
+test('swiping from a loaded old reply marks only the new swipe and restores the old record byte for byte', async t => {
+    const seen = [], host = await world(t, seen);
+    const setFoeCap = host.store.setFoeCap, setRuleMarks = host.store.setRuleMarks;
+    host.store.setFoeCap = host.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await host.send('Vorn falls.', reply('He falls.', ['- key Vorn | died']));
+    host.store.setFoeCap = setFoeCap;
+    host.store.setRuleMarks = setRuleMarks;
+    const at = host.ctx.chat.length - 1;
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    const oldRecord = JSON.stringify(recordOf(host, at)), oldHead = JSON.stringify(host.head());
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.equal(recordOf(host, at).rules, undefined);
+    await host.swipe(reply('Ann falls.', ['- key Ann | died']));
+    assert.equal(recordOf(host, at).foeCap, 20);
+    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(host.head().domains.markprobe.deaths, { Ann: true });
+    await host.st.swipeTo(at, 0);
+    assert.equal(JSON.stringify(recordOf(host, at)), oldRecord);
+    assert.equal(JSON.stringify(host.head()), oldHead);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(JSON.stringify(host.head()), oldHead);
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.equal(recordOf(host, at).rules, undefined);
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    assert.equal(JSON.stringify(host.head()), oldHead);
+    await host.st.swipeTo(at, 1);
+    assert.equal(recordOf(host, at).foeCap, 20);
+    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(host.head().domains.markprobe.deaths, { Ann: true });
 });
 
 test('a missing mark writer cannot make a rule live without recording it', async t => {

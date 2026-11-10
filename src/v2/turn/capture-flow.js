@@ -292,13 +292,13 @@ export function createCaptureFlow(s, deps) {
         else if (base === null && lines.some(line => PRACTICE_LINE.test(line.raw ?? '')) && practiceFromRollsOnly(registry.featureOn?.(LEAN_RPG_FEATURE) === true, settings?.('story-block'))) {
             try { store.setPracticeRule?.(index); carrier.practiceRule = 'rolls'; } catch { /* an unmarked reply is judged as before */ }
         }
-        // The foe level cap recorded with the reply: a new foe's guessed level may reach the party's highest + 20 (data-modules/part/act.js). A reply captured live with a
-        // foe line (a set-slot line) is marked; a Re-read or an edit goes by the mark the reply has, so an older reply keeps its +10 cap.
+        // The foe level cap recorded with the reply: a new foe's guessed level may reach the party's highest + 20 (data-modules/part/act.js). A first live capture
+        // marks the reply even without a foe line; a Re-read or an edit goes by the mark the reply has, so an older reply keeps its +10 cap.
         if (readRecord(message)?.foeCap === 20) carrier.foeCap = 20;
         else if (base === null && (blocked.first || (!blocked.foe && lines.some(line => foeLine(line, state)))) && typeof store.setFoeCap === 'function') {
             try { store.setFoeCap(index); carrier.foeCap = 20; } catch { /* an unmarked reply keeps the old cap */ }
         }
-        // Rule marks (rule-marks.js): a reply captured live with a line a newer rule covers is marked; a Re-read goes by the marks it has (a module reads `ctx.carrier.rules`).
+        // Rule marks (rule-marks.js): the first live capture gets all current marks; a Re-read goes by those it has (a module reads `ctx.carrier.rules`).
         const marks = ruleMarksOf(readRecord(message)?.rules), fresh = base === null ? (blocked.first ? allRuleNames() : ruleMarksFor(lines)).filter(name => !marks.includes(name) && !blocked.rules.includes(name)) : [];
         if (fresh.length && typeof store.setRuleMarks === 'function') { try { store.setRuleMarks(index, fresh); marks.push(...fresh); } catch { /* an unmarked reply keeps the old rule */ } }
         if (marks.length) carrier.rules = marks;
