@@ -6,9 +6,15 @@
 // the result goes into the recorded `plan.open` (a `level`, or a rank band `rank`/`from`/`to` that resolve.js draws from the reply's seed and records), so replay,
 // Re-read, swipe and rebuild read the recorded opening and no command or reducer asks NSD. Pure functions; `query` is the host's query function.
 import { FOE_LEVEL, bandOfRank } from '../foes.js';
-import { occurs, wordsOf } from './precheck-known.js';
+import { wordsOf } from './precheck-known.js';
 
 const ask = (query, name, args) => { try { return typeof query === 'function' ? query(name, args) : null; } catch { return null; } };
+// Whether the words of `label` stand whole and in a row in `seen`, NOT as a possessive ("Vorn's bodyguard" is another person, not Vorn).
+const holds = (label, seen) => {
+    const wanted = wordsOf(label);
+    for (let at = 0; wanted.length && at + wanted.length <= seen.length; at += 1) if (wanted.every((word, i) => seen[at + i] === word) && seen[at + wanted.length] !== 's') return true;
+    return false;
+};
 const RANK_MAX = 12; // the longest rank name a recorded opening may carry (open.js)
 
 /**
@@ -45,7 +51,7 @@ export function statedLevel(query, name) {
         const dossier = ask(query, 'npc.dossier', { name: known });
         if (!dossier || typeof dossier !== 'object') continue;
         const aliases = Array.isArray(dossier.aliases) ? dossier.aliases.filter(alias => typeof alias === 'string') : [];
-        if (![known, ...aliases].some(label => occurs(label, seen))) continue;
+        if (![known, ...aliases].some(label => holds(label, seen))) continue;
         const fields = dossier.customFields && typeof dossier.customFields === 'object' ? dossier.customFields : {};
         const key = Object.keys(fields).find(field => field.trim().toLowerCase() === 'level');
         const found = key === undefined ? null : parseStatedLevel(fields[key], rankAt);
