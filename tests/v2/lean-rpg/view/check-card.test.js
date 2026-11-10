@@ -130,3 +130,12 @@ test('the Check card fold is kept per chat and reply in the fight log\'s fold st
     assert.equal(again.querySelector('.rpg-bl-body').hidden, true);
     assert.equal(again.querySelector('.rpg-check-sum .rpg-check-chip').textContent, 'CHA · Fail', 'the reader\'s own roll has no name');
 });
+
+test('each folded-header pill carries its full text in a title so a cut pill can still be read', () => {
+    const doc = installFakeDom();
+    const long = 'Sir Bartholomew Featherstonehaugh-Wetherby the Third';
+    const card = buildCheckCard(doc, [result({ who: long, skill: { name: 'Extraordinarily Specialised Disarmament' }, outcome: 'success' })], { reader: 'Astra' });
+    const pill = card.querySelector('.rpg-check-sum .rpg-check-chip');
+    assert.equal(pill.getAttribute('title'), `${long} · Extraordinarily Specialised Disarmament · Success`);
+    assert.equal(pill.getAttribute('title'), pill.textContent);
+});

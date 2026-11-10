@@ -49,7 +49,10 @@ function summaryPill(doc, result, reader) {
     const [tone, word] = OUTCOME[result.outcome] ?? OUTCOME.fail;
     const what = result.skill?.name || result.practice?.skill || String(result.stat).toUpperCase();
     const own = Boolean(reader) && fold(result.who) === fold(reader);
-    return el(doc, 'span', `rpg-check-chip rpg-check-chip-${tone}`, `${own ? '' : `${result.who} · `}${what} · ${word}`);
+    const text = `${own ? '' : `${result.who} · `}${what} · ${word}`;
+    const pill = el(doc, 'span', `rpg-check-chip rpg-check-chip-${tone}`, text);
+    pill.setAttribute('title', text);
+    return pill;
 }
 
 /**
