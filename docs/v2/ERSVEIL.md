@@ -35,7 +35,7 @@ SillyTavern profile.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
-2.8.0 gives each of the twelve exactly two signature skills, makes Sister Temiwa a Shiba Inu dogfolk healer (Lv 4, soft and weary, no cruelty), makes Nerissa deredere and Nysseth yandere, and sets Rika to Lv 8 and Torka to Lv 6; it asks for no new Story Block version (`requires.storyBlock` stays ^2.22.0 until the next Story Block release sets it).
+2.8.0 gives each of the twelve exactly two signature skills, makes Sister Temiwa a Shiba Inu dogfolk healer (Lv 4, a shy dandere with waterfall black hair, soft and weary, no cruelty or possessiveness), makes Nerissa deredere and Nysseth yandere, and sets Rika to Lv 8 and Torka to Lv 6; it asks for no new Story Block version (`requires.storyBlock` stays ^2.22.0 until the next Story Block release sets it).
 2.7.0 lays Standing, Fame, Guild and Court favour out as sections of one Reputation tab and needs Story Block 2.22.0 (a running chat moves by migrating the four modules: see "Moving a running chat to 2.7.0" below).
 2.6.1 trims the always-on lore and makes Classification, Currency, Naming and Knowledge keyword entries (the story sends them when the topic comes up).
 2.6.0 adds sixteen signature items (each cast member's own gear, given and bound to them when they join the party while Gear in fights is on) and needs Story Block 2.18.0.
@@ -110,7 +110,7 @@ opens as Trust or Affection grows or when the story reaches it; none of it is to
 
 | Person | Where they begin | One line |
 |---|---|---|
-| Sister Temiwa | Bluewatch Village | A Shiba Inu dogfolk saintess candidate exiled to the frontier, a soft, weary, dryly sarcastic healer who keeps the dead at rest. |
+| Sister Temiwa | Bluewatch Village | A Shiba Inu dogfolk saintess candidate exiled to the frontier, a shy, soft, weary, dryly sarcastic healer who keeps the dead at rest. |
 | Ysmeth | Shackles City / Chainmarket | A dwelf rune-collar artificer held by the Grey Ledger, cold, exact and planning every exit. |
 | Nysseth | Shackles City / Knifeglass Alley | A soft-spoken, sweet, obsessively devoted elf who runs a Broken Chain cell from a knife-grinder's stall and teaches by asking what you missed. |
 | Rika | Auvoth / Pale Market | A white-haired barge-girl mage with huge, unrefined power who cannot read and will not say so. |

@@ -69,7 +69,8 @@ test('meters and stages: the eleven romanceable use the companion preset, Barney
         assert.equal(person.stages.at(-1).needs.some(need => need.meter === 'desire'), ROMANCEABLE.includes(person.id), `${person.id}: only a romantic top stage needs Desire`);
     }
     const mine = cast()[0].stages.at(-1);
-    assert.deepEqual([mine.name, mine.needs], ['Yours', [{ meter: 'affection', at: 75 }, { meter: 'desire', at: 50 }]]);
+    assert.equal(mine.id, 'my-candle');
+    assert.deepEqual([mine.name, mine.needs], ['My candle', [{ meter: 'affection', at: 75 }, { meter: 'desire', at: 50 }]]);
     // Everyone starts at 0 (USER 5 Nov): a relationship is built in play, never handed out at the first meeting.
     for (const person of cast()) {
         for (const meter of ['trust', 'affection', 'desire', 'tension']) {
@@ -135,11 +136,12 @@ test('every one of the twelve has a look (the body) and a wears (clothes and gea
         assert.match(person.wears, CLOTHING, `${person.id}: wears names something worn or carried`);
     }
     // Round 2: scene backdrops (banners, a fort, a ship's deck, a harbour, maps "behind her") are portrait staging, in neither field; a manner
-    // ("a seductive air") is personality, so Temiwa's look has no "air" and her personality says it, inside its limit.
+    // ("a seductive air") was personality; the owner's final Temiwa (10 Nov) lists it in her look, so her look has it and her personality still
+    // says she does not mean it, inside its limit.
     for (const person of cast()) for (const text of [person.look, person.wears]) assert.doesNotMatch(text, /\bbehind (him|her|them)\b/i, person.id);
     const temiwa = cast().find(person => person.id === 'temiwa');
-    assert.doesNotMatch(temiwa.look, /\bair\b/i);
-    assert.match(temiwa.personality, /Ironically seductive.*chaste and innocent in love/);
+    assert.match(temiwa.look, /A seductive air that sits oddly on a holy woman/);
+    assert.match(temiwa.personality, /doesn't mean the seductive air.*Chaste and innocent in love/);
     assert.ok(chars(temiwa.personality) <= CAST_LIMITS.personality);
     assert.match(cast().find(person => person.id === 'nysseth').look, /scar around her throat where her collar was/);
     // Every cast key passes through the normalizer with wears kept (the pack checker keeps it in the entry).
@@ -230,10 +232,13 @@ test('every one of the twelve has its personality split: shorter than before, wi
     const temiwa = cast().find(person => person.id === 'temiwa');
     assert.ok(temiwa.behaviour.some(line => line.startsWith('Mercy: high')));
     assert.equal(temiwa.mannerisms.some(line => /pain|cruel|sadis/i.test(line)), false);
-    assert.doesNotMatch(JSON.stringify(temiwa), /\b(fox|foxes|vixen|russet|sadis\w*|cruel\w*|yandere)\b/i);
+    assert.doesNotMatch(JSON.stringify(temiwa), /\b(fox|foxes|vixen|russet|sadis\w*|cruel\w*|yandere|possessive)\b/i);
     assert.doesNotMatch(JSON.stringify(cast().find(person => person.id === 'torka')), /sadis/i);
-    assert.match(temiwa.look, /Shiba Inu dogfolk.*black.*cream points/);
-    assert.equal(temiwa.fields.People, 'Shiba Inu dogfolk, 21');
+    assert.match(temiwa.look, /Shiba Inu dogfolk.*Black dog ears with cream points.*waterfall/);
+    assert.equal(temiwa.fields.People, 'Shiba Inu dogfolk woman, 21');
+    assert.match(temiwa.personality, /^Dandere/);
+    assert.deepEqual(temiwa.stages.map(stage => stage.name), ['Tolerates you', 'Talks while she stitches', 'Burns a candle for you', 'My candle']);
+    assert.match(temiwa.secrets.find(secret => secret.title === 'Her reliquary').text, /first bandage she ever wound for you/);
     // Nerissa is deredere and Nysseth yandere (owner, 10 Nov), each still keeping what made them.
     assert.match(cast().find(person => person.id === 'nerissa').personality, /Deredere.*prankster.*homesick/s);
     const nysseth = cast().find(person => person.id === 'nysseth');
