@@ -11,7 +11,6 @@
 - **A pack's cast skills can be utility skills.** A cast skill may say `type: "utility"`; it joins into a utility slot. Packs without it are unchanged.
 - **Replies carry rule marks.** Every new reply records which rules it was written under, so a rule added later never changes an old reply when it is read again.
 - **Fixed:** the steps row of the character wizard keeps its size on phones; gear values show on the Party card.
-- Example pack Ersveil: see its own entry.
 
 ## 2.27.0
 - **Inventory rows are tidier.** Each row has one pencil: the Carry field (0-500, yours only) is in every item's Edit form, story items too. Line 2 shows +N carry only when set, and line 3 reads bonus · condition · note with clear gaps.
