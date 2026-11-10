@@ -23,7 +23,7 @@ Last checked: 2026-11-07.
 - `src/v2/data-modules/editable-layout.js`: adds inline editors to local fields in authored data-module screen layouts.
 - `src/v2/data-modules/fields-widget.js`: defines the fields and heading layout nodes used to show a data module's values.
 - `src/v2/data-modules/hash-basis-v1.js`: frozen interpreter-1 descriptors and limits kept as a historical identity contract.
-- `src/v2/data-modules/recovery.js`: a marked Character's story rules (no narrator XP, bars lowered but never raised by `set-*`, full rest once per 6 story hours) and their notes.
+- `src/v2/data-modules/recovery.js`: a marked Character's story rules (no narrator XP, bars lowered but never raised by `set-*`, full rest once per 6 story hours), the one recovery line (restLine) and their notes.
 
 ## src/v2/events/
 - `src/v2/events/calls.js`: allowlisted condition calls that read the before-generate state and queries.
