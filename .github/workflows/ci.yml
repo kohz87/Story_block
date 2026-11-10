@@ -27,7 +27,36 @@ jobs:
           git diff --check "$BASE" HEAD
       - name: Syntax check
         run: npm run check
+      # A pull request whose changed files are all inside the pack area runs only the pack
+      # tests. Anything else (other files, a push to main, a manual run, no base to compare,
+      # an empty list) runs the full suite. This stays one job so the "verify" check always
+      # reports a result.
+      - name: Choose the test set
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          scope=full
+          if [ "$EVENT" = "pull_request" ] && [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            files="$(git diff --name-only --no-renames "$BASE" HEAD)"
+            if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qvE '^(examples/packs/|docs/v2/ERSVEIL\.md$|tests/v2/packs/)'; then
+              scope=packs
+            fi
+          fi
+          echo "Test set: $scope"
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+      - name: Pack tests (pack-only change)
+        if: steps.scope.outputs.scope == 'packs'
+        run: |
+          # Tests outside tests/v2/packs also read the example packs and the pack test helpers.
+          others="$(grep -rliE 'examples/packs|packs/helpers|ersveil' tests --include='*.test.js' | grep -v '^tests/v2/packs/' | sort)"
+          echo "Also running the tests that read the example packs:"
+          printf '%s\n' "$others"
+          # shellcheck disable=SC2086
+          node --test tests/v2/packs/*.test.js $others
       - name: Behavioral tests
+        if: steps.scope.outputs.scope != 'packs'
         env:
           FUZZ_DUMP_DIR: ${{ runner.temp }}
         run: npm test
