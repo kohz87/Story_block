@@ -1,4 +1,4 @@
-// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.9.0): they pass the cast check whole, stay inside every limit,
+// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.9.1): they pass the cast check whole, stay inside every limit,
 // start at places the pack names, carry their portraits (WebP, small), keep their secrets out of the lines the reader sees, and
 // come in as one zip that the importer reads.
 import test from 'node:test';
@@ -91,7 +91,7 @@ test('the agreed fixes: Hush was freed about seventy years ago, Torka is 20, lev
     const hush = by('hush').secrets.map(secret => secret.text).join(' ');
     assert.match(hush, /about seventy years ago/);
     assert.doesNotMatch(JSON.stringify(by('hush')), /a century ago/);
-    assert.match(by('torka').look, /^Orc, 20:/);
+    assert.match(by('torka').look, /^Orc, 20, about 190 cm:/);
     assert.equal(by('torka').fields.People, 'Orc, 20');
     assert.deepEqual(Object.fromEntries(cast().map(person => [person.id, person.fields.Level])),
         { temiwa: '4', ysmeth: '36', nysseth: '44', rika: '8', harrak: '56', torka: '6', lothar: '32', gorm: '22', nerissa: '24', hush: '48', asphodel: '30', barney: '14' });
