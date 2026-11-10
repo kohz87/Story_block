@@ -36,11 +36,11 @@ export function createFoldStore(doc) {
 }
 
 /**
- * createBattleLog({ ctx, doc, store, events, featureOn, roleOf, messageElement? })
+ * createBattleLog({ ctx, doc, store, events, featureOn, roleOf, readerName?, messageElement? })
  * → { refresh(index, element?), refreshAll({ recent }), modelAt(index), latest(), destroy() }.
  * Draws, redraws or removes the panel of every drawn reply that has recorded rolls; `featureOn()` false removes them all.
  */
-export function createBattleLog({ ctx, doc = globalThis.document, store, events = null, featureOn = () => true, roleOf, levels = () => ({}), messageElement = null, offer = null, Observer = doc?.defaultView?.MutationObserver ?? globalThis.MutationObserver } = {}) {
+export function createBattleLog({ ctx, doc = globalThis.document, store, events = null, featureOn = () => true, roleOf, readerName = () => '', levels = () => ({}), messageElement = null, offer = null, Observer = doc?.defaultView?.MutationObserver ?? globalThis.MutationObserver } = {}) {
     const chat = () => (Array.isArray(ctx?.chat) ? ctx.chat : []);
     const elementOf = messageElement ?? (index => doc.querySelector(`.mes[mesid="${index}"]`));
     const folds = createFoldStore(doc);
@@ -108,8 +108,8 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
     }
 
     // The Check card, in the battle log's place: the same root class, so it is found, replaced and removed like the log (check-card.js).
-    function checkNode(results, variant, index) {
-        const node = buildCheckCard(doc, results);
+    function checkNode(results, variant, index, key) {
+        const node = buildCheckCard(doc, results, { folded: folds.has(key), onFold: on => folds.set(key, on), reader: readerName() });
         node.classList.add(BATTLE_ROOT);
         node.setAttribute('data-variant', variant);
         node.setAttribute('data-ss-index', String(index));
@@ -134,14 +134,14 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
         const marked = text ? markerNodes(text).length > 0 : false;
         const inline = old.find(node => node.getAttribute('data-variant') === 'inline');
         const variant = marked || inline ? 'inline' : 'card';
-        const sign = JSON.stringify([shown.key, variant, shown.model, folds.has(shown.key)]);
+        const sign = JSON.stringify([shown.key, variant, shown.model, folds.has(shown.key), Array.isArray(shown.model) ? readerName() : null]);
         const kept = old.find(node => node.getAttribute('data-variant') === variant);
         if (!marked && kept && kept.getAttribute('data-ss-sign') === sign) {
             for (const node of old) if (node !== kept) node.remove();
             if (variant === 'card') placeCard(message, kept);
             return kept;
         }
-        const node = log ? buildPanel(doc, shown.model, { folded: folds.has(shown.key), variant, index, onFold: on => folds.set(shown.key, on) }) : Array.isArray(shown.model) ? checkNode(shown.model, variant, index) : buildNote(doc, shown.model, { variant, index });
+        const node = log ? buildPanel(doc, shown.model, { folded: folds.has(shown.key), variant, index, onFold: on => folds.set(shown.key, on) }) : Array.isArray(shown.model) ? checkNode(shown.model, variant, index, shown.key) : buildNote(doc, shown.model, { variant, index });
         node.setAttribute('data-ss-sign', sign);
         if (marked) {
             for (const item of old) item.remove();

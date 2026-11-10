@@ -1,6 +1,8 @@
 // The "Check" card under a reply: one line per checked attempt, from result.js results. createElement and textContent only.
 
 import { PRACTICE, RANK_NAMES } from '../names.js';
+import { RPG_STRINGS } from '../strings.js';
+import { fold } from '../read.js';
 
 const OUTCOME = Object.freeze({ success: ['ok', 'Success'], cost: ['cost', 'Success at a cost'], fail: ['fail', 'Fail'] });
 
@@ -36,11 +38,54 @@ function lineNode(doc, result) {
     return line;
 }
 
-/** The Check card for a list of result.js results. */
-export function buildCheckCard(doc, results = []) {
+const glyph = (doc, name) => {
+    const node = el(doc, 'i', `fa-solid ${name}`);
+    node.setAttribute('aria-hidden', 'true');
+    return node;
+};
+
+// One small pill per roll for the folded header: "<stat or skill> · <result word>", the roller's name first when it is not the reader's character.
+function summaryPill(doc, result, reader) {
+    const [tone, word] = OUTCOME[result.outcome] ?? OUTCOME.fail;
+    const what = result.skill?.name || result.practice?.skill || String(result.stat).toUpperCase();
+    const own = Boolean(reader) && fold(result.who) === fold(reader);
+    const text = `${own ? '' : `${result.who} · `}${what} · ${word}`;
+    const pill = el(doc, 'span', `rpg-check-chip rpg-check-chip-${tone}`, text);
+    pill.setAttribute('title', text);
+    return pill;
+}
+
+/**
+ * The Check card for a list of result.js results. Options: `folded`, `onFold(folded)`, `reader` (the reader's character name).
+ * Its top is a header button like the fight log's; folded, the header shows one pill per roll.
+ */
+export function buildCheckCard(doc, results = [], { folded = false, onFold = () => {}, reader = '' } = {}) {
+    const list = Array.isArray(results) ? results : [];
     const root = el(doc, 'div', 'rpg-check rpg-check-card');
     root.setAttribute('data-variant', 'card');
-    root.appendChild(el(doc, 'span', 'rpg-check-h', 'Check'));
-    for (const result of Array.isArray(results) ? results : []) root.appendChild(lineNode(doc, result));
+    const head = el(doc, 'button', 'rpg-bl-head rpg-check-head');
+    head.setAttribute('type', 'button');
+    const chevron = glyph(doc, 'fa-chevron-up');
+    chevron.classList.add('rpg-bl-chevron');
+    const sum = el(doc, 'span', 'rpg-check-sum');
+    for (const result of list) sum.appendChild(summaryPill(doc, result, reader));
+    head.append(glyph(doc, 'fa-dice-d20'), el(doc, 'b', 'rpg-check-h', 'Check'), sum, chevron);
+    const body = el(doc, 'div', 'rpg-bl-body rpg-check-body');
+    root.append(head, body);
+    for (const result of list) body.appendChild(lineNode(doc, result));
+    const setFold = on => {
+        body.hidden = on;
+        sum.hidden = !on;
+        root.classList.toggle('rpg-bl-folded', on);
+        head.setAttribute('aria-expanded', String(!on));
+        head.setAttribute('title', on ? RPG_STRINGS.battle.unfoldChecks : RPG_STRINGS.battle.foldChecks);
+        chevron.className = `fa-solid ${on ? 'fa-chevron-down' : 'fa-chevron-up'} rpg-bl-chevron`;
+    };
+    setFold(folded);
+    head.addEventListener('click', () => {
+        const on = !body.hidden;
+        setFold(on);
+        onFold(on);
+    });
     return root;
 }

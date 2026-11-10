@@ -64,3 +64,78 @@ test('a check card disappears when replay skips its guarded result and returns w
     problems = [{ index: index - 1, receipts: ['rc_check'] }];
     assert.ok(log.refresh(index, el)?.classList.contains('rpg-check'), 'a different reply cannot hide this result');
 });
+
+test('the header is a fold button like the fight log\'s: dice, Check, chevron, aria and titles', () => {
+    const doc = installFakeDom();
+    const folds = [];
+    const card = buildCheckCard(doc, [result()], { onFold: on => folds.push(on) });
+    const head = card.querySelector('.rpg-bl-head'), body = card.querySelector('.rpg-bl-body');
+    assert.equal(head.tagName.toLowerCase(), 'button');
+    assert.equal(head.getAttribute('type'), 'button');
+    assert.ok(head.querySelector('.fa-dice-d20'));
+    assert.equal(head.querySelector('b').textContent, 'Check');
+    assert.equal(head.getAttribute('aria-expanded'), 'true');
+    assert.equal(head.getAttribute('title'), 'Fold the checks');
+    assert.ok(head.querySelector('.fa-chevron-up'));
+    assert.equal(body.hidden, false);
+    assert.equal(body.querySelectorAll('.rpg-check-line').length, 1);
+    head.click();
+    assert.equal(body.hidden, true);
+    assert.equal(head.getAttribute('aria-expanded'), 'false');
+    assert.equal(head.getAttribute('title'), 'Open the checks');
+    assert.ok(head.querySelector('.fa-chevron-down'));
+    assert.ok(card.classList.contains('rpg-bl-folded'));
+    head.click();
+    assert.equal(body.hidden, false);
+    assert.deepEqual(folds, [true, false]);
+});
+
+test('folded, the header keeps one pill per roll, named when the roller is not the reader', () => {
+    const doc = installFakeDom();
+    const results = [
+        result({ who: 'Astra', stat: 'cha', outcome: 'cost' }),
+        result({ who: 'Temiwa', stat: 'dex', skill: { name: 'Pick locks', stat: 'dex', rank: 1 }, outcome: 'success' }),
+    ];
+    const named = buildCheckCard(doc, results, { folded: true, reader: 'Astra' });
+    const pills = Array.from(named.querySelectorAll('.rpg-check-sum .rpg-check-chip'));
+    assert.deepEqual(pills.map(pill => pill.textContent), ['CHA · Success at a cost', 'Temiwa · Pick locks · Success']);
+    assert.ok(pills[0].classList.contains('rpg-check-chip-cost') && pills[1].classList.contains('rpg-check-chip-ok'));
+    assert.equal(named.querySelector('.rpg-bl-body').hidden, true);
+    assert.equal(named.querySelector('.rpg-check-sum').hidden, false);
+    const unnamed = buildCheckCard(doc, [results[0]], { folded: true });
+    assert.equal(unnamed.querySelector('.rpg-check-sum .rpg-check-chip').textContent, 'Astra · CHA · Success at a cost');
+    assert.equal(buildCheckCard(doc, results).querySelector('.rpg-check-sum').hidden, true, 'open: no pills in the header');
+});
+
+test('the Check card fold is kept per chat and reply in the fight log\'s fold store', async t => {
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    await host.send('Try.', 'The door sticks.');
+    const index = host.ctx.chat.length - 1;
+    host.ctx.chat[index].extra.storySuite.receipts.push({ id: 'rc_check', type: 'rpg.check', data: { v2: { checks: { v: 1, results: [result({ rankName: 'Novice' })] } } } });
+    const stored = new Map();
+    const doc = setupDom(), el = makeMessage(doc, index);
+    doc.defaultView = { localStorage: { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) } };
+    const log = createBattleLog({ ctx: host.ctx, doc, store: { problems: () => [] }, featureOn: () => true, readerName: () => 'Astra' });
+    t.after(() => log.destroy());
+    const node = log.refresh(index, el);
+    assert.equal(node.querySelector('.rpg-bl-body').hidden, false, 'open by default');
+    assert.equal(log.refresh(index, el), node, 'unchanged: kept');
+    node.querySelector('.rpg-bl-head').click();
+    assert.equal(stored.size, 1);
+    assert.match(String(stored.values().next().value), /checks.*true/);
+    const again = log.refresh(index, el);
+    assert.notEqual(again, node, 'the fold changes the signature');
+    assert.equal(again.querySelector('.rpg-bl-body').hidden, true);
+    assert.equal(again.querySelector('.rpg-check-sum .rpg-check-chip').textContent, 'CHA · Fail', 'the reader\'s own roll has no name');
+});
+
+test('each folded-header pill carries its full text in a title so a cut pill can still be read', () => {
+    const doc = installFakeDom();
+    const long = 'Sir Bartholomew Featherstonehaugh-Wetherby the Third';
+    const card = buildCheckCard(doc, [result({ who: long, skill: { name: 'Extraordinarily Specialised Disarmament' }, outcome: 'success' })], { reader: 'Astra' });
+    const pill = card.querySelector('.rpg-check-sum .rpg-check-chip');
+    assert.equal(pill.getAttribute('title'), `${long} · Extraordinarily Specialised Disarmament · Success`);
+    assert.equal(pill.getAttribute('title'), pill.textContent);
+});
