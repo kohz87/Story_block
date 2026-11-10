@@ -13,7 +13,7 @@ const rolled = host => host.ctx.chat.flatMap(message => message.extra?.storySuit
 
 test('Rolls is automatic until the reader turns it off', () => {
     const part = createLeanRpgPart();
-    assert.deepEqual(part.settings.defaults, { [ROLLS_SETTING]: 'automatic', rpgPracticePerUse: 3, rpgXpRate: 100, rpgLevelCap: 99, rpgAutoCap: 3, rpgPrecheck: true });
+    assert.deepEqual(part.settings.defaults, { [ROLLS_SETTING]: 'automatic', rpgPracticePerUse: 3, rpgXpRate: 100, rpgLevelCap: 99, rpgAutoCap: 3, rpgPrecheck: true, rpgChecks: true });
 });
 
 test('Assist\'s pre-roll steps aside while the RPG is on and the chat has a Character block, and not otherwise', async () => {

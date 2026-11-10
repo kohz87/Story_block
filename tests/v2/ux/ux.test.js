@@ -302,7 +302,7 @@ const ROLL_MODULE = {
     id: 'roll-test', name: 'Roll test', version: '0.0.1',
     domains: { rolls: { initial: () => ({ log: {} }), validate: () => [] } },
     capture: {
-        kinds: { roll: { grammar: '? roll <what> | die: N' } },
+        kinds: { toss: { grammar: '? toss <what> | die: N' } },
         apply(ctx, line) {
             const draft = ctx.draft('rolls');
             const id = `rl_${String(Object.keys(draft.log).length + 1).padStart(8, '0')}`;
@@ -322,7 +322,7 @@ const ROLL_MODULE = {
 
 test('the changes card shows a module\'s lines for that reply (summary and body); a swipe shows the new swipe\'s', async () => {
     const { doc, host, ui, draw } = await page({ modules: [ROLL_MODULE] });
-    await host.send('hi', 'You climb.\n<Changes>\n? roll climb | die: 14\n</Changes>');
+    await host.send('hi', 'You climb.\n<Changes>\n? toss climb | die: 14\n</Changes>');
     await host.send('more', 'You rest.');
     draw();
     const cardAt = index => {
@@ -335,7 +335,7 @@ test('the changes card shows a module\'s lines for that reply (summary and body)
     assert.equal(cardAt(2).querySelector('.none'), null);
     // The later reply rolled nothing: its card says so, with no module line.
     assert.equal(cardAt(4).querySelector('.ss-card-summary').textContent, 'No changes');
-    await host.swipe('You rest again.\n<Changes>\n? roll rest | die: 3\n</Changes>');
+    await host.swipe('You rest again.\n<Changes>\n? toss rest | die: 3\n</Changes>');
     draw();
     assert.equal(cardAt(4).querySelector('.ss-card-summary').textContent, 'rest 3');
     assert.equal(cardAt(2).querySelector('.ss-card-summary').textContent, 'climb 14', 'the earlier reply keeps its own');

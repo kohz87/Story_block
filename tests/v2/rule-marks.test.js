@@ -5,7 +5,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { parseChanges } from '../../src/v2/capture.js';
-import { RULE_LINES, ruleMarksFor, ruleMarksOf } from '../../src/v2/turn/rule-marks.js';
+import { RULE_LINES, allRuleNames, ruleMarksFor, ruleMarksOf } from '../../src/v2/turn/rule-marks.js';
+
+const ALL = allRuleNames(); // a new reply carries every current rule, sorted
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 const recordOf = (host, index) => host.ctx.chat[index].extra.storySuite;
@@ -36,7 +38,9 @@ test('the rule table: a key line with a death word is diedAny; other lines and k
     assert.deepEqual(ruleMarksFor([line('- key Death | unpinned'), line('+ key Vorn | died')]), [], 'a name or another operation is not a death');
     assert.deepEqual(ruleMarksOf(['zzz', 'diedAny', 'diedAny', 7, 'constructor', null]), ['diedAny']);
     assert.deepEqual(ruleMarksOf('diedAny'), []);
-    assert.deepEqual(Object.keys(RULE_LINES), ['diedAny']);
+    assert.deepEqual(ruleMarksFor([line('? roll Astra | cha | normal | 9')]), ['checks']);
+    assert.deepEqual(ruleMarksFor([line('? check lockpick — the lock | dc: normal')]), [], '`check` is Story Director\'s word: no mark');
+    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'diedAny']);
 });
 
 test('a Continue of an old unmarked death cannot change its earlier lines on Re-read', async t => {
@@ -61,11 +65,11 @@ test('a first death in a Continue is marked when no earlier death could change',
     await host.send('Wait.', 'They wait.');
     const at = host.ctx.chat.length - 1;
     await host.cont(`\n\n${reply('Vorn falls.', ['- key Vorn | d**ie**d'])}`);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
-    assert.deepEqual(seen.at(-1).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
+    assert.deepEqual(seen.at(-1).rules, ALL);
     assert.deepEqual(host.head().domains.markprobe.deaths, { Vorn: true });
     assert.equal((await host.turn.reread(at)).ok, true);
-    assert.deepEqual(seen.at(-1).rules, ['diedAny']);
+    assert.deepEqual(seen.at(-1).rules, ALL);
 });
 
 test('a new reply gets a first death mark in a Continue after reload', async t => {
@@ -74,25 +78,25 @@ test('a new reply gets a first death mark in a Continue after reload', async t =
     const at = host.ctx.chat.length - 1;
     await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
     await host.cont(`\n\n${reply('Vorn falls.', ['- key Vorn | died'])}`);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     assert.deepEqual(host.head().domains.markprobe.deaths, { Vorn: true });
     assert.equal((await host.turn.reread(at)).ok, true);
-    assert.deepEqual(seen.at(-1).rules, ['diedAny']);
+    assert.deepEqual(seen.at(-1).rules, ALL);
 });
 
 test('a new reply carries every rule mark from its first capture, with no death line, and keeps it through reload, swipe and Re-read', async t => {
     const seen = [], host = await world(t, seen);
     await host.send('Wait.', 'They wait.');
     const at = host.ctx.chat.length - 1;
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     assert.equal(recordOf(host, at).foeCap, 20);
     await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     await host.swipe('Again.');
     await host.st.swipeTo(at, 0);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     assert.equal((await host.turn.reread(at)).ok, true);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
 });
 
 test('editing an old unmarked reply and Re-reading it never grants the new death rule', async t => {
@@ -127,9 +131,9 @@ test('late lines cannot mark an old death, but a first late death on a plain rep
     await host.send('Wait.', 'They wait.');
     const next = host.ctx.chat.length - 1;
     await (await captured)('- key Ren | died');
-    assert.deepEqual(recordOf(host, next).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, next).rules, ALL);
     assert.equal((await host.turn.reread(next)).ok, true);
-    assert.deepEqual(seen.at(-1).rules, ['diedAny']);
+    assert.deepEqual(seen.at(-1).rules, ALL);
 });
 
 test('a late first death on a loaded unmarked reply keeps the old rule', async t => {
@@ -154,14 +158,14 @@ test('the mark belongs to its swipe, including the saved swipe copy', async t =>
     await host.send('Vorn falls.', reply('He falls.', ['- key Vorn | died']));
     const at = host.ctx.chat.length - 1;
     await host.swipe('No one falls.');
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny'], 'a new swipe is marked at its first capture too');
+    assert.deepEqual(recordOf(host, at).rules, ALL, 'a new swipe is marked at its first capture too');
     await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
     await host.st.swipeTo(at, 0);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     assert.equal((await host.turn.reread(at)).ok, true);
-    assert.deepEqual(seen.at(-1).rules, ['diedAny']);
+    assert.deepEqual(seen.at(-1).rules, ALL);
     await host.st.swipeTo(at, 1);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
 });
 
 test('swiping from a loaded old reply marks only the new swipe and restores the old record byte for byte', async t => {
@@ -178,7 +182,7 @@ test('swiping from a loaded old reply marks only the new swipe and restores the 
     assert.equal(recordOf(host, at).rules, undefined);
     await host.swipe(reply('Ann falls.', ['- key Ann | died']));
     assert.equal(recordOf(host, at).foeCap, 20);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     assert.deepEqual(host.head().domains.markprobe.deaths, { Ann: true });
     await host.st.swipeTo(at, 0);
     assert.equal(JSON.stringify(recordOf(host, at)), oldRecord);
@@ -191,7 +195,7 @@ test('swiping from a loaded old reply marks only the new swipe and restores the 
     assert.equal(JSON.stringify(host.head()), oldHead);
     await host.st.swipeTo(at, 1);
     assert.equal(recordOf(host, at).foeCap, 20);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     assert.deepEqual(host.head().domains.markprobe.deaths, { Ann: true });
 });
 
@@ -208,13 +212,13 @@ test('every live reply is marked at its first capture, line or no line; the modu
     const host = await world(t, seen);
     await host.send('Plain.', reply('Nothing.', ['+ item Rope']));
     const plain = host.ctx.chat.length - 1;
-    assert.deepEqual(recordOf(host, plain).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, plain).rules, ALL);
     await host.send('Vorn falls.', reply('He dies.', ['- key Vorn | died']));
     const at = host.ctx.chat.length - 1;
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
-    assert.deepEqual(seen.at(-1), { rules: ['diedAny'], frozen: true });
+    assert.deepEqual(recordOf(host, at).rules, ALL);
+    assert.deepEqual(seen.at(-1), { rules: ALL, frozen: true });
     await host.send('Another.', reply('Quiet.', ['- key Ann | unpinned']));
-    assert.deepEqual(recordOf(host, host.ctx.chat.length - 1).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, host.ctx.chat.length - 1).rules, ALL);
     assert.deepEqual(host.head().domains.markprobe.deaths, { Vorn: true });
 });
 
@@ -225,14 +229,14 @@ test('a Re-read keeps the mark; a rebuild and a reload keep it too', async t => 
     const at = host.ctx.chat.length - 1;
     seen.length = 0;
     assert.equal((await host.turn.reread(at)).ok, true);
-    assert.deepEqual(seen.at(-1)?.rules, ['diedAny'], 'the Re-read gave the module the mark');
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(seen.at(-1)?.rules, ALL, 'the Re-read gave the module the mark');
+    assert.deepEqual(recordOf(host, at).rules, ALL);
     const live = JSON.stringify(host.head());
     host.store.rebuild();
     assert.equal(JSON.stringify(host.head()), live);
     await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
     assert.equal(JSON.stringify(host.head()), live);
-    assert.deepEqual(recordOf(host, at).rules, ['diedAny']);
+    assert.deepEqual(recordOf(host, at).rules, ALL);
 });
 
 test('an old reply (recorded without the mark) stays unmarked and byte-identical on rebuild, reload and Re-read', async t => {

@@ -52,8 +52,8 @@ const stagedRounds = host => {
 const promptOf = sent => sent.request.chat.filter(m => m.role === 'system').map(m => m.content).join('\n');
 const sender = host => { const out = {}; host.ctx.generate = type => { out.generation = host.st.generate(type, { reply: 'Told.' }); return out.generation; }; return out; };
 
-// seeds chosen so that the fight takes 4+ exchanges (802: 6, 806: 7) and the approach check fails or succeeds
-for (const seed of [802, 806]) for (const reload of [false, true]) test(`seed ${seed}: Send with this fight carries every staged exchange, byte for byte, no model call${reload ? ' (after a reload)' : ''}`, async t => {
+// seeds chosen so that the fight takes 4+ exchanges (806: 7; 803 replaced 802 when a reply's story-check dice began drawing from the same seeded stream) and the approach check fails or succeeds
+for (const seed of [803, 806]) for (const reload of [false, true]) test(`seed ${seed}: Send with this fight carries every staged exchange, byte for byte, no model call${reload ? ' (after a reload)' : ''}`, async t => {
     const app = await start(t, seed);
     const { host, doc, calls, draw } = app;
     await play(app, 12);
@@ -91,7 +91,7 @@ for (const seed of [802, 806]) for (const reload of [false, true]) test(`seed ${
 });
 
 test('a vanished session and waiting choice at Send: the copy made at the press still carries the staged fight', async t => {
-    const app = await start(t, 802);
+    const app = await start(t, 803);
     const { host, doc, calls } = app;
     await play(app, 12);
     const staged = stagedRounds(host);
@@ -109,7 +109,7 @@ test('a vanished session and waiting choice at Send: the copy made at the press 
 });
 
 test('a fight that cannot be attached refuses the send with a reason and calls nothing', async t => {
-    const app = await start(t, 802);
+    const app = await start(t, 803);
     const { host, doc, calls } = app;
     await play(app, 12);
     let generated = 0;
@@ -125,7 +125,7 @@ test('a fight that cannot be attached refuses the send with a reason and calls n
 });
 
 test('a fled fight is carried the same way: staged == committed, no model call', async t => {
-    const app = await start(t, 802);
+    const app = await start(t, 803);
     const { host, doc, calls } = app;
     await play(app, 25, label => /flee|run|retreat/i.test(label));
     const session = boardSession(host.ctx.chatMetadata);
@@ -140,11 +140,13 @@ test('a fled fight is carried the same way: staged == committed, no model call',
     const result = roll(host, sent.index).data.v2.result;
     assert.deepEqual(result.rounds, staged.rounds);
     assert.equal(result.stop, 'fled');
+    assert.equal(host.ctx.chat[sent.index].extra.storySuite.receipts.some(item => item.type === 'rpg.dice'), false, 'a fight reply is offered no story-check dice');
+    assert.equal(/Dice for this reply/u.test(JSON.stringify(sent.request ?? '')), false, 'and its prompt has no dice note');
 });
 
 // Round 17: Send is a 'regenerate'; a stale cached payload (rpgFightLast, same anchor) must never beat the staged session.
 for (const exchanges of [1, 2]) test(`a stale cached payload with ${exchanges} exchange(s) does not replace the ${'staged'} fight at Send (path c)`, async t => {
-    const app = await start(t, 802);
+    const app = await start(t, 803);
     const { host, doc, calls } = app;
     await play(app, 12);
     const session = boardSession(host.ctx.chatMetadata);
@@ -174,7 +176,7 @@ for (const exchanges of [1, 2]) test(`a stale cached payload with ${exchanges} e
 
 // Round 17b: the waiting reply is released only by "Send with this fight", never by the board holding an exchange.
 test('one exchange on the board does not release the waiting reply; only Send with this fight does (path c)', async t => {
-    const app = await start(t, 802);
+    const app = await start(t, 803);
     const { host, doc } = app;
     let chatLength = host.ctx.chat.length;
     const choice = [...doc.querySelectorAll('.rpg-board-choice')].find(item => !item.disabled);

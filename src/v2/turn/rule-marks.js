@@ -13,6 +13,8 @@ const DEATH = /(?<![\p{L}\p{N}])(?:died|dies|dead|death|killed|slain|murdered|pe
 
 /** Rule name -> does this parsed change line fall under it? */
 export const RULE_LINES = Object.freeze({
+    // `? roll Name | skill | difficulty | die`: story checks (lean-rpg/checks). A reply with no mark keeps what it did before: the line is not used.
+    checks: line => line?.kind === 'roll',
     // `- key Name | died`: a death counts for anyone, not only a pinned key person (Story Director keypeople). Same words as its death test.
     diedAny: line => line?.kind === 'key' && line.op === '-' && [line.text, ...Object.keys(line.labels ?? {}), ...Object.values(line.labels ?? {})].some(part => DEATH.test(String(part ?? ''))),
 });

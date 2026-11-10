@@ -39,7 +39,7 @@ export { heroLead } from './hero-data.js';
 export const PACK = 'rpg';
 const STYLE_ATTR = 'data-ss-rpg';
 
-const STYLE_FILES = ['./lean-rpg.css', './bars.css', '../board/board.css', '../board/fight-start.css'];
+const STYLE_FILES = ['./lean-rpg.css', './bars.css', './check-card.css', '../board/board.css', '../board/fight-start.css'];
 
 function addStyle(doc, file) {
     try {
