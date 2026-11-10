@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.29.0
+
+- **Story checks are back.** Outside a fight, each reply offers the narrator three dice, with the difficulty table and your party's exact bonuses. When you or a party member attempt something that can fail (persuade, lie, sneak, climb, a lock, a utility skill), the narrator uses the next die, follows the result, and reports it as `? roll Name | skill or stat | difficulty | die`. Code works the result again and shows a Check card under the reply: the roll, the target, and success, success at a cost, or fail.
+- **Utility skills improve again.** A check made with a skill gives it practice (3 per use, as in fights), utility skills included. Checks give no XP.
+- **A Story checks switch** (Fight & checks settings, on by default). Off, no dice are offered; checks already made keep their results.
+- **Example pack Ersveil 2.9.0:** every cast member has exactly two signature skills, typed combat or utility; Sister Temiwa is now a Shiba Inu dogfolk healer with a new portrait; Nerissa and Nysseth are reworked. Needs Story Block 2.28.0 or later.
+
 ## 2.28.0
 
 - **Rest is told by the story.** Rest, a full rest (once in 6 story hours) and healing are the narrator's lines; the character sheet no longer has rest buttons. The story cannot raise Health, Mana or Stamina any other way.
