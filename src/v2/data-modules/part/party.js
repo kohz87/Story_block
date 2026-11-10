@@ -57,9 +57,9 @@ export function createParty(deps) {
         const after = standingBlock(ctx, name);
         if (!after || !Object.hasOwn(after.definition.state ?? {}, 'sig')) return [];
         if (mode === 'join') return defaultSeeds(after.definition.state).filter(skill => !have.has(fold(skill.name)));
-        // A return plans the rows its own receipt recorded (`data.sigSkills`: what was seeded, before the reader's pencil changed a name or a description in the
-        // slot); only a reply that recorded none is planned from the marked slots as they stand.
-        const recorded = (ctx.standingReceipts ?? []).filter(receipt => receipt?.data?.join?.op === 'back' && fold(receipt.data.join.name ?? '') === fold(name)).flatMap(receipt => (Array.isArray(receipt.data.sigSkills) ? receipt.data.sigSkills : []))
+        // A return plans the rows its receipt recorded before the reader's pencil changed them. When a utility skill did not fit, the receipt also keeps the
+        // attempted rows in order, so Re-read can reproduce both the placed skills and the warning. Older receipts fall back to their placed rows or marked slots.
+        const recorded = (ctx.standingReceipts ?? []).filter(receipt => receipt?.data?.join?.op === 'back' && fold(receipt.data.join.name ?? '') === fold(name)).flatMap(receipt => (Array.isArray(receipt.data.sigSkillsPlanned) ? receipt.data.sigSkillsPlanned : Array.isArray(receipt.data.sigSkills) ? receipt.data.sigSkills : []))
             .filter(row => dmObject(row) && typeof row.name === 'string' && row.name);
         if (recorded.length) return recorded.filter(row => !have.has(fold(row.name))).map(row => ({ name: row.name, about: typeof row.about === 'string' ? row.about : '', stat: row.stat, uses: row.uses ?? 'stamina', rank: Number.isSafeInteger(row.rank) ? row.rank : 0, ...(row.type === 'utility' ? { type: 'utility' } : {}) }));
         const rows = [];
@@ -80,13 +80,18 @@ export function createParty(deps) {
         const fields = atPath(draftOf(ctx), instancePath(block.module, 'chat')).fields, typed = isTypedSkills(fields);
         const capacity = typed ? skillFieldSlots(fields) : skillCapacity(definition), marks = Object.hasOwn(definition.state ?? {}, 'sig');
         const placed = [];
+        let skippedUtility = false;
         for (const skill of seeds) {
             const slots = Array.from({ length: capacity }, (_, i) => i + 1);
             // (a utility skill takes one of the three utility slots and a combat one one of the eight; a block with no types reads every skill as combat; a full pool skips the skill, said in Problems)
             const kind = typed && skill.type === 'utility' ? 'utility' : 'combat';
             const held = slots.filter(n => fields[`skill${n}`] && skillTypeOf(fields, n) === kind).length;
             const slot = typed && held >= (kind === 'utility' ? UTILITY_SLOTS : SKILL_SLOTS_MAX) ? null : slots.find(n => !fields[`skill${n}`]);
-            if (!slot) { answer.problem = [answer.problem, `${name}'s ${skill.name} has no free ${kind === 'utility' ? 'utility ' : ''}skill slot.`].filter(Boolean).join(' '); continue; }
+            if (!slot) {
+                if (skill.type === 'utility') skippedUtility = true;
+                answer.problem = [answer.problem, `${name}'s ${skill.name} has no free ${kind === 'utility' ? 'utility ' : ''}skill slot.`].filter(Boolean).join(' ');
+                continue;
+            }
             Object.assign(fields, { [`skill${slot}`]: skill.name, [`about${slot}`]: skill.about, [`stat${slot}`]: skill.stat, [`uses${slot}`]: skill.uses, [`rank${slot}`]: skill.rank, [`practice${slot}`]: 0 });
             if (typed) fields[`type${slot}`] = kind;
             if (marks) fields.sig = (Number.isSafeInteger(fields.sig) ? fields.sig : 0) + 2 ** (slot - 1);
@@ -96,6 +101,7 @@ export function createParty(deps) {
             answer.data.sigSkills = seededData(placed);
             answer.summary = `${answer.summary} ${fill(J.skillsSeeded, { n: placed.length })}`;
         }
+        if (skippedUtility) answer.data.sigSkillsPlanned = seededData(seeds);
         return answer;
     }
     // The party actor of the Character block `module` (`party.actors`: the one whose ID is the block's, which a rename never changes), else, when a module of
@@ -218,9 +224,10 @@ export function createParty(deps) {
         const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module: head.definition.id, skills: rest[0].definition.id },
             summary: `${fill(J.joined, { name: request.name })}${left}` });
         answer.data.join = { op: 'added', name: request.name };
-        if (seeds.length) {
-            answer.data.sigSkills = seededData(seeds);
-            answer.summary = `${answer.summary} ${fill(J.skillsSeeded, { n: seeds.length })}`;
+        const placed = defaultSeeds(made.skills.state);
+        if (placed.length) {
+            answer.data.sigSkills = seededData(placed);
+            answer.summary = `${answer.summary} ${fill(J.skillsSeeded, { n: placed.length })}`;
         }
         return giveGear(ctx, answer, request.name, head.definition.id);
     }

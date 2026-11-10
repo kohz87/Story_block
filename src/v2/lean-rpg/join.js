@@ -168,7 +168,7 @@ export function joinOffers(entries, index, party = []) {
         if (!key || seen.has(key) || answered.has(key) || party.some(person => fold(person.name) === key)) continue;
         seen.add(key);
         out.push({ name: oneLine(join.name), about: oneLine(join.about), soul: Number.isSafeInteger(join.soul) ? join.soul : 1, best: STATS.includes(join.best) ? join.best : '',
-            ...(Array.isArray(join.skills) && join.skills.length ? { skills: join.skills.slice(0, 8).map(skill => ({ name: oneLine(skill?.name), about: oneLine(skill?.about), stat: skill?.stat, uses: skill?.uses, rank: skill?.rank })) } : {}) });
+            ...(Array.isArray(join.skills) && join.skills.length ? { skills: join.skills.slice(0, 8).map(skill => ({ name: oneLine(skill?.name), about: oneLine(skill?.about), stat: skill?.stat, uses: skill?.uses, rank: skill?.rank, ...(skill?.type === 'utility' ? { type: 'utility' } : {}) })) } : {}) });
     }
     return out;
 }
