@@ -46,17 +46,24 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
   after 10 minutes of doing nothing with the chat (an event missed), asks SillyTavern's chat list
   (`/api/chats/search`, empty query: name, count, last message date and end per file; no chat file is read) before the
   saver writes anything (the saver is held, 8 s at most; a server that does not answer leaves saving as it was and says
-  so). The tab's fingerprint (count, last date, last text) follows what it loaded and wrote itself, keepalive saves
-  included; a row equal to the chat as it is in the tab (SillyTavern saved it itself) is fine too.
-  * Changed on the server: its unsaved changes are dropped (`store.discardUnsaved`), the chat is reloaded, toast "This chat
-    changed on another device. Reloaded the newer copy." (+ " N unsaved changes in this tab were dropped.").
+  so). The tab's print (count, last date, last text and the file size as the list shows it) is taken from each request as it
+  is sent (`chat-file.js` `onSent`), so a save the server applied but the tab has not heard of is its own; the check waits
+  for a save on its way first. A row equal to the chat as it is in the tab (SillyTavern saved it) is fine too.
+  * Changed on the server (also: the chat gone from the list, or listed empty): saves of that chat stop (a save waits for the
+    check; a keepalive one is skipped and made again after a clean check), the chat is reloaded (after a reply in progress),
+    the unsaved changes are dropped (`store.discardUnsaved`, only that chat's) and the toast says "This chat changed on
+    another device. Reloaded the newer copy." (+ " N unsaved changes in this tab were dropped."). A reload that fails or is not
+    seen within 5 s keeps the saves stopped and says "...could not be loaded. Saving of this chat is paused: reload the page."; the next wake tries again.
   * Another chat file of the character or group with a later last message: toast "A newer chat exists for this character:
     <name>. Open it from Manage chats." (once per file, no switch).
-  * Waits for a reply in progress to end. No file to list (testkit, temporary chat): no check.
+  * A wake during a reply is checked at once (read only); only the reload waits for the reply. No file to list: no check.
   * **Not covered:** SillyTavern's own saves of a stale tab are not held (its chat-changed or end-of-reply save can still
-    overwrite); a change on another device that leaves the count, last date and last text as they were (an edit of an
-    earlier message, metadata only) is not seen; a write of another device between the check and a save is not seen
-    (only SillyTavern's own integrity check covers it); two tabs both visible on one chat see each other only at a wake.
+    overwrite); a few characters changed in an earlier message, or an edit that keeps the size within the list's rounding
+    (about 5 bytes up to 1 KB steps, 5 KB near a megabyte), is not seen; an earlier message edited in this tab through SillyTavern's own editor looks
+    foreign (the reload brings its own saved copy back); a write of another device between the check and a save is not seen
+    (only SillyTavern's own integrity check covers it); rescue writes to another chat are not checked; a save already
+    sent when the check finds the chat stale cannot be recalled; two tabs both visible on one chat see each other only at a wake.
+  * Tests: `stale-tab.test.js`, `stale-tab-guard.test.js`.
 
 ## Key files and functions
 

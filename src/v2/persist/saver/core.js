@@ -190,10 +190,13 @@ export function createSaver({
     // the chat that is open is saved either way; a rescue that keeps failing is given up and told.
     async function rescueOrphans() {
         for (const orphan of [...orphans]) {
+            // A wake check can discard an orphan while an earlier rescue is in flight.
+            if (!orphans.includes(orphan)) continue;
+            const remove = () => { const at = orphans.indexOf(orphan); if (at !== -1) orphans.splice(at, 1); };
             // Its chat is open again (and still holds the change, or took it back on): saved with it.
             const verdict = typeof check === 'function' ? check(orphan.target) : { moved: true };
             if (!verdict?.moved && !verdict?.wait) {
-                orphans.splice(orphans.indexOf(orphan), 1);
+                remove();
                 if (!verdict?.gone) {
                     // A change of a third chat still pending (`latest`) is that chat's: handed on, not overwritten.
                     if (version !== saved && latest && latest.chatId !== orphan.target?.chatId) orphans.push({ target: latest, tries: 0 });
@@ -206,14 +209,17 @@ export function createSaver({
                 if (typeof rescue !== 'function') throw new Error('this page cannot write to another chat');
                 // A1-5: a rescue is a write of that chat's file too: the same stamp and read-backs.
                 const watched = suspectOf(orphan.target?.chatId);
-                const result = await exclusive(() => answered(() => rescue(orphan.target, watched ? { stamp: true } : {}), () => markSuspect(orphan.target)));
+                const result = await exclusive(() => orphans.includes(orphan)
+                    ? answered(() => rescue(orphan.target, watched ? { stamp: true } : {}), () => markSuspect(orphan.target)) : null);
+                if (!orphans.includes(orphan)) continue;
                 confirmed(watched, result);
-                orphans.splice(orphans.indexOf(orphan), 1);
+                remove();
                 startRechecks(orphan.target?.chatId);
             } catch (error) {
+                if (!orphans.includes(orphan)) continue;
                 orphan.tries++;
                 if (orphan.tries < 3) continue;
-                orphans.splice(orphans.indexOf(orphan), 1);
+                remove();
                 try {
                     // B-b2-timeline-r2-2: the reason is the one the rescue met, not a guess at what happened.
                     const why = String(error?.message ?? error).trim().replace(/[.\s]*$/, '');
@@ -225,10 +231,11 @@ export function createSaver({
     }
 
     async function saveNow(options = {}) {
-        // The wake check (runtime/wake.js): while it is pending, or due, nothing is written. A page going away (keepalive) is never held.
-        if (typeof hold === 'function' && !options.keepalive) {
-            const gate = hold();
-            if (gate) await gate;
+        // The wake check (runtime/wake.js): false = nothing is written now (the change stays unsaved); a promise = wait for
+        // its answer (false: the chat turned out stale). A keepalive save never waits: it is skipped (false) and made again after.
+        if (typeof hold === 'function') {
+            const gate = hold({ keepalive: options.keepalive === true });
+            if (gate === false || (gate && (await gate) === false)) return;
         }
         await rescueOrphans();
         let goal = 0;
@@ -286,7 +293,8 @@ export function createSaver({
             failures++;
             throw new Error(problem);
         }
-        saved = goal;
+        // A wake check may have discarded a newer version while this write was on its way.
+        saved = Math.max(saved, goal);
         failures = 0;
         told = false;
         startAll();
@@ -294,6 +302,6 @@ export function createSaver({
 
     return createSaverApi({
         state, dirty, target, check, save, endFollow, later, openWindow, idle, cancel, clearTimer, clearDeadline,
-        markSuspect, confirmed, saveNow, suspectOf, suspects, waitDelay, backoff, followUp, failed,
+        markSuspect, confirmed, saveNow, suspectOf, suspects, waitDelay, backoff, followUp, failed, hold,
     });
 }

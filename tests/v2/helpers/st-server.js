@@ -14,6 +14,11 @@ export function serveChats(t, h, { name = 'Narrator', avatar = 'narrator.png' } 
     h.ctx.getRequestHeaders = () => ({ 'Content-Type': 'application/json', 'X-CSRF-Token': 'test' });
     h.ctx.characters = [{ name, avatar }];
     h.ctx.characterId = 0;
+    // What SillyTavern lists as the file's size: its bytes, 1024-based, two decimals (the `bytes` package).
+    const sized = file => {
+        const n = new TextEncoder().encode(file.map(m => JSON.stringify(m)).join('\n')).length;
+        return n < 1024 ? `${n}B` : `${+(n / 1024).toFixed(2)}KB`;
+    };
     const reply = (status, data) => ({
         ok: status >= 200 && status < 300, status, statusText: status === 500 ? 'Internal Server Error' : '',
         json: async () => structuredClone(data),
@@ -33,7 +38,7 @@ export function serveChats(t, h, { name = 'Narrator', avatar = 'narrator.png' } 
             if (server.listing === 'fail') return reply(500, { error: 'Search failed' });
             const rows = Object.entries(server.files).map(([id, file]) => {
                 const last = file.at(-1) ?? {};
-                return { file_name: id, file_size: '1kb', message_count: file.length - 1, last_mes: file.length > 1 ? (last.send_date || '2020-01-01T00:00:00.000Z') : 0, preview_message: String(last.mes || '[The message is empty]') };
+                return { file_name: id, file_size: sized(file), message_count: file.length - 1, last_mes: file.length > 1 ? (last.send_date || '2020-01-01T00:00:00.000Z') : 0, preview_message: String(last.mes || '[The message is empty]') };
             });
             return reply(200, rows);
         }

@@ -17,11 +17,11 @@ import { carryRecord } from '../persist.js';
  *   been failing.
  * Returns the createStore() options for it.
  */
-export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError = null, storage = null, wrote = null }) {
+export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError = null, storage = null, sent = null }) {
     const context = () => {
         try { return live() ?? ctx; } catch { return ctx; }
     };
-    const file = createChatFile({ context, ...(fetch ? { fetch } : {}), ...(wrote ? { onWrote: wrote } : {}) });
+    const file = createChatFile({ context, ...(fetch ? { fetch } : {}), ...(sent ? { onSent: sent } : {}) });
     // After a write timed out (persist.js createSaver): each later write of that chat carries a rising number
     // in its metadata (`stamp`), and this page keeps a copy of what it wrote (`kept`, by stamp, only until the
     // read-backs end) to put back when the file is found older and the chat is not the open one. Nothing is

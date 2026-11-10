@@ -200,8 +200,8 @@ export function createRuntime({
     });
     // The wake check (runtime/wake.js) is made below, once the turn exists; the saver asks it before each save.
     let wake = null;
-    const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page), wrote: (place, messages) => wake?.wrote(place, messages) });
-    const store = createStore({ ...saving, hold: () => wake?.hold() ?? null, validate, scratch: name => registry.scratch(name), replayEnv: () => registry.features().map(feature => `${feature.id}${registry.featureOn(feature.id) ? '+' : '-'}`).join(','), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
+    const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page), sent: (place, print) => wake?.sent(place, print) });
+    const store = createStore({ ...saving, hold: options => wake?.hold(options) ?? null, validate, scratch: name => registry.scratch(name), replayEnv: () => registry.features().map(feature => `${feature.id}${registry.featureOn(feature.id) ? '+' : '-'}`).join(','), marked: () => { try { return registry.featureOn('story-block.gear') && registry.featureOn(CORE_FEATURE.leanRpg); } catch { return false; } } });
     saveOnUnload(store, page, { fits: saving.keepaliveFits });
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();
@@ -298,7 +298,7 @@ export function createRuntime({
     // The public API (public-api.js, docs/v2/PUBLIC-API.md): the head state read through the queries and readers that exist, events after the store has written.
     const apiPersona = () => { try { return String((live() ?? ctx)?.name1 ?? ''); } catch { return String(ctx?.name1 ?? ''); } };
     wake = createWakeCheck({
-        file: saving.chatFile, chat: () => ctx.chat, store, say: onWake,
+        file: saving.chatFile, chat: () => ctx.chat, store, say: onWake, settle: () => store.settled(),
         replyBusy: () => turn?.replyBusy?.() === true, whenIdle: () => turn?.whenIdle?.() ?? Promise.resolve(),
         reload: () => (live() ?? ctx)?.reloadCurrentChat?.(),
     });

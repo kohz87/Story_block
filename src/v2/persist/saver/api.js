@@ -5,7 +5,7 @@ import { LATE_MS, LATE_MAX_MS } from './constants.js';
 
 export function createSaverApi({
     state, dirty, target, check, save, endFollow, later, openWindow, idle, cancel, clearTimer, clearDeadline,
-    markSuspect, confirmed, saveNow, suspectOf, suspects, waitDelay, backoff, followUp, failed,
+    markSuspect, confirmed, saveNow, suspectOf, suspects, waitDelay, backoff, followUp, failed, hold = null,
 }) {
     return {
         touch() {
@@ -41,21 +41,32 @@ export function createSaverApi({
         pending: () => state.timer !== null || state.deadline !== null || state.running !== null,
         /** True while a write of some chat timed out and its file is still to be read back. */
         suspect: () => suspects.size() > 0,
-        /**
-         * The wake check found this copy of the chat older than the server's: every change not yet written (the open
-         * chat's and any left behind) is dropped, and nothing waits to be saved. True when there was any.
-         */
-        discard() {
-            const had = state.version !== state.saved || state.orphans.length > 0;
+        /** Drop only this stale chat's changes; work left in other chats must still be rescued. */
+        discard(chatId) {
+            if (chatId === undefined || chatId === null) return false;
+            let had = false;
+            for (let i = state.orphans.length - 1; i >= 0; i--) {
+                if (state.orphans[i].target?.chatId !== chatId) continue;
+                state.orphans.splice(i, 1);
+                had = true;
+            }
+            if (state.version !== state.saved && state.latest?.chatId === chatId) {
+                state.saved = state.version;
+                state.latest = null;
+                had = true;
+            }
+            if (!had) return false;
             cancel();
-            state.saved = state.version;
-            state.orphans.length = 0;
-            state.latest = null;
-            state.failures = 0;
-            state.told = false;
-            state.waited = 0;
+            if (dirty()) later(backoff());
+            else {
+                state.failures = 0;
+                state.told = false;
+                state.waited = 0;
+            }
             return had;
         },
+        /** Resolves when the write now on its way (if any) has settled, however it ended. */
+        settled: () => (state.running ? Promise.resolve(state.running).then(() => {}, () => {}) : Promise.resolve()),
         /** True while a save of the open chat is on its way (the server has not answered yet). */
         inFlight: () => state.sending !== null,
         /**
@@ -73,6 +84,8 @@ export function createSaverApi({
          */
         urgent({ force = false, ...options } = {}) {
             endFollow();
+            // The wake check (runtime/wake.js): a write that could land over a newer copy is not made.
+            if (typeof hold === 'function' && hold({ keepalive: options.keepalive === true }) !== null) return Promise.resolve(false);
             if (!state.sending || state.version === state.saved || !state.latest) return this.saveSoon(options);
             if (!force && state.sending.goal === state.version) return Promise.resolve(false);
             const now = state.latest;

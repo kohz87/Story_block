@@ -22,7 +22,12 @@
 //   list(place, { signal })          → Promise<[{ file_name, file_size, message_count, last_mes, preview_message }]>:
 //                                      the character's (or group's) chat files as the server lists them, without
 //                                      their messages (the wake check, runtime/wake.js).
-//   onWrote(place, messages)         (an option of createChatFile) is told after the server accepted a write.
+//   onSent(place, print)             (an option of createChatFile) is told, in the same tick, of each write as it is sent
+//                                      (accepted or not): the print of what the request carries (the wake check's
+//                                      fingerprint of its messages and the file's size in bytes), taken then, not read
+//                                      from the live chat after the server has answered.
+
+import { fingerprint } from './runtime/wake.js';
 
 const SAVE = { character: '/api/chats/save', group: '/api/chats/group/save' };
 const GET = { character: '/api/chats/get', group: '/api/chats/group/get' };
@@ -45,7 +50,7 @@ export function utf8Bytes(text) {
     return bytes;
 }
 
-export function createChatFile({ context, fetch = (...args) => globalThis.fetch(...args), onWrote = null } = {}) {
+export function createChatFile({ context, fetch = (...args) => globalThis.fetch(...args), onSent = null } = {}) {
     if (typeof context !== 'function') throw new TypeError('createChatFile needs a context() function.');
 
     function where() {
@@ -59,8 +64,7 @@ export function createChatFile({ context, fetch = (...args) => globalThis.fetch(
         return { chatId, name: String(character.name ?? ''), avatar: character.avatar };
     }
 
-    function post(url, body, { keepalive = false, signal = null } = {}) {
-        const text = JSON.stringify(body);
+    function post(url, body, { keepalive = false, signal = null } = {}, text = JSON.stringify(body)) {
         return fetch(url, {
             method: 'POST',
             headers: context().getRequestHeaders(),
@@ -89,13 +93,18 @@ export function createChatFile({ context, fetch = (...args) => globalThis.fetch(
             : { ch_name: place.name, file_name: place.chatId, chat, avatar_url: place.avatar, force: false };
         let request;
         try {
-            request = post(place.group ? SAVE.group : SAVE.character, body, options);
+            const text = JSON.stringify(body);
+            if (onSent) {
+                // The file is the lines of the chat joined by newlines: the body's size without its wrapper around the chat array.
+                const size = utf8Bytes(text) - utf8Bytes(JSON.stringify({ ...body, chat: [] }));
+                try { onSent(place, fingerprint(messages, size)); } catch { /* only a note of what is sent */ }
+            }
+            request = post(place.group ? SAVE.group : SAVE.character, body, options, text);
         } catch (error) {
             return Promise.reject(error);
         }
         return Promise.resolve(request).then(async response => {
             if (!response?.ok) throw await refused(response ?? { status: 0 });
-            try { onWrote?.(place, messages); } catch { /* only a note of what was written */ }
         }, error => {
             throw new Error(`the server could not be reached (${error?.message ?? error})`);
         });

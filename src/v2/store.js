@@ -380,11 +380,13 @@ export function createStore({
         /** A chat was opened: read-backs a reload of the page left for it go on (persist.js createSaver.resume). */
         resume() { return saver.resume(target()); },
         flush() { return saver.flush(); },
+        /** Resolves when no write is on its way (the wake check asks the server after it). */
+        settled() { return saver.settled(); },
         /** The wake check (runtime/wake.js): the open chat's copy is older than the server's; its unsaved changes are dropped. → how many records were unsaved. */
         discardUnsaved() {
             const id = chatId();
             const n = [...s.unsaved.values()].filter(entry => entry.chatId === id).length;
-            saver.discard();
+            saver.discard(id);
             forget(id, Infinity);
             return n;
         },

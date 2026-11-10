@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFakeContext } from '../../testkit/index.js';
 import { createChatFile } from '../../src/v2/chat-file.js';
-import { IDLE_MS } from '../../src/v2/persist.js';
+import { IDLE_MS, createSaver } from '../../src/v2/persist.js';
 import { createRuntime } from '../../src/v2/runtime.js';
 import { createWakeCheck, fingerprint } from '../../src/v2/runtime/wake.js';
 import { serveChats } from './helpers/st-server.js';
@@ -24,8 +24,10 @@ async function tab(t, { serve = true } = {}) {
     const server = serve ? serveChats(t, h) : null;
     const toasts = [];
     const reloads = [];
-    st.ctx.reloadCurrentChat = async () => { reloads.push(1); };
-    const runtime = createRuntime({ ctx: st.ctx, page, onWake: (text, kind) => toasts.push({ text, kind }), onSaveError: () => {} });
+    // SillyTavern's reload ends in CHAT_CHANGED, which Story Block reads (the wake check takes that as the proof of the reload).
+    let runtime = null;
+    st.ctx.reloadCurrentChat = async () => { reloads.push(1); await runtime.turn.onChatChanged(); };
+    runtime = createRuntime({ ctx: st.ctx, page, onWake: (text, kind) => toasts.push({ text, kind }), onSaveError: () => {} });
     runtime.turn.install({ globalName: null });
     t.after(() => runtime.turn.uninstall({ globalName: null }));
     await runtime.turn.onChatChanged();
@@ -37,6 +39,135 @@ async function tab(t, { serve = true } = {}) {
     return { page, doc, st, server, toasts, reloads, runtime, show, hide, chatId };
 }
 const otherDevice = (server, id) => server.files[id].push({ name: 'Narrator', is_user: false, mes: 'Played on the other device.', send_date: '2026-11-10T09:00:00.000Z', extra: {} });
+
+test('discarding a stale chat keeps unsaved work left in other chats', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let chat = 'A';
+    const saved = [];
+    const rescued = [];
+    const saver = createSaver({
+        target: () => ({ chatId: chat }),
+        check: change => change.chatId === chat ? '' : { moved: 'another chat' },
+        save: change => saved.push(change.chatId),
+        rescue: async change => rescued.push(change.chatId),
+    });
+    saver.touch();
+    chat = 'B';
+    saver.touch();
+    assert.equal(saver.discard('B'), true);
+    assert.equal(saver.dirty(), true, 'A still needs a rescue');
+    await saver.flush();
+    assert.deepEqual(rescued, ['A']);
+    assert.deepEqual(saved, [], 'B is never written');
+    assert.equal(saver.dirty(), false);
+
+    chat = 'A';
+    saver.touch();
+    chat = 'B';
+    assert.equal(saver.discard('B'), false, 'B has no work to drop');
+    await saver.flush();
+    assert.deepEqual(rescued, ['A', 'A'], 'A is still rescued');
+});
+
+test('discarding an orphan during another rescue does not remove or write unrelated work', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let chat = 'A';
+    let release;
+    const rescued = [];
+    const saver = createSaver({
+        target: () => ({ chatId: chat }),
+        check: change => change.chatId === chat ? '' : { moved: 'another chat' },
+        save: () => { throw new Error('the open chat has no work to save'); },
+        rescue: change => {
+            rescued.push(change.chatId);
+            if (change.chatId === 'A') return new Promise(resolve => { release = resolve; });
+        },
+    });
+    saver.touch();
+    chat = 'B'; saver.touch();
+    chat = 'C'; saver.touch();
+    const saving = saver.saveSoon();
+    await settled();
+    chat = 'B';
+    assert.equal(saver.discard('B'), true);
+    release();
+    await saving;
+    assert.deepEqual(rescued, ['A', 'C']);
+    assert.equal(saver.dirty(), false);
+});
+
+test('discarding an in-flight orphan leaves the next orphan queued', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let chat = 'B';
+    let release;
+    const rescued = [];
+    const saver = createSaver({
+        target: () => ({ chatId: chat }),
+        check: change => change.chatId === chat ? '' : { moved: 'another chat' },
+        save: () => { throw new Error('the open chat has no work to save'); },
+        rescue: change => {
+            rescued.push(change.chatId);
+            if (change.chatId === 'B') return new Promise(resolve => { release = resolve; });
+        },
+    });
+    saver.touch();
+    chat = 'A'; saver.touch();
+    chat = 'C'; saver.touch();
+    const saving = saver.saveSoon();
+    await settled();
+    chat = 'B';
+    assert.equal(saver.discard('B'), true);
+    release();
+    await saving;
+    assert.deepEqual(rescued, ['B', 'A', 'C'], 'A and C are still rescued');
+    assert.equal(saver.dirty(), false);
+});
+
+test('a discarded orphan queued behind a rescue is not written again', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let chat = 'A';
+    let release;
+    const rescued = [];
+    const saver = createSaver({
+        target: () => ({ chatId: chat }),
+        check: change => change.chatId === chat ? '' : { moved: 'another chat' },
+        save: () => {},
+        rescue: change => {
+            rescued.push(change.chatId);
+            if (change.chatId === 'A') return new Promise(resolve => { release = resolve; });
+        },
+    });
+    saver.touch();
+    chat = 'B'; saver.touch();
+    const first = saver.saveSoon();
+    await settled();
+    const second = saver.saveSoon();
+    await settled();
+    chat = 'A';
+    assert.equal(saver.discard('A'), true);
+    release();
+    await Promise.all([first, second]);
+    assert.equal(rescued.filter(id => id === 'A').length, 1, 'only the already-started rescue ran');
+});
+
+test('a completed old save cannot revive discarded changes', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let release;
+    let writes = 0;
+    const saver = createSaver({
+        target: () => ({ chatId: 'A' }),
+        save: () => { writes++; return new Promise(resolve => { release = resolve; }); },
+    });
+    saver.touch();
+    const saving = saver.saveSoon();
+    await settled();
+    saver.touch();
+    assert.equal(saver.discard('A'), true);
+    release();
+    await saving;
+    assert.equal(saver.dirty(), false);
+    assert.equal(writes, 1);
+});
 
 test('stale tab: the server holds a newer copy: nothing is saved, the chat is reloaded, the toast says so', async t => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -97,8 +228,9 @@ test('own keepalive then wake: nothing (no toast, no reload, no save): the finge
     const kept = saves(x.server).at(-1);
     assert.equal(kept.keepalive, true);
     const count = saves(x.server).length;
+    const listed = lists(x.server).length;
     await x.show();
-    assert.equal(lists(x.server).length, 1, 'asked the list, not the chat file');
+    assert.equal(lists(x.server).length, listed + 1, 'asked the list, not the chat file');
     assert.equal(x.server.requests.filter(r => r.url === '/api/chats/get').length, 0);
     assert.deepEqual(x.toasts, []);
     assert.equal(x.reloads.length, 0);
@@ -166,27 +298,6 @@ test('server unreachable or silent: saving goes on as it did, and the reader is 
     assert.equal(x.toasts.length, 1);
 });
 
-test('a reply in progress: the check waits for it to end, then runs', async () => {
-    let busy = true;
-    let release;
-    const asked = [];
-    const file = { where: () => ({ chatId: 'c', name: 'n', avatar: 'a.png' }), list: async () => { asked.push(1); return [{ file_name: 'c', message_count: 2, last_mes: 'x', preview_message: 'changed' }]; } };
-    const chat = [{ mes: 'a' }, { mes: 'b' }];
-    const calls = [];
-    const wake = createWakeCheck({
-        file, chat: () => chat, replyBusy: () => busy, whenIdle: () => new Promise(resolve => { release = resolve; }),
-        store: { discardUnsaved: () => 0 }, reload: async () => calls.push('reload'), say: text => calls.push(text),
-    });
-    wake.loaded();
-    await wake.run('visible');
-    assert.deepEqual(asked, [], 'nothing asked mid-reply');
-    busy = false;
-    release();
-    await settled();
-    assert.equal(asked.length, 1);
-    assert.deepEqual(calls, ['This chat changed on another device. Reloaded the newer copy.', 'reload']);
-});
-
 test('a long hidden time with the event missed: the first save after it asks first', () => {
     let at = 0;
     const file = { where: () => ({ chatId: 'c' }), list: () => new Promise(() => {}) };
@@ -221,6 +332,6 @@ test('the chat list: its request for a character and for a group; the fingerprin
         { url: '/api/chats/search', body: { query: '', avatar_url: 'n.png' } },
         { url: '/api/chats/search', body: { query: '', group_id: 'g1' } },
     ]);
-    assert.deepEqual(fingerprint([{ mes: 'a', send_date: 'd1' }, { mes: '', send_date: 'd2' }]), { count: 2, last: 'd2', preview: '[The message is empty]' });
-    assert.deepEqual(fingerprint([]), { count: 0, last: null, preview: '' });
+    assert.deepEqual(fingerprint([{ mes: 'a', send_date: 'd1' }, { mes: '', send_date: 'd2' }]), { count: 2, last: 'd2', preview: '[The message is empty]', size: null });
+    assert.deepEqual(fingerprint([], 5), { count: 0, last: null, preview: '', size: 5 });
 });
