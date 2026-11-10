@@ -1,4 +1,4 @@
-// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.7.0): they pass the cast check whole, stay inside every limit,
+// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.8.0): they pass the cast check whole, stay inside every limit,
 // start at places the pack names, carry their portraits (WebP, small), keep their secrets out of the lines the reader sees, and
 // come in as one zip that the importer reads.
 import test from 'node:test';
@@ -13,6 +13,7 @@ import { fakeSettings } from './helpers/fake-settings.js';
 import { fakeFiles } from './helpers/portraits.js';
 import { sniffImage } from '../../../src/v2/packs/portraits.js';
 import { zip } from './helpers/zip.js';
+import { defaultFlags, healingSkill } from '../../../src/v2/lean-rpg/board/flags.js';
 
 const folder = new URL('../../../examples/packs/ersveil/', import.meta.url);
 const packText = readFileSync(new URL('pack.json', folder), 'utf8');
@@ -68,7 +69,7 @@ test('meters and stages: the eleven romanceable use the companion preset, Barney
         assert.equal(person.stages.at(-1).needs.some(need => need.meter === 'desire'), ROMANCEABLE.includes(person.id), `${person.id}: only a romantic top stage needs Desire`);
     }
     const mine = cast()[0].stages.at(-1);
-    assert.deepEqual([mine.name, mine.needs], ['Mine', [{ meter: 'affection', at: 75 }, { meter: 'desire', at: 50 }]]);
+    assert.deepEqual([mine.name, mine.needs], ['Yours', [{ meter: 'affection', at: 75 }, { meter: 'desire', at: 50 }]]);
     // Everyone starts at 0 (USER 5 Nov): a relationship is built in play, never handed out at the first meeting.
     for (const person of cast()) {
         for (const meter of ['trust', 'affection', 'desire', 'tension']) {
@@ -92,7 +93,7 @@ test('the agreed fixes: Hush was freed about seventy years ago, Torka is 20, lev
     assert.match(by('torka').look, /^Orc, 20:/);
     assert.equal(by('torka').fields.People, 'Orc, 20');
     assert.deepEqual(Object.fromEntries(cast().map(person => [person.id, person.fields.Level])),
-        { temiwa: '8', ysmeth: '36', nysseth: '44', rika: '12', harrak: '56', torka: '18', lothar: '32', gorm: '22', nerissa: '24', hush: '48', asphodel: '30', barney: '14' });
+        { temiwa: '4', ysmeth: '36', nysseth: '44', rika: '8', harrak: '56', torka: '6', lothar: '32', gorm: '22', nerissa: '24', hush: '48', asphodel: '30', barney: '14' });
 });
 
 // Words that are only in a person's secrets: none may be in what the reader or the narrator is told before they unlock.
@@ -134,11 +135,11 @@ test('every one of the twelve has a look (the body) and a wears (clothes and gea
         assert.match(person.wears, CLOTHING, `${person.id}: wears names something worn or carried`);
     }
     // Round 2: scene backdrops (banners, a fort, a ship's deck, a harbour, maps "behind her") are portrait staging, in neither field; a manner
-    // ("a sly, seductive air") is personality, so Temiwa's look has no "air" and her personality ends with it, inside its limit.
+    // ("a seductive air") is personality, so Temiwa's look has no "air" and her personality says it, inside its limit.
     for (const person of cast()) for (const text of [person.look, person.wears]) assert.doesNotMatch(text, /\bbehind (him|her|them)\b/i, person.id);
     const temiwa = cast().find(person => person.id === 'temiwa');
     assert.doesNotMatch(temiwa.look, /\bair\b/i);
-    assert.ok(temiwa.personality.endsWith('A sly, seductive air that sits oddly on a holy woman.'));
+    assert.match(temiwa.personality, /Ironically seductive.*chaste and innocent in love/);
     assert.ok(chars(temiwa.personality) <= CAST_LIMITS.personality);
     assert.match(cast().find(person => person.id === 'nysseth').look, /scar around her throat where her collar was/);
     // Every cast key passes through the normalizer with wears kept (the pack checker keeps it in the entry).
@@ -225,10 +226,44 @@ test('every one of the twelve has its personality split: shorter than before, wi
         const raw = cast().find(entry => entry.id === person.id);
         assert.deepEqual([person.behaviour, person.mannerisms, person.withYou], [raw.behaviour, raw.mannerisms, raw.withYou], person.id);
     }
-    // Temiwa as the approved mockup has it: the habit left her voice, the levers keep the original words.
+    // Temiwa, Shiba Inu dogfolk (owner, 10 Nov): soft and weary, no cruelty anywhere, no fox words anywhere in her text.
     const temiwa = cast().find(person => person.id === 'temiwa');
-    assert.doesNotMatch(temiwa.voice, /laughs/i);
-    assert.ok(temiwa.mannerisms.includes('Laughs a little too easily at pain'));
-    assert.ok(temiwa.behaviour.some(line => line.startsWith('Mercy: low - stitches those who annoy her slower than she must')));
-    assert.match(temiwa.withYou, /sudden sweetness to you/);
+    assert.ok(temiwa.behaviour.some(line => line.startsWith('Mercy: high')));
+    assert.equal(temiwa.mannerisms.some(line => /pain|cruel|sadis/i.test(line)), false);
+    assert.doesNotMatch(JSON.stringify(temiwa), /\b(fox|foxes|vixen|russet|sadis\w*|cruel\w*|yandere)\b/i);
+    assert.doesNotMatch(JSON.stringify(cast().find(person => person.id === 'torka')), /sadis/i);
+    assert.match(temiwa.look, /Shiba Inu dogfolk.*black.*cream points/);
+    assert.equal(temiwa.fields.People, 'Shiba Inu dogfolk, 21');
+    // Nerissa is deredere and Nysseth yandere (owner, 10 Nov), each still keeping what made them.
+    assert.match(cast().find(person => person.id === 'nerissa').personality, /Deredere.*prankster.*homesick/s);
+    const nysseth = cast().find(person => person.id === 'nysseth');
+    assert.match(nysseth.personality, /Yandere.*obsession.*removes anyone.*Durvald Seamrune/s);
+});
+
+// The owner's list (10 Nov): name, stat, uses, rank of each member's two skills, in order. (A pack skill has no combat/utility type yet.)
+const SKILLS = {
+    temiwa: [['Mending Prayer', 'int', 'mana', 'novice'], ['Gentle Word', 'cha', 'stamina', 'novice']],
+    ysmeth: [['Lockwork', 'dex', 'stamina', 'expert'], ['Binding Rune', 'int', 'mana', 'novice']],
+    nysseth: [["Grinder's Knives", 'dex', 'stamina', 'expert'], ['Chain Cell Craft', 'int', 'stamina', 'expert']],
+    rika: [['Raw Bolt', 'int', 'mana', 'adept'], ['Wild Surge', 'int', 'stamina', 'novice']],
+    harrak: [['Long Watch Cleave', 'str', 'stamina', 'expert'], ['Hold the Line', 'vit', 'stamina', 'master']],
+    torka: [['Berserker Rush', 'str', 'stamina', 'novice'], ['Maul Swing', 'str', 'stamina', 'novice']],
+    lothar: [['Iron Guard Cut', 'dex', 'stamina', 'expert'], ['Shield of the Princess', 'vit', 'stamina', 'adept']],
+    gorm: [['Hammer Rune', 'str', 'stamina', 'adept'], ['Toast and Tell', 'cha', 'stamina', 'adept']],
+    nerissa: [["Pilot's Hand", 'dex', 'stamina', 'adept'], ['Harpoon Dive', 'agi', 'stamina', 'adept']],
+    hush: [['Silver Rain Veil', 'int', 'mana', 'expert'], ["Mother's Hand", 'vit', 'stamina', 'adept']],
+    asphodel: [['Flower-Speech', 'int', 'mana', 'novice'], ['Quiet Step', 'agi', 'stamina', 'adept']],
+    barney: [['Silver Patter', 'cha', 'stamina', 'adept'], ['Dirty Trick', 'dex', 'stamina', 'novice']],
+};
+
+test('every member has exactly the two skills the owner listed; Mending Prayer heals and Wild Surge hits every foe on the fight board', () => {
+    assert.deepEqual(Object.keys(SKILLS), IDS);
+    for (const person of cast()) assert.deepEqual(person.skills.map(skill => [skill.name, skill.stat, skill.uses, skill.rank]), SKILLS[person.id], person.id);
+    const find = (id, name) => cast().find(person => person.id === id).skills.find(skill => skill.name === name);
+    assert.equal(healingSkill(find('temiwa', 'Mending Prayer')), true);
+    assert.equal(defaultFlags(find('rika', 'Wild Surge')).area, true);
+    for (const person of cast()) for (const skill of person.skills) {
+        if (skill.name !== 'Mending Prayer') assert.equal(healingSkill(skill) && person.id !== 'hush', false, `${person.id}: ${skill.name} is not a heal`);
+        if (skill.name !== 'Wild Surge' && !['Long Watch Cleave'].includes(skill.name)) assert.equal(defaultFlags(skill).area, false, `${person.id}: ${skill.name} is not an area skill`);
+    }
 });
