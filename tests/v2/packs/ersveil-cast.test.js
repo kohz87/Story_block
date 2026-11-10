@@ -236,7 +236,7 @@ test('every one of the twelve has its personality split: shorter than before, wi
     assert.doesNotMatch(JSON.stringify(cast().find(person => person.id === 'torka')), /sadis/i);
     assert.match(temiwa.look, /Shiba Inu dogfolk.*Black dog ears with cream points.*waterfall/);
     assert.equal(temiwa.fields.People, 'Shiba Inu dogfolk woman, 21');
-    assert.match(temiwa.wears, /Dark stockings with garters beneath, a buckled leather belt\./);
+    assert.match(temiwa.wears, /Dark stockings with garters beneath, a buckled leather belt, a brass censer on chains\. Tail bound in a grey Church sash\./);
     assert.match(temiwa.personality, /^Dandere/);
     assert.deepEqual(temiwa.stages.map(stage => stage.name), ['Tolerates you', 'Talks while she stitches', 'Burns a candle for you', 'My candle']);
     assert.match(temiwa.secrets.find(secret => secret.title === 'Her reliquary').text, /first bandage she ever wound for you/);
