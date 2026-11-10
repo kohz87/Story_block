@@ -7,7 +7,7 @@ import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { memberXp, fightGuard } from '../../../src/v2/lean-rpg/fight.js';
 import { hasRestButtons, isMarkedCharacter, fullRestTooSoon, recoveryNote } from '../../../src/v2/data-modules/recovery.js';
-import { directorStub, reload } from '../data-modules/helpers.js';
+import { directorStub, reload, spansOf } from '../data-modules/helpers.js';
 import { cueOfResult } from '../../../src/v2/lean-rpg/cue.js';
 import { grammarFor } from '../../../src/v2/data-modules/part/views.js';
 
@@ -175,6 +175,34 @@ test('deleting the time advance cannot replay a full rest less than six hours af
         assert.ok(problems(host).includes(recoveryNote.fullRest('Astra')));
         await reload(host);
     } finally { host.close(); }
+});
+
+test('An allowed full rest witnesses the last rest: an earlier reply that gains a full rest (edit or swipe) re-decides the later one', async () => {
+    const rest = ['~ dm character — a bed | kind: full-rest'];
+    const block = lines => `Told.\n<Changes>\n${lines.join('\n')}\n</Changes>`;
+    for (const how of ['edit', 'swipe']) {
+        const host = await world({ clock: true });
+        try {
+            await host.send('Go.', 'Told.');
+            const early = host.store.headIndex();
+            if (how === 'swipe') { await host.swipe(block(rest)); await host.st.swipeTo(early, 0); }
+            await say(host, ['! time 100']);
+            await say(host, rest);
+            const reads = JSON.stringify(spansOf(host).map(span => span.recorded?.selector?.reads ?? []));
+            assert.ok(reads.includes('"rested-at"') && reads.includes('"rested-known"'), `the allowed rest records the rest fields: ${reads}`);
+            assert.equal(fields(host)['rested-at'], 1100, 'the later rest was allowed (nothing earlier)');
+            await reload(host);
+            if (how === 'edit') { await host.st.editMessage(early, block(rest)); assert.equal((await host.turn.reread(early)).ok, true); } else await host.st.swipeTo(early, 1);
+            assert.equal(fields(host)['rested-at'], 1000, `${how}: the later rest is re-decided and refused (the mark stays the earlier one)`);
+            same(host);
+            await reload(host);
+            assert.equal(fields(host)['rested-at'], 1000, `${how}: after a reload`);
+            assert.equal((await host.turn.reread(host.store.headIndex())).ok, true);
+            assert.equal(fields(host)['rested-at'], 1000, `${how}: after a Re-read`);
+            assert.ok(problems(host).includes(recoveryNote.fullRest('Astra')), `${how}: a Re-read says why`);
+            same(host);
+        } finally { host.close(); }
+    }
 });
 
 test('a marked pin with an old combat rules block cannot prompt for story XP', async () => {

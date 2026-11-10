@@ -145,8 +145,13 @@ export function createAct(deps) {
         evaluation.rules();
         const result = evaluation.finish();
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
+        // A story full rest was decided against the last rest (fullRestTooSoon), so the record witnesses those fields too: an earlier reply that gains or loses a
+        // full rest re-decides it. An action recorded before this keeps the reads it was saved with (replay uses the recorded selector), so old chats are unchanged.
+        const restReads = restKind && ctx.cause === 'story' ? [RESTED_FIELD, RESTED_KNOWN].filter(key => Object.hasOwn(definition.state, key)).map(key => ['fields', key]) : [];
+        const reads = result.reads.map(read => read.path);
+        for (const path of restReads) if (!reads.some(seen => seen.length === path.length && seen.every((part, i) => part === path[i]))) reads.push(path);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: prefixImports(definition), clock: restKind,
+            reads, imports: prefixImports(definition), clock: restKind,
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(clock !== null ? { clock } : {}), ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
