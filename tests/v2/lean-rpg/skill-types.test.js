@@ -10,14 +10,18 @@ import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { skillFlags } from '../../../src/v2/lean-rpg/board/flags.js';
 import { actionSkills, exchangePlan } from '../../../src/v2/lean-rpg/board/plan.js';
 import { bestDefence } from '../../../src/v2/lean-rpg/board/rules.js';
-import { buildDefinitions, combatSlots, draftSlots, newDraft, readDraft, withImport, withSkill, withSkillPatch } from '../../../src/v2/lean-rpg/view/wizard-data.js';
+import { buildDefinitions, combatSlots, draftSlots, newDraft, readDraft, withImport, withSet, withSkill, withSkillPatch } from '../../../src/v2/lean-rpg/view/wizard-data.js';
 import { buildCharacterFile, parseCharacterFile } from '../../../src/v2/lean-rpg/charfile.js';
+import { joinCard, joinDraft, joinOffers } from '../../../src/v2/lean-rpg/join.js';
+import { validatePack } from '../../../src/v2/packs/validate.js';
+import { castSkillsOf } from '../../../src/v2/packs/cast-skills.js';
 import { UTILITY_SLOTS, SKILL_FIELDS_MAX } from '../../../src/v2/skill-slots.js';
 import { summaryOf } from '../../../src/v2/data-modules/part/prompt.js';
 import { reply, success, view, rebuilt, reload } from '../data-modules/helpers.js';
 import { fakeState } from './view/helpers.js';
 import { readParty } from '../../../src/v2/lean-rpg/view/party-data.js';
 import { tailRoom } from '../../../src/v2/data-modules/part/prompt.js';
+import { pack } from '../packs/helpers/fixtures.js';
 
 const typedDefinition = () => structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Skills').definition);
 const line = (n, name, type, why = 'learned') => `~ dm skills — ${why} | kind: learn-${n} | name: ${name} | about: Something. | stat: dex | uses: mana${type ? ` | type: ${type}` : ''}`;
@@ -197,4 +201,137 @@ test('an unrelated old block with an optional type label does not acquire a comb
     assert.ok(span);
     assert.equal(Object.hasOwn(span.recorded.decision.args, 'type'), false);
     rebuilt(host);
+});
+
+// Pack cast skills keep their type in joins, the edit-first wizard, and returns.
+const castPerson = skills => ({ id: 'mara', name: 'Mara', aliases: ['the ferrywoman'], about: 'Runs the ferry.', look: 'Wiry.', start: { place: 'Docks', goal: 'Keep the ferry running.' }, ...(skills ? { skills } : {}) });
+const castPack = skills => pack({ content: { cast: [castPerson(skills)] } });
+const castSkill = (name, type) => ({ name, about: 'Something.', stat: 'cha', ...(type ? { type } : {}) });
+const castFields = host => host.head().domains.dataModules.instances['pack.chat/mara-skills'].chat.fields;
+const castReceipt = host => host.ctx.chat.at(-1).extra.storySuite.receipts.find(entry => entry.type === 'capture.party');
+const castTypes = fields => Array.from({ length: 11 }, (_, i) => i + 1).filter(n => fields[`skill${n}`]).map(n => [fields[`skill${n}`], fields[`type${n}`]]);
+const castBytes = host => JSON.stringify([castFields(host), host.ctx.chat.map(message => (message.extra?.storySuite?.receipts ?? []).map(r => [r.type, r.summary, r.data?.join, r.data?.sigSkills, r.data?.sigSkillsPlanned]))]);
+const castWarnings = host => host.turn.problems().filter(problem => problem.code === 'LIMITED').map(problem => problem.message);
+async function castWorld(t, skills, join = 'auto') {
+    t.mock.method(console, 'warn', () => {});
+    const raw = castPack(skills), checked = validatePack(raw);
+    assert.equal(checked.ok, true, JSON.stringify(checked.errors));
+    const host = await createHost({ settings: { features: { 'story-block.rpg': true }, modules: { 'story-block': { rpgJoin: join, rpgRolls: 'off' } },
+        packs: [{ id: checked.pack.id, version: checked.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] } });
+    t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    for (const role of ['character', 'skills']) {
+        const definition = structuredClone(STANDARD_TEMPLATES.find(entry => entry.definition.role === role).definition);
+        definition.slug = role === 'character' ? 'wessel' : 'wessel-skills';
+        definition.name = definition.slug; definition.state.who.default = 'Wessel';
+        success(await host.sdk.command('dm.define', { definition }));
+    }
+    return host;
+}
+async function updateCast(host, skills) { success(await host.packs.packs.install(castPack(skills))); }
+
+test('cast skill types are validated and absent type leaves the old pack and rows unchanged', () => {
+    const mixed = [castSkill('Cut', 'combat'), castSkill('Talk', 'utility'), castSkill('Haul')];
+    const result = validatePack(castPack(mixed));
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    assert.deepEqual(result.pack.content.cast[0].skills.map(skill => skill.type), ['combat', 'utility', undefined]);
+    assert.equal(Object.hasOwn(result.pack.content.cast[0].skills[2], 'type'), false);
+    assert.deepEqual(castSkillsOf([result.pack], 'the ferrywoman').skills.map(skill => skill.type), [undefined, 'utility', undefined]);
+    assert.deepEqual(validatePack(castPack([castSkill('Haul')])).pack.content.cast[0].skills,
+        [{ name: 'Haul', about: 'Something.', stat: 'cha', uses: 'stamina', rank: 'novice' }]);
+    for (const bad of ['support', 'Utility', '', 3, null]) {
+        const invalid = castPack([{ ...castSkill('Cut'), type: bad }]);
+        const error = validatePack(invalid).errors.find(entry => entry.path === 'content.cast[0].skills[0].type');
+        assert.match(error?.message ?? '', /combat or utility/);
+    }
+});
+
+test('a cast join keeps combat and utility types through rebuild, reload and Re-read', async t => {
+    const host = await castWorld(t, [castSkill('Cut', 'combat'), castSkill('Talk', 'utility'), castSkill('Haul')]);
+    await host.send('Mara arrives.', reply('+ party Mara'));
+    assert.deepEqual(castTypes(castFields(host)), [['Cut', 'combat'], ['Talk', 'utility'], ['Haul', 'combat']]);
+    assert.equal(castFields(host).sig, 7);
+    assert.deepEqual(castReceipt(host).data.sigSkills.map(skill => skill.type), [undefined, 'utility', undefined]);
+    const live = castBytes(host);
+    host.store.rebuild(); assert.equal(castBytes(host), live);
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat))); assert.equal(castBytes(host), live);
+    success(await host.turn.reread(host.ctx.chat.length - 1)); assert.equal(castBytes(host), live);
+});
+
+test('a fourth utility skill is omitted from the join and receipt and Re-read gives the same result', async t => {
+    const skills = [castSkill('Cut'), ...['A', 'B', 'C', 'D'].map(name => castSkill(name, 'utility'))];
+    const host = await castWorld(t, skills);
+    await host.send('Mara arrives.', reply('+ party Mara'));
+    assert.deepEqual(castTypes(castFields(host)), [['Cut', 'combat'], ['A', 'utility'], ['B', 'utility'], ['C', 'utility']]);
+    assert.deepEqual(castReceipt(host).data.sigSkills.map(skill => skill.name), ['Cut', 'A', 'B', 'C']);
+    assert.equal(castReceipt(host).summary, 'Mara joined the party. Signature skills: 4.');
+    const live = castBytes(host);
+    await updateCast(host, [castSkill('Different', 'utility')]);
+    success(await host.turn.reread(host.ctx.chat.length - 1));
+    assert.equal(castBytes(host), live);
+});
+
+test('an untyped cast join keeps its fields, pin and receipt when the pack later gives that skill a type', async t => {
+    const host = await castWorld(t, [castSkill('Cut'), castSkill('Talk')]);
+    await host.send('Mara arrives.', reply('+ party Mara'));
+    assert.deepEqual(castTypes(castFields(host)), [['Cut', 'combat'], ['Talk', 'combat']]);
+    assert.deepEqual(castReceipt(host).data.sigSkills, [
+        { name: 'Cut', about: 'Something.', stat: 'cha', uses: 'stamina', rank: 0 },
+        { name: 'Talk', about: 'Something.', stat: 'cha', uses: 'stamina', rank: 0 },
+    ]);
+    const live = castBytes(host), pin = host.head().domains.dataModules.active['pack.chat/mara-skills'].hash;
+    await updateCast(host, [castSkill('Cut'), castSkill('Talk', 'utility')]);
+    success(await host.turn.reread(host.ctx.chat.length - 1));
+    assert.equal(castBytes(host), live);
+    assert.equal(host.head().domains.dataModules.active['pack.chat/mara-skills'].hash, pin);
+});
+
+test('edit first preserves utility signatures and a set fills the combat room without replacing them', async t => {
+    const host = await castWorld(t, [castSkill('Cut'), castSkill('Talk', 'utility'), castSkill('Hide', 'utility')], 'ask');
+    await host.send('Mara waits.', reply('+ party Mara'));
+    const offer = castReceipt(host).data.join;
+    const card = joinCard(joinOffers([{ index: host.ctx.chat.length - 1, receipt: { data: { join: offer } } }], host.ctx.chat.length - 1, []));
+    const draft = joinDraft(card.actions.find(action => action.id === 'edit').payload);
+    assert.deepEqual(draft.skills.map(skill => [skill.name, skill.type, skill.sig]), [['Cut', undefined, true], ['Talk', 'utility', true], ['Hide', 'utility', true]]);
+    const set = withSet(draft, { id: 'set', skills: Array.from({ length: 5 }, (_, n) => castSkill(`Set ${n}`)) });
+    assert.equal(set.skills.filter(skill => skill.type === 'utility').length, 2);
+    assert.equal(set.skills.filter(skill => skill.type !== 'utility').length, 5);
+    const made = buildDefinitions(readDraft(set));
+    assert.deepEqual([made.skills.state.type2.default, made.skills.state.type3.default], ['utility', 'utility']);
+});
+
+test('a returning utility signature uses a free slot beyond eight and survives a pack update and Re-read', async t => {
+    const host = await castWorld(t, Array.from({ length: 8 }, (_, n) => castSkill(`Combat ${n}`)));
+    await host.send('Mara arrives.', reply('+ party Mara'));
+    await host.send('She leaves.', reply('- party Mara'));
+    await updateCast(host, [castSkill('Talk', 'utility')]);
+    await host.send('She returns.', reply('+ party Mara'));
+    assert.deepEqual([castFields(host).skill9, castFields(host).type9, castFields(host).sig], ['Talk', 'utility', 511]);
+    assert.deepEqual(castReceipt(host).data.sigSkills.map(skill => [skill.name, skill.type]), [['Talk', 'utility']]);
+    const live = castBytes(host);
+    await updateCast(host, [castSkill('Different')]);
+    success(await host.turn.reread(host.ctx.chat.length - 1));
+    assert.equal(castBytes(host), live);
+});
+
+test('a full utility pool skips the new signature and preserves its warning on Re-read', async t => {
+    for (const alsoCombat of [false, true]) await t.test(alsoCombat ? 'another skill fits' : 'nothing fits', async sub => {
+        const first = ['A', 'B', 'C'].map(name => castSkill(name, 'utility'));
+        const host = await castWorld(sub, first);
+        await host.send('Mara arrives.', reply('+ party Mara'));
+        await host.send('She leaves.', reply('- party Mara'));
+        await updateCast(host, [...first, castSkill('D', 'utility'), ...(alsoCombat ? [castSkill('Cut')] : [])]);
+        await host.send('She returns.', reply('+ party Mara'));
+        assert.deepEqual(castTypes(castFields(host)), [...first.map(skill => [skill.name, 'utility']), ...(alsoCombat ? [['Cut', 'combat']] : [])]);
+        assert.deepEqual((castReceipt(host).data.sigSkills ?? []).map(skill => skill.name), alsoCombat ? ['Cut'] : []);
+        assert.deepEqual(castReceipt(host).data.sigSkillsPlanned.map(skill => skill.name), alsoCombat ? ['D', 'Cut'] : ['D']);
+        assert.deepEqual(castWarnings(host), ["Mara's D has no free utility skill slot."]);
+        const live = castBytes(host), warnings = castWarnings(host);
+        host.store.rebuild(); assert.equal(castBytes(host), live); assert.deepEqual(castWarnings(host), warnings);
+        await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat))); assert.equal(castBytes(host), live);
+        await updateCast(host, [castSkill('Different')]);
+        const reread = success(await host.turn.reread(host.ctx.chat.length - 1));
+        assert.equal(castBytes(host), live);
+        assert.deepEqual(reread.problems.filter(problem => problem.code === 'LIMITED').map(problem => problem.message), warnings);
+    });
 });
