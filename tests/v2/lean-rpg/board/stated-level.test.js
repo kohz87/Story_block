@@ -60,13 +60,14 @@ test('no field, an unmatched name, junk or no NSD: today\'s rules, capped at par
         assert.equal(vet(query, 'Vorn', undefined)[0].level, 2);
     }
     assert.equal(vet(world({ dossiers: [vorn('30')] }), 'Dott', 25, 'I attack Dott.')[0].level, 22, 'a name that matches no dossier');
-    assert.equal(vet(world({ dossiers: [vorn('30')] }), 'Vornic', 25, 'I attack Vornic.')[0].level, 22, 'whole words only');
+    assert.equal(vet(world({ dossiers: [vorn('30')] }), 'Vornic', 25, 'I attack Vornic.')[0].level, 22, 'exact name only');
 });
 
 test('a dossier matches by alias, and the field name is any case', () => {
     const query = world({ dossiers: [vorn(undefined, { customFields: { lEvEl: 'Lv 30' } })] });
     assert.equal(vet(query, 'Branch Master', 4, 'I attack the Branch Master.')[0].level, 30);
-    assert.equal(vet(query, 'Branch Master Vorn and his men', 4, 'I attack Branch Master Vorn and his men.')[0].level, 30, 'a group whose name holds the person\'s name');
+    assert.equal(vet(query, '  the   BRANCH master ', 4, 'I attack the BRANCH master.')[0].level, 30, 'case, spaces and a leading "the" ignored');
+    assert.equal(vet(query, 'Branch Master Vorn and his men', 4, 'I attack Branch Master Vorn and his men.')[0].level, 4, 'a longer name is not the person');
 });
 
 test('a rank field records the rank band; the draw is the resolver\'s seeded one', () => {
@@ -182,9 +183,8 @@ test('a group of several named after the person keeps the normal rules: the Leve
     assert.equal(groups(5)[0].level, 22);
 });
 
-test('a possessive is another person: "Vorn\'s bodyguard" does not take Vorn\'s Level', () => {
-    const query = (name, args) => name === 'npc.known' ? ['Vorn'] : name === 'npc.dossier' ? { aliases: [], customFields: { Level: '30' } } : null;
-    assert.deepEqual(statedLevel(query, 'Branch Master Vorn'), { level: 30 });
-    assert.equal(statedLevel(query, 'Vorn’s bodyguard'), null);
-    assert.equal(statedLevel(query, "Vorn's bodyguard"), null);
+test('only an exact name or alias matches: "Ash wolf", "Vorn\'s bodyguard", "Branch Master Vorn" do not', () => {
+    const query = (name, args) => name === 'npc.known' ? ['Vorn', 'Ash'] : name === 'npc.dossier' ? { aliases: args.name === 'Vorn' ? ['The Branch Master'] : [], customFields: { Level: '30' } } : null;
+    for (const name of ['Vorn', ' vorn ', 'The Vorn', 'branch   master', 'Ash']) assert.deepEqual(statedLevel(query, name), { level: 30 }, name);
+    for (const name of ['Ash wolf', "Vorn's bodyguard", 'Vorn’s bodyguard', 'Branch Master Vorn', 'Vorn and Ash', '', 'Vor']) assert.equal(statedLevel(query, name), null, name);
 });
