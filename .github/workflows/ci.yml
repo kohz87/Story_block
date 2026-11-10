@@ -48,7 +48,13 @@ jobs:
           echo "scope=$scope" >> "$GITHUB_OUTPUT"
       - name: Pack tests (pack-only change)
         if: steps.scope.outputs.scope == 'packs'
-        run: node --test tests/v2/packs/*.test.js
+        run: |
+          # Tests outside tests/v2/packs also read the example packs and the pack test helpers.
+          others="$(grep -rliE 'examples/packs|packs/helpers|ersveil' tests --include='*.test.js' | grep -v '^tests/v2/packs/' | sort)"
+          echo "Also running the tests that read the example packs:"
+          printf '%s\n' "$others"
+          # shellcheck disable=SC2086
+          node --test tests/v2/packs/*.test.js $others
       - name: Behavioral tests
         if: steps.scope.outputs.scope != 'packs'
         env:
