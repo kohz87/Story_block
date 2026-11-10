@@ -91,7 +91,7 @@ test('the agreed fixes: Hush was freed about seventy years ago, Torka is 20, lev
     const hush = by('hush').secrets.map(secret => secret.text).join(' ');
     assert.match(hush, /about seventy years ago/);
     assert.doesNotMatch(JSON.stringify(by('hush')), /a century ago/);
-    assert.match(by('torka').look, /^Orc, 20, about 190 cm:/);
+    assert.match(by('torka').look, /^Orc, about 190 cm:/);
     assert.equal(by('torka').fields.People, 'Orc, 20');
     assert.deepEqual(Object.fromEntries(cast().map(person => [person.id, person.fields.Level])),
         { temiwa: '4', ysmeth: '36', nysseth: '44', rika: '8', harrak: '56', torka: '6', lothar: '32', gorm: '22', nerissa: '24', hush: '48', asphodel: '30', barney: '14' });
@@ -140,8 +140,8 @@ test('every one of the twelve has a look (the body) and a wears (clothes and gea
     // says she does not mean it, inside its limit.
     for (const person of cast()) for (const text of [person.look, person.wears]) assert.doesNotMatch(text, /\bbehind (him|her|them)\b/i, person.id);
     const temiwa = cast().find(person => person.id === 'temiwa');
-    assert.match(temiwa.look, /A seductive air that sits oddly on a holy woman/);
-    assert.match(temiwa.personality, /doesn't mean the seductive air.*Chaste and innocent in love/);
+    assert.doesNotMatch(temiwa.look, /seductive/);
+    assert.match(temiwa.personality, /Chaste and innocent in love/);
     assert.ok(chars(temiwa.personality) <= CAST_LIMITS.personality);
     assert.match(cast().find(person => person.id === 'nysseth').look, /scar around her throat where her collar was/);
     // Every cast key passes through the normalizer with wears kept (the pack checker keeps it in the entry).
@@ -234,8 +234,8 @@ test('every one of the twelve has its personality split: shorter than before, wi
     assert.equal(temiwa.mannerisms.some(line => /pain|cruel|sadis/i.test(line)), false);
     assert.doesNotMatch(JSON.stringify(temiwa), /\b(fox|foxes|vixen|russet|sadis\w*|cruel\w*|yandere|possessive)\b/i);
     assert.doesNotMatch(JSON.stringify(cast().find(person => person.id === 'torka')), /sadis/i);
-    assert.match(temiwa.look, /Shiba Inu dogfolk.*Black dog ears with cream points.*waterfall/);
-    assert.equal(temiwa.fields.People, 'Shiba Inu dogfolk woman, 21');
+    assert.match(temiwa.look, /^Dogfolk woman, about 160 cm\. Black dog ears with cream points.*waterfall/);
+    assert.equal(temiwa.fields.People, 'Dogfolk woman, 21');
     assert.match(temiwa.wears, /Dark stockings with garters beneath, a buckled leather belt, a brass censer on chains\. Tail bound in a grey Church sash\./);
     assert.match(temiwa.personality, /^Dandere/);
     assert.deepEqual(temiwa.stages.map(stage => stage.name), ['Tolerates you', 'Talks while she stitches', 'Burns a candle for you', 'My candle']);
@@ -243,7 +243,7 @@ test('every one of the twelve has its personality split: shorter than before, wi
     // Nerissa is deredere and Nysseth yandere (owner, 10 Nov), each still keeping what made them.
     assert.match(cast().find(person => person.id === 'nerissa').personality, /Deredere.*prankster.*homesick/s);
     const nysseth = cast().find(person => person.id === 'nysseth');
-    assert.match(nysseth.personality, /Yandere.*obsession.*removes anyone.*Durvald Seamrune/s);
+    assert.match(nysseth.personality, /Yandere.*soft, patient and sweet.*Durvald Seamrune/s);
 });
 
 // The owner's list (10 Nov): name, stat, uses, rank, type of each member's two skills, in order.

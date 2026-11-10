@@ -1,4 +1,4 @@
-// The example pack (examples/packs/ersveil, Ersveil 2.9.1, the open world) and its lorebook (ersveil-lore.json): the pack
+// The example pack (examples/packs/ersveil, Ersveil 2.9.2, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
 // docs/v2/ERSVEIL.md describes; the lorebook has 227 entries with unique uids.
 import test from 'node:test';
@@ -48,10 +48,10 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(noDirector.ok, false);
 });
 
-test('the pack is Ersveil 2.9.1, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.9.2, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.9.1');
+    assert.equal(value.version, '2.9.2');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
     assert.equal(value.requires.storyBlock, '^2.28.0', 'pack cast skills with a type 2.28.0; content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, portraits up to 150 KB 2.16.0, rpg.ranks and rpg.levelCap 2.17.0, and item gear fields and cast gear 2.18.0; the Reputation tab layouts and migrations 2.22.0');
