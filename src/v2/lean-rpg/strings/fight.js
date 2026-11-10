@@ -72,6 +72,8 @@ export const FIGHT_STRINGS = Object.freeze({
         gearOn: 'On',
         gearHelp: 'On: worn gear adds stat points by rarity (common +0 up to legendary +4); gear wears down after a decisive hit taken, a bag raises what a character can carry, and a heavy load lowers AGI and DEX. Off: fights run as before; items, rarity and slots are kept.',
         rollsHelp: 'Automatic: code rolls the dice for the fights you play on the fight board. Off: no dice; the story decides.',
+        checks: 'Story checks',
+        checksHelp: 'Rolls for attempts outside a fight, before the reply: three dice go in the note, the narrator uses them for any attempt that can fail and reports each one, and code works out the result and gives practice. Off: the narrator decides them.',
         automatic: 'Automatic',
         off: 'Off',
         formula: 'Stat formula',

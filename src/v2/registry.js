@@ -51,7 +51,7 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
     const { lifecycle, held, setEnabled, restore, restoreEpoch, setRestore, peers } = life;
     const featureLookups = createFeatureLookups({ defs, declared, owners, fallbacks, canonical, featureValue, held, lifecycle });
     const { featureDecl, needsOf, featureOn, withFeatures, hypothetical, off, offQuery } = featureLookups;
-    const commandLookups = createCommandLookups({ defs, owners, canonical, held, lifecycle, nameOf: life.nameOf, off, warn });
+    const commandLookups = createCommandLookups({ defs, owners, fallbacks, canonical, held, lifecycle, nameOf: life.nameOf, off, warn });
     const { refusal, contextOf, captureEntry, commandFeature, command, isInternal, isPrelude, commandOwner, initialState } = commandLookups;
     const { register } = createRegistration({ defs, declared, owners, fallbacks, canonical, refusals, hostVersion, warn, needsOf, setPeers: life.setPeers });
 
@@ -218,7 +218,7 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
                 moduleId: def.id,
                 name: def.name ?? def.id,
                 domains: Object.keys(def.domains ?? {}),
-                kinds: Object.keys(def.capture?.kinds ?? {}).sort().filter(kind => def.capture.kinds[kind].enabled !== false && !off(def.capture.kinds[kind])).map(kind => {
+                kinds: Object.keys(def.capture?.kinds ?? {}).sort().filter(kind => def.capture.kinds[kind].enabled !== false && !off(def.capture.kinds[kind]) && !(def.capture.kinds[kind].fallback === true && canonical.has(kind))).map(kind => {
                     const heads = headsOf(def.capture.kinds[kind]);
                     return { kind, grammar: grammarOf(def.capture.kinds[kind], hint), ...(heads.length ? { heads } : {}) };
                 }).filter(entry => entry.grammar || entry.heads),

@@ -13,5 +13,5 @@ test('every Check card rule is scoped to its own root', () => {
 test('the card uses theme tokens, never a fixed colour', () => {
     assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/iu);
     assert.match(css, /var\(--ss-text\)/u);
-    assert.match(css, /var\(--ss-good\)/u);
+    assert.match(css, /var\(--ss-good\b/u);
 });

@@ -33,7 +33,8 @@ export function createRegistration({ defs, declared, owners, fallbacks, canonica
         for (const type of Object.keys(def.commands ?? {})) out.push(['command', type, `the command "${type}"`]);
         for (const name of Object.keys(def.queries ?? {})) out.push([isFallback(def, name) ? 'fallback' : 'query', name, `the query "${name}"`]);
         for (const [kind, spec] of Object.entries(def.capture?.kinds ?? {})) {
-            out.push(['kind', kind, `the capture kind "${kind}"`]);
+            // `fallback: true` (a kind another module may own): answers a word only while no module owns it, and takes no ownership (like a fallback query).
+            out.push([spec.fallback === true ? 'fallback' : 'kind', spec.fallback === true ? `kind:${kind}` : kind, `the capture kind "${kind}"`]);
             for (const alias of spec.aliases ?? []) out.push(['kind', alias, `the capture kind "${alias}" (an alias of "${kind}")`]);
         }
         for (const tab of def.tabs ?? []) out.push(['tab', tab.id, `the tab "${tab.id}"`]);
@@ -66,6 +67,7 @@ export function createRegistration({ defs, declared, owners, fallbacks, canonica
         if (clashes.length) refuse(id, clashes, def);
         for (const [table, name] of claims(def)) (table === 'fallback' ? fallbacks : owners[table]).set(name, id);
         for (const [kind, spec] of Object.entries(def.capture?.kinds ?? {})) {
+            if (spec.fallback === true) continue;
             canonical.set(kind, kind);
             for (const alias of spec.aliases ?? []) canonical.set(alias, kind);
         }

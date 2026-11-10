@@ -19,7 +19,7 @@ function lineNode(doc, result) {
     who.append(el(doc, 'span', 'rpg-check-name', result.who), doc.createTextNode(' · '), el(doc, 'span', 'rpg-check-what', result.what));
     if (result.utility) who.append(doc.createTextNode(' '), el(doc, 'span', 'rpg-check-util', 'utility'));
     const rank = result.rankName ?? RANK_NAMES[result.rank] ?? `Rank ${result.rank}`;
-    const detail = result.skill ? `(${String(result.stat).toUpperCase()}, ${rank})` : `(${String(result.stat).toUpperCase()}, no skill)`;
+    const detail = result.skill || result.practice?.skill ? `(${String(result.stat).toUpperCase()}, ${rank})` : `(${String(result.stat).toUpperCase()}, no skill)`;
     who.append(doc.createTextNode(' '), el(doc, 'span', 'rpg-check-muted', detail), doc.createTextNode(' · '), el(doc, 'span', 'rpg-check-difficulty', result.difficulty));
 
     const bonus = Number.isFinite(result.bonus) ? result.bonus : (result.statBonus ?? 0) + (result.rank ?? 0) + (result.classBonus ?? 0);

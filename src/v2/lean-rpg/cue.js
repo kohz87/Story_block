@@ -1,7 +1,7 @@
 // The [Rolls] cue (SPEC_RPG_v1 §4.5.3 step 5): what the narrator is told under [Happened], and what a refused action
 // says. Short lines, one per roll; the numbers are always "the party member's total vs the foe's (or the difficulty)".
 // Model-facing text, kept to the cue budget (names.js LIMITS.cueTokens).
-import { BATTLE_MARKER, LIMITS, RESOLVE, STAGES, stageWord } from './names.js';
+import { BATTLE_MARKER, DICE, LIMITS, RESOLVE, STAGES, offerLine, stageWord } from './names.js';
 
 export const wearLine = ({ item, to }) => `${item} ${to === 'broken' ? 'breaks' : 'is worn'} (${to[0].toUpperCase() + to.slice(1)})`;
 export const OUTCOME_WORD = Object.freeze({ success: 'SUCCESS', cost: 'SUCCESS AT A COST', fail: 'FAIL' });
@@ -218,5 +218,6 @@ export const entriesWithCue = list => (Array.isArray(list) ? list.map(entry => (
 /** The cue a receipt tells: its own `summary`, else (an `rpg.resolve` receipt of stage 51 on) the one its record gives back. */
 export function receiptCue(receipt) {
     if (typeof receipt?.summary === 'string' && receipt.summary) return receipt.summary;
+    if (receipt?.type === DICE) return offerLine(receipt.data?.v2?.dice?.list);
     return receipt?.type === RESOLVE ? cueOfResult(receipt.data?.v2?.result, receipt.data?.v2?.shape) : (receipt?.summary ?? '');
 }

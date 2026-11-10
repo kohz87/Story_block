@@ -1,8 +1,8 @@
 // The three d20 a reply offers outside a fight: one seeded stream per reply, and the exact note the narrator reads.
-// Pure: the same seed gives the same dice, so a Re-read can ask again without rolling anything new.
+// Pure: the same seed gives the same dice, so a Re-read can ask again without rolling anything new. (The note's text lives in names.js, a shared helper, so the cue can tell it without loading this.)
 
 import { rng } from '../../rng.js';
-import { FORMULA } from '../names.js';
+import { FORMULA, offerLine } from '../names.js';
 
 /** How many dice one reply offers. */
 export const CHECK_DICE_COUNT = 3;
@@ -13,7 +13,10 @@ export function replyDice(seed) {
     return Array.from({ length: CHECK_DICE_COUNT }, () => 1 + Math.floor(random() * FORMULA.die));
 }
 
-/** The exact prompt note from the approved mockup, with `dice` in the order they were rolled. */
-export function offerLine(dice) {
-    return `Dice for this reply, in order: ${(Array.isArray(dice) ? dice : []).join(', ')}. Use one for each attempt that can fail (yours or a party member's): d20 + stat part + skill rank against easy 10 (routine for a trained person), normal 15 (a real chance to fail), hard 20 (a skilled person often fails), very hard 25 (rarely done). The story must follow each result strictly. Report each: ? check Name | skill or stat | difficulty | die.`;
+export { offerLine };
+
+/** `rpg.dice`: the prelude's handler. The dice come from the receipt's seed (a swipe draws anew, a Re-read keeps them); the note is told from the record (cue.js), never stored as text. */
+export function diceRecord(ctx) {
+    if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'The dice are rolled by Story Block before a reply, not by an action.');
+    return { summary: '', narrate: false, data: { v2: { dice: { v: 1, list: replyDice(Math.floor(ctx.rng() * 4294967296) >>> 0) } } } };
 }

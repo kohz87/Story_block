@@ -277,7 +277,9 @@ export function legacyPlanner(part, { callModel, chat, metadata = () => null, mo
         return { plan: open.length ? { ...parsed.plan, open } : parsed.plan };
     }
     return async function beforeGenerate(view, info = {}) {
-        const out = await real(view, info);
+        // (the real hook now also offers a story-check die roll on a reply with no fight: the retired planner's replies carry none)
+        const given = await real(view, info);
+        const out = given?.commands?.every(command => command.type === 'rpg.dice') ? (given.lines ? { lines: given.lines } : null) : given;
         if (out?.commands) return out;
         if (view?.feature?.('story-block.rpg') !== true || info?.commit === false) return out;
         if (!['normal', 'regenerate', 'swipe'].includes(normalizeType(info?.type))) return out;

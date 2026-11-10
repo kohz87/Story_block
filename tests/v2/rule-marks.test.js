@@ -28,7 +28,8 @@ test('the rule table: a key line with a death word is diedAny; other lines and k
     assert.deepEqual(ruleMarksFor([line('- key Vorn | unpinned'), line('+ item Rope'), line('- away Vorn | died')]), []);
     assert.deepEqual(ruleMarksOf(['zzz', 'diedAny', 'diedAny', 7, 'constructor', null]), ['diedAny']);
     assert.deepEqual(ruleMarksOf('diedAny'), []);
-    assert.deepEqual(Object.keys(RULE_LINES), ['diedAny']);
+    assert.deepEqual(ruleMarksFor([line('? check Astra | cha | normal | 9')]), ['checks']);
+    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'diedAny']);
 });
 
 test('a live capture with a died key line marks the reply; the module reads it; a reply without the line has no mark', { }, async t => {

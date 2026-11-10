@@ -14,6 +14,21 @@ export const BOARD_SKILL_CARRY = 'rpg.boardSkillCarry';
 /** The prelude that records, with the reply, that a live fight's roll planner (gone; old records only) gave nothing usable (noroll.js): the note under the reply is drawn from it. */
 export const NOROLL = 'rpg.noroll';
 
+/** The prelude that rolls a reply's three story-check dice and records them with it (checks/dice.js; the narrator's note is drawn from it, cue.js). */
+export const DICE = 'rpg.dice';
+/** The step after a reply's lines that records its story checks' results (practice.js `checkStep`). */
+export const CHECK_STEP = 'rpg.check';
+/** The exact prompt note from the approved mockup, with `dice` in the order they were rolled. */
+export function offerLine(dice) {
+    return `Dice for this reply, in order: ${(Array.isArray(dice) ? dice : []).join(', ')}. Use one for each attempt that can fail (yours or a party member's): d20 + stat part + skill rank against easy 10 (routine for a trained person), normal 15 (a real chance to fail), hard 20 (a skilled person often fails), very hard 25 (rarely done). The story must follow each result strictly. Report each: ? check Name | skill or stat | difficulty | die.`;
+}
+
+/** The setting (Fight & checks): story checks outside a fight, on unless set to false. Off: no dice note, `? check` lines are not used. */
+export const CHECKS_SETTING = 'rpgChecks';
+export const checksOn = values => values?.[CHECKS_SETTING] !== false;
+/** The static grammar line of the `? check` kind: constant text, shown while the RPG, Story checks and a party are all there. */
+export const CHECK_GRAMMAR = '? check Name | skill or stat | easy, normal, hard or very hard | die (an attempt that can fail, with one of this reply\'s dice, in order; at most 3)';
+
 /** The step after a reply's lines that gives the party its XP for a won fight (fight.js); also the kind of its replay guard. */
 export const FIGHT = 'rpg.fight';
 

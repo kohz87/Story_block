@@ -87,7 +87,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         },
         capture: {
             // `you`'s grammar line is the part's function: it names a Rank only while an enabled pack gives one (youGrammar).
-            kinds: { ...CORE_KINDS, chatter: { ...CORE_KINDS.chatter, grammar: () => chatterGrammar(chatterCapNow()), display: Object.freeze({ noun: CORE_KINDS.chatter.display.noun, read: CORE_KINDS.chatter.display.read, get perReply() { return chatterCapNow(); } }) }, item: { ...CORE_KINDS.item, grammar: merged.kinds.item.grammar }, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
+            kinds: { ...CORE_KINDS, chatter: { ...CORE_KINDS.chatter, grammar: () => chatterGrammar(chatterCapNow()), display: Object.freeze({ noun: CORE_KINDS.chatter.display.noun, read: CORE_KINDS.chatter.display.read, get perReply() { return chatterCapNow(); } }) }, item: { ...CORE_KINDS.item, grammar: merged.kinds.item.grammar }, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party, check: merged.kinds.check },
             apply(ctx, line) {
                 const kind = merged.kinds[line?.kind];
                 if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);

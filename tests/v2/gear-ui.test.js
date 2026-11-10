@@ -219,5 +219,5 @@ test('Settings, RPG: the Gear in fights card sits after the Stat formula, with O
     assert.deepEqual(card.querySelectorAll('.rpg-chip').map(node => node.textContent), ['On', 'Off']);
     assert.equal(card.querySelector('[aria-pressed="true"]').textContent, 'Off', 'off until the reader switches it on');
     assert.match(card.textContent, /^Gear in fightsOnOffOn: worn gear adds stat points by rarity \(common \+0 up to legendary \+4\); .* Off: fights run as before; items, rarity and slots are kept\.$/);
-    assert.deepEqual(root.querySelector('[data-card="rolls"]').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off'], 'Rolls is as it was');
+    assert.deepEqual(root.querySelector('[data-card="rolls"]').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off', 'On', 'Off'], 'Rolls is as it was, with the Story checks switch after it');
 });

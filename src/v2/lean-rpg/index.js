@@ -10,11 +10,13 @@
 // names.js, the plan in plan.js, the sheet reader in read.js, the pre-call in precall.js, the roll in resolve.js
 // (its header documents the `data.v2.result` record the battle log draws from) and the cue text in cue.js.
 import { stChat } from '../assist/st-adapter.js';
-import { AUTO_CAP, AUTO_CAP_SETTING, BOARD_SKILL, FIGHT, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, NOROLL, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, PRECHECK_LIMIT_MS, PRECHECK_SETTING, RESOLVE, ROLLS, ROLLS_SETTING } from './names.js';
+import { AUTO_CAP, AUTO_CAP_SETTING, BOARD_SKILL, CHECKS_SETTING, CHECK_STEP, DICE, FIGHT, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, NOROLL, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, PRECHECK_LIMIT_MS, PRECHECK_SETTING, RESOLVE, ROLLS, ROLLS_SETTING } from './names.js';
 import { noRoll } from './noroll.js';
 import { fightHook, fightXp } from './fight.js';
 import { RANK_QUERY, SETTINGS_SCHEMA, XP_RATE, XP_RATE_SETTING, rankQuery } from './levels.js';
-import { practiceHook, practiceStep } from './practice.js';
+import { checkStep, checksHook, practiceHook, practiceStep } from './practice.js';
+import { diceRecord } from './checks/dice.js';
+export { parseCheckLine } from './checks/line.js';
 import { JOIN_NO, joinCard, joinOffers, partyOf } from './join.js';
 import { createPrecall } from './precall.js';
 import { leanRpgGuard, resolve, rollsOf } from './resolve.js';
@@ -47,7 +49,7 @@ export { boardGrammar, boardReplyGrammar, boardXpGuide } from './board/prompt.js
 export { DICE_VERSION, FLOW_VERSION, RESULT_VERSION, claimKey, leanRpgGuard, outcomeOf, positionalDice, prepare, resolve, rollPrepared, rollsOf } from './resolve.js';
 
 /** The part's setting (Story Block's own bucket): when the pre-call plans the rolls. */
-export const DEFAULT_SETTINGS = Object.freeze({ [ROLLS_SETTING]: ROLLS[0], [PRACTICE_SETTING]: PRACTICE.perUse, [XP_RATE_SETTING]: XP_RATE.default, [LEVEL_CAP_SETTING]: LEVEL.max, [AUTO_CAP_SETTING]: AUTO_CAP.default, [PRECHECK_SETTING]: true });
+export const DEFAULT_SETTINGS = Object.freeze({ [ROLLS_SETTING]: ROLLS[0], [PRACTICE_SETTING]: PRACTICE.perUse, [XP_RATE_SETTING]: XP_RATE.default, [LEVEL_CAP_SETTING]: LEVEL.max, [AUTO_CAP_SETTING]: AUTO_CAP.default, [PRECHECK_SETTING]: true, [CHECKS_SETTING]: true });
 
 /** The offers a reply's `+ party` lines made under Ask (the card under the reply reads them): `rpg.joins { index? }` → [{ name, about, soul, best }] on the head reply (or the reply `index`). */
 export const JOINS_QUERY = 'rpg.joins';
@@ -62,12 +64,13 @@ export const ROLLS_QUERY = 'rpg.rolls';
  *   moduleId = 'story-block' (whose settings it reads)
  *   rosterOn() → whether the RPG and Gear in fights are both on (the roster is answered only then, or when asked for `recorded`)
  *   persona() → the reader's name, for `party.pc` (default: none, the first block)
+ *   checksOwned() → whether Story Block's own `? check` kind is the one in use (another module may own the word; then no dice are offered; default: yes)
  *   callModel(prompt, { maxTokens, profile, helper, timeoutMs }) → text, onPlanning(working), timeoutMs, timer: the foe pre-check's one Assist call (none: no pre-check)
  * → { commands, queries, hooks, settings: { defaults }, guard }; `guard` is the replay guard for `rpg.resolve` blocks
  * (domains/index.js routes the guards of that predicate to it).
  */
-export function createLeanRpgPart({ chat = stChat, metadata = () => null, moduleId = 'story-block', persona = () => '', rosterOn, callModel, onPlanning, timeoutMs, timer } = {}) {
-    const precall = createPrecall({ chat, metadata, moduleId, skip: skipOf(metadata), callModel, onPlanning, timeoutMs, timer });
+export function createLeanRpgPart({ chat = stChat, metadata = () => null, moduleId = 'story-block', checksOwned, persona = () => '', rosterOn, callModel, onPlanning, timeoutMs, timer } = {}) {
+    const precall = createPrecall({ chat, metadata, moduleId, checksOwned, skip: skipOf(metadata), callModel, onPlanning, timeoutMs, timer });
     const board = createBoardPart();
     return {
         // A prelude: previewed before the reply and stored on it before its story lines (turn.js). Not tied to the
@@ -77,6 +80,10 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
             [RESOLVE]: Object.assign((ctx, payload) => resolve(ctx, payload), { prelude: true, internal: true }),
             // The note that a live fight's planner (gone) gave nothing usable, kept with the reply; old records only (noroll.js). Not tied to the feature either.
             [NOROLL]: Object.assign((ctx, payload) => noRoll(ctx, payload), { prelude: true, internal: true }),
+            // A reply's three story-check dice (checks/dice.js): a prelude, drawn from the receipt's seed, so a swipe rolls anew and a Re-read keeps them. Not tied to the feature either.
+            [DICE]: Object.assign(ctx => diceRecord(ctx), { prelude: true, internal: true }),
+            // The results of a reply's story checks, a step after its lines (practice.js). Not tied to the feature either: a Re-read keeps it.
+            [CHECK_STEP]: Object.assign((ctx, payload) => checkStep(ctx, payload), { internal: true }),
             // XP for a won fight, a step after the reply's lines (fight.js). Not tied to the feature either: a Re-read keeps it.
             [FIGHT]: Object.assign((ctx, payload) => fightXp(ctx, payload), { internal: true }),
             // Practice for the skills a reply's rolls used, a step after the reply's lines (practice.js). Not tied to the feature either.
@@ -105,7 +112,7 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
             afterCapture: (view, info) => {
                 precall.afterCapture(view);
                 // The fight's XP, then the rolled skills' practice: two steps after the reply's lines.
-                const commands = [fightHook(view, info), practiceHook(view, info)].flatMap(out => out?.commands ?? []);
+                const commands = [fightHook(view, info), practiceHook(view, info), checksHook(view, info)].flatMap(out => out?.commands ?? []);
                 return commands.length ? { commands } : undefined;
             },
             // Every reply, whatever else answers afterCapture and with or without change lines: the one-time "send without the RPG" flag goes.

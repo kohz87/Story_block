@@ -5,7 +5,7 @@
 import { featureOf } from '../features.js';
 import { CAPTURE_PREFIX, INIT_PREFIX, grammarOf, isObject, jsonProblem } from '../registry-checks.js';
 
-export function createCommandLookups({ defs, owners, canonical, held, lifecycle, nameOf, off, warn }) {
+export function createCommandLookups({ defs, owners, fallbacks = new Map(), canonical, held, lifecycle, nameOf, off, warn }) {
     // The refusal for a reader's action on command `type` whose module is held back, else null.
     function refusal(type) {
         const owner = commandOwner(type);
@@ -42,9 +42,10 @@ export function createCommandLookups({ defs, owners, canonical, held, lifecycle,
     const displayOf = spec => (spec.display === true ? Object.freeze({}) : isObject(spec.display) ? spec.display : null);
 
     function captureEntry(word) {
-        const kind = canonical.get(String(word ?? '').toLowerCase());
+        const lower = String(word ?? '').toLowerCase();
+        const kind = canonical.get(lower) ?? (fallbacks.has(`kind:${lower}`) ? lower : null);
         if (!kind) return null;
-        const def = defs.get(owners.kind.get(kind));
+        const def = defs.get(owners.kind.get(kind) ?? fallbacks.get(`kind:${kind}`));
         const spec = def.capture.kinds[kind];
         // `enabled: false` (a kind of an API not in use, MODULES / LIFECYCLE "Deferred domains"): acts as if it were not declared, so a
         // line of it is told as an unknown kind, exactly as in a host that never had the kind.

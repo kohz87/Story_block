@@ -96,7 +96,7 @@ test('gear on: the join adds the signature gear to the person, put on in its slo
     const joined = receipt(host);
     assert.equal(joined.summary, 'Mara joined the party. Gear: Cane Sword, Oak Buckler, Tin Ring.');
     assert.deepEqual(joined.data.gear, { owner: 'ac_mara0001', items: GEAR });
-    assert.deepEqual(receipts(host).map(entry => entry.type).filter(type => type !== 'dm.settle'), ['capture.party'], 'no receipt of its own');
+    assert.deepEqual(receipts(host).map(entry => entry.type).filter(type => type !== 'dm.settle' && type !== 'rpg.dice'), ['capture.party'], 'no receipt of its own');
     assert.deepEqual(host.turn.problems().filter(item => item.code !== 'ROLLS_SKIPPED'), []);
 });
 

@@ -5,7 +5,7 @@ import { validateDataMigration, dataModuleDefaults } from '../check.js';
 import { copy } from '../interpreter.js';
 import { activeDefinition, actorsOf, inputsOf, instanceOf, publicView } from '../adapters.js';
 import { rpgLib } from '../../rpg-lazy.js';
-import { LEAN_RPG_FEATURE, ROLLS_SETTING, practiceFromRollsOnly } from '../../lean-rpg/names.js';
+import { CHECK_GRAMMAR, LEAN_RPG_FEATURE, ROLLS_SETTING, checksOn, practiceFromRollsOnly } from '../../lean-rpg/names.js';
 import { readSheet } from '../../lean-rpg/read.js';
 import { createCore } from './core.js';
 import { createSkills } from './skills.js';
@@ -41,7 +41,16 @@ export function createDataModulesPart(opts = {}) {
             'dm.join': Object.assign(wrap(d.addParty), { feature: LEAN_RPG_FEATURE }) },
         // `+ party Name | about: … | class: I | best: int` and `- party Name`: under the RPG feature, out of the grammar while Companions who join is Off, and
         // until the story has a Character block (a party line means something only once there is a party).
-        kinds: { dm: kind, party: { grammar: () => rpgLib()?.joinGrammar() ?? '', feature: LEAN_RPG_FEATURE, get enabled() { const lib = rpgLib(); return lib !== null && lib.joinMode(settings()) !== 'off' && lib.partyOf(state()).length > 0; }, apply: wrap(d.party) } },
+        // `? check Name | skill or stat | difficulty | die`: story checks (lean-rpg/checks). Here the line is only read and kept; the reply's step after its lines
+        // (practice.js checkStep) checks it against the dice and the sheet. A reply with no `checks` rule mark (captured before them) does not use it.
+        kinds: { check: { fallback: true, grammar: CHECK_GRAMMAR, feature: LEAN_RPG_FEATURE, get enabled() { return checksOn(settings()) && readSheet(state()).characters.length > 0; },
+            apply(ctx, line) {
+                if (!ctx.carrier?.rules?.includes('checks')) return ctx.fail('INVALID', `No module keeps "check", so "${line?.raw}" was not used.`);
+                const parsed = rpgLib()?.parseCheckLine(line?.raw) ?? { ok: false, reason: 'the RPG is still loading' };
+                if (!parsed.ok) return ctx.fail('INVALID', `"${line?.raw}" was not used: ${parsed.reason}.`);
+                return { summary: '', narrate: false, data: { check: { raw: String(line.raw).slice(0, 200) } } };
+            } },
+            dm: kind, party: { grammar: () => rpgLib()?.joinGrammar() ?? '', feature: LEAN_RPG_FEATURE, get enabled() { const lib = rpgLib(); return lib !== null && lib.joinMode(settings()) !== 'off' && lib.partyOf(state()).length > 0; }, apply: wrap(d.party) } },
         queries: { 'dataModules.offers': offers, 'dataModules.view': moduleView, 'dataModules.public': publicView,
             'dataModules.replayInputs': replayInputs, 'dataModules.actors': actorsOf,
             'dataModules.setup': prefix => {

@@ -61,7 +61,7 @@ test('turning the feature on mounts it once; turning it off takes it all away; o
     await settle();
     assert.equal(loads.length, 1);
     assert.ok(ui.screens.resolve(PARTY));
-    assert.equal(hasLink(doc), 4, 'the four stylesheets are added');
+    assert.equal(hasLink(doc), 5, 'the five stylesheets are added');
     host.features.set(CORE_FEATURE.leanRpg, true);
     await settle();
     assert.equal(loads.length, 1, 'already mounted: not loaded twice');
@@ -185,7 +185,7 @@ test('Settings has an RPG page of its own after Features while the feature is on
     const card = rpg.querySelector('[data-card="rolls"]');
     assert.ok(card.textContent.includes('Rolls'));
     const chips = card.querySelectorAll('.rpg-chip');
-    assert.deepEqual(chips.map(node => node.textContent), ['Automatic', 'Off']);
+    assert.deepEqual(chips.map(node => node.textContent), ['Automatic', 'Off', 'On', 'Off']);
     assert.equal(chips[0].getAttribute('aria-pressed'), 'true', 'automatic is the default');
     chips[1].click();
     await settle();
