@@ -4,7 +4,9 @@
 //
 //   * `add-xp` from the story: not used (XP comes from won fights, by code; the reader's own edit stays).
 //   * `set-health`, `set-stamina`, `set-mana` may lower a bar, never raise it (a rest, a full rest or a heal does that).
-//   * `full-rest` from the story: not twice within 6 story hours for one character (no story clock: allowed).
+//   * `full-rest` from the story: not twice within 6 story hours for one character (no story clock: allowed). On a reply captured under the `restFallback` rule
+//     mark (turn/rule-marks.js) a refused one counts as a short rest instead (part/act.js).
+//   * The prompt's recovery sentence: said by code for a marked Character (recoveryPrompt), so a pin made with the first wording says what each kind is too.
 const BAR_FIELDS = ['health', 'stamina', 'mana'];
 
 /** Story hours between two full rests of one character. */
@@ -22,12 +24,19 @@ export const isMarkedCharacter = definition => definition?.role === 'character'
 /** The two reader buttons an earlier marked Character was pinned with: never drawn now; their recorded lines still replay (part/act.js). */
 export const hasRestButtons = definition => isMarkedCharacter(definition) && ['button-rest', 'button-full-rest'].every(kind => definition.kinds?.[kind]?.ui);
 
+/** The recovery sentence a marked Character was first pinned with, and the one that says what each kind restores. */
+export const REST_WORDS_OLD = 'rest, full-rest (once in 6 story hours) and heal (amount 1 to 3) do.';
+export const REST_WORDS = "rest (an hour or two) refills mana and stamina; full-rest (a night's sleep, once in 6 story hours) also health; heal (1 to 3 health steps) only health.";
+/** The prompt of a marked Character as the narrator is shown it: the old recovery sentence is swapped for the new one. Nothing is written to the pin; an unmarked pin, or text without the old sentence, is returned as it is. */
+export const recoveryPrompt = definition => (isMarkedCharacter(definition) && typeof definition.prompt === 'string' ? definition.prompt.replace(REST_WORDS_OLD, REST_WORDS) : definition?.prompt);
+
 const NAME = { health: 'Health', stamina: 'Stamina', mana: 'Mana' };
 /** The notes (Problems lines), named for the character. */
 export const recoveryNote = {
     xp: who => `${who}: XP comes from fights only, so this line was not used.`,
     raised: (who, bar) => (bar === 'health' ? `${who}: Health was not raised. It needs a full rest or a heal.`
         : `${who}: ${NAME[bar]} was not raised. A short rest refills it.`),
+    restFallback: who => `${who}: full rest too soon (last under ${FULL_REST_HOURS} story hours ago), counted as a short rest.`,
     fullRest: who => `${who}: full rest refused. The last one was under ${FULL_REST_HOURS} story hours ago.`,
 };
 

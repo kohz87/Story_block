@@ -40,7 +40,7 @@ test('the rule table: a key line with a death word is diedAny; other lines and k
     assert.deepEqual(ruleMarksOf('diedAny'), []);
     assert.deepEqual(ruleMarksFor([line('? roll Astra | cha | normal | 9')]), ['checks']);
     assert.deepEqual(ruleMarksFor([line('? check lockpick — the lock | dc: normal')]), [], '`check` is Story Director\'s word: no mark');
-    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'diedAny']);
+    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'diedAny', 'restFallback']);
 });
 
 test('a Continue of an old unmarked death cannot change its earlier lines on Re-read', async t => {

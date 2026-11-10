@@ -24,6 +24,12 @@ async function world({ old = false, clock = false, minute = 1000 } = {}) {
 }
 const fields = host => host.head().domains.dataModules.instances['pack.chat/character'].chat.fields;
 const say = (host, lines) => host.send('Go.', `Told.\n<Changes>\n${lines.join('\n')}\n</Changes>`);
+// A reply captured before the `restFallback` rule: no mark, so a too-soon full rest is still refused (rest-fallback.test.js covers the marked reply).
+const sayOld = async (host, lines) => {
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); };
+    try { await say(host, lines); } finally { host.store.setRuleMarks = setter; }
+};
 const set = (host, patch) => host.sdk.command('dm.set', { module: 'pack.chat/character', fields: patch });
 const problems = host => JSON.stringify(host.turn.problems().map(problem => problem.message));
 const same = host => { const live = JSON.stringify(host.head()); host.store.rebuild(); assert.equal(JSON.stringify(host.head()), live, 'rebuild == live'); };
@@ -120,7 +126,7 @@ test('full-rest from the story is refused under 6 story hours after the last; no
         assert.ok(top > 1);
         assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 359 })).ok, true);
         await set(host, { health: 1 });
-        await say(host, ['~ dm character — a bed | kind: full-rest']);
+        await sayOld(host, ['~ dm character — a bed | kind: full-rest']);
         assert.equal(fields(host).health, 1);
         assert.ok(problems(host).includes(recoveryNote.fullRest('Astra')), problems(host));
         assert.equal((await host.sdk.command('test.minute', { minute: 1000 + 360 })).ok, true);
@@ -147,7 +153,7 @@ test('the clock records negative, zero and large safe minutes and still enforces
             await say(host, ['~ dm character — bed | kind: full-rest']);
             assert.equal(fields(host)['rested-at'], minute);
             await set(host, { health: 1 });
-            await say(host, ['~ dm character — bed | kind: full-rest']);
+            await sayOld(host, ['~ dm character — bed | kind: full-rest']);
             assert.equal(fields(host).health, 1);
             assert.equal(host.turn.problems().at(-1).message, recoveryNote.fullRest('Astra'));
             same(host);
@@ -163,7 +169,7 @@ test('deleting the time advance cannot replay a full rest less than six hours af
         await set(host, { health: 1 });
         await say(host, ['! time 360']);
         const timeReply = host.store.headIndex();
-        await say(host, ['~ dm character — second | kind: full-rest']);
+        await sayOld(host, ['~ dm character — second | kind: full-rest']);
         assert.ok(fields(host).health > 1);
         await reload(host);
         await host.st.deleteMessage(timeReply);

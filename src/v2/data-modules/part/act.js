@@ -122,7 +122,13 @@ export function createAct(deps) {
         if (restKind) { try { minutes = ctx.query('director.time', {})?.minutes; } catch { minutes = null; } }
         const clock = Number.isSafeInteger(minutes) ? minutes : null;
         const who = String(instance.fields.who || definition.name);
-        if (restKind && ctx.cause === 'story' && fullRestTooSoon(clock, instance.fields[RESTED_FIELD], instance.fields[RESTED_KNOWN])) ctx.fail('RECOVERY_REFUSED', recoveryNote.fullRest(who).slice(0, 280));
+        // A reply captured under the `restFallback` mark counts a too-soon story full rest as a short rest (the `rest` kind's effects; health and rested-at stay); `fallback` is in the
+        // recorded decision. A reply without the mark keeps the refusal.
+        let fallback = false;
+        if (restKind && ctx.cause === 'story' && fullRestTooSoon(clock, instance.fields[RESTED_FIELD], instance.fields[RESTED_KNOWN])) {
+            if (labels.kind === 'full-rest' && ctx.carrier?.rules?.includes('restFallback') && Array.isArray(definition.kinds.rest?.effects)) fallback = true;
+            else ctx.fail('RECOVERY_REFUSED', recoveryNote.fullRest(who).slice(0, 280));
+        }
         evaluation.timers();
         // A foe group the narrator sets by a name already on a slot of the same Foes block (the pre-call may have opened this very fight, lean-rpg/open.js)
         // is that group: the slot is updated (count and class), never a second slot with the same name; its health stays as it is.
@@ -133,13 +139,14 @@ export function createAct(deps) {
         if (same !== undefined) evaluation.effects([{ op: 'set', path: [`foe${same}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${same}`], value: ['arg', 'count'] }, { op: 'set', path: [kind.labels.level ? `level${same}` : `class${same}`], value: ['arg', kind.labels.level ? 'level' : 'class'] }], { arg: args });
         else if (route?.update) evaluation.effects(['about', 'stat', 'uses'].map(key => ({ op: 'set', path: [`${key}${route.slot}`], value: ['arg', key] })), { arg: args });
         else {
-            const run = route ? definition.kinds[route.kind] : kind;
+            const run = route ? definition.kinds[route.kind] : fallback ? { ...kind, effects: definition.kinds.rest.effects } : kind;
             if (!evaluation.condition(['kind', route?.kind ?? labels.kind], run.when, { arg: args })) refuse('DM_CONDITION', '', run.refusal ?? 'Kind condition is not met.');
             evaluation.effects(run.effects, { arg: args });
             // A marked Character's bar is lowered by the story, never raised (a rest, a full rest or a heal does that).
             const raised = SET_KINDS[labels.kind];
             if (marked && raised && instance.fields[raised] > fieldsBefore[raised]) ctx.fail('RECOVERY_REFUSED', recoveryNote.raised(who, raised).slice(0, 280));
-            if (clock !== null && Object.hasOwn(definition.state, RESTED_KNOWN)) evaluation.effects([{ op: 'set', path: [RESTED_FIELD], value: clock }, { op: 'set', path: [RESTED_KNOWN], value: true }]);
+            if (fallback) { /* a short rest: the last full rest stays where it was */ }
+            else if (clock !== null && Object.hasOwn(definition.state, RESTED_KNOWN)) evaluation.effects([{ op: 'set', path: [RESTED_FIELD], value: clock }, { op: 'set', path: [RESTED_KNOWN], value: true }]);
             else if (clock !== null && clock >= 0 && clock < 2_000_000_000 && definition.state[RESTED_FIELD]) evaluation.effects([{ op: 'set', path: [RESTED_FIELD], value: clock + 1 }]);
         }
         evaluation.rules();
@@ -147,9 +154,10 @@ export function createAct(deps) {
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), imports: prefixImports(definition), clock: restKind,
-            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(clock !== null ? { clock } : {}), ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
+            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(clock !== null ? { clock } : {}), ...(fallback ? { fallback: true } : {}), ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
-        const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
+        const notes = fallback ? [...result.notes, recoveryNote.restFallback(who).slice(0, 280)] : result.notes;
+        const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes, ...(result.fired.length ? { rules: result.fired } : {}) };
         // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is
         // given by code, can put back what the narrator added in that reply.
         const xpFrom = ctx.cause === 'story' && definition.role === 'character' && kind.effects.some(effect => Array.isArray(effect?.path) && effect.path[0] === 'xp')
@@ -158,7 +166,7 @@ export function createAct(deps) {
         // reply's rolls give by code can put back what the narrator added for the same skill.
         const practiceFrom = ctx.cause === 'story' && route && route.kind.startsWith('practice-')
             ? { [module]: { [route.slot]: Object.fromEntries(['practice', 'rank'].filter(key => Number.isSafeInteger(fieldsBefore[`${key}${route.slot}`])).map(key => [key, fieldsBefore[`${key}${route.slot}`]])) } } : null;
-        const answer = finish(ctx, prefix, draft, recorded, { pin: Boolean(grown), visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, listsFrom: Object.keys(result.lists).length ? { ...listsKept, [listKey]: result.lists } : null, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
+        const answer = finish(ctx, prefix, draft, recorded, { pin: Boolean(grown), visits: result.visits, notes, result: outcome, xpFrom, practiceFrom, listsFrom: Object.keys(result.lists).length ? { ...listsKept, [listKey]: result.lists } : null, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }

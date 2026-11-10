@@ -10,7 +10,7 @@ import { oneLine } from '../../../text.js';
 import { editableLayout } from '../editable-layout.js';
 import { blockTabScreen } from '../block-screen.js';
 import { boardGrammar, boardXpGuide } from '../board-static.js';
-import { isMarkedCharacter } from '../recovery.js';
+import { isMarkedCharacter, recoveryPrompt } from '../recovery.js';
 import { rpgLib } from '../../rpg-lazy.js';
 import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget } from './shared.js';
 
@@ -97,6 +97,7 @@ export function grammarFor(state, quiet = null, { rolled = false, board = false 
             const value = rolled ? noPractice(kept) : kept;
             return kept ? oneLine(board ? boardXpGuide(value) : value) : '';
         }
+        if (definition?.role === 'character') definition = { ...definition, prompt: recoveryPrompt(definition) };
         const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
         return shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
     }).filter(Boolean);

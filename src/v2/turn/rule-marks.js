@@ -17,6 +17,8 @@ export const RULE_LINES = Object.freeze({
     checks: line => line?.kind === 'roll',
     // `- key Name | died`: a death counts for anyone, not only a pinned key person (Story Director keypeople). Same words as its death test.
     diedAny: line => line?.kind === 'key' && line.op === '-' && [line.text, ...Object.keys(line.labels ?? {}), ...Object.values(line.labels ?? {})].some(part => DEATH.test(String(part ?? ''))),
+    // `~ dm character | kind: full-rest`: a full rest refused as too soon counts as a short rest (data-modules/part/act.js). A reply with no mark keeps the refusal.
+    restFallback: line => line?.kind === 'dm' && line.op === '~' && line.labels?.kind === 'full-rest',
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
