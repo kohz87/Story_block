@@ -1,6 +1,6 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.9.1, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.9.2, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
@@ -35,14 +35,15 @@ SillyTavern profile.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
+2.9.2 (content only) makes every cast look physical features only (the kind word and the height first; no age, no "looks about N", no impressions that are not physical), names no real-world breed or brand (Temiwa is a "Dogfolk woman"), puts the age in `fields.People` for all twelve ("Dogfolk woman, 21", "Dwelf, 58 (looks about 25)"), and cuts each personality to its core (at most 320 characters; what a behaviour lever or a mannerism says is not repeated). Temiwa's look, personality and Presentation lever were approved by the owner.
 2.9.1 (content only) turns four "with you" lines into first-meeting stances (Temiwa, Ysmeth, Nysseth, Harrak; Nysseth's last stage milestone starts "she has chosen you") and writes each cast member's height ("about N cm") into the look right after the kind and age.
-2.8.0 gave each of the twelve exactly two signature skills, makes Sister Temiwa a Shiba Inu dogfolk healer (Lv 4, a shy dandere with waterfall black hair, soft and weary, no cruelty or possessiveness), makes Nerissa deredere and Nysseth yandere, and sets Rika to Lv 8 and Torka to Lv 6; 2.9.0 sets each skill's `type` (utility: Gentle Word, Silver Patter, Toast and Tell, Pilot's Hand, Flower-Speech, Quiet Step, Lockwork, Chain Cell Craft, Silver Rain Veil, Mother's Hand; every other skill combat, Mending Prayer the combat heal), gives the new Binding Rune the rank of Lockwork (expert), Flower-Speech that of Quiet Step (adept) and Dirty Trick that of Silver Patter (adept), adds Temiwa's stockings with garters and buckled belt, and gives her a new portrait (800×1200). It needs Story Block 2.28.0 (`requires.storyBlock` ^2.28.0), the release that carries pack skill types.
+2.8.0 gave each of the twelve exactly two signature skills, makes Sister Temiwa a dogfolk healer (Lv 4, a shy dandere with waterfall black hair, soft and weary, no cruelty or possessiveness), makes Nerissa deredere and Nysseth yandere, and sets Rika to Lv 8 and Torka to Lv 6; 2.9.0 sets each skill's `type` (utility: Gentle Word, Silver Patter, Toast and Tell, Pilot's Hand, Flower-Speech, Quiet Step, Lockwork, Chain Cell Craft, Silver Rain Veil, Mother's Hand; every other skill combat, Mending Prayer the combat heal), gives the new Binding Rune the rank of Lockwork (expert), Flower-Speech that of Quiet Step (adept) and Dirty Trick that of Silver Patter (adept), adds Temiwa's stockings with garters and buckled belt, and gives her a new portrait (800×1200). It needs Story Block 2.28.0 (`requires.storyBlock` ^2.28.0), the release that carries pack skill types.
 2.7.0 lays Standing, Fame, Guild and Court favour out as sections of one Reputation tab and needs Story Block 2.22.0 (a running chat moves by migrating the four modules: see "Moving a running chat to 2.7.0" below).
 2.6.1 trims the always-on lore and makes Classification, Currency, Naming and Knowledge keyword entries (the story sends them when the topic comes up).
 2.6.0 adds sixteen signature items (each cast member's own gear, given and bound to them when they join the party while Gear in fights is on) and needs Story Block 2.18.0.
 2.5.0 adds the guild rank bands and the guild letter as the party's rank (§6, Ranks), turns the cast's Soul Class field into Level (each of the twelve set by role, 8 to 56), and needs Story Block 2.17.0.
 
-Importing 2.9.1 replaces an installed pack with the same id. Start a new chat to use its starting state.
+Importing 2.9.2 replaces an installed pack with the same id. Start a new chat to use its starting state.
 2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import `examples/packs/ersveil.zip` (`pack.json` and `portraits/`; rebuild it with `node scripts/build-example-zip.mjs`) or pick `pack.json` and the twelve `.webp` files together; `pack.json` alone leaves the portraits unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
@@ -111,7 +112,7 @@ opens as Trust or Affection grows or when the story reaches it; none of it is to
 
 | Person | Where they begin | One line |
 |---|---|---|
-| Sister Temiwa | Bluewatch Village | A Shiba Inu dogfolk saintess candidate exiled to the frontier, a shy, soft, weary, dryly sarcastic healer who keeps the dead at rest. |
+| Sister Temiwa | Bluewatch Village | A dogfolk saintess candidate exiled to the frontier, a shy, soft, weary, dryly sarcastic healer who keeps the dead at rest. |
 | Ysmeth | Shackles City / Chainmarket | A dwelf rune-collar artificer held by the Grey Ledger, cold, exact and planning every exit. |
 | Nysseth | Shackles City / Knifeglass Alley | A soft-spoken, sweet, obsessively devoted elf who runs a Broken Chain cell from a knife-grinder's stall and teaches by asking what you missed. |
 | Rika | Auvoth / Pale Market | A white-haired barge-girl mage with huge, unrefined power who cannot read and will not say so. |
