@@ -1,4 +1,4 @@
-// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.8.0): they pass the cast check whole, stay inside every limit,
+// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.9.0): they pass the cast check whole, stay inside every limit,
 // start at places the pack names, carry their portraits (WebP, small), keep their secrets out of the lines the reader sees, and
 // come in as one zip that the importer reads.
 import test from 'node:test';
@@ -236,6 +236,7 @@ test('every one of the twelve has its personality split: shorter than before, wi
     assert.doesNotMatch(JSON.stringify(cast().find(person => person.id === 'torka')), /sadis/i);
     assert.match(temiwa.look, /Shiba Inu dogfolk.*Black dog ears with cream points.*waterfall/);
     assert.equal(temiwa.fields.People, 'Shiba Inu dogfolk woman, 21');
+    assert.match(temiwa.wears, /Dark stockings with garters beneath, a buckled leather belt\./);
     assert.match(temiwa.personality, /^Dandere/);
     assert.deepEqual(temiwa.stages.map(stage => stage.name), ['Tolerates you', 'Talks while she stitches', 'Burns a candle for you', 'My candle']);
     assert.match(temiwa.secrets.find(secret => secret.title === 'Her reliquary').text, /first bandage she ever wound for you/);
@@ -245,25 +246,25 @@ test('every one of the twelve has its personality split: shorter than before, wi
     assert.match(nysseth.personality, /Yandere.*obsession.*removes anyone.*Durvald Seamrune/s);
 });
 
-// The owner's list (10 Nov): name, stat, uses, rank of each member's two skills, in order. (A pack skill has no combat/utility type yet.)
+// The owner's list (10 Nov): name, stat, uses, rank, type of each member's two skills, in order.
 const SKILLS = {
-    temiwa: [['Mending Prayer', 'int', 'mana', 'novice'], ['Gentle Word', 'cha', 'stamina', 'novice']],
-    ysmeth: [['Lockwork', 'dex', 'stamina', 'expert'], ['Binding Rune', 'int', 'mana', 'novice']],
-    nysseth: [["Grinder's Knives", 'dex', 'stamina', 'expert'], ['Chain Cell Craft', 'int', 'stamina', 'expert']],
-    rika: [['Raw Bolt', 'int', 'mana', 'adept'], ['Wild Surge', 'int', 'stamina', 'novice']],
-    harrak: [['Long Watch Cleave', 'str', 'stamina', 'expert'], ['Hold the Line', 'vit', 'stamina', 'master']],
-    torka: [['Berserker Rush', 'str', 'stamina', 'novice'], ['Maul Swing', 'str', 'stamina', 'novice']],
-    lothar: [['Iron Guard Cut', 'dex', 'stamina', 'expert'], ['Shield of the Princess', 'vit', 'stamina', 'adept']],
-    gorm: [['Hammer Rune', 'str', 'stamina', 'adept'], ['Toast and Tell', 'cha', 'stamina', 'adept']],
-    nerissa: [["Pilot's Hand", 'dex', 'stamina', 'adept'], ['Harpoon Dive', 'agi', 'stamina', 'adept']],
-    hush: [['Silver Rain Veil', 'int', 'mana', 'expert'], ["Mother's Hand", 'vit', 'stamina', 'adept']],
-    asphodel: [['Flower-Speech', 'int', 'mana', 'novice'], ['Quiet Step', 'agi', 'stamina', 'adept']],
-    barney: [['Silver Patter', 'cha', 'stamina', 'adept'], ['Dirty Trick', 'dex', 'stamina', 'novice']],
+    temiwa: [['Mending Prayer', 'int', 'mana', 'novice', 'combat'], ['Gentle Word', 'cha', 'stamina', 'novice', 'utility']],
+    ysmeth: [['Lockwork', 'dex', 'stamina', 'expert', 'utility'], ['Binding Rune', 'int', 'mana', 'expert', 'combat']],
+    nysseth: [["Grinder's Knives", 'dex', 'stamina', 'expert', 'combat'], ['Chain Cell Craft', 'int', 'stamina', 'expert', 'utility']],
+    rika: [['Raw Bolt', 'int', 'mana', 'adept', 'combat'], ['Wild Surge', 'int', 'stamina', 'novice', 'combat']],
+    harrak: [['Long Watch Cleave', 'str', 'stamina', 'expert', 'combat'], ['Hold the Line', 'vit', 'stamina', 'master', 'combat']],
+    torka: [['Berserker Rush', 'str', 'stamina', 'novice', 'combat'], ['Maul Swing', 'str', 'stamina', 'novice', 'combat']],
+    lothar: [['Iron Guard Cut', 'dex', 'stamina', 'expert', 'combat'], ['Shield of the Princess', 'vit', 'stamina', 'adept', 'combat']],
+    gorm: [['Hammer Rune', 'str', 'stamina', 'adept', 'combat'], ['Toast and Tell', 'cha', 'stamina', 'adept', 'utility']],
+    nerissa: [["Pilot's Hand", 'dex', 'stamina', 'adept', 'utility'], ['Harpoon Dive', 'agi', 'stamina', 'adept', 'combat']],
+    hush: [['Silver Rain Veil', 'int', 'mana', 'expert', 'utility'], ["Mother's Hand", 'vit', 'stamina', 'adept', 'utility']],
+    asphodel: [['Flower-Speech', 'int', 'mana', 'adept', 'utility'], ['Quiet Step', 'agi', 'stamina', 'adept', 'utility']],
+    barney: [['Silver Patter', 'cha', 'stamina', 'adept', 'utility'], ['Dirty Trick', 'dex', 'stamina', 'adept', 'combat']],
 };
 
-test('every member has exactly the two skills the owner listed; Mending Prayer heals and Wild Surge hits every foe on the fight board', () => {
+test('every member has exactly the two skills (type and rank too) the owner listed; Mending Prayer heals and Wild Surge hits every foe on the fight board', () => {
     assert.deepEqual(Object.keys(SKILLS), IDS);
-    for (const person of cast()) assert.deepEqual(person.skills.map(skill => [skill.name, skill.stat, skill.uses, skill.rank]), SKILLS[person.id], person.id);
+    for (const person of cast()) assert.deepEqual(person.skills.map(skill => [skill.name, skill.stat, skill.uses, skill.rank, skill.type]), SKILLS[person.id], person.id);
     const find = (id, name) => cast().find(person => person.id === id).skills.find(skill => skill.name === name);
     assert.equal(healingSkill(find('temiwa', 'Mending Prayer')), true);
     assert.equal(defaultFlags(find('rika', 'Wild Surge')).area, true);
