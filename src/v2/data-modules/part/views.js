@@ -10,7 +10,7 @@ import { oneLine } from '../../../text.js';
 import { editableLayout } from '../editable-layout.js';
 import { blockTabScreen } from '../block-screen.js';
 import { boardGrammar, boardXpGuide } from '../board-static.js';
-import { isMarkedCharacter, recoveryPrompt } from '../recovery.js';
+import { isMarkedCharacter, REST_LINE } from '../recovery.js';
 import { rpgLib } from '../../rpg-lazy.js';
 import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget } from './shared.js';
 
@@ -75,15 +75,6 @@ export function pinnedPresentation(state, kind = 'screens', noTab = []) {
     });
 }
 
-/** A marked Character shown with the new recovery sentence, only if the prompt (1,200) and the grammar (2,000, whole lines) keep every character and line they had; else as it is. */
-function withRecoveryWords(definition, reference, seen) {
-    const swapped = recoveryPrompt(definition);
-    if (swapped === definition.prompt || [...oneLine(swapped)].length > L.prompt) return definition;
-    const fresh = prompt => moduleGrammar({ ...definition, prompt }, reference, { seen: new Map(seen) });
-    const [was, now] = [fresh(definition.prompt), fresh(swapped)];
-    return now.split('\n').length >= was.split('\n').length && now.includes(oneLine(swapped)) ? { ...definition, prompt: swapped } : definition;
-}
-
 /**
  * The static lines for the pinned modules (empty without a pin); they change only when a pin does, and (the RPG on) with a quiet reply
  * (`quiet`, the RPG's QUIET_GRAMMAR table, lean-rpg/quiet.js: no combat text and only the opening Foes line). A long list of values (the health words) is told once.
@@ -106,9 +97,10 @@ export function grammarFor(state, quiet = null, { rolled = false, board = false 
             const value = rolled ? noPractice(kept) : kept;
             return kept ? oneLine(board ? boardXpGuide(value) : value) : '';
         }
-        if (definition?.role === 'character') definition = withRecoveryWords(definition, referenceOf(active, id), seen);
         const shown = definition && rolled && (definition.role === 'rules' || definition.role === 'skills') ? { ...definition, prompt: noPractice(definition.prompt) } : definition;
-        return shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
+        const own = shown ? moduleGrammar(shown, referenceOf(active, id), { seen, ...(only ?? {}), ...(rolled && definition.role === 'skills' ? { without: /^practice-\d+$/u } : {}) }) : '';
+        // A marked Character also gets one separate line on what each recovery kind restores: it has its own room (outside the prompt and grammar caps), so no old text or kind line is dropped.
+        return own && isMarkedCharacter(definition) ? `${own}\n${REST_LINE}` : own;
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
 }

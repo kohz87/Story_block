@@ -10,7 +10,7 @@ import { LEAN_RPG_FEATURE } from '../../lean-rpg/names.js';
 import { XP_RATE, scaleXp, xpRateFrom } from '../../lean-rpg/levels.js';
 import { FOE_LEVEL, averageLevel, bandOfRank, foeRandom, foeLevelCap, levelOf, partyLevels, pickLevel } from '../../lean-rpg/foes.js';
 import { SKILL_SLOTS_MAX, SLOT_NUMBER, isTypedSkills } from '../../skill-slots.js';
-import { RESTED_FIELD, RESTED_KNOWN, SET_KINDS, fullRestTooSoon, isMarkedCharacter, recoveryNote } from '../recovery.js';
+import { RESTED_FIELD, RESTED_KNOWN, SET_KINDS, fallbackSafe, fullRestTooSoon, isMarkedCharacter, recoveryNote } from '../recovery.js';
 import { B, rpg, draftOf, stateOf, pairKey, subjectsOf, instancePath, prefixImports } from './shared.js';
 import { skillCapacity } from './skills.js';
 import { namedChanges } from './prompt.js';
@@ -126,7 +126,7 @@ export function createAct(deps) {
         // effects; health, rested-at and rested-known stay); `fallback` is in the recorded decision and the two rest fields are witnessed. A pin without both bars refuses as before.
         let fallback = false;
         if (restKind && ctx.cause === 'story' && fullRestTooSoon(clock, instance.fields[RESTED_FIELD], instance.fields[RESTED_KNOWN])) {
-            if (labels.kind === 'full-rest' && ctx.carrier?.rules?.includes('restFallback') && ['stamina', 'mana'].every(bar => definition.state?.[bar] && definition.state[`${bar}-blocks`])) fallback = true;
+            if (labels.kind === 'full-rest' && ctx.carrier?.rules?.includes('restFallback') && fallbackSafe(definition) && ['stamina', 'mana'].every(bar => definition.state?.[bar] && definition.state[`${bar}-blocks`])) fallback = true;
             else ctx.fail('RECOVERY_REFUSED', recoveryNote.fullRest(who).slice(0, 280));
         }
         evaluation.timers();
@@ -156,7 +156,9 @@ export function createAct(deps) {
             reads: [...result.reads.map(read => read.path), ...(fallback ? [RESTED_FIELD, RESTED_KNOWN].filter(key => Object.hasOwn(definition.state, key)).map(key => ['fields', key]) : [])], imports: prefixImports(definition), clock: restKind,
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(clock !== null ? { clock } : {}), ...(fallback ? { fallback: true } : {}), ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
-        const notes = fallback ? [...result.notes, recoveryNote.restFallback(who).slice(0, 280)] : result.notes;
+        // (the fallback's note is also the receipt's summary, so it stays with the saved result; the changes listed are bounded so the note is never cut)
+        const rest = fallback ? recoveryNote.restFallback(who, changes.reduce((kept, text) => (kept.join(', ').length + text.length < 120 ? [...kept, text] : kept), [])) : null;
+        const notes = rest ? [...result.notes, rest] : result.notes;
         const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes, ...(result.fired.length ? { rules: result.fired } : {}) };
         // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is
         // given by code, can put back what the narrator added in that reply.
@@ -166,7 +168,7 @@ export function createAct(deps) {
         // reply's rolls give by code can put back what the narrator added for the same skill.
         const practiceFrom = ctx.cause === 'story' && route && route.kind.startsWith('practice-')
             ? { [module]: { [route.slot]: Object.fromEntries(['practice', 'rank'].filter(key => Number.isSafeInteger(fieldsBefore[`${key}${route.slot}`])).map(key => [key, fieldsBefore[`${key}${route.slot}`]])) } } : null;
-        const answer = finish(ctx, prefix, draft, recorded, { pin: Boolean(grown), visits: result.visits, notes, result: outcome, xpFrom, practiceFrom, listsFrom: Object.keys(result.lists).length ? { ...listsKept, [listKey]: result.lists } : null, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
+        const answer = finish(ctx, prefix, draft, recorded, { pin: Boolean(grown), visits: result.visits, notes, result: outcome, xpFrom, practiceFrom, listsFrom: Object.keys(result.lists).length ? { ...listsKept, [listKey]: result.lists } : null, summary: rest ?? `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }
