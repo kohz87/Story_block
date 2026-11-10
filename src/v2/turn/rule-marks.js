@@ -4,11 +4,32 @@
 // A reply captured before the rule has no mark and keeps the old behaviour. The list is bookkeeping, not a replay input (replay.js).
 // New rule: add a name and its line test to RULE_LINES below; nothing else in the host changes.
 
-/** Rule name -> does this change line (`{ kind, raw }`) fall under it? Matched on the line as the story wrote it. */
+import { adoptLegacy, assistSections, extractBlock, parseChanges } from '../capture.js';
+import { activeDefinition } from '../data-modules/adapters.js';
+import { withKind } from '../data-modules/part/act.js';
+import { resolveModule } from '../data-modules/part/views.js';
+
+const DEATH = /(?<![\p{L}\p{N}])(?:died|dies|dead|death|killed|slain|murdered|perished)(?![\p{L}\p{N}])/iu;
+
+/** Rule name -> does this parsed change line fall under it? */
 export const RULE_LINES = Object.freeze({
     // `- key Name | died`: a death counts for anyone, not only a pinned key person (Story Director keypeople). Same words as its death test.
-    diedAny: line => line?.kind === 'key' && /(?<![\p{L}\p{N}])(?:died|dies|dead|death|killed|slain|murdered|perished)(?![\p{L}\p{N}])/iu.test(String(line.raw ?? '')),
+    diedAny: line => line?.kind === 'key' && line.op === '-' && [line.text, ...Object.keys(line.labels ?? {}), ...Object.values(line.labels ?? {})].some(part => DEATH.test(String(part ?? ''))),
 });
+
+/** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
+export function foeLine(line, state = null) {
+    if (line?.kind !== 'dm' || line.op !== '+') return false;
+    if (Object.hasOwn(line.labels ?? {}, 'kind')) return /^set-slot-\d$/u.test(String(line.labels.kind));
+    // Prior text may have used an older definition; a kind-less line could have been a foe, so do not change its rule.
+    if (!state) return true;
+    try {
+        const definition = activeDefinition(state, resolveModule(state, line.name));
+        if (definition?.role !== 'foes') return false;
+        const kind = withKind(definition, line).kind;
+        return /^set-slot-\d$/u.test(String(kind ?? '')) && !!definition.kinds[kind]?.labels?.level;
+    } catch { return false; }
+}
 
 export const MAX_RULE_MARKS = 8;
 const NAME = /^[A-Za-z][A-Za-z0-9]{0,31}$/u;
@@ -19,7 +40,35 @@ export function ruleMarksOf(value) {
     return [...new Set(value.filter(name => typeof name === 'string' && NAME.test(name) && Object.hasOwn(RULE_LINES, name)))].sort().slice(0, MAX_RULE_MARKS);
 }
 
-/** The rules the change `lines` ({ kind, raw }) fall under. */
+/** The rules the parsed change lines fall under. */
 export function ruleMarksFor(lines) {
     return Object.keys(RULE_LINES).filter(name => (lines ?? []).some(line => RULE_LINES[name](line))).sort();
+}
+
+/** Rules that cannot be newly marked on an existing reply without changing its earlier lines on Re-read. */
+export function previousMarks(before, heads, late = []) {
+    if (before === undefined) return { foe: false, rules: [] }; // A new reply or swipe.
+    if (typeof before !== 'string') return { foe: true, rules: Object.keys(RULE_LINES) }; // Unknown previous text: stay conservative.
+    const text = adoptLegacy(before).text;
+    const block = extractBlock(text, 'Changes', null, { heads });
+    const lines = [...parseChanges(block ?? '').lines, ...parseChanges(assistSections(text).now.join('\n')).lines, ...late];
+    return { foe: lines.some(line => foeLine(line)), rules: ruleMarksFor(lines) };
+}
+
+/** Only replies seen being created here may gain their first mark after their initial capture. */
+export function createMarkHistory() {
+    const fresh = new WeakMap();
+    return (message, sid, type, before, heads, late) => {
+        const valid = message && typeof message === 'object' && typeof sid === 'string';
+        if (type !== 'continue' && type !== 'late') {
+            if (valid) {
+                const ids = fresh.get(message) ?? new Set();
+                ids.add(sid);
+                fresh.set(message, ids);
+            }
+            return previousMarks(undefined, heads);
+        }
+        if (!valid || !fresh.get(message)?.has(sid)) return { foe: true, rules: Object.keys(RULE_LINES) };
+        return previousMarks(before, heads, late);
+    };
 }

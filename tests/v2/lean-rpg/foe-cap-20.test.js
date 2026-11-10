@@ -29,7 +29,7 @@ test('pre-check and vetOpen hold a guessed level to party top + 20; a person\'s 
     assert.equal(vetOpen([{ name: 'Vorn', level: '5' }], sheet, ['I attack Vorn.'], { stated: () => ({ level: 60 }) }).open[0].level, 60);
 });
 
-async function world(t) {
+async function world(t, { oneFoe = false } = {}) {
     const host = await createHost({ callModel: async () => 'none' });
     t.after(() => host.close());
     host.features.set(LEAN_RPG_FEATURE, true);
@@ -38,7 +38,9 @@ async function world(t) {
     const character = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Character').definition);
     character.slug = 'wessel'; character.name = 'Wessel'; character.state.who.default = 'Wessel';
     success(await host.sdk.command('dm.define', { definition: character }));
-    success(await host.sdk.command('dm.define', { definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition) }));
+    const foes = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition);
+    if (oneFoe) for (const n of [2, 3, 4]) delete foes.kinds[`set-slot-${n}`];
+    success(await host.sdk.command('dm.define', { definition: foes }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/wessel', fields: { level: 15 } }));
     return host;
 }
@@ -84,4 +86,140 @@ test('an old reply (recorded without the foeCap mark, at the +10 cap) keeps it: 
     // A later reply captured now is marked and may reach 35.
     await host.send('Another.', reply('+ dm foes — why | kind: set-slot-2 | name: Wyrm | count: 1 | level: 99'));
     assert.equal(readSheet(host.head()).foes[1].level, 35);
+});
+
+test('a Continue cannot add the new cap to an old reply with an earlier set-slot line', { skip }, async t => {
+    const host = await world(t), setter = host.store.setFoeCap;
+    host.store.setFoeCap = () => { throw new Error('old reply'); };
+    await host.send('A dragon.', reply(LINE));
+    host.store.setFoeCap = setter;
+    const at = host.ctx.chat.length - 1;
+    await host.cont(`\n\n${reply('+ dm foes — why | kind: set-slot-2 | name: Wyrm | count: 1 | level: 99')}`);
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.deepEqual(readSheet(host.head()).foes.slice(0, 2).map(foe => foe.level), [25, 25]);
+    const live = structuredClone(host.head());
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.deepEqual(host.head(), live);
+});
+
+test('a uniquely inferred set-slot kind uses the new cap and survives Re-read', { skip }, async t => {
+    const host = await world(t, { oneFoe: true });
+    await host.send('A dragon.', reply('+ dm foes — why | name: Dragon | count: 1 | level: 99'));
+    const at = host.ctx.chat.length - 1;
+    assert.equal(recordOf(host, at).foeCap, 20);
+    assert.equal(levelNow(host), 35);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(levelNow(host), 35);
+});
+
+test('an earlier inferred foe line on an old reply keeps its cap after a Continue', { skip }, async t => {
+    const host = await world(t, { oneFoe: true }), setter = host.store.setFoeCap;
+    host.store.setFoeCap = () => { throw new Error('old reply'); };
+    await host.send('A dragon.', reply('+ dm foes — why | name: Dragon | count: 1 | level: 99'));
+    host.store.setFoeCap = setter;
+    const at = host.ctx.chat.length - 1;
+    await host.cont(`\n\n${reply(LINE)}`);
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.equal(levelNow(host), 25);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(levelNow(host), 25);
+});
+
+test('editing an old unmarked foe reply keeps its old cap on Re-read', { skip }, async t => {
+    const host = await world(t), setter = host.store.setFoeCap;
+    host.store.setFoeCap = () => { throw new Error('old reply'); };
+    await host.send('A dragon.', reply(LINE));
+    host.store.setFoeCap = setter;
+    const at = host.ctx.chat.length - 1;
+    await host.st.editMessage(at, reply(LINE.replace('Dragon', 'Hydra')));
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.equal(levelNow(host), 25);
+});
+
+test('a late foe line cannot give an old foe line the new cap', { skip }, async t => {
+    const host = await world(t);
+    let resolveCapture;
+    const capture = new Promise(resolve => { resolveCapture = resolve; });
+    await host.sdk.registerModule({ id: 'late-foe', name: 'Late foe', version: '1', hooks: { afterReply: ({ capture: add }) => resolveCapture(add) } });
+    const setter = host.store.setFoeCap;
+    host.store.setFoeCap = () => { throw new Error('old reply'); };
+    await host.send('A dragon.', reply(LINE));
+    host.store.setFoeCap = setter;
+    const at = host.ctx.chat.length - 1;
+    await (await capture)('+ dm foes — why | kind: set-slot-2 | name: Wyrm | count: 1 | level: 99');
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.deepEqual(readSheet(host.head()).foes.slice(0, 2).map(foe => foe.level), [25, 25]);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.deepEqual(readSheet(host.head()).foes.slice(0, 2).map(foe => foe.level), [25, 25]);
+});
+
+test('a late first foe line on a loaded unmarked reply keeps the old cap', { skip }, async t => {
+    const host = await world(t);
+    let resolveCapture;
+    const capture = new Promise(resolve => { resolveCapture = resolve; });
+    await host.sdk.registerModule({ id: 'late-old-foe', name: 'Late old foe', version: '1', hooks: { afterReply: ({ capture: add }) => resolveCapture(add) } });
+    await host.send('Wait.', 'They wait.');
+    const at = host.ctx.chat.length - 1;
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    await (await capture)(LINE);
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.equal(levelNow(host), 25);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(levelNow(host), 25);
+});
+
+test('a first foe line in a Continue accepts Markdown and keeps the new cap on Re-read', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Wait.', 'They wait.');
+    const at = host.ctx.chat.length - 1;
+    await host.cont(`\n\n${reply('+ dm foes — why | **kind:** set-slot-1 | name: Dragon | count: 1 | level: 99')}`);
+    assert.equal(recordOf(host, at).foeCap, 20);
+    assert.equal(levelNow(host), 35);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(levelNow(host), 35);
+});
+
+test('the cap mark belongs to its swipe and its saved copy', { skip }, async t => {
+    const host = await world(t);
+    await host.send('A dragon.', reply(LINE));
+    const at = host.ctx.chat.length - 1;
+    await host.swipe('No dragon.');
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    await host.st.swipeTo(at, 0);
+    assert.equal(recordOf(host, at).foeCap, 20);
+    assert.equal(levelNow(host), 35);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(levelNow(host), 35);
+    await host.st.swipeTo(at, 1);
+    assert.equal(recordOf(host, at).foeCap, undefined);
+});
+
+test('a missing cap writer keeps the old cap live and on Re-read', { skip }, async t => {
+    const host = await world(t);
+    host.store.setFoeCap = undefined;
+    await host.send('A dragon.', reply(LINE));
+    const at = host.ctx.chat.length - 1;
+    assert.equal(recordOf(host, at).foeCap, undefined);
+    assert.equal(levelNow(host), 25);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(levelNow(host), 25);
+});
+
+// Byte identity (JSON text, key order included). A Continue or a late line adds its block's action AFTER the reply-end step's action (live order: line,
+// step, line); a Re-read runs every line first and the steps last. The values are equal (checked above); the key order of
+// `perReply.*.actions` differs. No local change closes it without changing what a Re-read of an old reply writes: open (FIXREPORT).
+const bytes = host => JSON.stringify(host.head());
+
+test.todo('Continue, then Re-read: the head is byte-identical, perReply actions key order included');
+
+test('a plain reply (one pass): Re-read and a reload leave the head byte-identical', { skip }, async t => {
+    const host = await world(t);
+    await host.send('A dragon.', reply(`${LINE}\n+ dm foes — why | kind: set-slot-2 | name: Wyrm | count: 1 | level: 99`));
+    const at = host.ctx.chat.length - 1, live = bytes(host);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(bytes(host), live);
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    assert.equal(bytes(host), live);
 });
