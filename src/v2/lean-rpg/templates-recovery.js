@@ -2,13 +2,13 @@
 // (no Short rest or Full rest button; a pin made with them keeps them for replay, shown nowhere), and the story gets `rest`, `full-rest` (not twice within 6 story hours: data-modules/part/act.js
 // asks recovery.js) and `heal` (amount 1 to 3, one line per reply). Raising a bar by `set-*` is refused in act.js, not here (a size expression nests too deep).
 // Pure: it only reshapes the definition it is given. A hidden field keeps the story minute of the last full rest.
-import { REST_WORDS, RESTED_FIELD, RESTED_KNOWN } from '../data-modules/recovery.js';
+import { RESTED_FIELD, RESTED_KNOWN } from '../data-modules/recovery.js';
 
 const get = field => ['get', [field]];
 const refill = bars => bars.map(bar => ({ op: 'set', path: [bar], value: get(`${bar}-blocks`) }));
 
-const PROMPT = 'One character: who they are, health, stamina and mana (words, bars), seven stats 1 to 20, points, Level 1 to 99, XP to 100. The narrator may lower health, mana and stamina, '
-    + 'never raise them: ' + REST_WORDS + ' They die only if Down before a reply and still Down at its end. The reader sets stats and points; at 100 XP the Level rises, and every third Level gives a point.';
+const PROMPT = 'One character: who they are, health, stamina and mana (words, shown as bars), seven stats 1 to 20, points, Level 1 to 99 and XP to 100. The narrator may lower health, mana and stamina, '
+    + 'never raise them: rest, full-rest (once in 6 story hours) and heal (amount 1 to 3) do. They die only when Down before a reply and still Down at its end. The reader sets stats and points; at 100 XP the Level rises, and every third Level gives a point.';
 
 /** The Character definition (already scaled) with the recovery kinds, without `add-xp`. */
 export function withRecovery(scaled) {

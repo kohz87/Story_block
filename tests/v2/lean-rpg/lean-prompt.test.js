@@ -69,11 +69,10 @@ test('a family needs three kinds numbered from 1; fewer, or a gap, are written k
     assert.match(moduleGrammar(odd, 'tiers'), /kind: tier-1[^]*kind: tier-2[^]*kind: tier-3/u);
 });
 
-// (the Character's says what each rest kind restores, so it only has to stay shorter than before)
 test('the Standard descriptions are shorter', () => {
     for (const role of ['character', 'skills', 'foes', 'rules']) {
         const lean = definitionOf(STANDARD_TEMPLATES, role).prompt;
-        assert.ok(lean.length < BEFORE[role].length * (role === 'character' ? 1 : 0.85), `${role}: ${lean.length} against ${BEFORE[role].length}`);
+        assert.ok(lean.length < BEFORE[role].length * 0.85, `${role}: ${lean.length} against ${BEFORE[role].length}`);
         assert.ok(lean.length <= 1200, `${role} fits the block's room`);
     }
     for (const heading of ['No Plot Armor:', 'Exchanges:', 'Weight & Risk:', 'Believable Outcomes:', 'Rolls:']) assert.ok(definitionOf(STANDARD_TEMPLATES, 'rules').prompt.includes(heading), heading);

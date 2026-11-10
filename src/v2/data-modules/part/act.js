@@ -122,11 +122,11 @@ export function createAct(deps) {
         if (restKind) { try { minutes = ctx.query('director.time', {})?.minutes; } catch { minutes = null; } }
         const clock = Number.isSafeInteger(minutes) ? minutes : null;
         const who = String(instance.fields.who || definition.name);
-        // A reply captured under the `restFallback` mark counts a too-soon story full rest as a short rest (the `rest` kind's effects; health and rested-at stay); `fallback` is in the
-        // recorded decision. A reply without the mark keeps the refusal.
+        // A reply captured under the `restFallback` mark counts a too-soon story full rest as a short rest: a fixed refill of stamina and mana to their blocks (never the pin's own `rest`
+        // effects; health, rested-at and rested-known stay); `fallback` is in the recorded decision and the two rest fields are witnessed. A pin without both bars refuses as before.
         let fallback = false;
         if (restKind && ctx.cause === 'story' && fullRestTooSoon(clock, instance.fields[RESTED_FIELD], instance.fields[RESTED_KNOWN])) {
-            if (labels.kind === 'full-rest' && ctx.carrier?.rules?.includes('restFallback') && Array.isArray(definition.kinds.rest?.effects)) fallback = true;
+            if (labels.kind === 'full-rest' && ctx.carrier?.rules?.includes('restFallback') && ['stamina', 'mana'].every(bar => definition.state?.[bar] && definition.state[`${bar}-blocks`])) fallback = true;
             else ctx.fail('RECOVERY_REFUSED', recoveryNote.fullRest(who).slice(0, 280));
         }
         evaluation.timers();
@@ -139,7 +139,7 @@ export function createAct(deps) {
         if (same !== undefined) evaluation.effects([{ op: 'set', path: [`foe${same}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${same}`], value: ['arg', 'count'] }, { op: 'set', path: [kind.labels.level ? `level${same}` : `class${same}`], value: ['arg', kind.labels.level ? 'level' : 'class'] }], { arg: args });
         else if (route?.update) evaluation.effects(['about', 'stat', 'uses'].map(key => ({ op: 'set', path: [`${key}${route.slot}`], value: ['arg', key] })), { arg: args });
         else {
-            const run = route ? definition.kinds[route.kind] : fallback ? { ...kind, effects: definition.kinds.rest.effects } : kind;
+            const run = route ? definition.kinds[route.kind] : fallback ? { ...kind, effects: ['stamina', 'mana'].map(bar => ({ op: 'set', path: [bar], value: ['get', [`${bar}-blocks`]] })) } : kind;
             if (!evaluation.condition(['kind', route?.kind ?? labels.kind], run.when, { arg: args })) refuse('DM_CONDITION', '', run.refusal ?? 'Kind condition is not met.');
             evaluation.effects(run.effects, { arg: args });
             // A marked Character's bar is lowered by the story, never raised (a rest, a full rest or a heal does that).
@@ -153,7 +153,7 @@ export function createAct(deps) {
         const result = evaluation.finish();
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: prefixImports(definition), clock: restKind,
+            reads: [...result.reads.map(read => read.path), ...(fallback ? [RESTED_FIELD, RESTED_KNOWN].filter(key => Object.hasOwn(definition.state, key)).map(key => ['fields', key]) : [])], imports: prefixImports(definition), clock: restKind,
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(clock !== null ? { clock } : {}), ...(fallback ? { fallback: true } : {}), ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const notes = fallback ? [...result.notes, recoveryNote.restFallback(who).slice(0, 280)] : result.notes;
