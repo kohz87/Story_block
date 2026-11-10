@@ -131,6 +131,8 @@ export const STORY_STRINGS = Object.freeze({
         headerChecks: 'Check',
         fold: 'Fold the battle log',
         unfold: 'Open the battle log',
+        foldChecks: 'Fold the checks',
+        unfoldChecks: 'Open the checks',
         turnOrder: 'Turn order:',
         round: 'Round {n}',
         status: 'Status',
