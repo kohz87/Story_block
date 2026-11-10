@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installFakeDom } from '../../../ui-fake-dom.js';
+import { installFakeDom, makeMessage } from '../../../ui-fake-dom.js';
+import { setupDom } from '../../view/mounts/helpers.js';
+import { createHost } from '../../../../testkit/index.js';
 import { buildCheckCard } from '../../../../src/v2/lean-rpg/view/check-card.js';
+import { createBattleLog } from '../../../../src/v2/lean-rpg/view/battle-log.js';
 
 const result = (over = {}) => ({
     who: 'Astra', what: 'Lie', stat: 'cha', skill: null, rank: 0, bonus: 2, die: 9, total: 11, dc: 15, difficulty: 'normal',
@@ -41,4 +44,23 @@ test('success at a cost has its own pill and a list draws one line per check', (
     assert.equal(lines[0].querySelector('.rpg-check-who').textContent, 'Temiwa · Pick a lock (DEX, no skill) · hard');
     assert.equal(lines[0].querySelector('.rpg-check-num').textContent, 'd20 17 + 2 = 19 vs 20');
     assert.equal(lines[0].querySelector('.rpg-check-cost').textContent, 'Success at a cost');
+});
+
+test('a check card disappears when replay skips its guarded result and returns when it applies', async t => {
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    await host.send('Try.', 'The door sticks.');
+    const index = host.ctx.chat.length - 1;
+    host.ctx.chat[index].extra.storySuite.receipts.push({ id: 'rc_check', type: 'rpg.check', data: { v2: { checks: { v: 1, results: [result({ rankName: 'Novice' })] } } } });
+    const doc = setupDom(), el = makeMessage(doc, index);
+    let problems = [];
+    const log = createBattleLog({ ctx: host.ctx, doc, store: { problems: () => problems }, featureOn: () => true });
+    t.after(() => log.destroy());
+    assert.ok(log.refresh(index, el)?.classList.contains('rpg-check'));
+    problems = [{ index, receipts: ['rc_check'] }];
+    assert.equal(log.refresh(index, el), null, 'a skipped result is not presented as applied');
+    assert.equal(el.querySelector('.rpg-check'), null);
+    problems = [{ index: index - 1, receipts: ['rc_check'] }];
+    assert.ok(log.refresh(index, el)?.classList.contains('rpg-check'), 'a different reply cannot hide this result');
 });

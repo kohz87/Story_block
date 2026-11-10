@@ -7,6 +7,7 @@ import { createHost, hostAvailable } from '../../../../testkit/index.js';
 import { CHECKS_SETTING, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING, ROLLS_SETTING } from '../../../../src/v2/lean-rpg/index.js';
 import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
 import { checksOf } from '../../../../src/v2/lean-rpg/practice.js';
+import { practiceLines } from '../../../../src/v2/lean-rpg/view/changes-lines.js';
 import { reply, success } from '../../data-modules/helpers.js';
 import { tailOf } from '../helpers.js';
 import { statPart } from '../../../../src/v2/lean-rpg/formula.js';
@@ -112,6 +113,9 @@ test('a utility skill check gives that skill 3 practice and the reader no XP', {
     assert.equal(result.practice.skill, 'Obscure');
     assert.equal(sheet(host)[`practice${slot}`], before + PRACTICE.perUse);
     assert.equal(host.head().domains.dataModules.instances['pack.chat/character'].chat.fields.xp, xp);
+    assert.deepEqual(practiceLines(records(host)).map(line => line.text), [`Astra's Obscure +${PRACTICE.perUse} practice (rolled)`], '"This reply" tells the check\'s practice');
+    const step = records(host).receipts.find(receipt => receipt.type === 'rpg.check');
+    assert.deepEqual(practiceLines(records(host), [{ index: host.ctx.chat.length - 1, receipts: [step.id] }]), [], 'a check step the replay skipped tells none');
     const live = JSON.stringify(host.head());
     host.store.rebuild();
     assert.equal(JSON.stringify(host.head()), live, 'a rebuild gives the live story');
@@ -123,11 +127,12 @@ test('a reply captured before the rule has no mark: its check line is not used, 
     const index = host.ctx.chat.length - 1, record = records(host);
     // (an old reply: no dice, no mark; the narrator's line is edited in afterwards)
     record.receipts = record.receipts.filter(receipt => receipt.type !== 'rpg.dice');
+    delete record.rules;
     host.ctx.chat[index].mes = 'Story.\n<Changes>\n? roll Astra | cha | normal | 5\n</Changes>';
     const before = JSON.stringify(host.head().domains);
-    await host.turn.reread(index);
+    success(await host.turn.reread(index));
     assert.equal(checksOf(records(host).receipts).length, 0);
-    assert.equal(records(host).receipts.some(receipt => receipt.type === 'capture.check'), false, 'the line made no receipt');
+    assert.equal(records(host).receipts.some(receipt => receipt.type === 'capture.roll'), false, 'the line made no receipt');
     assert.equal(JSON.stringify(host.head().domains), before, 'no state moved');
 });
 
@@ -167,6 +172,24 @@ test('the note tells each member\'s exact bonuses, and they are the very numbers
     const [stat, skill] = checksOf(records(host).receipts);
     assert.equal(stat.bonus, cha);
     assert.equal(skill.bonus, Number(obscure[1]));
+});
+
+test('narrator practice on the checked skill cannot change the bonus offered for that reply', { skip }, async t => {
+    const host = await world(t, { settings: { [ROLLS_SETTING]: 'off' } });
+    for (const amount of [20, 20, 20, 20, 18]) await host.send('Train.', reply(`+ dm skills — practised Obscure | kind: practice-1 | amount: ${amount}`));
+    assert.deepEqual([sheet(host).rank1, sheet(host).practice1], [0, 98]);
+    await host.send('Try.', after(host, dice => `Story.\n<Changes>\n+ dm skills — practised Obscure | kind: practice-1 | amount: 20\n? roll Astra | Obscure | normal | ${dice[0]}\n</Changes>`));
+    const offered = /Obscure\+(-?\d+)/u.exec(tailOf(host.st.requests.at(-1)));
+    assert.ok(offered, 'the note offered the skill bonus');
+    const [result] = checksOf(records(host).receipts);
+    assert.equal(result.rank, 0, 'the check uses the rank offered before this reply');
+    assert.equal(result.bonus, Number(offered[1]), 'the card agrees with the narrator\'s note');
+    assert.deepEqual([sheet(host).rank1, sheet(host).practice1], [1, 0], 'only the check\'s practice advances the skill');
+    const live = JSON.stringify(host.head());
+    success(await host.turn.reread(host.ctx.chat.length - 1));
+    assert.equal(JSON.stringify(host.head()), live, 'the rank and practice remain on Re-read');
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
 });
 
 test('the rules recorded with the dice, not today\'s settings, decide a Re-read: difficulty, practice per use, and the switch', { skip }, async t => {
@@ -214,6 +237,33 @@ test('a line refused for a skill the sheet lacked is planned again when an earli
     const [now] = checksOf(host.ctx.chat[later].extra.storySuite.receipts);
     assert.ok(now, 'the check is worked on the sheet as it now is');
     assert.equal(now.what, 'Shadowcraft');
+    assert.equal(sheet(host)[`practice${slotOf(host, 'Shadowcraft')}`], PRACTICE.perUse, 'the newly valid check gives practice too');
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live, 'the newly paid practice survives a rebuild');
+});
+
+test('replanning moves practice when a newly valid check consumes the next die', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Learn more.', 'Not yet.');
+    const earlier = host.ctx.chat.length - 1;
+    const oldSlot = slotOf(host, 'Obscure'), before = sheet(host)[`practice${oldSlot}`];
+    await host.send('Try both.', after(host, dice => `Story.\n<Changes>\n? roll Astra | Shadowcraft | normal | ${dice[0]}\n? roll Astra | Obscure | normal | ${dice[0]}\n</Changes>`));
+    const later = host.ctx.chat.length - 1;
+    assert.equal(sheet(host)[`practice${oldSlot}`], before + PRACTICE.perUse);
+    assert.equal(checksOf(records(host).receipts)[0].what, 'Obscure');
+    host.ctx.chat[earlier].mes = reply('~ dm skills — learned | kind: learn-2 | name: Shadowcraft | about: Slip unseen. | stat: dex | uses: mana | type: utility');
+    success(await host.turn.reread(earlier));
+    const shadowSlot = slotOf(host, 'Shadowcraft');
+    assert.ok(shadowSlot, 'the earlier reply now teaches the second skill');
+    assert.equal(checksOf(host.ctx.chat[later].extra.storySuite.receipts)[0].what, 'Shadowcraft');
+    assert.equal(sheet(host)[`practice${shadowSlot}`], PRACTICE.perUse, 'the newly valid check earns practice');
+    assert.equal(sheet(host)[`practice${oldSlot}`], before, 'the now-refused check no longer earns practice');
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    assert.equal(JSON.stringify(host.head()), live);
 });
 
 test('a reply made with Story checks off keeps its receipts after a Re-read, and a rebuild and a reload agree, even once the switch is on', { skip }, async t => {

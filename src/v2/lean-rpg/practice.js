@@ -17,9 +17,8 @@
 //
 // Story checks (checks/): the same file holds the reply's check step. `checksHook` (afterCapture) reads the reply's `? roll` lines (their `capture.roll`
 // receipts) and its recorded dice (the `rpg.dice` receipt, which also holds the rules and the practice per use the reply was offered under: never today's settings)
-// and asks for two steps: `rpg.check { lines, dice }` (a guarded step that checks each line (checks/line.js), works the result (checks/result.js) and records it under
-// `data.v2.checks`; the lines it refused are one Problems line; a change to the party's sheet before it plans it again, like a fight's steps) and, for the skills the
-// checks used (utility ones too), the same `rpg.practice` step as above, at the recorded practice per use. No XP. `checksOf(receipts)` reads the results back for the card.
+// and asks for one guarded `rpg.check` step. It works the lines and gives their skills practice together, so a replan cannot leave practice attached to an old
+// result. The lines it refused are one Problems line. No XP. `checksOf(receipts)` reads the results back for the card.
 import { createEvaluation } from '../data-modules/interpreter.js';
 import { CHECK_STEP, DICE, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_STEP, RESOLVE, practiceOf } from './names.js';
 import { skillFieldSlots } from '../skill-slots.js';
@@ -141,20 +140,9 @@ function itemsOf(domain, uses) {
 
 const witnessOf = (domain, source, uses) => ({ items: itemsOf(domain, uses), from: fromOf(domain, source) });
 
-/**
- * `rpg.practice { uses }`: practises the skills the reply's rolls used (see the top). A system step after the reply's lines; NO_LONGER_DONE when none of
- * the skills is on a sheet any more.
- */
-export function practiceStep(ctx, payload = {}) {
-    if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'Practice for rolled skills is given by Story Block after a reply, not by an action.');
-    const uses = usesFrom(payload?.uses), perUse = practiceOf(payload?.perUse);
-    if (!uses || perUse === null) ctx.fail('INVALID', 'The practice step needs the skills the rolls used.');
-    const domain = ctx.read('dataModules');
-    const items = itemsOf(domain, uses);
-    if (!items.length) ctx.fail('NO_LONGER_DONE', 'None of the skills the rolls used is on a sheet any more.');
-    const predicate = { kind: PRACTICE_STEP };
-    const witness = witnessOf(domain, ctx.source, uses);
-    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness }) }, { uses, perUse });
+// Apply practice to the slots found before the guarded step; also undo the narrator's practice on those same slots.
+function givePractice(ctx, domain, items, perUse) {
+    if (!items.length) return [];
     const from = fromOf(domain, ctx.source);
     const draft = ctx.draft('dataModules');
     const skills = [];
@@ -180,6 +168,21 @@ export function practiceStep(ctx, payload = {}) {
         }
         skills.push({ who: item.who, skill: item.skill, slot: item.slot, amount, ...(held ? { held: true } : {}) });
     }
+    return skills;
+}
+
+/** `rpg.practice { uses }`: the fight's guarded practice step, or NO_LONGER_DONE if no named skills remain. */
+export function practiceStep(ctx, payload = {}) {
+    if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'Practice for rolled skills is given by Story Block after a reply, not by an action.');
+    const uses = usesFrom(payload?.uses), perUse = practiceOf(payload?.perUse);
+    if (!uses || perUse === null) ctx.fail('INVALID', 'The practice step needs the skills the rolls used.');
+    const domain = ctx.read('dataModules');
+    const items = itemsOf(domain, uses);
+    if (!items.length) ctx.fail('NO_LONGER_DONE', 'None of the skills the rolls used is on a sheet any more.');
+    const predicate = { kind: PRACTICE_STEP };
+    const witness = witnessOf(domain, ctx.source, uses);
+    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness }) }, { uses, perUse });
+    const skills = givePractice(ctx, domain, items, perUse);
     const held = skills.some(entry => entry.held);
     return {
         summary: `Practice: ${skills.map(entry => `${entry.who}'s ${entry.skill} +${entry.amount}`).join(', ') || 'none to give'}.`, narrate: false, replan: true,
@@ -228,8 +231,8 @@ export function membersOf(host, sheet) {
 
 /**
  * The part's afterCapture for story checks: the reply's `? roll` lines (their `capture.roll` receipts) with the dice recorded with it (the `rpg.dice` receipt: the dice,
- * the rules and the practice per use it was offered under; today's settings are never read). → { commands } (the `rpg.check` step, then `rpg.practice` for the
- * skills used) or undefined (no roll line, or the RPG is off). A reply's Story checks switch is not asked: the reply's own rule mark decided its lines (factory.js).
+ * the rules and the practice per use it was offered under; today's settings are never read). → { commands } (the `rpg.check` step) or undefined (no roll line,
+ * or the RPG is off). A reply's Story checks switch is not asked: the reply's own rule mark decided its lines (factory.js).
  */
 export function checksHook(view, info) {
     if (!PAID_TYPES.includes(info?.type ?? 'normal') || view?.feature?.(LEAN_RPG_FEATURE) !== true) return undefined;
@@ -237,8 +240,7 @@ export function checksHook(view, info) {
     const lines = receipts.filter(receipt => receipt?.type === 'capture.roll' && typeof receipt.data?.check?.raw === 'string').map(receipt => receipt.data.check.raw).slice(0, CHECK_LINES);
     if (!lines.length) return undefined;
     const dice = diceOf(receipts.findLast(receipt => receipt?.type === DICE)?.data?.v2?.dice);
-    const { uses } = workChecks(membersOf(view, readSheet(view.state)), lines, dice);
-    return { commands: [{ type: CHECK_STEP, payload: { lines, dice } }, ...(uses.length ? [{ type: PRACTICE_STEP, payload: { uses, perUse: dice.perUse } }] : [])] };
+    return { commands: [{ type: CHECK_STEP, payload: { lines, dice, practice: true } }] };
 }
 
 // One recorded result, checked: the same plain record workChecks makes, or null.
@@ -255,7 +257,7 @@ function inputOf(payload) {
     const lines = payload?.lines;
     if (!Array.isArray(lines) || lines.length > CHECK_LINES || !lines.every(line => typeof line === 'string' && line.length > 0 && line.length <= 200)) return null;
     const dice = payload.dice === null ? null : diceOf(payload.dice);
-    return payload.dice !== null && !dice ? null : { lines: [...lines], dice };
+    return payload.dice !== null && !dice ? null : { lines: [...lines], dice, ...(payload.practice === true ? { practice: true } : {}) };
 }
 
 // What the results were worked from: every member of the party as the sheet now holds them (stats, level or class, every skill's stat, rank and type), so a line the step
@@ -263,17 +265,29 @@ function inputOf(payload) {
 // knows a member by, `party.actors`, is not something a guard may ask: an alias change alone does not plan the step again.)
 const membersWitness = sheet => sheet.characters.map(found => ({ who: found.who, stats: found.stats, level: found.level, soul: found.soul, skills: found.skills.map(skill => [skill.name, skill.stat, skill.rank, skill.type ?? 'combat']) }));
 
-/** `rpg.check { lines, dice }`: works a reply's story checks and records the results with it (a guarded step, planned again when the party or a skill it used changed); changes no state. The refused lines are told as one Problems line. */
+// A narrator's practice line can rank up a skill before the check step runs. That line is undone for a checked skill, so use its previous rank when working the check as well.
+function sheetBeforePractice(sheet, domain, source) {
+    const from = fromOf(domain, source);
+    return { ...sheet, characters: sheet.characters.map(character => ({ ...character, skills: character.skills.map(skill => {
+        const slot = slotOf(domain, character.who, skill.name), was = slot && from[slot.module]?.[String(slot.slot)];
+        return was ? { ...skill, rank: was.rank } : skill;
+    }) })) };
+}
+
+/** `rpg.check`: works the checks and their practice in one guarded step. Older records without `practice` keep their separate practice step. */
 export function checkStep(ctx, payload = {}) {
     if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'Story checks are recorded by Story Block after a reply, not by an action.');
     const input = inputOf(payload);
     if (!input) ctx.fail('INVALID', 'The check step needs the reply\'s roll lines and its recorded dice.');
-    const sheet = readSheet({ domains: { dataModules: ctx.read('dataModules') } });
-    const { results, notes } = workChecks(membersOf({ query: (name, args) => ctx.query(name, args) }, sheet), input.lines, input.dice);
-    const predicate = { kind: CHECK_STEP, input: ctx.hash(input) };
-    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness: membersWitness(sheet) }) }, input);
-    const note = [...notes.join(' ')].slice(0, 300).join('');
-    return { summary: '', narrate: false, replan: true, data: { v2: { checks: { v: 1, results } } }, ...(note ? { problem: note } : {}) };
+    const domain = ctx.read('dataModules'), sheet = readSheet({ domains: { dataModules: domain } });
+    const checked = input.practice ? sheetBeforePractice(sheet, domain, ctx.source) : sheet;
+    const { results, notes, uses } = workChecks(membersOf({ query: (name, args) => ctx.query(name, args) }, checked), input.lines, input.dice);
+    const predicate = { kind: CHECK_STEP, input: ctx.hash(input), ...(input.practice ? { uses } : {}) };
+    const witness = input.practice ? { members: membersWitness(sheet), practice: witnessOf(domain, ctx.source, uses) } : membersWitness(sheet);
+    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness }) }, input);
+    const skills = input.practice ? givePractice(ctx, domain, itemsOf(domain, uses), input.dice?.perUse) : [];
+    const note = [...[...notes, ...(skills.some(entry => entry.held) ? [PRACTICE_HELD] : [])].join(' ')].slice(0, 300).join('');
+    return { summary: '', narrate: false, replan: true, data: { v2: { checks: { v: 1, results }, ...(input.practice ? { result: { practice: { skills } } } : {}) } }, ...(note ? { problem: note } : {}) };
 }
 
 /** The replay guard of `rpg.check` (leanRpgGuard routes it here): the results stand while the party's sheet is what the prefix held when they were worked. */
@@ -284,13 +298,16 @@ export function checkGuard({ state, hash }, { guard, source, recorded }) {
         if (guard?.version !== 2 || guard.rulesHash !== null || !isObject(predicate) || predicate.kind !== CHECK_STEP || !isObject(recorded)) return bad('Malformed check guard.');
         const input = inputOf(recorded);
         if (!input || hash(input) !== predicate.input) return bad('The check step\'s record was damaged.');
-        if (hash({ source, predicate, witness: membersWitness(readSheet(state)) }) !== guard.inputHash) return bad('The party or a skill before these checks changed; Re-read this reply.');
+        if (input.practice && !Array.isArray(predicate.uses)) return bad('The check step\'s practice record was damaged.');
+        const sheet = readSheet(state), witness = input.practice ? { members: membersWitness(sheet), practice: witnessOf(state.domains?.dataModules, source, predicate.uses) } : membersWitness(sheet);
+        if (hash({ source, predicate, witness }) !== guard.inputHash) return bad('The party or a skill before these checks changed; Re-read this reply.');
         return { ok: true };
     } catch { return bad('Damaged check record.'); }
 }
 
-/** The story-check results a reply's receipts hold, in order: [] when it has none. */
-export function checksOf(receipts) {
-    const found = (Array.isArray(receipts) ? receipts : []).findLast(receipt => receipt?.type === CHECK_STEP && receipt.data?.v2?.checks?.v === 1 && Array.isArray(receipt.data.v2.checks.results));
+/** The story-check results a reply's receipts hold, excluding blocks that replay skipped. */
+export function checksOf(receipts, problems = []) {
+    const skipped = new Set((Array.isArray(problems) ? problems : []).flatMap(problem => Array.isArray(problem?.receipts) ? problem.receipts : []));
+    const found = (Array.isArray(receipts) ? receipts : []).findLast(receipt => receipt?.type === CHECK_STEP && !skipped.has(receipt.id) && receipt.data?.v2?.checks?.v === 1 && Array.isArray(receipt.data.v2.checks.results));
     return found ? found.data.v2.checks.results.map(resultFrom).filter(Boolean) : [];
 }

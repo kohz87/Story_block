@@ -85,7 +85,7 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
         const message = chat()[index];
         if (!featureOn() || !message || message.is_user || message.is_system) return null;
         const record = readRecord(message);
-        const results = record ? checksOf(record.receipts) : [];
+        const results = record ? checksOf(record.receipts, problems().filter(problem => problem?.index === index)) : [];
         return results.length ? { key: `${chatKey()}|${record.sid ?? index}|checks`, model: results } : null;
     }
 
