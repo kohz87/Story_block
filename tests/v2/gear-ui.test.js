@@ -8,6 +8,7 @@ import { inventoryScreen } from '../../src/v2/screens/index.js';
 import { createCoreModule } from '../../src/v2/domains/index.js';
 import { createHarness } from './domains/helpers/fake-ctx.js';
 import { stocked } from './domains/fixtures.js';
+import { destroyTemplate } from '../../src/v2/view/template/render.js';
 import { show, settle, text } from './screens/helpers.js';
 import { page } from './lean-rpg/view/page.js';
 import { FIGHT, dump, gearHost, reply } from './helpers/gear-ui-state.js';
@@ -210,31 +211,67 @@ test('Edit, gear on: Equipped by a member hands the piece over and puts it on in
 
 const gearRun = h => (type, payload) => h.run(type, payload, { cause: 'ui', extra: { feature: id => id === 'story-block.gear' || id === 'story-block.rpg' } });
 
-test('Edit, gear on: two pieces with one name; equipping the second for a member (who carries the first) equips exactly the second, never merged into the first', async () => {
+// The form's Save through the mounted screen; `redraw` destroys the screen after the first command, as a real commit's redraw does.
+function mounted(h, { redraw = false } = {}) {
+    const calls = [];
+    const shown = show(inventoryScreen, { state: h.state, query: h.query, command: async (type, payload) => {
+        calls.push(type);
+        const done = await gearRun(h)(type, payload);
+        if (redraw && calls.length === 1) destroyTemplate(shown.el);
+        return done;
+    } });
+    return { ...shown, calls };
+}
+const open = (el, name) => { const row = rowOf(el, name); row.querySelector('.ss-w-editable-pencil').click(); return row; };
+
+test('Edit, gear on: a note change and a wearer in one Save finish both steps although the first redraws the screen', async () => {
     const { module, state } = crewState();
-    const inv = state.domains.inventory;
-    const first = inv.stacks.it_sword001;
-    // Ren carries a same-named, same-wear piece; the party's own is the one the reader edits.
-    inv.stacks.it_sword009 = { ...first, id: 'it_sword009', owner: 'ac_ren00001', equipped: null };
     const h = createHarness([module], { state });
-    const done = await gearRun(h)('item.equip', { stack: 'it_sword001', owner: 'ac_ren00001', slot: 'weapon', transfer: true });
-    assert.equal(done.ok, true, done.message);
-    const stacks = h.state.domains.inventory.stacks;
-    assert.deepEqual([stacks.it_sword001.owner, stacks.it_sword001.equipped], ['ac_ren00001', 'weapon'], 'the edited piece is the one worn');
-    assert.deepEqual([stacks.it_sword009.owner, stacks.it_sword009.equipped], ['ac_ren00001', null], 'the other piece is untouched');
-    assert.equal(done.result.data.place, 'weapon');
+    const { el, calls } = mounted(h, { redraw: true });
+    const sword = open(el, 'Iron Sword');
+    const [, , note] = sword.querySelectorAll('input');
+    note.value = 'keen';
+    sword.querySelectorAll('select')[1].value = 'ac_ren00001';
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    await settle();
+    assert.deepEqual(calls, ['inventory.edit', 'item.equip']);
+    const held = h.state.domains.inventory.stacks.it_sword001;
+    assert.deepEqual([held.note, held.owner, held.equipped], ['keen', 'ac_ren00001', 'weapon']);
 });
 
-test('Edit, gear on: a transfer of equipment never merges into a same-named piece; the moved stack keeps its own id', async () => {
+test('Edit, gear on: reducing a group\'s count while choosing a wearer keeps the selected piece', async () => {
     const { module, state } = crewState();
     const inv = state.domains.inventory;
-    inv.stacks.it_sword009 = { ...inv.stacks.it_sword001, id: 'it_sword009', owner: 'ac_ren00001', equipped: null };
+    inv.stacks.it_sword009 = { ...inv.stacks.it_sword001, id: 'it_sword009', condition: 40 };
     const h = createHarness([module], { state });
-    const moved = await gearRun(h)('inventory.transfer', { stack: 'it_sword001', to: 'ac_ren00001' });
-    assert.equal(moved.ok, true, moved.message);
-    assert.equal(moved.result.data.stack, 'it_sword001');
-    assert.equal(h.state.domains.inventory.stacks.it_sword009.qty, inv.stacks.it_sword009.qty, 'the other piece keeps its count');
-    assert.equal(h.state.domains.inventory.stacks.it_sword001.owner, 'ac_ren00001');
+    const { el, calls } = mounted(h);
+    const sword = rowOf(el, 'Iron Sword');
+    sword.querySelector('.ss-w-editable-pencil').click();
+    const [, count] = sword.querySelectorAll('input');
+    count.value = '1';
+    sword.querySelectorAll('select')[1].value = 'ac_ren00001';
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls, ['inventory.edit', 'item.equip']);
+    const swords = Object.values(h.state.domains.inventory.stacks).filter(item => item.def === 'pack.fantasy/iron-sword');
+    assert.equal(swords.length, 1);
+    assert.deepEqual([swords[0].owner, swords[0].equipped], ['ac_ren00001', 'weapon'], 'the piece the reader chose is the one worn');
+});
+
+test('Edit, gear on: an unchanged Save keeps a piece worn by a member who left', async () => {
+    const { module, state } = crewState();
+    const worn = state.domains.inventory.stacks.it_sword001;
+    worn.owner = 'ac_gone0001';
+    worn.equipped = 'weapon';
+    const h = createHarness([module], { state });
+    const { el, calls } = mounted(h);
+    const sword = open(el, 'Iron Sword');
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls, [], 'no unequip');
+    assert.match(text(sword.querySelector('.ss-w-editable-error')), /^Nothing to change/);
+    assert.deepEqual([worn.owner, worn.equipped].join(), 'ac_gone0001,weapon');
 });
 
 test('Edit, gear on: Save with nothing to change says so in the form instead of closing', async () => {

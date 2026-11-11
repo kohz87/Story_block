@@ -279,7 +279,7 @@ function render(el, input, api) {
                 let result;
                 try { result = await api.command(String(step.command), step.payload && typeof step.payload === 'object' ? step.payload : {}); }
                 catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
-                if (!alive) return;
+                // (a step's commit redraws the screen and destroys this widget: the rest of the plan still runs to its end)
                 if (!result?.ok) {
                     busy = false;
                     save.disabled = false;
@@ -290,15 +290,18 @@ function render(el, input, api) {
             }
             busy = false;
             save.disabled = false;
-            close();
+            if (alive) close();
         }
 
         // The steps an item's Slot and Equipped by choices need: taken off, or handed to the wearer and put on. [] when nothing changed.
         function wearSteps() {
             if (!slotSelect || !bySelect || slotSelect.disabled) return []; // (a bound piece: the choices are locked)
             const stack = p.payload?.stack;
-            const by = bySelect.value, slot = slotSelect.value;
             const placed = String(p.gear.place ?? ''), wearer = String(p.gear.by ?? '');
+            let by = bySelect.value;
+            const slot = slotSelect.value;
+            // A wearer who is no longer in the list (a member who left) stays the wearer unless the reader picks another.
+            if (by === '' && wearer && !Array.from(bySelect.querySelectorAll('option')).some(option => option.value === wearer)) by = wearer;
             if (by === '' || slot === '') return placed ? [{ command: 'inventory.unequip', payload: { stack } }] : [];
             if (placed === slot && wearer === by) return [];
             // (one command, so a refusal of the slot leaves the item with its owner: all or nothing)
@@ -313,7 +316,7 @@ function render(el, input, api) {
                 let result;
                 try { result = await api.command(step.command, step.payload); }
                 catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
-                if (!alive) return;
+                // (the first step's commit redraws the screen and destroys this widget: the rest still runs, then no close)
                 if (!result?.ok) {
                     busy = false;
                     save.disabled = false;
@@ -323,7 +326,7 @@ function render(el, input, api) {
             }
             busy = false;
             save.disabled = false;
-            close();
+            if (alive) close();
         }
 
         async function submit() {

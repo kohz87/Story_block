@@ -162,7 +162,11 @@ export function editPlan(p) {
         // Who wears it: only for equipment; leaving Equipment takes it off inside the edit itself.
         if (all.kind === 'equipment') {
             const placed = String(gear.place ?? ''), wearer = String(gear.by ?? '');
-            const by = String(all.by ?? ''), slot = String(all.slot ?? '');
+            let by = String(all.by ?? '');
+            const slot = String(all.slot ?? '');
+            // A wearer who is no longer in the list (a member who left) stays the wearer unless the reader picks another.
+            const left = by === '' && wearer !== '' && !wearerOptions(gear.owners).some(option => option.value === wearer);
+            if (left) { by = wearer; delete changed.by; }
             if (!by || !slot) {
                 if (by === '' && placed && changed.by !== undefined) steps.push({ command: 'inventory.unequip', payload: { stack }, keys: ['by'] });
             } else if (!(placed === slot && wearer === by) && (changed.by !== undefined || changed.slot !== undefined || changed.kind !== undefined)) {

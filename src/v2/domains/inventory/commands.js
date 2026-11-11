@@ -186,7 +186,9 @@ export function createInventoryCommands(env) {
                 const pieces = Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner);
                 guardReaderEdit(ctx, 'inventory.edit', editStack(stack), editPieces(inv, stack), decision);
                 // If this edit also changes the selected piece, keep that piece when reducing the group.
-                const loose = pieces.filter(item => item.equipped === null && !boundId(ctx, item) && (!editPiece || item.id !== stack.id)).reverse();
+                // The selected piece goes last of all: the equip that follows a count change in the same Save still names it.
+                const spare = pieces.filter(item => item.equipped === null && !boundId(ctx, item) && (!editPiece || item.id !== stack.id)).reverse();
+                const loose = [...spare.filter(item => item.id !== stack.id), ...spare.filter(item => item.id === stack.id)];
                 const remove = pieces.length - qty;
                 if (remove > loose.length) ctx.fail('REFUSED', E.itemGroupEquipped);
                 if (remove > 0) for (const item of loose.slice(0, remove)) delete inv.stacks[item.id];
@@ -195,7 +197,7 @@ export function createInventoryCommands(env) {
                     grantInto(ctx, inv, original, -remove, stack.owner, stack.note);
                 }
                 if (!editPiece) {
-                    const remaining = Object.values(inv.stacks).find(item => item.def === original.id && item.owner === stack.owner);
+                    const remaining = inv.stacks[stack.id] ?? Object.values(inv.stacks).find(item => item.def === original.id && item.owner === stack.owner);
                     return { summary: fill(E.itemSet, { detail: fill(E.itemCount, { name: original.name, qty }) }),
                         data: { edit: true, stack: remaining.id, told: TOLD.editKit }, narrate: true };
                 }
@@ -297,7 +299,7 @@ export function createInventoryCommands(env) {
             // The reader's hand-over (Give on the Inventory screen): only the taker's own load is checked.
             if (ctx.cause === 'ui') readerCarry(ctx, [{ defId: def.id, qty }], to, true);
             const cond = condOf(stack, inv);
-            const target = def.stack && stack.key !== true && def.kind !== 'equipment' ? looseMatch(inv, def.id, to, stack.note, null, cond) : null;
+            const target = def.stack && stack.key !== true ? looseMatch(inv, def.id, to, stack.note, null, cond) : null;
             const note = stack.note;
             let moved;
             if (qty === stack.qty && !target) {
