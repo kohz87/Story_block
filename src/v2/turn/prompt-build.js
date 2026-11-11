@@ -12,7 +12,7 @@ import { CORE_FEATURE } from '../features.js';
 import { DICE as RPG_DICE, RESOLVE as RPG_RESOLVE } from '../lean-rpg/names.js';
 import { NO_ROLLS_LINE, receiptCue } from '../lean-rpg/cue.js';
 import { fightCue, holdStart } from './fight-start.js';
-import { foesOf, rpgBlocks } from '../lean-rpg/view/party-data.js';
+import { rpgLib } from '../rpg-lazy.js';
 import { readRecord } from '../persist.js';
 import { hashText } from '../assist/common.js';
 import { boardFailure, boardStartState } from './held-board.js';
@@ -147,7 +147,7 @@ export function createPromptBuild(s, deps) {
         // (A swipe: the reply being swiped is the last message, so the reader's message and the reply before it sit one place further back.)
         const back = type === 'swipe' ? 1 : 0, last = ctx?.chat?.at(-1 - back), prior = ctx?.chat?.at(-2 - back);
         if (type !== 'continue' && battleOn() && last?.is_user && prior && !prior.is_user && !prior.is_system && readRecord(prior)) {
-            const state = store.head(), foesNow = rpgBlocks(state).some(block => block.role === 'foes' && foesOf(block).length > 0);
+            const state = store.head(), lib = rpgLib(), foesNow = (lib?.rpgBlocks(state) ?? []).some(block => block.role === 'foes' && lib.foesOf(block).length > 0);
             const cue = fightCue(prior, { foesNow });
             if (cue) cues[HOST_MODULE] = [...(cues[HOST_MODULE] ?? []), cue];
         }

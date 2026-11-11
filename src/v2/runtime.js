@@ -28,7 +28,6 @@ import { createCardSettings } from './packs/card-settings.js';
 import { XP_RATE_SETTING, xpRateFrom, xpRateOf } from './lean-rpg/levels.js';
 import { MODEL_CALL_ERRORS, createCallQueue, createModelCalls, createOwnCalls, profileName, stModelCall } from './model-call.js';
 import { readRecord } from './persist.js';
-import { ruleMarksOf } from './turn/rule-marks.js';
 import { createRegistry } from './registry.js';
 import { MAX_CHANGE_LINES, announceModules, createEvents, createSdk, createSettings, runQuery } from './sdk.js';
 import { displayLines } from './extras.js';
@@ -119,7 +118,8 @@ export function createRuntime({
     // `message` (optional): the reply itself, for its caretWords mark.
     const display = (mes, message = null) => {
         const cap = settings()?.maxChangeLines;
-        const caret = ruleMarksOf(readRecord(message)?.rules).includes('caretWords');
+        // (the mark read directly: turn/rule-marks.js pulls in the RPG's code, which the page start must not load)
+        const marks = readRecord(message)?.rules, caret = Array.isArray(marks) && marks.includes('caretWords');
         return displayLines(mes, { entryOf: word => registry.capture(word), max: Number.isInteger(cap) && cap > 0 ? cap : MAX_CHANGE_LINES, caret });
     };
     // Our own calls on the chat's connection (model-call.js): marked for the turn's prompt handlers.
