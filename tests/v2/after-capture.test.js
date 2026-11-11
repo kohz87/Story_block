@@ -230,3 +230,18 @@ test('afterCapture: a hook that fails is a Problem and the reply\'s lines are ke
     assert.deepEqual(book(host), { pending: 5, paid: 0, refused: 0 });
     assert.ok(turns.at(-1).problems.some(item => item.code === 'FAILED' && /afterCapture failed: the ledger is torn/.test(item.message)));
 });
+
+test('afterCapture: a Re-read keeps the step\'s receipt id, so what was told stays told', async t => {
+    const { host } = await fresh(t);
+    await host.send('Back to town.', reply('You owe the guild.', ['! owe 5', TOWN]));
+    const index = host.ctx.chat.length - 1;
+    const [step] = stepsOn(host, index);
+    assert.ok(host.store.untold().some(receipt => receipt.id === step.id), 'the step is untold until the next reply');
+    await host.send('Thanks.', 'The clerk nods.');
+    assert.equal(host.store.untold().length, 0, 'told by the next reply');
+    assert.equal((await host.sdk.reread(index)).ok, true);
+    assert.equal(stepsOn(host, index)[0].id, step.id, 'the step keeps its id');
+    assert.equal(host.store.untold().length, 0, 'and stays told: it is not told a second time');
+    assert.equal(new Set(recordOf(host, index).receipts.map(receipt => receipt.id)).size, recordOf(host, index).receipts.length, 'no id twice in the record');
+    sameRebuilt(host);
+});

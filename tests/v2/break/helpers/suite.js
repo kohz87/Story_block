@@ -21,6 +21,9 @@ export const roots = () => ({
 export async function loadSuite() {
     const r = roots();
     if (!r.sd || !r.nsd) return { skip: 'no Story_director / npc_state_delta checkout beside this one (STORY_SUITE_ROOT, SUITE_SD, SUITE_NSD)', roots: r };
+    // The playthrough needs NPC State Delta's notes kinds (taste / know / lie, the via discount): a checkout from before the NSD batch
+    // lacks them, and the test would fail on that instead of on Story Block. Skip, and say what to update.
+    if (!existsSync(path.join(r.nsd, 'src/npc-notes-kinds.js'))) return { skip: `the npc_state_delta checkout at ${r.nsd} is older than its notes batch (no src/npc-notes-kinds.js): update it, or point SUITE_NSD at a current one`, roots: r };
     const at = (dir, rel) => import(pathToFileURL(path.join(dir, rel)).href);
     const [kit, SD, NSD] = await Promise.all([at(r.sb, 'testkit/index.js'), at(r.sd, 'src/v2/module.js'), at(r.nsd, 'src/storysuite-v2.js')]);
     return { roots: r, createHost: kit.createHost, SD, NSD, at: rel => at(r.sb, rel), packText: readFileSync(path.join(r.sb, 'examples/packs/ersveil/pack.json'), 'utf8') };

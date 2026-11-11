@@ -110,6 +110,9 @@ export function reusePlan(record, retire = new Set()) {
     const olds = Array.isArray(record?.receipts) ? record.receipts : [];
     const storyOlds = olds.filter(receipt => receipt?.cause === 'story' && typeof receipt.line === 'string' && Number.isInteger(receipt.seed));
     const stepOlds = olds.filter(receipt => receipt?.cause === 'system' && receipt.afterCapture === true && Number.isInteger(receipt.seed));
+    // A record whose kept receipts and kept blocks do not line up one to one keeps its old step receipts beside the new ones
+    // (store/write/replace.js `paired`): a step then takes a fresh id, so one record never holds two receipts with one id.
+    const pairedKept = olds.filter(receipt => receipt?.cause !== 'story').length === (Array.isArray(record?.spans) ? record.spans.filter(span => span?.story !== true).length : -1);
     let storyNext = 0;
     const stepUsed = new Set();
     const used = new Map();
@@ -126,6 +129,7 @@ export function reusePlan(record, retire = new Set()) {
             return typeof storyOlds[at].id === 'string' ? storyOlds[at].id : undefined;
         },
         stepReceipt(type) {
+            if (!pairedKept) return undefined;
             const at = stepOlds.findIndex((receipt, n) => !stepUsed.has(n) && receipt.type === type);
             if (at < 0) return undefined;
             stepUsed.add(at);

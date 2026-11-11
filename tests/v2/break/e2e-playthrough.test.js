@@ -24,17 +24,6 @@ function paths(a, b, at = '', out = []) {
     } else out.push(`${at}: ${JSON.stringify(a)?.slice(0, 120)} -> ${JSON.stringify(b)?.slice(0, 120)}`);
     return out;
 }
-// After a Re-read only the inventory stacks' `from` (the receipt that made the stack) may differ, and every stack that differs is
-// counted and listed in the report (a stack pointing at a new receipt after an unchanged Re-read is a finding, not noise).
-const REPOINTED = [];
-const noIds = (now, live, label) => {
-    const [a, b] = [JSON.parse(JSON.stringify(now)), JSON.parse(JSON.stringify(live))];
-    for (const [id, stack] of Object.entries(a.domains?.inventory?.stacks ?? {})) {
-        const was = b.domains?.inventory?.stacks?.[id];
-        if (was && stack.from !== was.from) { REPOINTED.push(`${label}: ${id} ${was.from} -> ${stack.from}`); stack.from = was.from; }
-    }
-    return [a, b];
-};
 const same = (a, b, label) => { const found = paths(a, b); assert.equal(found.length, 0, `${label}\n${found.join('\n')}`); };
 const DM = (mod, reason, kind, labels = '') => `+ dm ${mod} — ${reason} | kind: ${kind}${labels ? ` | ${labels}` : ''}`;
 
@@ -107,7 +96,7 @@ async function agree(host, label, index) {
     try { await helpers.reload(host); } catch (error) { throw new Error(`${label}: reload / rebuild: ${String(error.message).split('\n')[0]}`); }
     const result = await host.turn.reread(index);
     assert.equal(result?.ok ?? true, true, `${label}: Re-read of ${index} answers ok (${result?.message ?? ''})`);
-    same(...noIds(host.head(), JSON.parse(live), label), `${label}: a Re-read of reply ${index} equals live`);
+    same(host.head(), JSON.parse(live), `${label}: a Re-read of reply ${index} equals live`);
     COUNTS.reads += 1;
 }
 const problemsOf = host => host.turn.problems().map(problem => `${problem.code}: ${String(problem.message ?? '').slice(0, 400)}`);
@@ -176,7 +165,7 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         await soft(`end Re-read ${index}`, async () => {
             const done = await host.turn.reread(index);
             assert.equal(done?.ok ?? true, true, `Re-read ${index}: ${done?.message ?? ''}`);
-            same(...noIds(host.head(), JSON.parse(live), `end ${index}`), `Re-read of reply ${index} leaves the state as live`);
+            same(host.head(), JSON.parse(live), `Re-read of reply ${index} leaves the state as live`);
         });
     }
     // A swipe of the last reply with the same text: the chat, rebuilt cold, gives the head the swipe left.
@@ -201,7 +190,6 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         assert.equal(JSON.stringify(host.head()), afterDelete, 'after a delete in the middle, a cold reload equals live');
     });
     await soft('end', () => assert.deepEqual(errors, [], 'nothing was thrown or logged as an error'));
-    if (process.env.E2E_PRINT) console.log('Re-read re-pointed stack receipts:', REPOINTED.length, REPOINTED.slice(0, 5));
     assert.deepEqual(failures, [], `${failures.length} check(s) failed`);
     assert.ok(COUNTS.reads >= 30);
 });
