@@ -17,7 +17,7 @@ import { createScreenRenderer } from '../../src/v2/view/render-screen.js';
 import { resolveData } from '../../src/v2/view/screens.js';
 import { standardWidgets } from '../../src/v2/view/widgets/index.js';
 import { installFakeDom } from '../ui-fake-dom.js';
-import { createInventoryAddWidget, createWornFoldWidget, WORN_FOLD_WIDGET, INVENTORY_ADD_WIDGET } from '../../src/v2/screens/inventory-add.js';
+import { createInventoryAddWidget, createInventoryViewWidget, createWornFoldWidget, WORN_FOLD_WIDGET, INVENTORY_ADD_WIDGET, INVENTORY_VIEW_WIDGET } from '../../src/v2/screens/inventory-add.js';
 
 const draw = (host, options = {}) => show(inventoryScreen, { state: host.head(), query: host.sdk.query, draft: { wornOpen: '1' }, command: (type, payload, opts) => host.sdk.command(type, payload, opts), ...options });   // (Worn opened: every piece has its row)
 const rowOf = (el, name) => el.querySelectorAll('li.item').find(item => item.querySelector('.name')?.textContent === name);
@@ -413,6 +413,10 @@ test('Edit, gear on: renaming a piece and changing its carry on a definition two
 // The game view mounts the Inventory screen too: its body redraws from `committed` through the same hold as the panel's.
 async function gameForm(t, wrap = null) {
     t.mock.method(console, 'warn', () => {});
+    // These tests edit the List rows: this device's saved view is List (Grid is the default).
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => (key === 'story-block.inventoryView' ? 'list' : null), setItem() {}, removeItem() {} } });
+    t.after(() => { if (had) Object.defineProperty(globalThis, 'localStorage', had); else delete globalThis.localStorage; });
     const { doc, host, ui } = await page(t, { wrap });
     host.features.set('story-block.gear', true);
     await host.send('Hello.', 'The road.');
@@ -583,7 +587,7 @@ test('Edit, gear on: a refusal after a committed step reaches the page notice th
     doc.body.appendChild(el);
     doc.head ??= doc.createElement('head');
     const notices = [];
-    const renderer = createScreenRenderer({ queryAt: (name, args, at) => h.query(name, args), widgets: () => ({ ...standardWidgets, [INVENTORY_ADD_WIDGET]: createInventoryAddWidget(), [WORN_FOLD_WIDGET]: createWornFoldWidget({ storage: null }) }) });
+    const renderer = createScreenRenderer({ queryAt: (name, args, at) => h.query(name, args), widgets: () => ({ ...standardWidgets, [INVENTORY_ADD_WIDGET]: createInventoryAddWidget(), [WORN_FOLD_WIDGET]: createWornFoldWidget({ storage: null }), [INVENTORY_VIEW_WIDGET]: createInventoryViewWidget({ storage: null, fallback: 'list' }) }) });
     const api = { hold: () => () => {}, notify: text => notices.push(text), on: () => () => {},
         command: async (type, payload) => (type === 'item.equip' ? { ok: false, message: 'No room to carry it.' } : gearRun(h)(type, payload)) };
     const data = resolveData(inventoryScreen.data, h.query);

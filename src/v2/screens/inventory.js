@@ -2,7 +2,8 @@
 
 import { KIND_ORDER, RARITIES } from '../domains/inventory.js';
 import { STRINGS, html, jsonText } from '../strings.js';
-import { INVENTORY_ADD_WIDGET, WORN_FOLD_WIDGET } from './inventory-add.js';
+import { INVENTORY_ADD_WIDGET, INVENTORY_GRID_WIDGET, INVENTORY_VIEW_WIDGET, WORN_FOLD_WIDGET } from './inventory-add.js';
+import { GRID_CSS } from './inventory-grid.js';
 import { BASE_CSS, RARITY_THEME } from './style.js';
 
 export const INVENTORY_SCREEN_ID = 'story-block/inventory';
@@ -165,6 +166,10 @@ const CARRY = `<section class="carry-sec" data-if="q.gx != null">
     </ul>
   </section>`;
 
+// The Grid view's widget gets the screen's data and the header's filter boxes (inventory-add.js draws the tiles; the List rows below stay as they were).
+const GRID_PROPS = '{"items":{{ q.items }},"counts":{{ q.counts }},"rows":{{ q.gx.rows }},"wearers":{{ q.gx.wearers }},"owners":{{ q.gx.owners }},"kit":{{ q.gx.kit.open }},"users":{{ q.gear.users }},'
+    + '"filter":{"kind":"{{ draft.kind }}","rarity":"{{ draft.rarity }}","find":"{{ draft.find }}","equippedOnly":"{{ draft.equippedOnly }}"}}';
+
 const TEMPLATE = `
 <div class="inv" data-class="gear: q.gx != null">
   <header class="top">
@@ -177,6 +182,7 @@ const TEMPLATE = `
     <span data-inline-control="ss.editable" data-props='{"value":{{ q.wallet.coin }},"displayValue":false,"money":true,"currency":{{ q.currency }},"label":"${jsonText(S.editPurse)}","command":"wallet.set","valueKey":"amount"}'></span>
     </div>
     <span data-inline-control="${INVENTORY_ADD_WIDGET}"></span>
+    <ss-widget name="${INVENTORY_VIEW_WIDGET}" data-props='{"view":"{{ draft.view }}"}'></ss-widget>
     </div>
     <div class="filter" role="search" aria-label="${html(S.filterLabel)}" data-if="len(q.items) > 0">
       <input type="search" class="find" data-draft="find" placeholder="${html(S.find)}" title="${html(S.findTitle)}"
@@ -210,13 +216,15 @@ ${RARITIES.map(rarity => `          <option value="${rarity}">${html(S.rarities[
   </section>
   <p class="empty muted" data-if="len(q.items) == 0">${html(S.empty)}</p>
 
-  <div class="groups">${GEAR_ORDER.map(kind => group(kind, true).trim() + (kind === 'equipment' ? WORN : '')).join('')}${KIND_ORDER.map(kind => group(kind)).join('')}
+  <ss-widget name="${INVENTORY_GRID_WIDGET}" data-if="draft.view == 'grid' && len(q.items) > 0" data-props='${GRID_PROPS}'></ss-widget>
+  <div class="groups" data-if="draft.view != 'grid'">${GEAR_ORDER.map(kind => group(kind, true).trim() + (kind === 'equipment' ? WORN : '')).join('')}${KIND_ORDER.map(kind => group(kind)).join('')}
   </div>
-  <p class="nomatch muted" data-if="len(q.items) > 0">${html(S.noMatch)}</p>
+  <p class="nomatch muted" data-if="len(q.items) > 0 && draft.view != 'grid'">${html(S.noMatch)}</p>
 </div>`;
 
 const CSS = `${BASE_CSS}
-.inv { display: grid; gap: var(--sb-gap); }
+${GRID_CSS}
+.inv { display: grid; gap: var(--sb-gap); position: relative; }
 .top { display: flex; flex-wrap: wrap; gap: var(--sb-gap); align-items: center; }
 .wallet-and-add { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .wallet { display: inline-flex; gap: 6px; align-items: center; font-size: 1.05em; }
