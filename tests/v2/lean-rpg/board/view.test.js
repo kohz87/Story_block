@@ -130,7 +130,8 @@ test('the board selects a target, keeps its exchange final and confirms discard'
 test('the marked board stages a selected heal on its named party member and labels the result', async t => {
     const { doc, host, ui } = await page(t, { formula: 'standard' });
     await begin(host);
-    await makeBlocks(host, { character: { health: 4 }, skills: { skill1: 'Mend', about1: 'heal an ally', stat1: 'int', uses1: 'mana' } });
+    // (Health 8 of 16 blocks: a decisive foe hit of the harder-foes rule takes 4 and cannot Down Wessel before her Mend is told)
+    await makeBlocks(host, { character: { health: 8, vit: 20 }, skills: { skill1: 'Mend', about1: 'heal an ally', stat1: 'int', uses1: 'mana' } });
     await defineFoes(host, [['Rat', 1, 1, 4]]);
     ui.mounts.screen.open('story-block/fight');
     await settle();
