@@ -19,6 +19,10 @@ Update Story Block, Story Director and NPC State Delta together, then re-import 
 - **Fight XP per foe.** Each member earns 15 XP for every foe in a won fight, 10% more per level the foe is above them and 10% less per level below (nothing from a foe 10 or more levels lower), at most 100 per fight, then the XP rate setting. Quests, arcs and rests give no XP. Fights won before this keep their old XP when read again.
 - **Inventory as a grid.** Items show as equal tiles (rarity border, name, the slot and bonus for gear, "×9" for stacks, an amber dot for worn gear, a lock for a signature piece), with a List / Grid switch remembered on this device. Each category folds with its count, and worn gear folds per wearer.
 - **Tabs in one scrolling row.** On phone and tablet every tab sits in one row that scrolls sideways, with an arrow on the side that has more; there is no More menu. The wide game view shows every tab in one row. Your tab order from Settings still applies.
+- The skill editor's Escape no longer closes the Game view.
+- A stuck SillyTavern branch call no longer blocks save points and rewinds.
+- A Soul Class rise of one point says "+1 point".
+- A `[battle]` line you type yourself stays visible.
 - **Faction tags on world events** are taught to the narrator for new replies (a rule mark), so Story Director can add the factions they name.
 - **Reputation lists with room.** Each known entry is its own row with an 8 px bar; signed lists (standing) run from a centre line, red below 0 and green above, with the scale shown once; the top 3 show and the rest fold as "N more known · Not known yet (N)"; pencils appear only after the section's Edit. Applies to every pack's number lists.
 - **Enable all blocks.** Settings → Tabs & Packs → the installed blocks: one "Enable all N for this chat" button, one confirm listing the names, then each is enabled in the order they need; a block refused on its own shows why, the rest still enable.
