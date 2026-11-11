@@ -51,6 +51,7 @@ import { createUiMounts } from './ui-host/mounts.js';
 import { createUiNavigation } from './ui-host/navigation.js';
 import { createUiSettings } from './ui-host/settings.js';
 import { installUiEvents } from './ui-host/events.js';
+import { createHold } from './ui-host/hold.js';
 import { createUiPanel } from './ui-host/panel.js';
 import { createHostSetup } from './ui-host/setup.js';
 import { createScreenSync } from './ui-host/screens.js';
@@ -72,15 +73,20 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     });
     const { rpgOn, blockPresentation, syncScreens } = createScreenSync({ doc, registry, sdk, screens, setSharedTabs });
 
+    const redrawHold = createHold();
     const api = Object.freeze({
         command: (type, payload, options) => sdk.command(type, payload, options),
         preview: (type, payload) => sdk.preview(type, payload),
-        // Where the reader is (chat id and the first message of its line of history) and a page notice: a form that outlives its redraw checks the one and uses the other.
-        where: () => ({ chat: String(ctx.getCurrentChatId?.() ?? ctx.chatId ?? ''), first: (liveCtx() ?? ctx).chat?.[0] ?? null }),
-        notify: text => globalThis.toastr?.warning?.(text, 'Story Block'),
+        // A form with several steps holds the screens' redraw from `committed` until its plan ends (the returned release), then each held redraw runs once.
+        hold: () => redrawHold.hold(),
         commit: token => sdk.commit(token),
         query: (name, args) => sdk.query(name, args),
-        on: (name, fn) => sdk.on(name, fn),
+        on: (name, fn) => {
+            if (name !== 'committed') return sdk.on(name, fn);
+            const held = (...args) => redrawHold.run(held, () => fn(...args));
+            const off = sdk.on(name, held);
+            return () => { redrawHold.drop(held); if (typeof off === 'function') off(); };
+        },
         rewind: options => sdk.rewind(options),
         substitute: text => sdk.substitute(text),
         dialog: Object.freeze({ open: (screenId, opts) => sdk.dialog.open(screenId, opts), current: () => sdk.dialog.current?.() ?? null }),
@@ -389,7 +395,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     const offs = installUiEvents({
         replyOffs, offs0, registry, store, events, ctx, runtime, mounts, screens, blockWidgets, cardOffer,
         blockPresentation, syncScreens, syncLeanRpg, refresh, clearBlocked, getPanel: () => panel,
-        getTabHost: () => tabHost, getOverlay: () => overlay, getBlockedBy: () => blockedBy,
+        getTabHost: () => tabHost, getOverlay: () => overlay, getBlockedBy: () => blockedBy, redrawHold,
     });
 
     syncScreens();

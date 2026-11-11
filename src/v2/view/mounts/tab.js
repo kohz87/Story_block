@@ -39,7 +39,8 @@ export function createTabMount(deps) {
                 get alertText() { return activeNow(entry.screen, headStateSafe(deps), deps.query).badge ?? ''; },
                 render: (el, view, api) => mount(el, entry.id, {
                     ...(view?.state ? { state: view.state } : {}),
-                    ...(api ? { api } : {}),
+                    // (the tab host hands the sdk; the page's redraw hold and its held `on` ride along so a form can hold its screen)
+                    ...(api ? { api: deps.api?.hold ? { ...api, hold: deps.api.hold, on: deps.api.on } : api } : {}),
                 }),
             }));
             ids.push(entry.id);

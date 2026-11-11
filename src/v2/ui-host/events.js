@@ -3,7 +3,7 @@
 
 import { captureConsole } from '../diagnostics.js';
 
-export function installUiEvents({ replyOffs, offs0, registry, store, events, ctx, runtime, mounts, screens, blockWidgets, cardOffer, blockPresentation, syncScreens, syncLeanRpg, refresh, clearBlocked, getPanel, getTabHost, getOverlay, getBlockedBy }) {
+export function installUiEvents({ replyOffs, offs0, registry, store, events, ctx, runtime, mounts, screens, blockWidgets, cardOffer, blockPresentation, syncScreens, syncLeanRpg, refresh, clearBlocked, getPanel, getTabHost, getOverlay, getBlockedBy, redrawHold }) {
     const offs = [...replyOffs, ...offs0];
     // Story Suite's console errors, kept for Diagnostics (once per page; the console still prints them).
     offs.push(captureConsole());
@@ -29,7 +29,9 @@ export function installUiEvents({ replyOffs, offs0, registry, store, events, ctx
             try { pinned = blockPresentation() ?? []; if (pinned.length) next = JSON.stringify(pinned); } catch { dataStamp = null; /* older host */ }
             if (next !== dataPresentation) { dataPresentation = next; syncScreens(pinned); }
         }
-        mounts.tab.register(); if (!getPanel().hidden) getTabHost()?.refresh();
+        // (the panel's redraw waits while a form's plan holds it, and runs once after)
+        const redraw = () => { mounts.tab.register(); if (!getPanel().hidden) getTabHost()?.refresh(); };
+        if (name === 'committed') redrawHold.run('panel', redraw); else redraw();
     }));
     // A feature turned on or off: its screens, tabs, widgets and cards come and go; nothing else changes.
     for (const name of ['head', 'committed', 'turn']) offs.push(events.on(name, () => getOverlay()?.refreshSize?.()));

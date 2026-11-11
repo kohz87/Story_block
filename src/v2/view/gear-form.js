@@ -154,11 +154,12 @@ export function editPlan(p) {
             }
         }
         const steps = [];
+        if (Object.keys(payload).length > 2) steps.push({ command: 'inventory.edit', payload, keys: ['name', 'count', 'note', 'kind', 'slot', 'rarity', 'stat1', 'points1', 'stat2', 'points2'] });
+        // (Carry after the edit: a rename of a shared piece gives it a definition of its own, and the carry must land on that one, not on the other pieces')
         if (changed.carry !== undefined) {
             if (!Number.isSafeInteger(all.carry) || all.carry < 0 || all.carry > 500) return { error: E.carryRange.replace('{max}', '500') };
             steps.push({ command: 'inventory.carry', payload: { stack, carry: all.carry }, keys: ['carry'] });
         }
-        if (Object.keys(payload).length > 2) steps.push({ command: 'inventory.edit', payload, keys: ['name', 'count', 'note', 'kind', 'slot', 'rarity', 'stat1', 'points1', 'stat2', 'points2'] });
         // Who wears it: only for equipment; leaving Equipment takes it off inside the edit itself.
         if (all.kind === 'equipment') {
             const placed = String(gear.place ?? ''), wearer = String(gear.by ?? '');

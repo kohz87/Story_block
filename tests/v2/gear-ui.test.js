@@ -10,6 +10,7 @@ import { createHarness } from './domains/helpers/fake-ctx.js';
 import { stocked } from './domains/fixtures.js';
 import { destroyTemplate } from '../../src/v2/view/template/render.js';
 import { show, settle, text } from './screens/helpers.js';
+import { editPlan } from '../../src/v2/view/gear-form.js';
 import { page } from './lean-rpg/view/page.js';
 import { FIGHT, dump, gearHost, reply } from './helpers/gear-ui-state.js';
 
@@ -211,26 +212,31 @@ test('Edit, gear on: Equipped by a member hands the piece over and puts it on in
 
 const gearRun = h => (type, payload) => h.run(type, payload, { cause: 'ui', extra: { feature: id => id === 'story-block.gear' || id === 'story-block.rpg' } });
 
-// The form's Save through the mounted screen; `redraw` destroys the screen after the first command, as a real commit's redraw does; `swap` opens another chat
-// after it; `refuse` turns the equip down; `notes` collects the page notices.
-function mounted(h, { redraw = false, swap = false, refuse = false } = {}) {
-    const calls = [], notes = [], at = { chat: 'a', first: 1 };
-    const shown = show(inventoryScreen, { state: h.state, query: h.query, extra: { api: { where: () => ({ ...at }), notify: text => notes.push(text) } }, command: async (type, payload) => {
+// The form's Save through the mounted screen with a screen that holds like the real one: a command's `committed` redraw (here only counted in `redraws`) waits while a plan holds (`api.hold`) and runs once at its end. `leave` closes the screen (a chat switch, the panel closed) after the first command;
+// `refuse` turns the equip down.
+function mounted(h, { leave = false, refuse = false } = {}) {
+    const calls = [], redraws = { n: 0, at: [] };
+    let holds = 0, owed = false, shown = null;
+    const redraw = () => { redraws.n++; };
+    const hold = () => { holds++; return () => { if (!--holds && owed) { owed = false; redraw(); } }; };
+    shown = show(inventoryScreen, { state: h.state, query: h.query, extra: { api: { hold } }, command: async (type, payload) => {
+        redraws.at.push(redraws.n);
         calls.push(type);
         const done = refuse && type === 'item.equip' ? { ok: false, message: 'No room to carry it.' } : await gearRun(h)(type, payload);
-        if (redraw && calls.length === 1) destroyTemplate(shown.el);
-        if (swap && calls.length === 1) at.chat = 'b';
+        if (leave && calls.length === 1) destroyTemplate(shown.el);
+        else if (holds) owed = true;
+        else redraw();
         return done;
     } });
-    return { ...shown, calls, notes };
+    return { ...shown, calls, redraws };
 }
 const rowsOf = (el, name) => el.querySelectorAll('li.item').filter(item => item.querySelector('.name')?.textContent === name);
 const open = (el, name) => { const row = rowOf(el, name); row.querySelector('.ss-w-editable-pencil').click(); return row; };
 
-test('Edit, gear on: a note change and a wearer in one Save finish both steps although the first redraws the screen', async () => {
+test('Edit, gear on: a note change and a wearer in one Save finish both steps with no redraw in between and one after', async () => {
     const { module, state } = crewState();
     const h = createHarness([module], { state });
-    const { el, calls } = mounted(h, { redraw: true });
+    const { el, calls, redraws } = mounted(h);
     const sword = open(el, 'Iron Sword');
     const [, , note] = sword.querySelectorAll('input');
     note.value = 'keen';
@@ -239,6 +245,8 @@ test('Edit, gear on: a note change and a wearer in one Save finish both steps al
     await settle();
     await settle();
     assert.deepEqual(calls, ['inventory.edit', 'item.equip']);
+    assert.deepEqual(redraws.at, [0, 0], 'the second step began before any redraw');
+    assert.equal(redraws.n, 1, 'one redraw once the plan ended');
     const held = h.state.domains.inventory.stacks.it_sword001;
     assert.deepEqual([held.note, held.owner, held.equipped], ['keen', 'ac_ren00001', 'weapon']);
 });
@@ -347,24 +355,24 @@ test('Edit, gear on: choosing None for a piece a member who left wears takes it 
     assert.equal(h.state.domains.inventory.stacks.it_sword001.equipped, null);
 });
 
-test('Edit, gear on: a plan stops before its next step when another chat is open', async () => {
+test('Edit, gear on: closing the screen mid-plan stops the next step', async () => {
     const { module, state } = crewState();
     const h = createHarness([module], { state });
-    const { el, calls } = mounted(h, { redraw: true, swap: true });
+    const { el, calls } = mounted(h, { leave: true });
     const sword = open(el, 'Iron Sword');
     sword.querySelectorAll('input')[2].value = 'keen';
     sword.querySelectorAll('select')[1].value = 'ac_ren00001';
     sword.querySelector('.ss-w-editable-save').click();
     await settle();
     await settle();
-    assert.deepEqual(calls, ['inventory.edit'], 'the equip never ran against the other chat');
+    assert.deepEqual(calls, ['inventory.edit'], 'the equip never ran');
     assert.equal(h.state.domains.inventory.stacks.it_sword001.equipped, null);
 });
 
-test('Edit, gear on: a refusal after the form is gone is a page notice', async () => {
+test('Edit, gear on: a refusal in the second step shows in the form, which stays open until the plan is over', async () => {
     const { module, state } = crewState();
     const h = createHarness([module], { state });
-    const { el, calls, notes } = mounted(h, { redraw: true, refuse: true });
+    const { el, calls, redraws } = mounted(h, { refuse: true });
     const sword = open(el, 'Iron Sword');
     sword.querySelectorAll('input')[2].value = 'keen';
     sword.querySelectorAll('select')[1].value = 'ac_ren00001';
@@ -372,7 +380,23 @@ test('Edit, gear on: a refusal after the form is gone is a page notice', async (
     await settle();
     await settle();
     assert.deepEqual(calls, ['inventory.edit', 'item.equip']);
-    assert.equal(notes.length, 1);
-    assert.match(notes[0], /No room to carry it/);
+    assert.deepEqual(redraws.at, [0, 0]);
+    assert.match(text(sword.querySelector('.ss-w-editable-error')), /No room to carry it/);
     assert.equal(h.state.domains.inventory.stacks.it_sword001.note, 'keen');
+});
+
+test('Edit, gear on: renaming a piece and changing its carry on a definition two pieces share changes only the selected piece', () => {
+    const { module, state } = crewState();
+    const inv = state.domains.inventory;
+    inv.defs['story/bag'] = { ...structuredClone(inv.defs['pack.fantasy/iron-sword']), id: 'story/bag', name: 'Bag', carry: 5, slot: 'accessory1' };
+    for (const id of ['it_bag00001', 'it_bag00002']) inv.stacks[id] = { ...inv.stacks.it_sword001, id, def: 'story/bag', equipped: null };
+    const h = createHarness([module], { state });
+    const plan = editPlan({ value: 'Bag', itemCount: 1, gear: { stack: 'it_bag00002', kind: 'equipment', place: '', by: '', owner: inv.stacks.it_bag00002.owner, row: { hand: true, defSlot: 'accessory1', carry: 5, stats: {} } } });
+    const { steps, error } = plan({ name: 'Satchel', carry: 10 }, { name: 'Satchel', count: 1, note: '', kind: 'equipment', slot: 'accessory1', rarity: 'common', by: '', carry: 10 });
+    assert.equal(error, undefined);
+    assert.deepEqual(steps.map(step => step.command), ['inventory.edit', 'inventory.carry'], 'the rename first, then the carry');
+    for (const step of steps) assert.equal(gearRun(h)(step.command, step.payload).ok, true, step.command);
+    const after = h.state.domains.inventory;
+    assert.deepEqual([after.defs[after.stacks.it_bag00002.def].name, after.defs[after.stacks.it_bag00002.def].carry], ['Satchel', 10]);
+    assert.deepEqual([after.defs[after.stacks.it_bag00001.def].name, after.defs[after.stacks.it_bag00001.def].carry], ['Bag', 5], 'the other piece is untouched');
 });

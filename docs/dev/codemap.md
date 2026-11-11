@@ -139,6 +139,7 @@ Last checked: 2026-11-07.
 - `src/v2/ui-host/replies.js`: reply-card scopes, scans, rendering and actions.
 - `src/v2/ui-host/mounts.js`: screen, card, HUD and dialog mount wiring.
 - `src/v2/ui-host/navigation.js`: tab source and Settings navigation controls.
+- `src/v2/ui-host/hold.js`: the redraw hold a multi-step form takes so its screen is not redrawn until the plan ends.
 - `src/v2/ui-host/panel.js`: panel creation, opening, closing and live tab-host access.
 - `src/v2/ui-host/settings.js`: settings overlay, diagnostics and theme inputs.
 - `src/v2/ui-host/events.js`: runtime and chat listeners with their teardown callbacks.

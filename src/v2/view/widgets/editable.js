@@ -265,9 +265,8 @@ function render(el, input, api) {
         }
         // The form's `plan`: the steps run one after the other; a refusal stops the rest and leaves the form open with its sentence. A step that
         // went through is not sent again by the next Save: its boxes now count as what the form opened with.
-        // Later steps run on after a step's redraw destroys the widget, but only in the chat (and line of history) the plan started in; a refusal is told in the form, or as a notice once it is gone.
-        const chatGuard = () => { const was = api.where?.(); return () => { const now = api.where?.(); return now?.chat === was?.chat && now?.first === was?.first; }; };
-        const tell = text => { if (alive) error.textContent = text; else api.notify?.(text); };
+        // While the steps run the screen holds its redraw (`api.hold()`, released at the end, then one redraw), so the form stays for the whole plan and a refusal shows in it;
+        // if navigation (another chat, the panel closed) destroys the form meanwhile, the next step does not run.
         async function runPlan({ changed, all }) {
             if (!Object.keys(changed).length && !p.always) {
                 if (p.kind === 'item' && p.gear?.kind === 'equipment') { error.textContent = p.gear.place ? STRINGS.editMessages.nothingChanged : STRINGS.editMessages.nothingWorn; return; }
@@ -280,23 +279,25 @@ function render(el, input, api) {
             if (!steps.length) { close(); return; }
             busy = true;
             save.disabled = true;
-            const same = chatGuard();
-            for (const [at, step] of steps.entries()) {
-                if (at && !same()) { busy = false; return; }
-                let result;
-                try { result = await api.command(String(step.command), step.payload && typeof step.payload === 'object' ? step.payload : {}); }
-                catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
-                if (!result?.ok) {
-                    busy = false;
-                    save.disabled = false;
-                    tell(refusalText(result, E.failed));
-                    return;
+            const release = api.hold?.();
+            try {
+                for (const step of steps) {
+                    let result;
+                    try { result = await api.command(String(step.command), step.payload && typeof step.payload === 'object' ? step.payload : {}); }
+                    catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
+                    if (!alive) return;
+                    if (!result?.ok) {
+                        busy = false;
+                        save.disabled = false;
+                        error.textContent = refusalText(result, E.failed);
+                        return;
+                    }
+                    for (const entry of fields.inputs) if (Array.isArray(step.keys) && step.keys.includes(String(entry.spec.key))) entry.spec = { ...entry.spec, value: all[String(entry.spec.key)] ?? '' };
                 }
-                for (const entry of fields.inputs) if (Array.isArray(step.keys) && step.keys.includes(String(entry.spec.key))) entry.spec = { ...entry.spec, value: all[String(entry.spec.key)] ?? '' };
-            }
-            busy = false;
-            save.disabled = false;
-            if (alive) close();
+                busy = false;
+                save.disabled = false;
+                close();
+            } finally { release?.(); }
         }
 
         // The steps an item's Slot and Equipped by choices need: taken off, or handed to the wearer and put on. [] when nothing changed.
@@ -315,22 +316,24 @@ function render(el, input, api) {
         async function runSteps(steps) {
             busy = true;
             save.disabled = true;
-            const same = chatGuard();
-            for (const [at, step] of steps.entries()) {
-                if (at && !same()) { busy = false; return; }
-                let result;
-                try { result = await api.command(step.command, step.payload); }
-                catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
-                if (!result?.ok) {
-                    busy = false;
-                    save.disabled = false;
-                    tell(refusalText(result, E.failed));
-                    return;
+            const release = api.hold?.();
+            try {
+                for (const step of steps) {
+                    let result;
+                    try { result = await api.command(step.command, step.payload); }
+                    catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
+                    if (!alive) return;
+                    if (!result?.ok) {
+                        busy = false;
+                        save.disabled = false;
+                        error.textContent = refusalText(result, E.failed);
+                        return;
+                    }
                 }
-            }
-            busy = false;
-            save.disabled = false;
-            if (alive) close();
+                busy = false;
+                save.disabled = false;
+                close();
+            } finally { release?.(); }
         }
 
         async function submit() {
