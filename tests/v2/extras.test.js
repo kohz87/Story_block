@@ -444,3 +444,20 @@ test('Scene with Story Director\'s World registered: no thoughts there (World â†
     host.features.set('story-director.world', false);
     assert.deepEqual(host.sdk.query('scene.chatter'), [{ name: 'Minke', text: 'hurry' }], 'World off: chatter has nowhere else to show');
 });
+
+test('a marked ^ reply: its choices and chatter are drawn (caret), an unmarked one is not', async t => {
+    const host = await fresh(t);
+    const text = block('The wall rose.', ['^? ^choice ^Climb ^the ^wall', '^~ ^chatter ^Minke: ^careful']);
+    await host.send('Go.', text);
+    const at = lastIndex(host), entryOf = word => host.registry.capture(word);
+    assert.ok(host.ctx.chat[at].extra.storySuite.rules.includes('caretWords'), 'the reply carries the mark');
+    assert.deepEqual(displayLines(text, { entryOf }), {}, 'without the mark: not read');
+    const read = displayLines(text, { entryOf, caret: true });
+    assert.equal(read.choice?.[0]?.text, 'Climb the wall');
+    assert.ok(read.chatter?.length === 1, JSON.stringify(read));
+    // The wiring: the next prompt's tail carries the marked reply's chatter (runtime display reads the reply's mark).
+    host.settings.set('story-block', 'chatterInPrompt', true);
+    await host.send('Next.', 'Calm.');
+    const tail = host.st.requests.at(-1).chat.filter(message => message.role === 'system').map(message => message.content).join('\n');
+    assert.match(tail, /Inner chatter last reply, unspoken: only the thinker knows\] Minke: careful/);
+});
