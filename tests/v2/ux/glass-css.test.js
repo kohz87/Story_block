@@ -238,3 +238,14 @@ test('a slider\'s input has no background, box, border, shadow, filter or outlin
     // The Firefox progress part is clear too (the fill is the track's own gradient).
     assert.ok(all.some(rule => rule.selectors.length === 1 && rule.selectors[0].endsWith('.ss-slider-input::-moz-range-progress') && /background: transparent;/.test(rule.block)));
 });
+
+test('SillyTavern\'s text shadow (a `*` rule) is switched off inside Story Suite\'s roots, and tab rows wrap their controls as a group', () => {
+    const shadow = all.filter(rule => /(^|[\s;])text-shadow:\s*none/.test(rule.block));
+    const selectors = shadow.flatMap(rule => rule.selectors);
+    assert.ok(selectors.includes(`${ROOT_SELECTOR} *`), 'every element in a root');
+    assert.ok(selectors.includes(`${ROOT_SELECTOR} *::before`) && selectors.includes(`${ROOT_SELECTOR} *::after`), 'and its pseudo-elements');
+    const controls = all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-tabrow-controls`)).map(rule => rule.block).join('\n');
+    assert.match(controls, /margin-left: auto/);
+    const note = all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-tabrow-note`)).map(rule => rule.block).join('\n');
+    assert.match(note, /flex: 1 0 100%/);
+});

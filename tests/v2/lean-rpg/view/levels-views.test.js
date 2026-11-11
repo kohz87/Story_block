@@ -140,3 +140,11 @@ test('F5 and F8: the battle log tells the divisor the roll was made with (rules.
     const panel = panelModel({ resolve: lower, state, before: null, roleOf, ranks: RANKS });
     assert.equal(buildPanel(setupDom(), panel, { index: 3 }).querySelector('.rpg-bl-order').textContent, 'Turn order: Astra (Lv 13) 29 > Mud-Scale Crawlers (Lv 7) 14');
 });
+
+test('the battle log tells a foe\'s own divisor: a harder-foes roll reads "Lv 20 ÷ 4 = 5" for the foe and the result\'s ÷ 5 for the hero; an older record reads ÷ 5 on both', () => {
+    const line = foe => ({ kind: 'act', type: 'physical', outcome: 'success', skill: 'Iaijutsu', pc: pc('Astra', { mainValue: 10, secondValue: 6, total: 29 }), foe });
+    const hard = readResolve(record({ lv: 1, rounds: [{ n: 1, lines: [line(foeSide({ classValue: 20, classBonus: 5, divisor: 4, total: 24 }))] }] }));
+    assert.match(hard.rounds[0].lines[0].breakdown, /\+ Lv 14 ÷ 5 = 2 = 29 · vs Mud-Scale Crawlers d20 9 \+ 4 \+ Lv 20 ÷ 4 = 5 = 24/);
+    const old = readResolve(record({ lv: 1, rounds: [{ n: 1, lines: [line(foeSide({ classValue: 20, classBonus: 4, total: 24 }))] }] }));
+    assert.match(old.rounds[0].lines[0].breakdown, /Lv 20 ÷ 5 = 4 = 24/);
+});

@@ -83,7 +83,7 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     const { doc, host, ui } = await page(t, { formula: 'standard' });
     await begin(host);
     await makeBlocks(host, { skills: { skill1: 'Shadow Cut', about1: 'sweep every foe', uses1: 'mana' }, character: { mana: 0 } });
-    await defineFoes(host, [['Rats', 2, 1, 5], ['Spiders', 1, 1, 5]]);
+    await defineFoes(host, [['Rats', 2, 1, 12], ['Spiders', 1, 1, 12]]);
     await settle();
     ui.mounts.screen.open('story-block/fight');
     await settle();
@@ -115,6 +115,9 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     fight().querySelector('[data-choice="1"]').click();
     fight().querySelector('[data-choice="2"]').click();
     assert.match(fight().querySelector('.rpg-board-log').textContent, /Exchange 1/);
+    const excerpt = fight().querySelector('.rpg-board-excerpt');   // the wide board's two-line box (board.css clamps it; a phone hides it)
+    assert.ok(excerpt && excerpt.textContent.length > 0 && !/Exchange 1/.test(excerpt.textContent), 'the last exchange\'s lines, without its heading');
+    const kids = [...fight().querySelector('.rpg-board-body').children]; assert.ok(kids.indexOf(excerpt) + 1 === kids.indexOf(fight().querySelector('.rpg-board-log')), 'the excerpt sits right above the log summary');
     assert.equal(fight().querySelector('.rpg-board-undo'), null);
     assert.equal(boardSession(host.ctx.chatMetadata).exchanges.length, 1);
     fight().querySelector('.rpg-board-discard').click();
@@ -130,7 +133,8 @@ test('the board selects a target, keeps its exchange final and confirms discard'
 test('the marked board stages a selected heal on its named party member and labels the result', async t => {
     const { doc, host, ui } = await page(t, { formula: 'standard' });
     await begin(host);
-    await makeBlocks(host, { character: { health: 4 }, skills: { skill1: 'Mend', about1: 'heal an ally', stat1: 'int', uses1: 'mana' } });
+    // (Health 8 of 16 blocks: a decisive foe hit of the harder-foes rule takes 4 and cannot Down Wessel before her Mend is told)
+    await makeBlocks(host, { character: { health: 8, vit: 20 }, skills: { skill1: 'Mend', about1: 'heal an ally', stat1: 'int', uses1: 'mana' } });
     await defineFoes(host, [['Rat', 1, 1, 4]]);
     ui.mounts.screen.open('story-block/fight');
     await settle();
@@ -160,7 +164,7 @@ test('the board ends on a won card', async t => {
 
 test('the board ends on a lost card', async t => {
     const { doc, result } = await showStop(t, {
-        character: { str: 3, agi: 3, vit: 3, health: 1 }, foes: [['Rats', 12, 99, 5]],
+        character: { str: 3, agi: 3, vit: 3, health: 1 }, foes: [['Rats', 12, 99, 15]],
         action: [{ who: 'Wessel', kind: 'attack', target: 11 }], stop: 'lost',
     });
     const fight = doc.querySelector('[data-ss-screen="story-block/fight"]');
@@ -170,7 +174,7 @@ test('the board ends on a lost card', async t => {
 
 test('the board ends on a fled card', async t => {
     const { doc, result } = await showStop(t, {
-        character: { agi: 20 }, foes: [['Rats', 1, 1, 5]],
+        character: { agi: 20 }, foes: [['Rats', 1, 1, 12]],
         action: [{ who: 'Wessel', kind: 'flee' }], stop: 'fled',
     });
     const fight = doc.querySelector('[data-ss-screen="story-block/fight"]');
@@ -514,7 +518,8 @@ test('E5: a newly opened board shows the seeded member order before the first ch
     await settle();
     const order = doc.querySelector('[data-ss-screen="story-block/fight"] .rpg-board-order');
     assert.ok(order, 'the order line is present before any choice');
-    assert.match(order.textContent, /^Order: .*Bristle-boars \(1, 2, 3\).*3 attacks on you each exchange$/u);
+    // (the world's Foes block is a new one, so the harder-foes cap shows: three boars make 3 attacks, the party of one takes at most 2)
+    assert.match(order.textContent, /^Order: .*Bristle-boars \(1, 2, 3\).*2 attacks on you each exchange$/u);
 });
 
 test('a pack is one chip with about how many are left, and stays a single target', async t => {
@@ -621,8 +626,10 @@ test('the staged line of an area skill reads just "Temiwa · Shadow Cut" in a pa
     assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Wessel: choose an action');
     assert.equal(root.querySelector('.rpg-board-step').textContent, '2 of 2');
     assert.equal(boardSession(host.ctx.chatMetadata).exchanges.length, 0, 'the exchange waits for the second member');
+    assert.equal(root.querySelector('.rpg-board-back').disabled, false, 'Back is live once something is staged');
     root.querySelector('.rpg-board-back').click();   // Back takes the staged action back
     assert.equal(root.querySelector('.rpg-board-staged'), null);
+    assert.equal(root.querySelector('.rpg-board-back').disabled, true, 'Back stays in its row, disabled, with nothing to take back');
 });
 
 test('a fight staged before areaAll keeps asking for a main group when more than one group stands', async t => {

@@ -12,6 +12,9 @@ Story Block 2.31.0 adds optional `ripples` and `content.names` sections and even
 
 Once events may share a `decision` slug within a pack: the due alternative is selected again on the state before its stored receipt after an earlier Re-read, swipe or deletion. A decision group should contain mutually exclusive conditions. `packs.rippleChoice` checks the requested pack and claimant ids before using Director's sway; if the provider or the matching table is unavailable, it returns the pack's specified fallback. Older Directors use only their first table, so a preceding unrelated table causes the fallback until scoped sway is supported.
 
+
+Event conditions can use `region(name, ...)` (Story Block 2.31.1): true when the scene's place is in any of the 1 to 16 named regions (exact names, as `query('scene.place').region == name`; false with no place). It replaces a chain of `||` over regions, so one event can cover several regions and fire once. Each name is at most 200 characters; the whole condition keeps its 1000-character limit.
+
 Rules packs for RPG Battle cannot be imported. Keep existing RPG Battle chats on the previous versions.
 
 ## Character bars and skills in a pack

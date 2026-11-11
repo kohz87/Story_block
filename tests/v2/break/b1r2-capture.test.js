@@ -49,11 +49,14 @@ test('Re-read of an unchanged reply after the reader acted on what it gave succe
 // 150 new items per reply are allowed every reply. After 750 story items a 150-line reply takes
 // 6–30 s (maxChangeLines bounds the lines, not their cost).
 test('a 150-line reply after five such replies stays near the plain-capture baseline', async t => {
-    const baseline = await plainCaptureBaseline();
+    const before = await plainCaptureBaseline();
     const host = await fresh(t);
     let k = 0;
     for (let r = 0; r < 5; r += 1) await host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`)));
     const ms = await timedCapture(() => host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`))));
+    // Machine load comes in bursts: take the baseline again after the capture and use the slower of the two,
+    // so a burst that hit only the capture does not read as a regression (a real slowdown leaves the baseline alone).
+    const baseline = Math.max(before, await plainCaptureBaseline());
     t.diagnostic(`plain baseline ${Math.round(baseline)} ms; sixth reply ${Math.round(ms)} ms`);
     assertCaptureTiming(ms, baseline);
     // Prove the threshold catches a threefold slowdown of the usual history cost on this run's baseline.

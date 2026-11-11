@@ -105,13 +105,13 @@ export async function fuzz(t, seed, steps) {
         hero.slug = 'fuzz-hero'; hero.name = 'Fuzz Hero';
         Object.assign(hero.state.who, { default: 'Astra' });
         Object.assign(hero.state.str, { default: 14 }); Object.assign(hero.state.vit, { default: 20 });
-        Object.assign(hero.state.agi, { default: 20 }); Object.assign(hero.state.health, { default: 5 });
+        Object.assign(hero.state.agi, { default: 20 }); Object.assign(hero.state.health, { default: 10 });   // (a full bar of the doubled sizes: the harder foes' first exchange must leave the fight open)
         Object.assign(hero.state.level, { default: 1 });
         foes.slug = 'fuzz-foes'; foes.name = 'Fuzz Foes';
         Object.assign(foes.state.foe1, { default: 'Fuzz Rats' }); Object.assign(foes.state.count1, { default: 1 });
-        Object.assign(foes.state.level1, { default: 99 }); Object.assign(foes.state.hurt1, { default: 5 });
+        Object.assign(foes.state.level1, { default: 99 }); Object.assign(foes.state.hurt1, { default: 15 });
         Object.assign(foes.state.foe2, { default: 'Fuzz Boars' }); Object.assign(foes.state.count2, { default: 3 });
-        Object.assign(foes.state.level2, { default: 1 }); Object.assign(foes.state.hurt2, { default: 4 });
+        Object.assign(foes.state.level2, { default: 1 }); Object.assign(foes.state.hurt2, { default: 12 });
         for (const definition of definitions) {
             const made = await host.sdk.command('dm.define', { definition });
             assert.equal(made.ok, true, `the board sheet is made: ${made.message}`);

@@ -73,3 +73,47 @@ test('the warning changes no state: the warned chat\'s domains equal a chat that
     assert.equal(bare(warned), bare(plain), 'the same state: the guard wrote nothing');
     assert.equal(purse(warned), 140);
 });
+
+const PLATE = (qty = 1) => `The plate is stamped.\n<Changes>\n+ item Iron Guild Plate (F) | qty: ${qty} | note: guild rank F token\n</Changes>`;
+const repeats = host => host.turn.problems().filter(item => /^Possible repeat/u.test(item.message));
+
+test('the same item gained again in the very next reply is applied and told as a possible repeat; the reply after a gap, another quantity and a first gain are not', async t => {
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Plate.', PLATE());
+    assert.equal(repeats(host).length, 0, 'a first gain is not told');
+    await host.send('Again.', PLATE());
+    assert.equal(repeats(host).length, 1);
+    assert.equal(repeats(host)[0].code, 'LIMITED');
+    assert.match(repeats(host)[0].message, /Iron Guild Plate \(F\).* gained in the reply before\. It was applied/u);
+    const carried = host.head().domains.inventory;
+    assert.ok(JSON.stringify(carried).includes('Iron Guild Plate'), 'the repeat still applies: the guard never blocks');
+    await host.send('Gap.', 'Nothing is gained.');
+    await host.send('Late.', PLATE());
+    assert.equal(repeats(host).length, 1, 'the reply before had no such gain: nothing new is told');
+    await host.send('Three.', PLATE(2));
+    assert.equal(repeats(host).length, 1, 'another quantity is not the same award');
+});
+
+test('a coin payment repeated in the very next reply says "Possible repeat" too', async t => {
+    const host = await createHost();
+    t.after(() => host.close());
+    await seed(host);
+    await host.send('One.', COFFER(15, 'Clerk Hest'));
+    await host.send('Two.', COFFER(15, 'Clerk Hest'));
+    assert.equal(repeats(host).length, 1);
+    assert.match(repeats(host)[0].message, /^Possible repeat: 15 from "clerk hest"/u);
+});
+
+test('the item repeat warning is receipts only: a Re-read tells it again and a rebuild changes nothing', async t => {
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Plate.', PLATE());
+    await host.send('Again.', PLATE());
+    const at = host.ctx.chat.length - 1, live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live, 'a rebuild');
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(JSON.stringify(host.head()), live, 'a Re-read');
+    assert.ok(repeats(host).length >= 1, 'a Re-read tells it again');
+});

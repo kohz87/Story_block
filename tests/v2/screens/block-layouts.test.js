@@ -7,6 +7,7 @@ import { createFieldsWidgets } from '../../../src/v2/screens/block-fields.js';
 import { FIELDS_WIDGET } from '../../../src/v2/data-modules/fields-widget.js';
 import { setupDom } from '../view/mounts/helpers.js';
 import { success } from '../data-modules/helpers.js';
+import { readFileSync } from 'node:fs';
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const classes = node => node.className.split(/\s+/);
@@ -298,6 +299,7 @@ test('the pencils stay hidden until the section\'s Edit button is pressed, for t
     t.after(() => view.destroy());
     const section = el.querySelector('section.ss-b-map');
     const edit = el.querySelector('.ss-rm-head .ss-rm-edit-btn');
+    assert.equal(edit.classList.contains('ss-tap-pill'), true, 'Edit is the mockup\'s slim pill (a 44px tap area from size.css)');
     assert.equal(edit.textContent, 'Edit');
     assert.equal(el.querySelector('.ss-rm-head .ss-section-label').textContent, 'Fame by region', 'the button sits in the section heading');
     assert.equal(has(section, 'ss-rm-editing'), false, 'pencils hidden');
@@ -307,4 +309,10 @@ test('the pencils stay hidden until the section\'s Edit button is pressed, for t
     assert.equal(edit.getAttribute('aria-pressed'), 'true');
     edit.click();
     assert.equal(has(section, 'ss-rm-editing'), false);
+});
+
+test('number lists CSS: no hairline beside Edit, no bullet indent under the Enable all button', () => {
+    const css = readFileSync(new URL('../../../src/v2/screens/block-maps.css', import.meta.url), 'utf8');
+    assert.match(css, /\.ss-rm-head > \.ss-section-label::after \{ display: none; \}/, 'the heading with Edit has no hairline (it would count in the label\'s width and push Edit down)');
+    assert.match(css, /\.ss-dm-list-rows \{ list-style: none; margin: 0; padding: 0; \}/);
 });

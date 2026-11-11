@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { inventoryEditGuard } from '../../../src/v2/domains/inventory.js';
+import { renameDecision } from '../../../src/v2/domains/inventory/edit.js';
 import { hashJson } from '../../../src/v2/replay.js';
 import { definition, pack, reload } from '../data-modules/helpers.js';
 
@@ -131,4 +132,29 @@ test('an add that made a new stack refuses if an earlier stack becomes its desti
     assert.equal(check(prefix).ok, true);
     prefix.domains.inventory.stacks[rope.stack].note = '';
     assert.equal(check(prefix).ok, false);
+});
+
+test('a rename that merges witnesses whether the stack it joins is the story\'s; one saved before has no such mark and is witnessed as it was', async t => {
+    const host = await createHost(); t.after(() => host.close());
+    await host.send('Find.', change('+ item Hemp | qty: 2', '+ item Rope | qty: 3'));
+    const rope = host.sdk.query('inventory.items').find(item => item.name === 'Rope');
+    const hemp = host.sdk.query('inventory.items').find(item => item.name === 'Hemp');
+    await host.send('Act.', 'The road.');
+    const prefix = structuredClone(host.head());
+    const payload = { stack: hemp.stack, name: 'Rope' };
+    const result = await host.sdk.command('inventory.edit', payload);
+    assert.equal(result.ok, true, result.message);
+    const { guard, source } = result.receipt.data.v2;
+    const check = (state, given = guard) => inventoryEditGuard({ state, hash: hashJson }, { guard: given, source, operation: { type: 'inventory.edit', payload } });
+    assert.equal(guard.predicate.decision.story, 1, 'a rename saved now carries the mark');
+    const plain = structuredClone(prefix);
+    delete plain.domains.inventory.stacks[rope.stack].story;
+    assert.equal(check(prefix).ok, true);
+    assert.equal(check(plain).ok, false, 'the stack it joined lost its story flag: the rename stays off instead of dropping it silently');
+    // The same action as an earlier version saved it: the decision holds the witness only.
+    const predicate = structuredClone(guard.predicate);
+    predicate.decision = { witness: hashJson(renameDecision(prefix.domains.inventory, prefix.domains.inventory.stacks[hemp.stack], payload)) };
+    const old = { ...guard, predicate, inputHash: hashJson({ predicate, source }) };
+    assert.equal(check(prefix, old).ok, true, 'an earlier rename still holds');
+    assert.equal(check(plain, old).ok, true, 'and is witnessed as it was: the target\'s flag is not asked');
 });

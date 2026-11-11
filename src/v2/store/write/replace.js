@@ -55,7 +55,25 @@ export function createReplace(s, deps) {
             // A quarantined record applies nothing and is not rewritten: decided on the record as stored, before the story
             // receipts are filtered out or anything is renumbered.
             if (quarantined(record)) throw new Error(`This reply's story record is kept as it is and not read again: ${ORPHAN}.`);
-            const paired = keptReceipts.length === blocks.length;
+            let paired = keptReceipts.length === blocks.length;
+            // A record an older Re-read stored with two preludes merged into one span is told apart again here: every block
+            // whose receipts are all preludes (all afterCapture steps too, when `settled` is given) goes with its receipts,
+            // because this Re-read plans them all again; what is left then lines up one to one, as a live record does.
+            if (!paired) {
+                const left = [...blocks];
+                let leftReceipts = keptReceipts;
+                for (let n = left.length - 1; n >= 0; n -= 1) {
+                    const own = receiptsFor({ receipts: leftReceipts }, left[n].ops);
+                    if (!own.length || !own.every(receipt => receipt.beforeGenerate === true || (Array.isArray(settled) && receipt.afterCapture === true))) continue;
+                    left.splice(n, 1);
+                    leftReceipts = leftReceipts.filter(receipt => !own.includes(receipt));
+                }
+                if (leftReceipts.length === left.length) {
+                    blocks.splice(0, blocks.length, ...left);
+                    keptReceipts = leftReceipts;
+                    paired = true;
+                }
+            }
             // The old afterCapture steps go when the Re-read ran them again (only told apart one to one).
             const resettle = Array.isArray(settled) && paired;
             if (resettle) {

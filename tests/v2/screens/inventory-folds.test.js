@@ -125,7 +125,15 @@ test('Inventory Grid, gear on: Worn has one fold per wearer with its count, each
     // The List's CSS hides every `.worn-who` that holds no `.item` row: a Grid fold must not carry that class, or Grid shows no worn gear.
     assert.equal(el.querySelectorAll('.worn-who').length, 0, 'no Grid fold uses the class the List CSS hides');
     assert.equal(el.querySelectorAll('.worn-wearer .tile').length, 5, 'the worn pieces are tiles inside the wearer\'s fold');
-    assert.deepEqual(folds.map(node => text(node.querySelector('.fold-label'))), ['You · 5 pieces']);
+    assert.deepEqual(folds.map(node => text(node.querySelector('.fold-label'))), ['You']);
+    assert.deepEqual(folds.map(node => text(node.querySelector('.fold-count'))), ['5 pieces'], 'the count is at the right, like the mockup');
+    assert.equal(folds[0].children[0].className, 'fold-chev', 'the chevron comes first (rule-style heads and the wearer folds)');
+    const worn = el.querySelector('.fold-sec.cat-worn > .fold-head');
+    assert.equal(text(worn.querySelector('.fold-label')), 'Worn', 'one rule-style Worn head holds the wearers\' folds');
+    assert.equal(text(worn.querySelector('.fold-count')), '5');
+    assert.equal(worn.children[0].className, 'fold-chev');
+    assert.ok(el.querySelector('.fold-sec.cat-worn').querySelector('.worn-wearer'), 'the wearers are its body');
+    assert.equal(el.querySelector('.fold-sec.cat-goods > .fold-head i'), null, 'a category head has no icon (the mockup has none)');
     folds[0].click();
     assert.equal(el.querySelector('.worn-wearer > .fold-head').getAttribute('aria-expanded'), 'false');
     assert.equal(el.querySelectorAll('.fold-head').find(node => node.getAttribute('data-fold') === 'cat-goods').getAttribute('aria-expanded'), 'true', 'the other folds are not touched');
@@ -320,4 +328,33 @@ test('Inventory Grid: a focus carried from one chat\'s sheet is not taken by ano
     chat = 'two';
     mount();
     assert.equal(doc.activeElement === doc.body || doc.activeElement === null, true, 'another chat keeps the focus where it was (on the body)');
+});
+
+// ---- UI audit (Story Block): the mockups' category heads, header and filters; narrow layouts follow the screen's width ----
+
+test('Inventory CSS: the narrow layouts are container queries (no window-width media but the pointer one), and the grid heads are the mockup\'s rule-style heads', () => {
+    const css = inventoryScreen.css;
+    assert.match(css, /\.inv \{[^}]*container-type: inline-size;/, 'the screen is its own container');
+    assert.deepEqual([...css.matchAll(/@media[^{]*\{/g)].map(m => m[0]), ['@media (min-width: 760px) and (pointer: fine) {'], 'the only media query is the pointer one');
+    assert.match(css, /@container \(min-width: 520px\) \{ \.tile-grid/, 'four tiles to a line until the screen is wide');
+    const head = css.slice(css.indexOf('.fold-sec.cat > .fold-head {'), css.indexOf('}', css.indexOf('.fold-sec.cat > .fold-head {')));
+    for (const part of ['text-transform: uppercase', 'border: 0', 'min-height: 44px', 'margin-block: -7px']) assert.ok(head.includes(part), part);
+    assert.match(css, /\.fold-sec\.cat > \.fold-head::after \{ content: ""; flex: 1 1 0;[^}]*height: 1px/, 'a hairline fills the row');
+    assert.match(css, /\.fold-sec\.cat > \.fold-head \.fold-count \{ order: 2;/, 'the count is at the right of the hairline');
+});
+
+test('Inventory header: the List | Grid buttons are slim pills with a 44px tap area; the kind box has no visible label; Rarity and Equipped only are one group', { skip }, async () => {
+    const { el } = world();
+    assert.ok(el.querySelector('.filter .ss-visually-hidden'), 'the kind select\'s label is read by screen readers only');
+    assert.equal(el.querySelector('.filter select[data-draft="kind"]').getAttribute('aria-label'), 'Show');
+    const more = el.querySelector('.filter .filter-more');
+    assert.ok(more.querySelector('select[data-draft="rarity"]') && more.querySelector('input[data-draft="equippedOnly"]'), 'Rarity and Equipped only wrap together');
+    assert.equal(more.querySelector('select[data-draft="kind"]'), null);
+});
+
+test('Inventory header: List and Grid are slim pills (30px drawn, a 44px tap area from size.css)', { skip }, async t => {
+    const { run } = await gridWorld(t);
+    const { el } = run();
+    await settle2();
+    assert.deepEqual(['List', 'Grid'].map(label => viewButton(el, label).classList.contains('ss-tap-pill')), [true, true]);
 });

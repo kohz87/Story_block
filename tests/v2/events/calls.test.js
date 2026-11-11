@@ -49,7 +49,7 @@ const party = {
 };
 
 test('the allow-list and its arity', () => {
-    assert.deepEqual(CALLS, ['query', 'quest', 'has', 'time', 'actor', 'count']);
+    assert.deepEqual(CALLS, ['query', 'quest', 'has', 'time', 'actor', 'count', 'region']);
     assert.deepEqual(Object.keys(ARITY), CALLS);
     const errors = [];
     const fail = (code, message) => { errors.push(code); throw new Error(message); };
@@ -140,4 +140,22 @@ test('calls read the state and never change it', () => {
     const before = JSON.stringify(domains);
     met(`quest('Granary Rats') != null && has('Rope') && actor('Ren').level > 1 && time() > 0 && count(actor('Ren').hp) == 2`, domains);
     assert.equal(JSON.stringify(domains), before);
+});
+
+test('region(name, ...): true in any named region, exact names, false with no place, 1 to 16 names', () => {
+    const at = region => ({ scene: { place: { name: 'Somewhere', region } } });
+    const cond = `region('Highmark Empire', 'Valegard', 'River Confederacy: core cities')`;
+    assert.equal(met(cond, at('Valegard')), true);
+    assert.equal(met(cond, at('River Confederacy: core cities')), true);
+    assert.equal(met(cond, at('Shornmarch')), false);
+    assert.equal(met(cond, at('valegard')), false, 'exact names');
+    assert.equal(met(cond, {}), false, 'no scene, no place');
+    assert.equal(met(cond, { scene: { place: { name: 'x' } } }), false, 'a place with no region');
+    assert.equal(met(`region('Valegard')`, {}, name => (name === 'scene.place' ? { name: 'x', region: 'Valegard' } : null)), true, 'reads scene.place through the query when wired');
+    assert.equal(met(`!region('Valegard') && time() == null`, at('Shornmarch')), true);
+    assert.equal(why(`region()`, {}).code, 'SYNTAX');
+    assert.equal(why(`region(${Array.from({ length: 17 }, (_, i) => `'r${i}'`).join(', ')})`, {}).code, 'SYNTAX');
+    assert.equal(met(`region(${Array.from({ length: 16 }, (_, i) => `'r${i}'`).join(', ')})`, at('r15')), true);
+    assert.match(why(`region(3)`, {}).message, /region\(\) needs a name in quotes/);
+    assert.match(why(`region('')`, {}).message, /empty word/);
 });

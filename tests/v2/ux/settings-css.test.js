@@ -267,7 +267,7 @@ test('the Tabs & Packs page: one column, two from 900px with Prompt across both;
     assert.match(rule(glass, 'button.ss-button'), /border-radius: var\(--ss-radius-button\);/, 'a squarer button than a chip (the button radius, not the pill)');
     assert.match(rule(glass, '.ss-iconbutton'), /width: 40px;\s*height: 40px;/, 'a touch target');
     assert.match(rule(glass, '.ss-button-danger'), /var\(--ss-bad\)/);
-    assert.match(rule(glass, '.ss-tabrow'), /display: flex;\s*align-items: center;/);
+    assert.match(rule(glass, '.ss-tabrow'), /display: flex;\s*flex-wrap: wrap;\s*align-items: center;/);
     assert.match(rule(glass, '.ss-packs-confirm'), /border: 1px solid var\(--ss-bad\);/);
     // The footer: slim, a child of the window under the pages; a grid of icon, label, meter and numbers; one row on a wide window.
     assert.match(rule(settings, '.ss-settings-foot'), /grid-template-areas: "icon label go" "meter meter value";/);

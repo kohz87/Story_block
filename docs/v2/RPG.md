@@ -68,7 +68,7 @@ replay the same result. A branch does not keep a staged fight if the reply that 
 open, lost and fled fights pay none. With the board on, the narrator's fixed combat instructions omit rules already handled by code;
 the roll notes still explain each narrated roll. With the board off, no dice are rolled before a reply.
 
-With the Standard formula a foe group's health bar has `4 + floor(level/30)` blocks (levels 1 to 29 give 4, 30 to 59 give 5, 60 to 89 give 6, 90 to 99 give 7) and reads
+With the Standard formula a foe group's health bar has `4 + floor(level/30)` blocks (levels 1 to 29 give 4, 30 to 59 give 5, 60 to 89 give 6, 90 to 99 give 7; on a Foes block of the harder-foes rule `12 + floor(level/30)`, 12 to 15, see [Harder foes](#harder-foes-new-chats)) and reads
 "Scratched · 5 of 6"; the battle log shows the recorded turn order with its totals (`Turn order: Wessel 21 > Weir-drake 18`), the
 quick start and its opening action, "<who> does not act: beaten before its turn" for a group or character beaten before its turn
 (or down, or with nothing left to act on), the result word (Decisive, Decisive hit), "(area)" on an area attack, and the roll's
@@ -269,6 +269,19 @@ description saying "every foe" sets area); the choices are stored on the reply t
 the edit back. While the Fight board is on, renaming a skill keeps its saved board choices; without saved choices, the flags
 continue to follow the skill's wording. Rank and practice only move through play, and a skill's stat and resource are fixed by its Skills block.
 
+
+## Harder foes (new chats)
+
+A fight opened on a Foes block of the new template carries `setup.foesHard: 1` (it is set only when every foe on the sheet is on such a block: its Health field holds up to 15, `foes.js isHardBar`; an older block keeps its 8 and every old number, and so does a fight begun before this rule or a Re-read of a reply written before it). Under it:
+
+- a foe group's Health is `12 + floor(level/30)` blocks (12 at levels 1 to 29, up to 15 at 90 to 99), and a new Foes block starts a group at 12;
+- a foe's clean hit takes 2 Health blocks, a decisive hit 4 (a party member's hits are unchanged);
+- a foe adds `floor(level / 4)` to its d20 (the party keeps `floor(level / 5)`, and the turn order is unchanged), whatever divisor the numbers set (the flee contest and the odds the skills view shows use it too);
+- a foe that is the only one standing in its group (a single foe, or each of three single foes; not a group of several, and not a swarm) attacks `ceil(standing party / 2)` times each exchange;
+- the foes' attacks in all are at most 2 x the standing party. The cap counts each foe (a member or a pack), not each group: over the cap, each foe keeps a share in proportion to what it made, at least one for every standing foe; with as many foes as the cap, that many foes attack once, and which ones turns with the exchange number (so with more foes than the cap, a whole group can sit out an exchange) (`board/members.js capAttackers`, `board/plan.js`).
+
+Simulated (Auto, an even general hero, no gear, 200 fights per cell): one hero against one foe of the same level wins 65 / 65 / 71 % at levels 5 / 15 / 30; two to four heroes against one foe win every time; four heroes against three single foes win 64 / 76 / 90 %.
+
 ## Stage bars
 
 Health, Mana and Stamina are words, not numbers, and each word is drawn as a bar that shows how full it is.
@@ -286,7 +299,7 @@ This section is the **old-pin** rule: a Character pinned before the doubled bars
 
 With the Standard formula a bar is a row of **blocks**. The stored value counts the blocks left (Health 0 to 8, Stamina 0 to
 7, Mana 0 to 7); how many blocks the bar has comes from the stats when it is read: **Health 4 + VIT/5, Stamina 3 + AGI/5, Mana
-3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + floor(level/30)` blocks (`foeBlocksByLevel`; the older `foeHealthBlocks` is `4 + class/3`). The Party card,
+3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + floor(level/30)` blocks (`foeBlocksByLevel`; `12 + floor(level/30)` under [Harder foes](#harder-foes-new-chats); the older `foeHealthBlocks` is `4 + class/3`). The Party card,
 the Fight tab and the game view's header draw one cell for each block and read "Hurt · 4 of 6"; under the skills the card says how
 many blocks each bar has and the stat that earns the next one ("Health 6 blocks (VIT 10, next at 15) · … · Edge −2..+3 (next at LUK
 7) · Soak +3 (next at VIT 16)"; Soak is shown for a character with the doubled bars, from the VIT a roll uses, worn gear included, as the stat cell shows it).
@@ -367,7 +380,7 @@ Settings page, only changes the rolls made after it.
 
 The page shows only while the RPG is on.
 
-- **Stat formula.** The roll table of the Standard formula (see [The stat formulas](#the-stat-formulas)) and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks).
+- **Stat formula.** The roll table of the Standard formula (see [The stat formulas](#the-stat-formulas)) and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks). On a Foes block of the harder-foes rule the foe adds `floor(level ÷ 4)` whatever the divisor says, and its Health is `12 + floor(level ÷ 30)` blocks, 12 to 15 (see [Harder foes](#harder-foes-new-chats)).
   Rolls already made keep the numbers they were made with.
 - **Fight board.** Turn the board on or off here; this is the same switch as the one on Features. Under it, **Auto-fight cap** (`rpgAutoCap`, a slider from 1 to 8 or **Until the end**, default 3): the most exchanges **Auto** plays in one press.
 - **Rolls.** **Automatic** or **Off**, as above.
@@ -416,7 +429,7 @@ the type's own stat.
   low end, and a best case (+3) reaches the high end: LUK 3–4 −3..+3, 5–6 −2..+3, 7–8 −1..+3, 9–10 −1..+3, 11–12 0..+3, 13–14 +1..+4,
   15–16 +2..+4, 17–18 +2..+5, 19–20 +3..+5. A fresh character (LUK 5) has −2..+3.
 - **Foes.** A foe adds `foeBase + floor(its level ÷ 5)` to its d20 (the base is 2, 4 or 6 for Gentle, Standard and Harsh). A foe group has Health
-  `4 + floor(level/30)` blocks and acts once a round whatever its count.
+  `4 + floor(level/30)` blocks and acts once a round whatever its count (the harder-foes rule changes these numbers, see [Harder foes](#harder-foes-new-chats)).
 - **Hits.** A hit takes 1 block of Health from its target, a decisive hit 2 (a single-target skill in a fight marked `bars: 2` takes 2, decisive 3; see [Doubled bars](#doubled-bars-new-chats)). A party member's action hits on a success or a success at a cost;
   a foe's attack hits when the defender fails. Decisive is the winner's natural 20, the loser's natural 1, or a lead of 8. Code writes the
   new Health to the sheet and tells the narrator which bars it moved, in words ("Bars now: Wessel Hurt; Sluice Rats Down"), never to set
@@ -508,7 +521,7 @@ with the pencils on the block.
 |---|---|
 | **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (1 more every third level), level, cap, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. This row is the old pin; the new Character (`scale: 2`) has no narrator XP and gains the story's rest, full-rest and heal (no buttons), see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character). The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a level-up gives points as above; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
 | **Skills** | Up to five skills (a new chat's typed block: eleven slots, each combat or utility, see [Skill slots](#skill-slots)), each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
-| **Foes** | Up to four foe groups, one slot each (`level1` to `level4` for the level, which replaces `class1` to `class4`): the name, how many are left (0 means the slot is empty), the level and the group's health (Standard: 0 to 8 blocks, `4 + floor(level/30)` when the group arrives). |
+| **Foes** | Up to four foe groups, one slot each (`level1` to `level4` for the level, which replaces `class1` to `class4`): the name, how many are left (0 means the slot is empty), the level and the group's health (Standard: 0 to 8 blocks, `4 + floor(level/30)` when the group arrives; a Foes block of the harder-foes rule: 0 to 15 blocks, `12 + floor(level/30)`, see [Harder foes](#harder-foes-new-chats)). |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
 A new chat gets a Combat rules block and a Foes block when you make its first character (see [A new chat](#a-new-chat)),
