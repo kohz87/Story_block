@@ -4,8 +4,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { cssOf } from '../helpers/css-parts.js';
 
-const mounts = readFileSync(new URL('../../../src/v2/view/mounts.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const mounts = cssOf('mounts').replace(/\/\*[\s\S]*?\*\//g, '');
 const theme = readFileSync(new URL('../../../src/v2/view/theme.js', import.meta.url), 'utf8');
 
 test('the HUD strip: on a phone (below 760px) its background layers are the Glass token, and the rule is set after the strip\'s own rule', () => {

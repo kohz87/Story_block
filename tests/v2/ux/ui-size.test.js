@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { inventoryScreen } from '../../../src/v2/screens/index.js';
+import { cssOf, hostImports } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 const size = read('view/size.css');
@@ -24,10 +25,11 @@ function rule(css, selector, at = '') {
     return css.slice(open, css.indexOf('}', open));
 }
 
-test('host.css loads size.css last, so its zoom and its phone sizes come after every other sheet', () => {
-    const host = read('view/host.css');
+test('host.css loads size.css after every other sheet, so its zoom and its phone sizes come after every other sheet', () => {
+    const host = hostImports();
     const imports = [...host.matchAll(/@import url\('\.\/([\w-]+\.css)'\);/g)].map(match => match[1]);
-    assert.equal(imports.at(-1), 'size.css');
+    // the host's own rules (host-*.css, what host.css held below its imports) come last, as they always did
+    assert.equal(imports.filter(file => !file.startsWith('host-')).at(-1), 'size.css');
 });
 
 test('the roots are zoomed to --ss-zoom (0.8 by default) and say so in --ss-zoomed; SillyTavern\'s own page is not', () => {
@@ -71,7 +73,7 @@ test('a phone or a touch screen: every button, tab, link, summary and field in a
     assert.match(hit[1], /transform: translate\(-50%, -50%\);/);
     // ...in room of its own round the 48 x 28 switch, so that area never reaches a neighbour.
     assert.match(block, /\.ss-switch \{\s*margin: max\(0px, calc\(\(44px \/ var\(--ss-zoomed, 1\) - 28px\) \/ 2\)\) max\(0px, calc\(\(44px \/ var\(--ss-zoomed, 1\) - 48px\) \/ 2\)\) !important;/);
-    assert.match(read('view/glass.css'), /\) \.ss-switch \{[^}]*width: 48px;\s*height: 28px;/);
+    assert.match(cssOf('glass'), /\) \.ss-switch \{[^}]*width: 48px;\s*height: 28px;/);
 });
 
 test('a phone or a touch screen: checkboxes, radios, sliders, links in running text and the search box\'s clear button are 44px targets too', () => {
@@ -114,11 +116,11 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     assert.doesNotMatch(size, /:is\(p, li, span/, 'not only links under some text elements');
     // The search box keeps the clear button's 44px (right: 4px) free of text.
     assert.match(block, /\.ss-search \.ss-search-input \{\s*padding-right: calc\(44px \/ var\(--ss-zoomed, 1\) \+ 8px\);/);
-    assert.match(read('view/glass.css'), /\.ss-search-clear \{\s*position: absolute;\s*right: 4px;/);
+    assert.match(cssOf('glass'), /\.ss-search-clear \{\s*position: absolute;\s*right: 4px;/);
 });
 
 test('the reply card\'s header is one line on a phone: the summary takes the room left and ends in an ellipsis', () => {
-    const mounts = read('view/mounts.css');
+    const mounts = cssOf('mounts');
     const phone = '@media (max-width: 759.98px) {\n    .ss-card-head {';
     assert.ok(mounts.includes(phone), 'a phone rule for the header');
     assert.match(rule(mounts, '.ss-card-head', phone), /flex-wrap: nowrap;/);
@@ -132,7 +134,7 @@ test('the reply card\'s header is one line on a phone: the summary takes the roo
 });
 
 test('settings on a phone: the title row is as tall as Close (44px on the screen), so Close never covers the search box', () => {
-    const settings = read('view/settings.css');
+    const settings = cssOf('settings');
     const title = settings.match(/@media \(max-width: 759\.98px\) \{\s*:where\([^)]*\) \.ss-settings-title \{([^}]*)\}/);
     assert.ok(title, 'a phone rule for the title');
     assert.match(title[1], /line-height: max\(40px, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
@@ -143,7 +145,7 @@ test('settings on a phone: the title row is as tall as Close (44px on the screen
 });
 
 test('ss.dialog\'s full-screen layer covers the screen inside a zoomed root (vw and dvh are zoomed with it)', () => {
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     const modal = glass.match(/\) \.ss-modal \{([^}]*)\}/)[1];
     assert.match(modal, /width: calc\(100vw \/ var\(--ss-zoomed, 1\)\);/);
     assert.match(modal, /height: calc\(100dvh \/ var\(--ss-zoomed, 1\)\);/);

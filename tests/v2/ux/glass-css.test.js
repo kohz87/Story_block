@@ -7,9 +7,10 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { FONT_STACKS, ROOT_SELECTOR, themeTokens } from '../../../src/v2/view/theme.js';
 import { sourceOf } from '../../helpers/split-source.js';
+import { cssOf, hostImports } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
-const css = read('view/glass.css');
+const css = cssOf('glass');
 
 function splitTop(text) {
     const out = [];
@@ -56,9 +57,9 @@ function weight(selector) {
 }
 const all = rules(css);
 
-test('host.css loads glass.css, after controls.css', () => {
-    const host = read('view/host.css');
-    assert.match(host, /@import url\('\.\/controls\.css'\);\s*@import url\('\.\/glass\.css'\);/);
+test('host.css loads the glass parts, after controls.css', () => {
+    const host = hostImports();
+    assert.match(host, /@import url\('\.\/controls\.css'\);\s*@import url\('\.\/glass-base\.css'\);/);
 });
 
 test('every rule is scoped to Story Suite\'s roots and weighs at most two classes', () => {
@@ -123,7 +124,7 @@ test('the type scale and sizes are the concept\'s: label 15px/600/1.4px, bar 7px
 
 test('Nunito is bundled: fonts.css points at files that exist, with the licence; nothing is fetched from outside', () => {
     const fonts = read('view/fonts.css');
-    assert.match(read('view/host.css'), /@import url\('\.\/fonts\.css'\);/);
+    assert.match(hostImports(), /@import url\('\.\/fonts\.css'\);/);
     const faces = fonts.match(/@font-face/g) ?? [];
     assert.equal(faces.length, 8, 'latin and latin-ext in four weights');
     for (const weight of [400, 600, 700, 800]) for (const subset of ['latin', 'latin-ext']) {
@@ -138,7 +139,7 @@ test('Nunito is bundled: fonts.css points at files that exist, with the licence;
     assert.match(readFileSync(new URL('../../../assets/fonts/nunito/OFL.txt', import.meta.url), 'utf8'), /SIL OPEN FONT LICENSE Version 1\.1/);
     assert.ok(!/https?:\/\//.test(fonts.replace(/\/\*[\s\S]*?\*\//g, '')), 'no external URL');
     for (const file of ['view/theme.js', 'view/fonts.css', 'view/glass.css', 'ui-host.js']) {
-        const source = file === 'ui-host.js' ? sourceOf('src/v2/ui-host.js') : read(file);
+        const source = file === 'ui-host.js' ? sourceOf('src/v2/ui-host.js') : file === 'view/glass.css' ? cssOf('glass') : read(file);
         assert.ok(!/googleapis|gstatic/.test(source), `${file} fetches nothing from Google`);
     }
     assert.match(themeFontStack(), /^'Nunito', system-ui/);

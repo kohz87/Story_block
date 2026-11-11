@@ -9,6 +9,7 @@ import { createRegistry } from '../../src/v2/registry.js';
 import { createSettings } from '../../src/v2/sdk.js';
 import { compatReport, renderCompat } from '../../src/v2/compat.js';
 import { VERSIONS_FOLD, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { cssOf } from './helpers/css-parts.js';
 
 const doc = installFakeDom();
 const read = path => readFileSync(new URL(`../../src/v2/${path}`, import.meta.url), 'utf8');
@@ -125,5 +126,5 @@ test('compatReport cuts what other extensions give: name 60, version 40, range 6
     assert.equal(gone.name.length, 60);
     assert.equal(gone.note.length, 400);
     assert.ok(gone.fix.length < 300);
-    assert.match(read('view/host.css'), /\.story-suite-compat-row \{ overflow-wrap: anywhere;/);
+    assert.match(cssOf('host'), /\.story-suite-compat-row \{ overflow-wrap: anywhere;/);
 });
