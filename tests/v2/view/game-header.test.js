@@ -2,7 +2,7 @@
 // portrait's order (persona avatar, card avatar, the module's picture, the initial), and nothing thrown when a module is missing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardAvatarUrl, gameHeroProps, personaAvatarUrl, portraitOf, readHeroContext } from '../../../src/v2/view/game-header.js';
+import { cardAvatarUrl, gameHeroProps, headerControlItems, personaAvatarUrl, portraitOf, readHeroContext } from '../../../src/v2/view/game-header.js';
 import { installFakeDom } from '../../ui-fake-dom.js';
 
 const STATE = { domains: {} };
@@ -221,4 +221,31 @@ test('Travel: the trip\'s one-line row from `atlas.trip` (Story Director 2.5), n
     for (const none of [null, {}, { row: '' }, { row: 5 }]) assert.equal('travel' in props({ 'atlas.trip': none }), false, JSON.stringify(none));
     assert.equal('travel' in props({}), false, 'a Story Director older than 2.5 has no such query');
     assert.equal('travel' in gameHeroProps({ state: STATE, query: name => { if (name === 'atlas.trip') throw new Error('no query'); return answers()(name); }, context: {} }), false);
+});
+
+test('headerControlItems: a boolean or { on } answer draws a pill; null, a throw or a missing query leaves it out; text is cut', () => {
+    const controls = [
+        { key: 'a/one', label: 'Quiet scene', icon: '🌙', query: 'a.on', command: 'a.set', args: { chat: 1 }, payload: { mode: 'x' } },
+        { key: 'b/two', label: 'x'.repeat(40), icon: '🌙🌙🌙🌙🌙🌙', query: 'b.on', command: 'b.set' },
+        { key: 'c/off', label: 'Off', icon: '-', query: 'c.on', command: 'c.set' },
+        { key: 'd/throws', label: 'Throws', icon: '!', query: 'd.on', command: 'd.set' },
+        { key: 'e/text', label: 'Text', icon: '?', query: 'e.on', command: 'e.set' },
+    ];
+    const seen = [];
+    const query = (name, args) => {
+        seen.push([name, args]);
+        if (name === 'a.on') return { on: true };
+        if (name === 'b.on') return false;
+        if (name === 'd.on') throw new Error('no');
+        if (name === 'e.on') return 'yes';
+        return null;
+    };
+    const items = headerControlItems({ controls, query });
+    assert.deepEqual(items.map(item => [item.key, item.on]), [['a/one', true], ['b/two', false]]);
+    assert.deepEqual(items[0], { key: 'a/one', label: 'Quiet scene', icon: '🌙', command: 'a.set', payload: { mode: 'x' }, on: true });
+    assert.equal(items[1].label.length, 24);
+    assert.equal([...items[1].icon].length, 4);
+    assert.deepEqual(seen[0], ['a.on', { chat: 1 }]);
+    assert.deepEqual(headerControlItems({ controls, query: null }), []);
+    assert.deepEqual(headerControlItems(), []);
 });
