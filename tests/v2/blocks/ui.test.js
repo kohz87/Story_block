@@ -54,7 +54,7 @@ test('the Blocks page creates a block with an editable field, a tab and a Home c
     ui.openSettings().close();
     ui.mounts.screen.open('story-block/home');
     assert.equal(doc.querySelector('.ss-gameview [data-id="story-block/blocks"]'), null, 'no Blocks tab or tile');
-    assert.ok(doc.querySelector('.ss-gameview .ss-screenbar-tile[data-id="story-block/block/camp-notes"]'));
+    assert.ok(doc.querySelector('.ss-gameview .ss-screenbar-item[data-id="story-block/block/camp-notes"]'));
     assert.match(doc.querySelector('.ss-gameview [data-ss-screen="story-block/home"]').textContent, /Camp Notes/);
     assert.equal(ui.mounts.screen.open('story-block/block/camp-notes'), true);
     assert.match(doc.querySelector('.ss-gameview [data-ss-screen="story-block/block/camp-notes"]').textContent, /Mood/);
