@@ -157,6 +157,7 @@ test('removing a chat block drops its pin; a removal saved before keeps the pin 
     await reload(host);
     assert.equal(pins(), 1);
     // The same removal as an earlier version saved it: no op for the pin. It replays unchanged and leaves the pin in.
+    const at = host.store.headIndex();
     const stored = JSON.parse(JSON.stringify(host.ctx.chat));
     const record = stored.map(message => message.extra?.storySuite).filter(Boolean).at(-1);
     const before = record.ops.length;
@@ -167,4 +168,10 @@ test('removing a chat block drops its pin; a removal saved before keeps the pin 
     host.store.rebuild();
     assert.equal(pins(), 2, 'an earlier removal keeps the pin it left');
     assert.deepEqual(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), []);
+    // A Re-read of that reply changes nothing either: the removal is replayed from its saved ops, not made again.
+    const head = JSON.stringify(host.head()), kept = JSON.stringify(host.ctx.chat[at].extra.storySuite.ops);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(pins(), 2, 'a Re-read does not drop the pin of an earlier removal');
+    assert.equal(JSON.stringify(host.head()), head, 'the head is byte for byte the same');
+    assert.equal(JSON.stringify(host.ctx.chat[at].extra.storySuite.ops), kept, 'and so are the reply\'s saved ops');
 });

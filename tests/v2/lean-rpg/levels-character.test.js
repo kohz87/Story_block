@@ -323,3 +323,21 @@ test('a Re-read pays the narrator\'s XP line at the rate its first run recorded 
     assert.equal(host.ctx.chat[old].extra.storySuite.rules, undefined, 'a Re-read never gives it the mark');
     rebuilt(host);
 });
+
+test('an unmarked XP reply Re-read with the setting unchanged is the same (xpKept): same head and same results, no xpRate added', async t => {
+    const host = await story(t);
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    host.settings.set('story-block', 'rpgXpRate', 150);
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); }; // the reply is first captured as one saved before the rule was
+    await xp(host, 20);
+    host.store.setRuleMarks = setter;
+    const at = host.store.headIndex();
+    assert.equal(host.ctx.chat[at].extra.storySuite.rules, undefined);
+    const results = () => JSON.stringify(host.ctx.chat[at].extra.storySuite.receipts.map(receipt => receipt.data?.v2?.result));
+    const head = JSON.stringify(host.head()), before = results();
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(JSON.stringify(host.head()), head);
+    assert.equal(results(), before);
+    assert.equal(host.ctx.chat[at].extra.storySuite.rules, undefined);
+});

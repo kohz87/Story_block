@@ -735,6 +735,23 @@ test('partyLeft: a Re-read keeps a leave its first run made after the persona is
     await rebuilt(host, 'after the Re-reads');
 });
 
+test('partyLeft: an unmarked leave Re-read with the persona unchanged is the same: same head and same results', { skip }, async t => {
+    const host = await world({ mode: 'ask' });
+    t.after(() => host.close());
+    await make(host, 'Mara', 2);
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); }; // the reply is first captured as one saved before the rule was
+    await host.send('They part.', reply('- party Mara'));
+    host.store.setRuleMarks = setter;
+    const at = host.store.headIndex();
+    assert.equal(host.ctx.chat[at].extra.storySuite.rules, undefined);
+    const results = () => JSON.stringify(host.ctx.chat[at].extra.storySuite.receipts.map(receipt => receipt.data?.v2?.result));
+    const head = JSON.stringify(host.head()), before = results();
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(JSON.stringify(host.head()), head);
+    assert.equal(results(), before);
+});
+
 test('2.9.1: the first character a story gets through Add to party also brings the Combat rules and Foes blocks it lacks, in the same action', { skip }, async t => {
     const host = await world({ mode: 'ask', wessel: false });
     t.after(() => host.close());
