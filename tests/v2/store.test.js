@@ -358,6 +358,29 @@ test('Re-read replaces the story receipts and their ops and keeps the ui and sys
     assert.deepEqual(ctx.chat[2].swipe_info[0].extra.storySuite, record);
 });
 
+test('Re-read of a reply with two preludes and a step, twice: each keeps its own block, the receipts and /meta/rev stay as live', () => {
+    const { ctx, store } = setup([greeting(), user(), reply()]);
+    store.ensureInitial(initial());
+    const at = (rev, extra = {}) => receipt({ cause: 'system', rev, afterCapture: true, ...extra });
+    const run = rev => ({ ops: [{ op: 'replace', path: '/meta/rev', value: rev }], receipt: at(rev, rev < 3 ? { beforeGenerate: true } : {}) });
+    for (const rev of [1, 2, 3]) store.append(run(rev));
+    const live = structuredClone(ctx.chat[2].extra.storySuite);
+    const liveHead = store.head();
+    for (let pass = 0; pass < 2; pass += 1) {
+        const steps = [1, 2].map(rev => at(rev, { beforeGenerate: true }));
+        const settled = [{ ops: [{ op: 'replace', path: '/meta/rev', value: 3 }], receipt: at(3) }];
+        store.replaceStory(2, {
+            ops: [1, 2].map(rev => ({ op: 'replace', path: '/meta/rev', value: rev })), receipts: steps, settled,
+            blocks: steps.map(receipt => ({ n: 1, receipt })),
+        });
+        const record = ctx.chat[2].extra.storySuite;
+        assert.equal(record.receipts.length, live.receipts.length, `pass ${pass}: no receipt is kept beside its new copy`);
+        assert.deepEqual(record.spans.map(span => span.n), live.spans.map(span => span.n), `pass ${pass}: one block per prelude and step, as live`);
+        assert.equal(store.head().meta.rev, liveHead.meta.rev, `pass ${pass}: /meta/rev is as live`);
+        assert.deepEqual(store.head(), fullReplay(ctx.chat, 2));
+    }
+});
+
 test('Re-read rejects non-story receipts and changes that no longer fit, writing nothing', () => {
     const { ctx, store } = setup([greeting(), user(), reply()]);
     store.ensureInitial(initial());
