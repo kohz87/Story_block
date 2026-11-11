@@ -82,6 +82,16 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         } catch { return null; }
     };
     const rules = () => rulesFromSettings(values(), pack());
+    // The Fight offer asks for the rules on every redraw while a foe stands; each read of the pack settles the timeline, so it is read once per head
+    // (the head after the read: a settle that moved it is read again next time).
+    let packKept = null;
+    const packOnce = () => {
+        const head = headState();
+        if (packKept && packKept.head === head) return packKept.value;
+        const value = pack();
+        packKept = { head: headState(), value };
+        return value;
+    };
     // What the story's pack says about levels: its rank bands and the field that names the party's rank (a story with neither shows "Lv 14" and "Rank F · Lv 7" only where a band exists).
     const levels = () => { let found = null; try { found = packLevelsOf(query?.('packs.content', { kind: 'rpg' })); } catch { found = null; } return { ranks: found?.ranks ?? [], playerRank: found?.playerRank ?? null, levelCap: found?.levelCap ?? null }; };
     const levelCap = () => levelCapFor(values(), levels().levelCap);
@@ -107,7 +117,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
     board = createBoardView({ doc, headState: () => fightStart.state(), meta, save, store, rules, query, readerName, roleOf, levels, on: boardOn, start: fightStart, cap: () => autoCapFrom(values()) });
     let offers;
     const offerView = createOfferLineView({ doc, onFight: data => offers.choose(data, 'board'), onAuto: data => offers.choose(data, 'auto') });
-    offers = createFightOffers({ ctx, doc, store, meta, on: () => featureOn() && boardOn() && isStandard(rules()), view: offerView,
+    offers = createFightOffers({ ctx, doc, store, meta, on: () => featureOn() && boardOn() && isStandard(rulesFromSettings(values(), packOnce())), view: offerView,
         open: ({ auto = false } = {}) => { if (!board.open()) return false; if (auto) board.auto(); openScreen(FIGHT_SCREEN_ID); return true; }, save, refresh });
     const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf, readerName, levels, offer: offers });
     widgets[FIGHT_WIDGET] = createFightWidget({ headState, readerName, roleOf, battleLog, closeView, levels, board, start: fightStart });

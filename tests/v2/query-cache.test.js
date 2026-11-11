@@ -60,10 +60,11 @@ test('a repeated query answers the same and works out no witness', async t => {
     assert.equal(burst(host, 1), 0);
 });
 
-test('a new reply makes the next query replay again', async t => {
+// Witness answers are kept by the identity of their own prefix: a change after a boundary leaves its answer as it was.
+test('a new reply leaves the answers of the earlier boundaries as they were (none is worked out again)', async t => {
     const { host } = await started(t);
     burst(host);
-    assert.ok(await after(host, () => host.send('More.', 'Another reply.')) >= 1);
+    assert.equal(await after(host, () => host.send('More.', 'Another reply.')), 0);
     assert.equal(burst(host), 0);
 });
 
@@ -81,10 +82,10 @@ test('a middle delete makes the next query replay again', async t => {
     assert.equal(burst(host), 0);
 });
 
-test('an edit of a reply\'s text makes the next query replay again', async t => {
+test('an edit of an earlier reply\'s text (no guarded block in it) is not read by a witness: none is worked out again', async t => {
     const { host } = await started(t);
     burst(host);
-    assert.ok(await after(host, () => { host.ctx.chat[1].mes = 'Edited reply.'; }) >= 1);
+    assert.equal(await after(host, () => { host.ctx.chat[1].mes = 'Edited reply.'; }), 0);
     assert.equal(burst(host), 0);
 });
 
@@ -191,18 +192,19 @@ for (const [name, change] of [
     ['a swipe_info copy\'s record replaced', host => { const message = host.ctx.chat.at(-1); message.swipe_info = message.swipe_info.map(info => ({ ...info, extra: { ...info.extra } })); }],
     ['the chat metadata replaced', host => { host.ctx.chatMetadata = { ...host.ctx.chatMetadata }; }],
     ['a reply\'s text changed in place', host => { host.ctx.chat.at(-1).mes = 'Changed.'; }],
-]) test(`${name}, with no write, makes every witness miss`, async t => {
+]) test(`${name}, with no write, drops the generation; only a boundary whose own prefix changed is worked out again`, async t => {
     const host = await plain(t, 5);
     await host.swipe('A second swipe.');
     const cursors = cursorsOf(host);
     walk(host, cursors);
     assert.equal(walk(host, cursors).misses, 0);
     change(host);
-    assert.equal(walk(host, cursors).misses, cursors.length);
+    assert.ok(walk(host, cursors).misses < cursors.length, 'the answers of the unchanged prefixes are kept');
     assert.equal(walk(host, cursors).misses, 0);
+    for (const cursor of cursors) assert.equal(JSON.stringify(host.store.prefixWitness(cursor)), JSON.stringify(host.store.witnessFresh(cursor)), 'and every answer is the fresh one');
 });
 
-test('a guard mark change (a module held back), with no write, makes every witness miss', async t => {
+test('a guard mark change (a module held back), with no write, makes every witness miss (the mark is part of the key)', async t => {
     const owner = {
         id: 'qc-owner', name: 'Guard owner', version: '1.0.0',
         domains: { qcs: { initial: () => ({}) } },
@@ -278,7 +280,7 @@ test('fuzz: every witness the memo answers equals the witness worked out afresh'
     assert.ok(compared.hits > 100 && compared.misses > 20, `the run reached both paths (${compared.hits} hits, ${compared.misses} misses)`);
 });
 
-test('inside witnessScope the memo is checked once, and a rebuild inside it still forgets the answers', async t => {
+test('inside witnessScope the memo is checked once, and a rebuild inside it still checks them', async t => {
     const host = await plain(t, 6);
     const cursors = cursorsOf(host);
     const outside = cursors.map(cursor => JSON.stringify(host.store.prefixWitness(cursor)));
@@ -287,7 +289,7 @@ test('inside witnessScope the memo is checked once, and a rebuild inside it stil
     host.store.witnessScope(() => {
         assert.equal(walk(host, cursors).misses, 0);
         host.store.rebuild();   // (a write or lifecycle change moves the epoch)
-        assert.equal(walk(host, cursors).misses, cursors.length);
+        assert.equal(walk(host, cursors).misses, 0, 'a rebuild changes no record: each answer is found again by its own prefix');
         assert.equal(walk(host, cursors).misses, 0);
     });
     assert.equal(host.store.witnessScope(() => 7), 7, 'the read\'s answer is handed back');
@@ -312,4 +314,104 @@ test('a query asked inside withFeatures replays nothing and leaves the memo of t
     assert.deepEqual(seen[0], plain, 'the answer is the one the story gives');
     assert.deepEqual(seen[1], plain);
     assert.equal(burst(host), 0, 'the next real query still hits the memo');
+});
+
+// ---- the answers kept by the identity of their own prefix (store/read.js prefixKey) ----------------------------------------------------
+
+const sameAsFresh = (host, cursors, why) => {
+    for (const cursor of cursors) assert.equal(JSON.stringify(host.store.prefixWitness(cursor)), JSON.stringify(host.store.witnessFresh(cursor)), why);
+};
+const guardedOwner = () => ({
+    id: 'qc-owner2', name: 'Guard owner', version: '1.0.0',
+    domains: { qct: { initial: () => ({}) } },
+    capture: { kinds: { qcg2: { grammar: '! qcg2 <name>' } }, apply: ctx => {
+        ctx.draft('qct').one = ctx.source;
+        ctx.replayGuard({ owner: 'qc-owner2', version: 2, epoch: 'ep_00000000', rulesHash: null, inputHash: ctx.hash({ one: 1 }), predicate: { kind: 'one' } });
+        return { summary: 'Recorded.', narrate: false };
+    } },
+    hooks: { replayGuard: () => ({ ok: true }) },
+});
+
+test('an earlier guarded reply\'s text edited: the witnesses at and after it are worked out again, the ones before are kept, all equal fresh', async t => {
+    const host = await plain(t, 3, [rulesModule(), nativeModule().def, guardedOwner()]);
+    await host.send('Guarded.', 'A guarded reply.\n\n<Changes>\n! qcg2 one\n</Changes>');
+    for (let i = 0; i < 3; i++) await host.send(`Later ${i}.`, `Later reply ${i}.`);
+    const cursors = cursorsOf(host);
+    walk(host, cursors);
+    assert.equal(walk(host, cursors).misses, 0);
+    const at = host.ctx.chat.findIndex(message => String(message.mes).startsWith('A guarded reply'));
+    host.ctx.chat[at].mes = 'A guarded reply, edited.';
+    const { misses } = walk(host, cursors);
+    assert.ok(misses >= 1 && misses < cursors.length, `only the guarded reply and the ones after it (${misses} of ${cursors.length})`);
+    sameAsFresh(host, cursors, 'the answers equal fresh ones');
+});
+
+test('an earlier reply deleted, a swipe, an append and a rebuild: the kept answers equal fresh ones', async t => {
+    const host = await plain(t, 6);
+    const run = async action => { await action(); sameAsFresh(host, cursorsOf(host), 'equal fresh'); };
+    walk(host, cursorsOf(host));
+    await run(() => host.send('More.', 'Another reply.'));
+    await run(() => host.swipe('Another way.'));
+    await run(() => host.st.deleteMessage(3));
+    await run(() => host.store.rebuild());
+});
+
+test('a Feature switched off and on again: the answers equal fresh ones each time, and the old ones are found again', async t => {
+    const { host } = await started(t);
+    const cursors = cursorsOf(host);
+    walk(host, cursors);
+    await host.features.set('qc-feat.x', false);
+    sameAsFresh(host, cursors, 'off');
+    await host.features.set('qc-feat.x', true);
+    assert.equal(walk(host, cursors).misses, 0, 'the same Features and the same prefixes: the answers are found by their prefix');
+    sameAsFresh(host, cursors, 'on');
+});
+
+test('another chat in the same store, and back: no answer of the other chat is given', async t => {
+    const host = await plain(t, 5);
+    const cursors = cursorsOf(host);
+    walk(host, cursors);
+    const original = clone(host.ctx.chat);
+    await host.st.loadChat(clone(original).slice(0, 3), 'chat-2');
+    sameAsFresh(host, cursors, 'chat-2');
+    await host.st.loadChat(clone(original), 'chat-3');
+    sameAsFresh(host, cursors, 'chat-3');
+});
+
+test('a cursor named by two carriers (a branch copy) is never answered from the memo, and a copy removed gives its answer back', async t => {
+    const host = await plain(t, 4);
+    const cursors = cursorsOf(host);
+    const last = cursors.at(-1);
+    const real = host.store.prefixWitness(last);
+    assert.ok(real);
+    host.ctx.chat.push(structuredClone(host.ctx.chat.at(-1)));
+    assert.equal(host.store.prefixWitness(last), null, 'two carriers name it');
+    assert.equal(host.store.witnessFresh(last), null);
+    host.ctx.chat.pop();
+    assert.deepEqual(host.store.prefixWitness(last), real);
+});
+
+test('a module held back and released: the answers equal fresh ones (the mark is part of the key)', async t => {
+    const host = await plain(t, 3, [rulesModule(), nativeModule().def, guardedOwner()]);
+    await host.send('Guarded.', 'A guarded reply.\n\n<Changes>\n! qcg2 one\n</Changes>');
+    const cursors = cursorsOf(host);
+    walk(host, cursors);
+    host.registry.setRestore('pending', 'A restore.');
+    sameAsFresh(host, cursors, 'held');
+    host.registry.setRestore('idle', '');
+    assert.equal(walk(host, cursors).misses, 0, 'released: found again by their own prefix');
+    sameAsFresh(host, cursors, 'released');
+});
+
+test('a module registering a domain validator or scratch fields makes the kept answers miss, and each equals a fresh one', async t => {
+    const host = await plain(t, 4);
+    const cursors = cursorsOf(host);
+    walk(host, cursors);
+    assert.equal(walk(host, cursors).misses, 0);
+    const before = host.registry.rulesSignature();
+    host.registry.register({ id: 'qc-rules', name: 'Late rules', version: '1.0.0', domains: { qcl: { initial: () => ({}), validate: () => {}, scratch: ['seen'] } } });
+    assert.notEqual(host.registry.rulesSignature(), before, 'the signature names the new rules');
+    assert.equal(walk(host, cursors).misses, cursors.length, 'every answer is worked out again under the new rules');
+    sameAsFresh(host, cursors, 'late registration');
+    assert.equal(walk(host, cursors).misses, 0);
 });

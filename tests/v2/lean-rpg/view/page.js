@@ -13,8 +13,8 @@ export const settle = async () => { for (let n = 0; n < 8; n += 1) await new Pro
 export const PARTY = 'story-block/party';
 export const party = doc => doc.querySelector(`.ss-gameview [data-ss-screen="${PARTY}"]`);
 
-/** { doc, host, ui, loads, draw }; `formula` is the stat formula the chat is on ('classic' unless a test asks for 'standard': most of these pin Classic's screens); `feature` turns the RPG on first, `persona` is the reader's name, `wrap` stands between the page and the host's commands, `modules` are modules the host runs (a stand-in for a party module, say). */
-export async function page(t, { feature = true, persona = null, wrap = null, modules = [], formula = 'classic', callModel = null } = {}) {
+/** { doc, host, ui, loads, draw }; `formula` is the stat formula the chat is on ('classic' unless a test asks for 'standard': most of these pin Classic's screens); `feature` turns the RPG on first, `persona` is the reader's name, `wrap` stands between the page and the host's commands, `modules` are modules the host runs (a stand-in for a party module, say), `spy(name)` hears each sdk query the page asks. */
+export async function page(t, { feature = true, persona = null, wrap = null, modules = [], formula = 'classic', callModel = null, spy = null } = {}) {
     const doc = setupDom();
     const form = doc.createElement('div'); form.id = 'send_form'; doc.body.appendChild(form);
     doc.defaultView = { confirm: () => true, localStorage: null };
@@ -27,7 +27,7 @@ export async function page(t, { feature = true, persona = null, wrap = null, mod
     let opener = null, topmost = null;
     // `wrap(type, payload, options, run)` may answer a command itself (a test makes one fail); `run` is the real one.
     const command = (type, payload, options) => (wrap ? wrap(type, payload, options, (...args) => host.sdk.command(...args)) : host.sdk.command(type, payload, options));
-    const sdk = { ...host.sdk, command, dialog: Object.freeze({ open: (id, opts) => opener?.(id, opts) ?? null, current: () => topmost?.() ?? null }) };
+    const sdk = { ...host.sdk, command, ...(spy ? { query: (name, args) => { spy(name); return host.sdk.query(name, args); } } : {}), dialog: Object.freeze({ open: (id, opts) => opener?.(id, opts) ?? null, current: () => topmost?.() ?? null }) };
     const runtime = { registry: host.registry, store: host.store, sdk, settings: host.settings, events: host.events, turn: host.turn, features: host.features,
         packs: host.packs, setDialog: (open, current) => { opener = open; topmost = current; } };
     const ui = mountUi({ runtime, ctx: host.ctx, doc, loadLeanRpg });
