@@ -56,8 +56,13 @@ test('Standing, Fame and Guild draw as a record card and maps of numbers with th
     const handles = merged.layout.root.children.map(node => { const slot = doc.createElement('div'); el.appendChild(slot); return widgets[FIELDS_WIDGET].render(slot, node.props, api); });
     t.after(() => handles.forEach(handle => handle.destroy()));
     assert.deepEqual(el.querySelectorAll('.ss-section-label').map(node => node.textContent), ['Adventurer Guild', 'Standing with the powers', 'Fame by region']);
-    assert.deepEqual(el.querySelectorAll('.ss-b-recsec .ss-b-line dt').map(node => node.textContent), ['Letter', 'Standing', 'Yearly dues', 'Years as a member']);
-    assert.equal(el.querySelector('.ss-b-recsec .ss-b-chip').textContent, 'probation');
+    assert.deepEqual(el.querySelectorAll('.ss-b-recsec .ss-b-line dt').map(node => node.textContent), ['Rank', 'Standing', 'Dues'], 'three tiles, no Years as a member');
+    assert.equal(el.querySelectorAll('.ss-b-recsec .ss-b-card.ss-rm-tiles').length, 1);
+    assert.deepEqual(el.querySelectorAll('.ss-b-recsec .ss-b-line dd').map(node => node.textContent), ['F', 'probation', '50 c / year'], 'the rank letter, a plain word, the dues with their unit');
+    assert.equal(el.querySelectorAll('.ss-b-recsec .ss-rm-badge').length, 1, 'the rank is a letter badge');
+    assert.equal(el.querySelectorAll('.ss-b-recsec .ss-b-chip, .ss-b-recsec .ss-pill').length, 0, 'no pill or chip in a tile');
+    assert.equal(el.querySelectorAll('.ss-b-recsec .ss-rm-warn').length, 1, 'probation reads amber');
+    assert.equal(el.querySelectorAll('.ss-b-recsec .ss-w-editable-pencil').length, 0, 'a tile has no pencil');
     const maps = el.querySelectorAll('.ss-b-map');
     assert.deepEqual(maps[0].querySelectorAll('.ss-b-box > .ss-b-list > .ss-b-row .ss-b-name').map(node => node.textContent), ['Highmark', 'Hand of Oblivion'], 'highest first, by the pack\'s own names');
     assert.equal(maps[0].querySelector('summary').textContent, 'Not known yet (8)');

@@ -85,6 +85,7 @@ Last checked: 2026-11-07.
 ## src/v2/screens/
 - `src/v2/screens/block-fields.js`: registers the fields and heading widgets used by data-module screen layouts.
 - `src/v2/screens/block-layouts.js`: draws block and data-module values as cards, number maps, record cards or previews.
+- `src/v2/screens/block-maps.css`: the number-list rows, centre-line bars, fold, Edit-reveal pencils, guild tiles and the Enable all box; overrides host.css's `.ss-b-*` rules.
 - `src/v2/screens/blocks-editor.js`: provides the in-chat form for authoring a block from fields, starters, layout and preview.
 - `src/v2/screens/rebuild-banner.js`: Home's dossier banner: blocked branch, start-from-chat dialog, catching-up progress with Skip, and the done or stopped notes.
 - `src/v2/screens/inventory-add.js`: places the inline form for adding an item to the reader's own inventory, the folded "Worn (N)" row of the Inventory tab, and the Grid view's two widgets (the List | Grid switch, the tiles with folds and the item sheet).
