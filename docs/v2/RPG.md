@@ -424,7 +424,7 @@ the type's own stat.
 - **Skills cost a block.** Each time an action uses a skill (an attack, a heal, a defence with a skill, a check), code takes one block (2 for an area skill in a `bars: 2` fight) from that
   skill's resource: Stamina for a Stamina skill, Mana for a Mana skill, never below 0. With the resource empty, the action is rolled without the
   skill (no skill, rank 0, the type's own stat) and the log says so. A swipe, a Re-read and a rebuild agree with it like they do with hits.
-- **Area.** An area skill rolls once against each standing foe group's own roll; each group's bar moves on its own.
+- **Area.** An area skill rolls once against each standing foe group's own roll; each group's bar moves on its own. In a fight marked `areaAll` (every new board fight; `aoe`'s successor) it is one tap with no group choice, one roll, and every standing group takes the same full effect; a fight without the mark keeps the picked main group (the others one Health block less), and old replies re-read as they were.
 - **Support.** A heal or a buff rolls against a difficulty (easy 10, normal 15, hard 20, very hard 25): a success gives 1 block, a decisive
   one 2, never past the bar. Someone who is Down can be mended.
 - **Social and exploration in a fight** are rolled against the foe's roll and hurt nobody; outside a fight they are checks against the

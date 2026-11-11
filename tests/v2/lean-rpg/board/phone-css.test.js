@@ -37,8 +37,16 @@ test('nothing on the board scrolls: chips wrap, the skills are a grid', () => {
     assert.doesNotMatch(css, /overflow(?:-y)?\s*:\s*(?:auto|scroll)|scroll-snap|100dvh|--rpg-card-row-height/);
     assert.match(rule(css, '.rpg-chips'), /display: flex/);
     assert.match(rule(css, '.rpg-chips'), /flex-wrap: wrap/);
-    assert.match(rule(css, '.rpg-chip'), /flex: 1 1 96px/);
+    assert.match(rule(css, '.rpg-chip'), /flex: 1 1 auto/);   // natural width, at least 2 to a row
+    assert.match(rule(css, '.rpg-chip'), /max-width: calc\(50% - 3px\)/);
     assert.match(rule(css, '.rpg-chip'), /min-width: 0/);
+    const title = rule(css, '.rpg-chip-title');   // a name breaks between words, 2 lines, then an ellipsis
+    assert.match(title, /-webkit-line-clamp: 2/);
+    assert.match(title, /word-break: normal/);
+    assert.match(title, /overflow-wrap: normal/);
+    assert.doesNotMatch(rule(css, '.rpg-chip-name'), /overflow-wrap: anywhere/);
+    assert.match(rule(css, '.rpg-res-label'), /flex: 0 0 auto/);   // the bar starts after a fixed-width label
+    assert.match(rule(css, '.rpg-res-label'), /min-width: 5em/);
 });
 
 test('skills are a 2-column grid (3 from 900px) of buttons at least 36px tall (48px on a phone)', () => {
@@ -55,7 +63,9 @@ test('a board 700px wide or more puts the status on the left and the actions on 
     const wide = css.slice(css.indexOf('@container rpgboard (min-width: 700px) {'));
     assert.match(rule(css, '.rpg-board-active'), /container: rpgboard \/ inline-size/);
     assert.match(wide, /\.rpg-board-body \{ display: grid; grid-template-columns: minmax\(0, 1\.1fr\) minmax\(0, 1fr\)/);
-    assert.match(wide, /\.rpg-board-controls \{ grid-column: 2; grid-row: 1 \/ span 2; \}/);
+    assert.match(wide, /\.rpg-board-controls \{ grid-column: 2; grid-row: 1 \/ span 3; \}/);
+    assert.match(wide, /grid-template-rows: auto auto 1fr/);   // no dead gap: the log sits right under the status
+    assert.match(wide, /\.rpg-chip \{ max-width: none; \}/);
     assert.match(wide, /\.rpg-chips-foes \.rpg-chip \{ flex: 0 0 calc\(\(100% - 10px\) \/ 3\); \}/);
     assert.match(wide, /\.rpg-chips-party \.rpg-chip \{ flex: 0 0 calc\(\(100% - 15px\) \/ 4\); \}/);
 });
@@ -91,4 +101,9 @@ test('the finished board leaves bottom-bar room in panel and phone game views', 
     const panelSpacer = rule(hostCss, '.story-suite-sheet-body::after');
     assert.match(panelSpacer, /display: block/);
     assert.match(panelSpacer, /height: var\(--ss-bottom-bar-space\)/);
+});
+
+test('the sticky status is flush with the scroller edge, so no text shows above it', () => {
+    assert.match(phone, /\.rpg-board-status \{ top: calc\(-1 \* var\(--rpg-pad, 12px\)\)/);
+    assert.match(phone, /\.story-suite-sheet-body:has\(\.rpg-board-active\) \{ --rpg-pad: 8px; \}/);
 });

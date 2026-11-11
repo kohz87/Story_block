@@ -40,7 +40,7 @@ const resumedLine = (members, carried) => {
 };
 
 export function createBoardView({ doc, headState, meta, save, store, rules, query, readerName, roleOf, levels, on = () => false, start = null, cap = () => AUTO_CAP.default } = {}) {
-    let notice = '', autoLine = '', chosen = [], targeting = null, confirm = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
+    let logOpen = false, notice = '', autoLine = '', chosen = [], targeting = null, confirm = false, busy = false, generation = 0, activeId = null, keyRoot = null, listening = false, lockedChoices = [];
     const releaseAfterResult = () => {
         const wait = () => setTimeout(() => {
             busy = false;
@@ -52,7 +52,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
     };
     const persist = () => { try { save?.(); } catch { /* staging still works in this page */ } };
     const current = () => boardSession(meta());
-    const reset = () => { chosen = []; targeting = null; confirm = false; notice = ''; autoLine = ''; };
+    const reset = () => { logOpen = false; chosen = []; targeting = null; confirm = false; notice = ''; autoLine = ''; };
     const equipment = state => {
         const sheet = readSheet(state), gear = planGear(sheet, (name, args) => query?.(name, args), readerName());
         const weapons = {};
@@ -176,7 +176,8 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
         const log = h(doc, 'details', 'rpg-board-log rpg-battle');   // one line; a tap opens the full log (open at the end of a fight)
         const logContent = h(doc, 'div', 'rpg-board-log-content');
         log.setAttribute('aria-live', 'polite');
-        log.open = ended;
+        log.open = ended || logOpen;   // the reader's open log stays open across redraws during a fight
+        log.addEventListener('toggle', () => { logOpen = log.open && !ended; });
         if (played.result.order.length) {
             const line = members ? memberOrderLine(played.result.order, members, foes) : `Order: ${played.result.order.map(item => item.name).join(' · ')}`;
             if (line) logContent.appendChild(h(doc, 'p', 'rpg-board-order', line));
@@ -228,7 +229,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             for (const action of chosen) panel.appendChild(h(doc, 'p', 'rpg-board-staged', stagedLine(action, action.target === undefined ? '' : nameAt(action.target) || String(action.target))));
             if (mainTarget) panel.appendChild(h(doc, 'p', 'rpg-board-area-note', 'Hits every enemy group. The group you pick takes the full effect, and the others take one Health block less.'));
             if (!targeting && data.resources) panel.appendChild(resourceStrip(doc, data.resources));
-            if (!targeting) panel.appendChild(h(doc, 'p', 'rpg-board-defence', `Defence: ${data.defence ?? 'plain defence'}, automatic`));
+            if (!targeting && data.defence) panel.appendChild(h(doc, 'p', 'rpg-board-defence', `Defence: ${data.defence}`));   // only a named defence skill, on one line
             const list = h(doc, 'div', 'rpg-board-choices');
             const memberBar = member => ({ value: Number(member?.value ?? member?.hurt) || 0, max: Number(member?.size) || 1 });
             const options = !targeting ? data.choices
@@ -304,9 +305,13 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             const frame = scroller?.closest?.('.story-suite-sheet, .ss-gameview');
             const bar = frame?.querySelector?.('.story-suite-sheet-bar, .ss-gameview-nav');
             const bodyBox = scroller?.getBoundingClientRect?.(), barBox = bar?.getBoundingClientRect?.(), panelBox = panel.getBoundingClientRect?.();
+            const statusBox = status.getBoundingClientRect?.();
             if (bodyBox?.height && panelBox?.height) {
-                const limit = Math.min(bodyBox.bottom, barBox?.height ? barBox.top : bodyBox.bottom) - 8;
-                if (panelBox.bottom > limit) scroller.scrollTop += (panelBox.bottom - limit) / zoomOf(scroller);
+                const limit = Math.min(bodyBox.bottom, barBox?.height ? barBox.top : bodyBox.bottom) - 8, zoom = zoomOf(scroller);
+                // The sticky status stays clear of the controls: never scroll the panel's top under it, and keep the controls' scroll margin at its height.
+                const pinned = statusBox?.height ? bodyBox.top + statusBox.height + 4 : bodyBox.top;
+                panel.style.scrollMarginTop = `${Math.round((statusBox?.height ?? 0) / zoom) + 4}px`;
+                if (panelBox.bottom > limit) scroller.scrollTop += Math.max(0, Math.min(panelBox.bottom - limit, panelBox.top - pinned)) / zoom;
             }
         }
     };

@@ -38,7 +38,7 @@ function chip(doc, { name, level, count = 1, value, max, tone, party = false } =
     const node = h(doc, 'div', `rpg-chip${party ? ' rpg-chip-party' : ''}${max > 0 && !(numberOr(value) > 0) ? ' rpg-chip-down' : ''}`);
     const label = h(doc, 'span', 'rpg-chip-name');
     const shown = text(name, 60);
-    label.appendChild(doc.createTextNode(numberOr(count, 1) > 1 ? `${shown} ×${Math.trunc(count)}` : shown));
+    label.appendChild(h(doc, 'span', 'rpg-chip-title', numberOr(count, 1) > 1 ? `${shown} ×${Math.trunc(count)}` : shown));   // wraps between words, 2 lines at most (board.css)
     if (hasValue(level)) label.appendChild(h(doc, 'small', 'rpg-chip-level', `Lv ${text(level, 6)}`));
     node.appendChild(label);
     node.appendChild(healthMiniBar(doc, { value, max, tone }));

@@ -474,7 +474,8 @@ test('the choosing member shows a Mana and Stamina strip right above the skills,
     const strip = root.querySelector('.rpg-board-controls .rpg-actor');
     assert.ok(strip, 'the strip is in the controls');
     assert.deepEqual([...strip.querySelectorAll('.rpg-res-label')].map(node => node.textContent), ['Mana', 'Stamina']);
-    assert.equal(strip.nextElementSibling.tagName, 'P', 'the Defence line comes after');
+    assert.equal(strip.nextElementSibling.className, 'rpg-board-choices', 'no named defence skill: no Defence row, the skills follow at once');
+    assert.equal(root.querySelector('.rpg-chip-title').textContent, 'Bristle-boar', 'the name is its own wrapping span');
     const skills = [...root.querySelectorAll('.rpg-board-choice')].map(node => node.textContent);
     assert.ok(skills.some(text => /^Shadow Cutarea · AGI · \d Mana$/u.test(text)), JSON.stringify(skills));
 });
@@ -563,6 +564,21 @@ test('nothing on the board scrolls: no observers, no inner scrollers, a sticky s
     assert.match(BOARD_CSS, /@container rpgboard \(min-width: 900px\) \{ \.rpg-board-choices \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/u);
     assert.match(BOARD_CSS, /\.rpg-skill-blocked \{ opacity: \.45; \}/u);
     assert.match(BOARD_CSS, /\.rpg-board-members \.rpg-board-controls button \{ min-height: calc\(48px \/ var\(--ss-zoomed, 1\)\) !important; \}/u);
+});
+
+test('a log the reader opened stays open across the redraws of a running fight', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    await defineFoes(host, [['Bristle-boar', 2, 1, 5]]);
+    const members = [11, 12].map(slot => ({ slot, group: 1, n: slot - 10, name: `Bristle-boar ${slot - 10}`, value: 4, size: 4, pack: false, count: 1, left: 1, attacks: 1, standing: true }));
+    const root = renderMembers(t, { doc, host, members, order: [] });
+    const log = () => root.querySelector('.rpg-board-log');
+    assert.equal(log().open, false, 'closed at first');
+    log().open = true;
+    log().dispatch('toggle');
+    root.querySelector('[data-choice="1"]').click();   // a choice redraws the board
+    assert.equal(log().open, true, 'still open after the redraw');
 });
 
 const AREA_MEMBERS = [
