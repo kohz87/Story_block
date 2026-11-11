@@ -6,7 +6,7 @@
 
 /* ---- Party tab (mockup 21-party) ---- */
 .ss-w-rpg-party { display: grid; gap: 12px; min-width: 0; container-type: inline-size; }
-.rpg-main { display: grid; gap: 12px; }
+.rpg-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .rpg-main[hidden], .rpg-sheet-host:empty { display: none; }
 .rpg-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rpg-head h3 { margin: 0; font-size: 18px; }
@@ -366,3 +366,12 @@
 /* The card's buttons are a little tighter while Gear in fights is on, and wrap to a second row when a label would not fit its button. */
 .rpg-card-actions-gear { flex-wrap: wrap; gap: 6px; }
 .rpg-card-actions-gear .ss-button { flex: 1 1 auto; min-width: fit-content; justify-content: center; padding-inline: 6px; white-space: nowrap; }
+
+/* ---- Party: the members who left fold into one row under the active cards ---- */
+.rpg-left-fold { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px 10px; border: 1px solid var(--ss-border, currentColor); border-radius: 12px; background: transparent; color: var(--ss-muted); font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; }
+.rpg-left-fold b { color: var(--ss-text, inherit); white-space: nowrap; flex: none; }
+.rpg-left-line { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.rpg-left-names { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpg-left-chev { flex: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; }
+.rpg-left-chev svg { width: 12px; height: 12px; display: block; transition: transform 0.15s; }
+.rpg-left-open .rpg-left-chev svg { transform: rotate(90deg); }

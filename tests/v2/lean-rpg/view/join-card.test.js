@@ -110,8 +110,17 @@ test('the Party tab: someone who left is greyed and says Left, and "Changed this
     await ctx.host.send('Mara walks out.', reply('- party Mara'));
     ctx.ui.mounts.screen.open('story-block/party');
     await settle();
+    // Who left is not among the active cards: one folded row says "Left the party (1)" with the name and level, and the header counts "1 active · 1 left".
+    assert.deepEqual(party(ctx.doc).querySelectorAll('.rpg-card').map(node => node.getAttribute('data-character')), ['Wessel']);
+    assert.equal(party(ctx.doc).querySelector('.rpg-count').textContent, '1 active · 1 left');
+    const fold = party(ctx.doc).querySelector('.rpg-left-fold');
+    assert.equal(fold.getAttribute('aria-expanded'), 'false');
+    assert.match(fold.textContent, /^Left the party \(1\)Mara · Lv \d+$/);
+    fold.click();
+    await settle();
     const cards = party(ctx.doc).querySelectorAll('.rpg-card');
-    assert.equal(cards.length, 2, 'kept');
+    assert.equal(cards.length, 2, 'kept: opened, their full cards as ever');
+    assert.equal(party(ctx.doc).querySelector('.rpg-left-fold').getAttribute('aria-expanded'), 'true');
     const mara = cards.find(node => node.getAttribute('data-character') === 'Mara');
     assert.ok(mara.classList.contains('rpg-left') && mara.classList.contains('rpg-fallen'));
     assert.equal(mara.querySelector('.rpg-left-pill').textContent, 'Left');

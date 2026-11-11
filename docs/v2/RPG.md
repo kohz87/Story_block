@@ -98,11 +98,11 @@ Weir-drake d20 9 + 3 + Lv 7 ÷ 5 = 1 = 13 · Weir-drake loses 1 block (5 of 6)")
 4. **Review.** Everything in one place. **Create** makes two blocks, the Character block (named for the character) and the
    Skills block ("Wessel's skills"), each with one action, so a creation costs two of the reply's changes. If the second
    cannot be made the first is taken back and nothing is left half made. The window says what is in the way in plain
-   words, for example a name that is taken or a story that already has eight blocks. When the chat has no
+   words, for example a name that is taken or a story that already has 20 blocks, or a party of eight active members. When the chat has no
    [Combat rules](#the-four-templates) block and/or no Foes block, Create also makes the missing ones from the stock
    templates (one more action each, on the same reply, so one swipe takes everything back), and the Review says
    "Also adds: Combat rules, Foes" (only the ones missing). A chat that has them already adds nothing. If the chat has no
-   room (the eight-block limit) or the reply has no actions left, the character is still made; the Review says which block
+   room (the 20-block limit) or the reply has no actions left, the character is still made; the Review says which block
    will not be added, and after Create the window stays to say which one was not added and where to add it later
    (**Settings → RPG → Add the Combat rules block**, or **Settings → Blocks**). A chat that was already started is left as
    it is until you make a character in it.
@@ -167,7 +167,7 @@ then, as more changes of the same reply:
 - the purse raised by the file's money.
 
 All of it rides on the latest reply like the blocks do, so one swipe takes it all back, and a reload or rebuild gives the same story. The
-usual limits apply: the carry limit, the eight-block limit, the reply's block actions. Anything that cannot be added is named in the window,
+usual limits apply: the carry limit, the 20-block limit, the reply's block actions. Anything that cannot be added is named in the window,
 for example "Ren is in the party. Not added: Torch ×2 (The party cannot carry that much.); the money (…)." and the character is still made. If the
 character itself cannot be made, none of the file's things or money are added.
 
@@ -226,9 +226,17 @@ and the setting is not Off; with the RPG off, nothing is told and nothing change
   `+ party Mara` brings the same person back (with the sheet they left with), whatever the setting says. A sheet made before the
   **Left** field existed cannot be marked, and the line says so.
 - **Refused plainly**, with one line in the Problems list and nothing made: the name is already in the party, the party is full
-  (8 characters, counting those who left; a story holds at most 8 blocks of its own, and a companion takes two, so the blocks
-  usually run out first), there is no room for two more blocks, or the reply has used all the block actions it can take. A class
+  (8 characters **in the party**: those who left do not count, and their sheets are kept; a story holds at most 20 blocks of its own and
+  a companion takes two), there is no room for two more blocks, or the reply has used all the block actions it can take. A class
   that is not I to IX, a `best` that is not a stat and a line with no name are refused the same way.
+
+**The party limit, every way in.** The party holds at most 8 active members (20 blocks of their own, 28 pins; the check-bonus table covers eight).
+A Character comes in by a `+ party` line (new or returning), **Add to party**, the wizard (New character, Edit first), a template, or a pack's
+Character pinned with Enable; each of them is refused plainly at eight active and each records the party it relied on, so a reload, a rebuild
+or a deleted earlier leave decides it the same way: a join that relied on a leave that went is skipped, never a ninth. A reply captured
+before the `partyRoom` mark has no such record and keeps the old room (8 blocks, 16 pins, those who left counted) whenever it is read again.
+A Character pin made before this change has no record and replays as it was. The check does not need the RPG library, so a chat with the
+RPG off replays the same.
 
 ## Skill slots
 

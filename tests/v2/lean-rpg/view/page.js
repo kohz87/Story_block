@@ -57,4 +57,10 @@ export async function makeBlocks(host, { who = 'Wessel', character = {}, skills 
     return { character: `pack.chat/${slug}`, skills: `pack.chat/${slug}-skills` };
 }
 
+/** `count` small plain blocks of the story's own (a story close to its twenty-block room, without the pin bytes of real sheets). */
+export async function fillBlocks(host, count) {
+    const plain = { slug: 'filler', name: 'Filler', schema: 1, stateVersion: 1, scope: 'chat', state: { n: { type: 'int', min: 0, max: 9, default: 0 } }, kinds: {}, prompt: '', show: { tab: false, card: false, tabName: 'Filler', icon: 'ph-star' } };
+    for (let n = 0; n < count; n++) assert.equal((await host.sdk.command('dm.define', { definition: { ...plain, slug: `filler-${n}`, name: `Filler ${n}` } })).ok, true);
+}
+
 export const fieldsOf = (host, module) => host.sdk.query('dataModules.view', { module }).chat;

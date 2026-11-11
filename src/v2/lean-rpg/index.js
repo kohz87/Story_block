@@ -21,7 +21,7 @@ import { JOIN_NO, joinCard, joinOffers, partyOf } from './join.js';
 import { createPrecall } from './precall.js';
 import { leanRpgGuard, resolve, rollsOf } from './resolve.js';
 import { skipOf } from './start.js';
-import { rosterQueries } from './roster.js';
+import { levelsQuery, rosterQueries } from './roster.js';
 import { createBoardPart } from './board/overrides.js';
 
 export * from './names.js';
@@ -103,7 +103,9 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),
             [ROLLS_QUERY]: Object.assign((_state, args, tools) => rollsOf(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index), { feature: LEAN_RPG_FEATURE }),
             // The party's members and the reader's own Character, from the Character blocks (roster.js; fallbacks: a module that answers them itself is asked instead).
-            ...rosterQueries({ persona, on: rosterOn }) },
+            ...rosterQueries({ persona, on: rosterOn }),
+            // Every member's sheet level, those who left too (roster.js): for a module that shows or checks levels.
+            'party.levels': Object.assign(levelsQuery, { feature: LEAN_RPG_FEATURE }) },
         hooks: {
             canGenerate: Object.assign((view, info) => precall.canGenerate(view, info), { feature: LEAN_RPG_FEATURE }),
             // The foe pre-check may call the model once (PRECHECK_LIMIT_MS, or `timeoutMs`): the hook may take that long and a little more.

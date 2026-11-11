@@ -157,3 +157,75 @@ test('the stylesheet: cards side by side on a wide screen, stacked on a phone, t
     assert.match(css, /@container \(min-width: 700px\)/);
     assert.match(css, /@media \(max-width: 600px\)/);
 });
+
+test('members who left fold into one row: not among the cards, the header says "N active · M left", folded by default, remembered per chat', () => {
+    const gone = { definition: characterDefinition('gone', 'Gone'), fields: { who: 'Gone', left: true, level: 5, health: 4, mana: 2, stamina: 3 } };
+    const state = fakeState([wessel, ren, gone]);
+    const store = new Map(), storage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, value), removeItem: key => store.delete(key) };
+    const doc = setupDom(), el = doc.createElement('div');
+    doc.body.appendChild(el);
+    let chat = 'chat-a';
+    const baseRole = roleOf;
+    const roleOf2 = definition => (definition.slug === 'gone' ? 'character' : baseRole(definition));
+    const widget = createPartyWidget({ headState: () => state, readerName: () => 'Wessel', roleOf: roleOf2, chatKey: () => chat, storage });
+    const handle = widget.render(el, {}, {});
+    const names = () => el.querySelectorAll('.rpg-card').map(node => node.getAttribute('data-character'));
+    assert.deepEqual(names(), ['Wessel', 'Ren'], 'who left is not among the active cards');
+    assert.equal(el.querySelector('.rpg-count').textContent, '2 active · 1 left');
+    const fold = el.querySelector('.rpg-left-fold');
+    assert.equal(fold.tagName, 'BUTTON');
+    assert.equal(fold.getAttribute('aria-expanded'), 'false');
+    assert.equal(fold.querySelector('.rpg-left-chev svg') !== null && fold.querySelector('.rpg-left-chev').children[0].tagName.toLowerCase(), 'svg', 'a drawn chevron');
+    assert.equal(fold.children[0].className, 'rpg-left-chev', 'on the left');
+    assert.equal(fold.querySelector('.rpg-left-line b').textContent, 'Left the party (1)');
+    assert.equal(fold.querySelector('.rpg-left-names').textContent, 'Gone · Lv 5');
+    fold.click();
+    assert.deepEqual(names(), ['Wessel', 'Ren', 'Gone'], 'opened: their full card as ever');
+    assert.equal(el.querySelector('.rpg-left-fold').getAttribute('aria-expanded'), 'true');
+    assert.equal(el.querySelector('.rpg-card.rpg-left .rpg-left-pill').textContent, 'Left');
+    assert.equal(store.get('story-block.partyLeftOpen|chat-a'), '1', 'remembered for this chat');
+    handle.destroy();
+    const again = doc.createElement('div'); doc.body.appendChild(again);
+    createPartyWidget({ headState: () => state, readerName: () => 'Wessel', roleOf: roleOf2, chatKey: () => chat, storage }).render(again, {}, {});
+    assert.equal(again.querySelector('.rpg-left-fold').getAttribute('aria-expanded'), 'true', 'still open on this device');
+    chat = 'chat-b';
+    const other = doc.createElement('div'); doc.body.appendChild(other);
+    createPartyWidget({ headState: () => state, readerName: () => 'Wessel', roleOf: roleOf2, chatKey: () => chat, storage }).render(other, {}, {});
+    assert.equal(other.querySelector('.rpg-left-fold').getAttribute('aria-expanded'), 'false', 'another chat is folded');
+    const broken = doc.createElement('div'); doc.body.appendChild(broken);
+    const thrower = { getItem() { throw new Error('no storage'); }, setItem() { throw new Error('no storage'); } };
+    createPartyWidget({ headState: () => state, readerName: () => 'Wessel', roleOf: roleOf2, chatKey: () => chat, storage: thrower }).render(broken, {}, {});
+    broken.querySelector('.rpg-left-fold').click();
+    assert.equal(broken.querySelector('.rpg-left-fold').getAttribute('aria-expanded'), 'true', 'a storage that throws lasts this page only');
+});
+
+test('nobody left: no fold row, and the header says "N active" alone', () => {
+    const { el } = draw(party());
+    assert.equal(el.querySelector('.rpg-left-fold'), null);
+    assert.equal(el.querySelector('.rpg-count').textContent, '2 active');
+});
+
+test('Long names in the left row are cut with an ellipsis', () => {
+    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
+    assert.match(css, /\.rpg-main \{[^}]*grid-template-columns: minmax\(0, 1fr\)/, 'the one column may shrink below its content');
+    assert.match(css, /\.rpg-left-fold \{[^}]*min-width: 0[^}]*overflow: hidden/);
+    assert.match(css, /\.rpg-left-fold b \{[^}]*white-space: nowrap[^}]*flex: none/);
+    assert.match(css, /\.rpg-left-names \{[^}]*min-width: 0[^}]*overflow: hidden[^}]*text-overflow: ellipsis[^}]*white-space: nowrap/);
+    assert.match(css, /\.rpg-left-chev \{[^}]*flex: none/);
+});
+
+test('the fold row keeps the keyboard focus after it is toggled (the redraw replaces the button; its replacement is focused)', () => {
+    const gone = { definition: characterDefinition('gone', 'Gone'), fields: { who: 'Gone', left: true, level: 5 } };
+    const doc = setupDom(), el = doc.createElement('div');
+    doc.body.appendChild(el);
+    const baseRole = roleOf;
+    createPartyWidget({ headState: () => fakeState([wessel, ren, gone]), readerName: () => 'Wessel', roleOf: definition => (definition.slug === 'gone' ? 'character' : baseRole(definition)), chatKey: () => 'chat-f', storage: null }).render(el, {}, {});
+    const before = el.querySelector('.rpg-left-fold');
+    before.focus();
+    before.click();
+    const opened = el.querySelector('.rpg-left-fold');
+    assert.ok(opened !== before, 'drawn again');
+    assert.ok(doc.activeElement === opened, 'opened: the focus is on the new button');
+    opened.click();
+    assert.ok(doc.activeElement === el.querySelector('.rpg-left-fold'), 'closed: and again');
+});

@@ -180,8 +180,9 @@ content from an older installation. `dm.define { definition }` makes a reply-bou
 removes its active instance. All three are direct reader commands. Pack modules cannot be redefined or
 removed through these commands. A redefine carries a value when the field name and type match and the
 value fits the new schema; other fields start at their defaults. Unchanged timers keep their elapsed
-remainder, and existing offer and settlement keys are retained. A chat can have at most eight active
-chat blocks. Pack modules and blocks share the existing 16-pin budget, including retained pins.
+remainder, and existing offer and settlement keys are retained. A chat can have at most 20 active
+chat blocks. Pack modules and blocks share the 28-pin budget, including retained pins. A reply captured before the `partyRoom` mark keeps
+the old 8 blocks and 16 pins when it is read again (an old join is decided as it was).
 
 Definitions may include `prompt`, a one-line purpose of at most 1,200 Unicode code points, followed by
 the generated grammar in the static prompt. The combined text fits 2,000 characters. A text field may
@@ -421,7 +422,7 @@ Proposed limits are exported host constants and are part of interpreter version 
 | Budget | Limit |
 |---|---|
 | Pack / nesting / installed library | Existing 512 KiB / 16 / 2 MiB, no increase |
-| Definitions per pack / pins per chat / subjects per module | 8 / 16 / 16 |
+| Definitions per pack / pins per chat / subjects per module | 20 / 28 / 16 (a chat's own blocks: 20; replies from before the `partyRoom` mark: 8 blocks / 16 pins) |
 | Definition / all retained pins / one instance | 32 KiB / 256 KiB / 16 KiB UTF-8 JSON |
 | Fields / kinds / rules / timers / templates per definition | 32 / 16 / 32 / 8 / 16 |
 | Expr depth / AST nodes per expression / effects per list | 6 / 64 / 16; pack depth 16 still wins |
