@@ -187,6 +187,13 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     assert.deepEqual([...gearOrder].sort((a, b) => a - b), gearOrder);
 });
 
+test('the gear row\'s pencil keeps an unclipped 44px tap area: its line clips along the row only, and the pencil\'s ::after is 44px', () => {
+    const css = inventoryScreen.css;
+    assert.match(rule(css, '.inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .g-l1'), /overflow-x: clip;\s*overflow-y: visible;/);
+    assert.match(rule(css, '.inv.gear .g-l1 .item-edit .ss-w-editable-pencil'), /min-height: 0 !important;/);
+    assert.match(rule(css, '.inv.gear .g-l1 .item-edit .ss-w-editable-pencil::after'), /height: calc\(44px \/ var\(--ss-zoomed, 1\)\);/);
+});
+
 test('compact pills (ss-tap-pill): on a phone about 30px on the screen with a 44px-tall invisible tap area, the room for it made, never a neighbour overlapped', () => {
     const block = size.slice(size.indexOf(PHONE));
     const scope = ':is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog)';

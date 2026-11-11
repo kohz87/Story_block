@@ -383,7 +383,10 @@ ${GRID_CSS}
 .inv.gear .item.grow .actions .ss-button { min-height: 32px; height: 32px; padding: 0 10px; font-size: 12px; }
 .inv.gear .g-l1 > .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .inv.gear .g-l1 > :not(.name) { flex: none; }
-.inv.gear .g-l1 .item-edit .ss-w-editable-pencil { height: 18px; min-height: 0; min-width: 0; padding: 0 2px; margin: 0; }
+/* The pencil is drawn 18px in the 20px line, with an unclipped 44px tap area (::after) like the compact pills (size.css): the line clips only along the row, never across it. */
+.inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .g-l1 { overflow-x: clip; overflow-y: visible; }
+.inv.gear .g-l1 .item-edit .ss-w-editable-pencil { position: relative; height: 18px; min-height: 0 !important; min-width: 0 !important; padding: 0 2px; margin: 0; }
+.inv.gear .g-l1 .item-edit .ss-w-editable-pencil::after { content: ""; position: absolute; left: 50%; top: 50%; width: calc(44px / var(--ss-zoomed, 1)); height: calc(44px / var(--ss-zoomed, 1)); transform: translate(-50%, -50%); }
 .inv.gear .g-l1 .rarity { font-size: 9px; }
 .inv.gear .g-l2 .chip.eq { display: inline-flex; align-items: center; }
 .inv.gear .item.grow .g-l3 { font-size: 1em; --l-gap: 14px; }
