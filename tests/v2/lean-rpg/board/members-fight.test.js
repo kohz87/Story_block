@@ -354,3 +354,26 @@ test('harder foes: the new Foes template starts a group at 12 Health, holds up t
     assert.deepEqual([1, 29, 30, 60, 90].map(hardBlocksByLevel), [12, 12, 13, 14, 15]);
     assert.deepEqual([1, 29, 30, 60, 90].map(level => foeBlocksByLevel(level)), [4, 4, 5, 6, 7], 'the older rule is untouched');
 });
+
+test('harder foes: the board\'s "attacks on you" count is what the plan makes (lone foe doubling and the cap), and unchanged without the flag', () => {
+    const attacksIn = (foes, party, hard, offset = 0) => {
+        const played = playBoard(stateOf(hardBlocks(foes, party)), { seed: 3, offset, rules, members: 1, foesSix: 1, ...(hard ? { foesHard: 1 } : {}) }, []);
+        assert.equal(played.error, undefined);
+        return played.result.members.map(member => member.attacks);
+    };
+    assert.deepEqual(attacksIn([['Ogre', 1, 5, 12]], 3, true), [2], 'a lone foe against 3 heroes: 2 attacks');
+    assert.deepEqual(attacksIn([['Ogre', 1, 5, 12]], 4, true), [2]);
+    assert.deepEqual(attacksIn([['Ogre', 1, 5, 12]], 3, false), [1], 'without the flag: 1');
+    assert.deepEqual(attacksIn([['Wolves', 3, 5, 12]], 4, true), [1, 1, 1], 'a group of several: one each');
+    const six = ['A', 'B', 'C', 'D', 'E', 'F'].map(name => [name, 1, 5, 12]);
+    const capped = attacksIn(six, 2, true);
+    assert.equal(capped.reduce((a, b) => a + b, 0), 4, 'six lone foes against 2 heroes: the cap of 4 shows');
+    assert.equal(attacksIn(six, 2, false).reduce((a, b) => a + b, 0), 6);
+    // the board's count is the plan's: for every party size and exchange number
+    for (const party of [1, 2, 3, 4]) for (const offset of [0, 1, 2]) {
+        const state = stateOf(hardBlocks(six.slice(0, 3), party)), sheet = readSheet(state), bars = splitFoes(sheet.foes, { six: true });
+        const built = exchangePlan({ ...sheet, foes: bars }, everyone(party).map(act => ({ ...act, target: bars[0].slot })), {}, offset + 1, { members: true, hard: true });
+        const shown = playBoard(state, { seed: 3, offset, rules, members: 1, foesSix: 1, foesHard: 1 }, []).result.members.reduce((sum, member) => sum + member.attacks, 0);
+        assert.equal(shown, built.plan.foes.length, `${party} heroes, exchange ${offset + 1}`);
+    }
+});

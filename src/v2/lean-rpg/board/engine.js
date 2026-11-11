@@ -16,7 +16,7 @@ import { fleeRoll } from './flee.js';
 import { memberRolls } from './member-rolls.js';
 import { boardFoes, collapseFoes, memberSize, splitFoes } from './members.js';
 import { areaGroupName } from './order.js';
-import { exchangePlan } from './plan.js';
+import { exchangePlan, standing } from './plan.js';
 import { attackStat } from './rules.js';
 
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -195,6 +195,6 @@ export function playBoard(state, setup, exchanges) {
     }
     const result = { ...(bars ? { bars: 2 } : {}), ...(six ? { foesSix: 1 } : {}), ...(hard ? { foesHard: 1 } : {}), ...(soak ? { soak: 1 } : {}), rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
         summary: summaryStd([], rounds, refused) };
-    if (members) result.members = boardFoes(realFoes, values, { maxOf: limits, carried: setup.carriedMembers, six });
+    if (members) result.members = boardFoes(realFoes, values, { maxOf: limits, carried: setup.carriedMembers, six, ...(hard ? { hard, party: readSheet(copy).characters.filter(standing).length, round: setup.offset + exchanges.length + 1 } : {}) });
     return { state: copy, result };
 }

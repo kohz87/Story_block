@@ -163,9 +163,20 @@ export function collapseFoes(realFoes, values, { maxOf, six = false } = {}) {
     return out;
 }
 
-/** The UI's virtual foe list: values override the bars rebuilt from the real block. */
-export function boardFoes(realFoes, values, { maxOf, carried = null, six = false } = {}) {
-    return splitFoes(realFoes, { maxOf, carried, six }).map(foe => {
+/**
+ * The foes' attacks in one exchange (one entry per attack, the foe on it), `foes` being the standing ones. A pack attacks as its bar allows, a member once. Under the harder-foes
+ * rule (`hard`) a member that is the only one standing in its group attacks ceil(party / 2) times, and all the attacks are cut to 2 x `party` (capAttackers; `round` turns the bars spared).
+ * The plan and the board's "N attacks on you" line both read this, so they cannot disagree.
+ */
+export function attackList(foes, party, { hard = false, round = 1 } = {}) {
+    const lone = foe => hard && foe.pack !== true && foes.filter(other => groupOf(other) === groupOf(foe)).length === 1;
+    const every = foes.flatMap(foe => Array.from({ length: foe.pack === true ? packAttacks(foe.count, foe.hurt, foe.size, foe.full) : lone(foe) ? Math.ceil(party / 2) : 1 }, () => foe));
+    return hard ? capAttackers(every, 2 * party, round) : every;
+}
+
+/** The UI's virtual foe list: values override the bars rebuilt from the real block. Under `hard` (with the standing `party` and the next exchange's `round`) a bar's `attacks` is what attackList gives it. */
+export function boardFoes(realFoes, values, { maxOf, carried = null, six = false, hard = false, party = 0, round = 1 } = {}) {
+    const list = splitFoes(realFoes, { maxOf, carried, six }).map(foe => {
         const size = Number.isFinite(Number(foe.size)) ? num(foe.size) : memberSize(foe, maxOf);
         const value = held(valuesAt(values, foe.slot) ?? foe.hurt, size), standing = value > 0;
         if (foe.pack) {
@@ -175,6 +186,10 @@ export function boardFoes(realFoes, values, { maxOf, carried = null, six = false
         return { slot: foe.slot, group: groupOf(foe), n: nOf(foe), name: foe.name, value, size, pack: false, count: 1,
             left: standing ? 1 : 0, attacks: standing ? 1 : 0, standing };
     });
+    if (!hard) return list;
+    const up = list.filter(foe => foe.standing).map(foe => ({ slot: foe.slot, group: foe.group, pack: foe.pack, count: foe.count, hurt: foe.value, size: foe.size, full: foe.pack ? packFullAttacks(foe.count, six) : undefined }));
+    const made = attackList(up, party, { hard, round });
+    return list.map(foe => ({ ...foe, attacks: made.filter(one => one.slot === foe.slot).length }));
 }
 
 /**

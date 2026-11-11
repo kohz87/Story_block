@@ -3,12 +3,12 @@
 // It reads no DOM and writes no state; the board and the committed roll both use it.
 
 import { fold } from '../read.js';
-import { capAttackers, packAttacks } from './members.js';
+import { attackList } from './members.js';
 import { bestDefence } from './rules.js';
 import { healingSkill, skillFlags, skillKey } from './flags.js';
 
 const find = (entries, name, field) => entries.find(entry => fold(entry[field]) === fold(name));
-const standing = character => character.alive !== false && character.health !== 0;
+export const standing = character => character.alive !== false && character.health !== 0;
 const up = foe => foe.filled && foe.hurt > 0;
 const groupOf = foe => (Number.isInteger(foe?.group) ? foe.group : foe?.slot);
 const isEmpty = (name) => `${name} is Empty`;
@@ -84,9 +84,7 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1, { members =
     }
     // Every member attacks once and a pack attacks as its thinning bar allows. The flattened attacker index rotates targets.
     // A new-board defence is charged on its first executed attack, so Standard decides `paid` at the table, not here.
-    const lone = foe => hard && foe.pack !== true && foes.filter(other => groupOf(other) === groupOf(foe)).length === 1;
-    const every = foes.flatMap(foe => Array.from({ length: foe.pack === true ? packAttacks(foe.count, foe.hurt, foe.size, foe.full) : lone(foe) ? Math.ceil(actors.length / 2) : 1 }, () => foe));
-    const attackers = hard ? capAttackers(every, 2 * actors.length, number) : every;
+    const attackers = attackList(foes, actors.length, { hard, round: number });
     const guards = actors.map(target => {
         const skill = bestDefence(target, item => flagsFor(flags, target, item));
         return { target: target.who, ...(skill ? { skill: skill.name } : {}) };
