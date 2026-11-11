@@ -11,8 +11,9 @@ import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { PARTY_ACTIVE, PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { definition as filler, pack as dmPack } from '../data-modules/helpers.js';
 import { DM_OLD_ROOM } from '../../../src/v2/data-modules/schema.js';
-import { JOIN_ADD, JOIN_BENCH, JOIN_NO, benchable, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
+import { JOIN_ADD, JOIN_BENCH, JOIN_NO, benchable, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinGrammarOwn, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { LEAN_RPG_TEMPLATES } from './fixtures/templates-2.16.js';
 import { rpgLib, setRpgLib } from '../../../src/v2/rpg-lazy.js';
 import * as leanRpg from '../../../src/v2/lean-rpg/index.js';
 import { partyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
@@ -710,6 +711,47 @@ test('2.9.1: a - party line that names the player\'s own character is refused wi
     assert.equal(fields(host, 'wessel').left, true, 'no persona name: the line works as it did');
 });
 
+test('partyLeft: a Re-read keeps a leave its first run made after the persona is renamed to that companion; a reply saved without the mark is refused as before', { skip }, async t => {
+    const host = await world({ mode: 'ask' });
+    t.after(() => host.close());
+    await make(host, 'Mara', 2);
+    await make(host, 'Ilse', 2);
+    await host.send('They part.', reply('- party Mara'));
+    const marked = host.store.headIndex();
+    await host.send('Again.', reply('- party Ilse'));
+    const old = host.store.headIndex();
+    assert.equal(host.ctx.chat[marked].extra.storySuite.rules.includes('partyLeft'), true);
+    delete host.ctx.chat[old].extra.storySuite.rules; // as a reply saved before the rule was
+    host.store.rebuild();
+    assert.deepEqual([fields(host, 'mara').left, fields(host, 'ilse').left], [true, true]);
+    host.ctx.name1 = 'Mara';
+    assert.equal((await host.turn.reread(marked)).ok, true);
+    assert.equal(fields(host, 'mara').left, true, 'the marked reply still makes Mara leave');
+    host.ctx.name1 = 'Ilse';
+    assert.equal((await host.turn.reread(old)).ok, true);
+    assert.equal(fields(host, 'ilse').left, false, 'the unmarked reply is refused: Ilse is the persona now');
+    assert.ok(problems(host).some(message => /Ilse is you/.test(message)));
+    assert.equal(host.ctx.chat[old].extra.storySuite.rules, undefined);
+    await rebuilt(host, 'after the Re-reads');
+});
+
+test('partyLeft: an unmarked leave Re-read with the persona unchanged is the same: same head and same results', { skip }, async t => {
+    const host = await world({ mode: 'ask' });
+    t.after(() => host.close());
+    await make(host, 'Mara', 2);
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); }; // the reply is first captured as one saved before the rule was
+    await host.send('They part.', reply('- party Mara'));
+    host.store.setRuleMarks = setter;
+    const at = host.store.headIndex();
+    assert.equal(host.ctx.chat[at].extra.storySuite.rules, undefined);
+    const results = () => JSON.stringify(host.ctx.chat[at].extra.storySuite.receipts.map(receipt => receipt.data?.v2?.result));
+    const head = JSON.stringify(host.head()), before = results();
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(JSON.stringify(host.head()), head);
+    assert.equal(results(), before);
+});
+
 test('2.9.1: the first character a story gets through Add to party also brings the Combat rules and Foes blocks it lacks, in the same action', { skip }, async t => {
     const host = await world({ mode: 'ask', wessel: false });
     t.after(() => host.close());
@@ -930,7 +972,7 @@ test('A long name in the bench card keeps its level', () => {
 test('partyFour: a new reply is marked partyFour and partyRoom, and the 5th member of a story is not made but offered; a reply with only partyRoom still takes the 5th', { skip }, async t => {
     const host = await four();
     t.after(() => host.close());
-    assert.deepEqual(host.ctx.chat.at(-1).extra.storySuite.rules.filter(name => name.startsWith('party')), ['partyFour', 'partyRoom']);
+    assert.deepEqual(host.ctx.chat.at(-1).extra.storySuite.rules.filter(name => /^party(Four|Room)$/.test(name)), ['partyFour', 'partyRoom']);
     await host.send('Torka walks in.', reply(TORKA));
     assert.deepEqual(names(host), ['Wessel', 'Mara', 'Ren', 'Ilse'], 'not made');
     assert.deepEqual(problems(host), [], 'and not refused silently: no Problems line');
@@ -1025,4 +1067,32 @@ test('the bench action replays like other reader actions: a rebuild and a reload
     const stale = await host.sdk.command(JOIN_BENCH, { name: 'Torka Bloodsong', bench: 'Mara' });
     assert.equal(stale.ok, false, 'a stale bench button: there is room now, nobody steps out');
     assert.match(stale.message, /room now/);
+});
+
+test('partyFields: the + party grammar names the story\'s own class field in a chat under the mark; a chat begun before keeps the earlier text, byte for byte', { skip }, async t => {
+    const sent = host => host.st.requests.at(-1).chat.find(message => message.role === 'system').content.split('\n').find(line => line.startsWith('+ party Mara'));
+    const names = { 1: 'Novice', 2: 'Adept', 3: 'Master', 4: 'Sage', 5: 'Hero', 6: 'Legend', 7: 'Myth', 8: 'Titan', 9: 'Mythic' };
+    async function story() {
+        const host = await world({ wessel: false });
+        t.after(() => host.close());
+        const def = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === 'character').definition);
+        def.state.soul.label = 'Rank';
+        def.state.soul.names = names;
+        assert.equal((await host.sdk.command('dm.define', { definition: def })).ok, true);
+        return host;
+    }
+    const fresh = await story();
+    await fresh.send('Onward.', 'The road.');
+    assert.match(sent(fresh), /\| class: Novice \|.*class Novice to Mythic,/);
+    assert.equal(joinGrammarOwn(leanRpg.soulNaming(fresh.head())), sent(fresh));
+    const old = await story();
+    for (const message of old.ctx.chat) if (message.extra?.storySuite) delete message.extra.storySuite.rules; // as a chat saved before the rule was
+    old.store.rebuild();
+    await old.send('Onward.', 'The road.');
+    assert.equal(sent(old), joinGrammar(), 'the first reply has no mark: the earlier line');
+    await old.send('Again.', 'The road.');
+    assert.equal(sent(old), joinGrammar());
+    const plain = await world();
+    await plain.send('Onward.', 'The road.');
+    assert.equal(sent(plain), joinGrammar(), 'the template\'s own words give the earlier text, mark or not');
 });

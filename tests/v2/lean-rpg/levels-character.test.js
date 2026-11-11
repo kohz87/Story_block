@@ -11,6 +11,7 @@ import { reply, success, view, rebuilt } from '../data-modules/helpers.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { fakeState } from './view/helpers.js';
 import { hostAvailable } from '../../../testkit/index.js';
+import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { seedCrypto } from '../qa/helpers/seeded.js';
 import { PARTY, character, rollReceipt, setup, sheetDomain } from './helpers.js';
 
@@ -297,4 +298,46 @@ test('B13: the pack\'s level cap (its ranks record) is the cap of a new characte
     assert.equal(levelCapFor({}, undefined), 99);
     const made = buildDefinitions({ ...newDraft({ persona: '', hasYou: false }), name: 'Astra', level: 70 }, { cap: levelCapFor({}, fromPack) });
     assert.deepEqual([made.character.state.level.default, made.character.state.cap.default], [40, 40], 'a character made under the pack starts no higher than its cap');
+});
+
+test('a Re-read pays the narrator\'s XP line at the rate its first run recorded (xpKept); a reply written before the mark is paid at the rate in force', async t => {
+    const host = await story(t);
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    host.settings.set('story-block', 'rpgXpRate', 150);
+    await xp(host, 20);
+    const marked = host.store.headIndex();
+    assert.equal(sheet(host, 'character').xp, 30, '20 x 150 %');
+    await xp(host, 20);
+    const old = host.store.headIndex();
+    assert.equal(sheet(host, 'character').xp, 60);
+    const record = host.ctx.chat[old].extra.storySuite;
+    assert.ok(record.rules.includes('xpKept'));
+    delete record.rules; // as a reply saved before the rule was
+    host.store.rebuild();
+    host.settings.set('story-block', 'rpgXpRate', 200);
+    assert.equal((await host.turn.reread(marked)).ok, true);
+    assert.equal(sheet(host, 'character').xp, 30 + 30, 'the marked reply keeps 150 %');
+    assert.equal(host.ctx.chat[marked].extra.storySuite.rules.includes('xpKept'), true);
+    assert.equal((await host.turn.reread(old)).ok, true);
+    assert.equal(sheet(host, 'character').xp, 30 + 40, 'the unmarked reply is paid at the 200 % in force, as before');
+    assert.equal(host.ctx.chat[old].extra.storySuite.rules, undefined, 'a Re-read never gives it the mark');
+    rebuilt(host);
+});
+
+test('an unmarked XP reply Re-read with the setting unchanged is the same (xpKept): same head and same results, no xpRate added', async t => {
+    const host = await story(t);
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    host.settings.set('story-block', 'rpgXpRate', 150);
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); }; // the reply is first captured as one saved before the rule was
+    await xp(host, 20);
+    host.store.setRuleMarks = setter;
+    const at = host.store.headIndex();
+    assert.equal(host.ctx.chat[at].extra.storySuite.rules, undefined);
+    const results = () => JSON.stringify(host.ctx.chat[at].extra.storySuite.receipts.map(receipt => receipt.data?.v2?.result));
+    const head = JSON.stringify(host.head()), before = results();
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(JSON.stringify(host.head()), head);
+    assert.equal(results(), before);
+    assert.equal(host.ctx.chat[at].extra.storySuite.rules, undefined);
 });
