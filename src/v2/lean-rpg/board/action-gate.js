@@ -89,7 +89,7 @@ export function knownFoeAction(text, sheet) {
     const foes = (sheet?.foes ?? []).filter(foe => foe.filled && foe.hurt > 0);
     if (!foes.length) return false;
     const skills = (sheet?.characters ?? []).flatMap(actor => actor.skills ?? []).filter(skill => OFFENSIVE_SKILL.test(`${skill.name ?? ''} ${skill.about ?? ''}`));
-    const clauses = String(text ?? '').replace(/[“"][^”"]*[”"]/gu, ' ').split(/[.!?;:,\n]|\b(?:and|then|but)\b/iu);
+    const clauses = String(text ?? '').replace(/[“"][^”"]*[”"]/gu, ' ').split(/[.!?;\n]|\b(?:and|then|but)\b/iu);
     return clauses.some(clause => {
         if (UNCERTAIN.test(clause)) return false;
         let actions = [];

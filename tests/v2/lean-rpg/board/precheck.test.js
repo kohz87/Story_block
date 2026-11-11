@@ -143,6 +143,8 @@ test('the standing-foe hold stays strict on the subject and judges every attack 
     const dogs = { foes: [{ name: 'Dog', filled: true, hurt: 1 }] };
     assert.equal(knownFoeAction('while the dogs are mauling him, I attack the dogs', dogs), true);
     assert.equal(knownFoeAction('while the dogs are mauling him, they attack the dogs', dogs), false);
+    // The hold acts with no pre-check: a comma must not hide a third-party subject or a doubt that governs the attack.
+    for (const text of ['The boar, snarling, attacks the dogs', 'If the dogs move, I attack the dogs', 'before they could strike us, I attacked the dogs']) assert.equal(knownFoeAction(text, dogs), false, text);
 });
 
 test('the prompt carries the count rule, the not-a-fight rule and up to 4000 characters of the reply before', () => {
