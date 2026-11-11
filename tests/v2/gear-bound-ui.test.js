@@ -38,7 +38,7 @@ function crew({ gear = true, long = null, rope = 0 } = {}) {
 
 function draw({ module, state, h }, calls = []) {
     return show(inventoryScreen, {
-        state: h.state, query: h.query,
+        state: h.state, query: h.query, draft: { wornOpen: '1' },
         command: (type, payload) => { calls.push([type, payload]); return h.run(type, payload, { cause: 'ui', extra: { feature: featureOn } }); },
     });
 }
@@ -256,4 +256,19 @@ test('rendered at phone width, gear on: an open Edit form hides the fixed lines 
     assert.ok(box && box.width > 40 && box.height > 10, 'the input is visible with a size');
     assert.equal(await page.locator('.g-l2').evaluate(node => getComputedStyle(node).display), 'none');
     assert.equal(await page.locator('.g-l3').evaluate(node => getComputedStyle(node).display), 'none');
+});
+
+test('Worn list: a bound signature piece shows "Signature" with its lock in place of Unequip, under its wearer; an ordinary worn piece has Unequip', () => {
+    const { el, problems } = draw(crew());
+    assert.deepEqual(problems, []);
+    const dagger = daggerRow(el);
+    assert.match(text(dagger.querySelector('.chip.sig')), /Signature$/);
+    assert.ok(dagger.querySelector('.chip.sig .bound-lock'), 'the lock');
+    assert.deepEqual(dagger.querySelectorAll('button').map(node => text(node)).filter(label => /Unequip|Equip/.test(label)), []);
+    assert.ok(dagger.querySelector('.ss-w-editable-pencil'), 'Edit (its note) stays');
+    const sword = swordRow(el);
+    assert.deepEqual(sword.querySelectorAll('button').map(node => text(node)).filter(label => /Unequip/.test(label)), ['Unequip']);
+    assert.equal(sword.querySelector('.chip.sig'), null);
+    const groups = el.querySelectorAll('.worn-who').map(group => [text(group.querySelector('h4')), group.querySelectorAll('li.item .name').map(node => node.textContent)]);
+    assert.deepEqual(groups, [['Astra', ['Iron Sword']], ['Ren', ['Dagger']]]);
 });

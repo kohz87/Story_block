@@ -21,7 +21,7 @@ import { createRebuildBannerWidget, REBUILD_BANNER_WIDGET } from '../screens/reb
 import { createReadyHintWidget, READY_HINT_WIDGET } from '../screens/ready-hint.js';
 import { RPG_START_WIDGET } from '../screens/home.js';
 import { createShowMoreWidget, SHOW_MORE_WIDGET } from '../screens/show-more.js';
-import { createInventoryAddWidget, INVENTORY_ADD_WIDGET } from '../screens/inventory-add.js';
+import { createInventoryAddWidget, createWornFoldWidget, INVENTORY_ADD_WIDGET, WORN_FOLD_WIDGET } from '../screens/inventory-add.js';
 import { readerStore, S } from './shared.js';
 
 export function createHostSetup({ runtime, ctx, doc, registry, store, sdk, openSettings, inspectorProblems, getRpg }) {
@@ -99,6 +99,7 @@ export function createHostSetup({ runtime, ctx, doc, registry, store, sdk, openS
         // A long card's "Show all" / "Show less" (screens/show-more.js).
         [SHOW_MORE_WIDGET]: createShowMoreWidget(),
         [INVENTORY_ADD_WIDGET]: createInventoryAddWidget(),
+        [WORN_FOLD_WIDGET]: createWornFoldWidget({ chatKey: () => { try { return String(liveCtx()?.getCurrentChatId?.() ?? liveCtx()?.chatId ?? ''); } catch { return ''; } } }),
         // Home's "Your character" card (the RPG's, lean-rpg/view/start.js): this stands in for it while the RPG screens are not loaded.
         [RPG_START_WIDGET]: Object.freeze({
             props: {}, primary: null, validate: () => [],

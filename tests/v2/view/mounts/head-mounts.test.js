@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHudMount, createScreenMount, createTabMount, createMounts } from '../../../../src/v2/view/mounts/index.js';
-import { fakeChat, fakeQuery, fakeRenderer, screen, screensWith, setupDom } from './helpers.js';
+import { fakeChat, fakeQuery, fakeRenderer, screen, screensWith, setupDom, stateWith as stateOf } from './helpers.js';
 
 function world(defs, extra = {}) {
     const doc = setupDom();
@@ -57,6 +57,16 @@ test('tab: registers each tab screen with the tab host and draws it from the vie
     // Registering again replaces the earlier set.
     tabs.register();
     assert.deepEqual(removed, ['m/party', 'a/inv']);
+});
+
+test('tab: the page\'s hold, held `on` and notice reach the screen\'s api (a form\'s late refusal needs the notice)', () => {
+    const notify = () => {}, hold = () => () => {}, on = () => () => {};
+    const { doc, render, deps } = world([screen('m/party', ['tab'])], { api: { command: () => ({ ok: true }), hold, on, notify } });
+    const added = [];
+    createTabMount({ ...deps, addTab: tab => { added.push(tab); return () => {}; } }).register();
+    added[0].render(doc.createElement('div'), { state: stateOf(1) }, { command: () => ({ ok: true }) });
+    const { api } = render.last().scope;
+    assert.deepEqual([api.hold === hold, api.on === on, api.notify === notify], [true, true, true]);
 });
 
 test('a mount shows a plain line instead of a broken screen', () => {
