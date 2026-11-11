@@ -8,7 +8,7 @@
 // receipts, so a swipe, a delete or a Re-read takes it away with the reply and nothing is kept in the story's state for it.
 
 import { activeDefinition, instanceOf } from '../data-modules/adapters.js';
-import { DM_LIMITS } from '../data-modules/schema.js';
+import { DM_LIMITS, DM_OLD_ROOM } from '../data-modules/schema.js';
 import { oneLine } from '../../text.js';
 import { CLASS_NAMES, CREATION, JOINS, JOIN_SETTING, PARTY_MAX, STATS } from './names.js';
 import { fold } from './read.js';
@@ -110,13 +110,16 @@ export const partyCap = party => Math.max(1, ...party.filter(person => !person.l
  * back) or `{ ok: false, why }`. The refusals are the plain ones: the name is taken, the party is full (counting those who left, whose
  * sheets are kept), there is no room for the two blocks.
  */
-export function checkJoin(state, request) {
+export function checkJoin(state, request, room = DM_LIMITS) {
     const party = partyOf(state);
     const same = party.find(person => fold(person.name) === fold(request.name));
-    if (same?.left) return { ok: true, returning: same, soul: same.soul };
+    // The party limit counts members who are in it; a reply captured before the `partyRoom` mark (room = DM_OLD_ROOM) counts those who left too, as it did.
+    const old = room === DM_OLD_ROOM;
+    const crowd = old ? party.length : party.filter(person => !person.left).length;
+    if (same?.left) return !old && crowd >= PARTY_MAX ? { ok: false, why: fill(J.fullActive, { max: PARTY_MAX }) } : { ok: true, returning: same, soul: same.soul };
     if (same) return { ok: false, why: fill(J.taken, { name: same.name }) };
-    if (party.length >= PARTY_MAX) return { ok: false, why: fill(J.full, { max: PARTY_MAX }) };
-    if (!hasRoom(state)) return { ok: false, why: fill(J.noRoom, { max: DM_LIMITS.definitions }) };
+    if (crowd >= PARTY_MAX) return { ok: false, why: old ? fill(J.full, { max: PARTY_MAX }) : fill(J.fullActive, { max: PARTY_MAX }) };
+    if (!hasRoom(state, room)) return { ok: false, why: fill(J.noRoom, { max: room.definitions }) };
     return { ok: true, soul: Math.min(request.soul, partyCap(party)) };
 }
 

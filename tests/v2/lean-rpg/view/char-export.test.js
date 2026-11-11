@@ -10,7 +10,7 @@ import { STATS } from '../../../../src/v2/lean-rpg/index.js';
 import { EXPORT_SCREEN_ID, EXPORT_WIDGET } from '../../../../src/v2/lean-rpg/view/export.js';
 import { WIZARD_SCREEN_ID } from '../../../../src/v2/lean-rpg/view/wizard.js';
 import { reload } from '../../data-modules/helpers.js';
-import { begin, fieldsOf, makeBlocks, page, party, settle } from './page.js';
+import { begin, fieldsOf, fillBlocks, makeBlocks, page, party, settle } from './page.js';
 import { characterDefinition, skillsDefinition } from './helpers.js';
 
 const goTo = async (dialog, step) => { dialog.goTo(['who', 'stats', 'skills', 'review'].indexOf(step)); await settle(); return dialog.root.querySelector('.ss-w-rpg-wizard'); };
@@ -618,11 +618,12 @@ test('what cannot be added is named in the window, the character is still made, 
 });
 
 test('a thing that is refused and blocks with no room are named together in the one window, and the character is still made', async t => {
-    // No room for the Combat rules and Foes blocks (eight own blocks at most) and a refused thing.
+    // No room for the Combat rules and Foes blocks (twenty own blocks at most) and a refused thing.
     const wrap = async (type, payload, options, run) => (type === 'inventory.add' && payload.name === 'Bedroll' ? { ok: false, message: 'You cannot carry the Bedroll.' } : run(type, payload, options));
     const ctx = await page(t, { persona: 'Wessel', wrap });
     await begin(ctx.host);
     for (const who of ['Wessel', 'Tamsin', 'Mira']) await makeBlocks(ctx.host, { who });
+    await fillBlocks(ctx.host, 12);
     await settle();
     await createRen(ctx, without('money'));
     const text = ctx.ui.mounts.dialog.current().root.querySelector('.rpg-wiz-status').textContent;

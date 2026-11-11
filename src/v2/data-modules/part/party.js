@@ -1,6 +1,6 @@
 // The data modules' companions (extracted from data-modules/part.js): joining, leaving and
 // returning, their signature skills and gear, and the Ask card's reader action.
-import { DM_LIMITS as L, dmObject } from '../schema.js';
+import { dmObject, dmRoom } from '../schema.js';
 import { validateDataModules } from '../check.js';
 import { copy, refuse, atPath } from '../interpreter.js';
 import { activeDefinition, inputsOf, instanceOf } from '../adapters.js';
@@ -14,7 +14,7 @@ import { actorIdOf } from '../../lean-rpg/roster.js';
 import { placeOf } from '../../domains/gear.js';
 import { CLASS_NAMES } from '../../lean-rpg/names.js';
 import { packLevelsOf } from '../../lean-rpg/levels.js';
-import { E, B, J, rpg, stateOf, draftOf, instancePath, blockCount, activeCount, hashOf, newInstance } from './shared.js';
+import { E, B, J, rpg, partyWitness, stateOf, draftOf, instancePath, blockCount, activeCount, hashOf, newInstance } from './shared.js';
 import { skillCapacity, skillRow } from './skills.js';
 
 export function createParty(deps) {
@@ -183,6 +183,8 @@ export function createParty(deps) {
         answer.data.gear = { owner, items: added };
         return answer;
     }
+    // A reply captured with the `partyRoom` mark records the party it relied on (replayInputs `party`); an older one does not.
+    const marked = partyWitness;
     function makeParty(ctx, request, soul, call, { added = false } = {}) {
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
@@ -207,8 +209,9 @@ export function createParty(deps) {
         const catalog = Object.keys(domain?.active ?? {}).map(id => activeDefinition(prefix, id)).filter(Boolean);
         const checked = validateDataModules([made.character, made.skills, ...extras], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions: catalog });
         if (!checked.ok) refuse(checked.errors[0].code, checked.errors[0].path, checked.errors[0].message);
-        if (blockCount(domain) + 2 > L.definitions) refuse('DM_BUDGET', '', B.blockLimit);
-        if (activeCount(domain) + 2 > L.pins) refuse('DM_BUDGET', '', B.limit);
+        const room = dmRoom(ctx);
+        if (blockCount(domain) + 2 > room.definitions) refuse('DM_BUDGET', '', fill(B.blockLimit, { max: room.definitions }));
+        if (activeCount(domain) + 2 > room.pins) refuse('DM_BUDGET', '', B.limit);
         const generation = Math.max(ctx.rev, 1), draft = draftOf(ctx);
         const pins = checked.definitions.map(definition => ({ definition, hash: hashOf(definition), pin: { definition, packId: 'chat', packVersion: '0', packHash: null, interpreter: 1 } }));
         for (const { definition, hash, pin } of pins) {
@@ -217,7 +220,7 @@ export function createParty(deps) {
             draft.instances[definition.id] = { chat: newInstance(definition, inputsOf(prefix, definition)) };
         }
         const [head, ...rest] = pins;
-        const recorded = guard(ctx, prefix, { kind: 'dm.join', module: head.definition.id, hash: head.hash, generation, imports: [],
+        const recorded = guard(ctx, prefix, { kind: 'dm.join', module: head.definition.id, hash: head.hash, generation, imports: [], party: marked(ctx),
             decision: { subjects: ['chat'], inputs: {}, previous: null, base: Boolean(domain && Object.keys(domain.active ?? {}).length),
                 more: rest.map(entry => ({ module: entry.definition.id, hash: entry.hash, generation, pin: entry.pin })) }, pin: head.pin, bound: true });
         const left = plan.skipped.length ? ` ${fill(J.noExtras, { list: plan.skipped.map(item => rpg().extraName(item.role)).join(', ') })}` : '';
@@ -244,7 +247,7 @@ export function createParty(deps) {
             if (isReader(person.name)) refuse('REFUSED', '', fill(J.isYou, { name: person.name }));
             return leave(ctx, person, true, call);
         }
-        const check = rpg().checkJoin(prefix, read);
+        const check = rpg().checkJoin(prefix, read, dmRoom(ctx));
         if (!check.ok) refuse('REFUSED', '', check.why);
         if (check.returning) return leave(ctx, check.returning, false, call);
         if (rpg().joinMode(settings()) === 'ask') {
@@ -262,7 +265,7 @@ export function createParty(deps) {
         if (!person.canLeave || !definition) refuse('DM_SCHEMA', '', fill(J.noLeave, { name: person.name }));
         // (their actor is found before the field changes: a member who left is no longer on the roster)
         const owner = left && gearOn(ctx) ? gearOwnerOf(ctx, person.name, person.module) : 'party';
-        const answer = deps.setField(ctx, { module: person.module, field: 'left', value: left }, call, { story: true });
+        const answer = deps.setField(ctx, { module: person.module, field: 'left', value: left }, call, { story: true, party: !left && marked(ctx) });
         answer.summary = fill(left ? J.left : J.returned, { name: person.name });
         answer.data.join = { op: left ? 'left' : 'back', name: person.name };
         // With gear on, the pieces bound to them leave with them, in this receipt (they come back once when they return: giveGear).

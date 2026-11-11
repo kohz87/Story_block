@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { DM_OLD_ROOM } from '../../../../src/v2/data-modules/schema.js';
 import { validateDataModules } from '../../../../src/v2/data-modules/check.js';
 import { CREATION, STATS } from '../../../../src/v2/lean-rpg/index.js';
 import { STANDARD_TEMPLATES, SKILL_SETS } from '../../../../src/v2/lean-rpg/templates.js';
@@ -11,7 +12,7 @@ import { createWizardScreen, WIZARD_SCREEN_ID, WIZARD_WIDGET } from '../../../..
 import { RPG_EXTRAS, adeptCount, blockNames, buildDefinitions, extraDefinitions, extrasPlan, hasRoom, missingBlocks, mayStartAdept, newDraft, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf, statsLine, withSet, withSkill,
     withSkillPatch, withoutSkill } from '../../../../src/v2/lean-rpg/view/wizard-data.js';
 import { reload } from '../../data-modules/helpers.js';
-import { begin, fieldsOf, makeBlocks, page, party, settle } from './page.js';
+import { begin, fieldsOf, fillBlocks, makeBlocks, page, party, settle } from './page.js';
 
 const PACK = JSON.parse(readFileSync(new URL('../fixtures/skill-sets-pack.json', import.meta.url), 'utf8'));
 const CHECK = { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'] };
@@ -85,7 +86,7 @@ test('what holds Create up, in plain words', () => {
     assert.deepEqual(problemsOf({ ...ok, skills: [{ ...ok.skills[0], name: '' }] }, world), ['Every skill needs a name.']);
     assert.deepEqual(problemsOf({ ...ok, skills: [ok.skills[0], { ...ok.skills[0], name: 'spark' }] }, world), ['Two skills are called spark.']);
     assert.deepEqual(problemsOf({ ...ok, skills: [{ ...ok.skills[0], about: '' }] }, world), ['Spark needs a line about what it does.']);
-    assert.deepEqual(problemsOf(ok, { ...world, room: false }), ['This story has no room for two more blocks (at most 8). Remove one in Settings → Blocks first.']);
+    assert.deepEqual(problemsOf(ok, { ...world, room: false }), ['This story has no room for two more blocks (at most 20). Remove one in Settings → Blocks first.']);
     assert.deepEqual(problemsOf(ok, { ...world, hasYou: true }), ['You already have a character in this story.']);
     assert.match(problemsOf({ ...ok, name: 'Wess' }, world)[0], /You are shown as the character named like your persona \(Wessel\)/);
     assert.match(problemsOf({ ...ok, kind: 'companion' }, world)[0], /A companion cannot have your persona's name \(Wessel\)/);
@@ -119,10 +120,12 @@ test('Create\'s two definitions come from the templates with the wizard\'s value
     assert.deepEqual([second.character.name, second.skills.name], ['Wessel', 'Wessel\'s skills']);
 });
 
-test('room for two more blocks: a story holds at most eight of its own', () => {
+test('room for two more blocks: a story holds at most twenty of its own', () => {
     const state = count => ({ domains: { dataModules: { active: Object.fromEntries(Array.from({ length: count }, (_, n) => [`pack.chat/b${n}`, { hash: `h${n}` }])), pins: Object.fromEntries(Array.from({ length: count }, (_, n) => [`h${n}`, { packId: 'chat' }])) } } });
-    assert.equal(hasRoom(state(6)), true);
-    assert.equal(hasRoom(state(7)), false);
+    assert.equal(hasRoom(state(18)), true);
+    assert.equal(hasRoom(state(19)), false);
+    assert.equal(hasRoom(state(7), DM_OLD_ROOM), false, 'a reply from before the room mark: eight');
+    assert.equal(hasRoom(state(6), DM_OLD_ROOM), true);
     assert.equal(hasRoom(null), true, 'no story yet');
 });
 
@@ -481,15 +484,32 @@ test('no room for two more blocks: the Review says so and Create stays off', asy
     const ctx = await page(t, { persona: 'Wessel' });
     await begin(ctx.host);
     for (const who of ['Ren', 'Tamsin', 'Mira']) await makeBlocks(ctx.host, { who });
+    await fillBlocks(ctx.host, 12);
     const foes = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition);
     assert.equal((await ctx.host.sdk.command('dm.define', { definition: foes })).ok, true);
     await ctx.host.send('Go.', 'The quay.');
     assert.equal(hasRoom(ctx.host.head()), false);
     const dialog = await openFrom(ctx);
     const review = await goTo(dialog, 'review');
-    assert.match(review.textContent, /This story has no room for two more blocks \(at most 8\)\. Remove one in Settings → Blocks first\./);
+    assert.match(review.textContent, /This story has no room for two more blocks \(at most 20\)\. Remove one in Settings → Blocks first\./);
     assert.ok(review.querySelector('.rpg-wiz-create').disabled);
     dialog.close();
+});
+
+test('a full party (8 active): the Review refuses another character with the join line\'s sentence; someone who left makes room', async t => {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await begin(ctx.host);
+    for (const who of ['Ren', 'Tamsin', 'Mira', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou']) await makeBlocks(ctx.host, { who });
+    await ctx.host.send('Go.', 'The quay.');
+    const dialog = await openFrom(ctx);
+    click(wizardOf(dialog), 'A companion');
+    type(wizardOf(dialog).querySelector('[data-wiz="name"]'), 'Olwen');
+    const review = await goTo(dialog, 'review');
+    assert.match(review.textContent, /the party is full \(8 active\); someone must leave first/);
+    assert.ok(review.querySelector('.rpg-wiz-create').disabled, 'Create stays off');
+    dialog.close();
+    assert.deepEqual(problemsOf(newDraft(), { full: true }).filter(line => /party is full/.test(line)), ['the party is full (8 active); someone must leave first']);
+    assert.equal(problemsOf(newDraft(), { full: false }).some(line => /party is full/.test(line)), false);
 });
 
 test('closing the dialog drops the draft: the next one starts fresh', async t => {
@@ -655,13 +675,14 @@ test('2.9.1: no room for the extras: the character is still made, the Review and
     const ctx = await page(t, { persona: 'Wessel' });
     await begin(ctx.host);
     for (const who of ['Ren', 'Tamsin', 'Mira']) await makeBlocks(ctx.host, { who });
-    // Six own blocks: two more fit (the character and its skills) and no more.
+    await fillBlocks(ctx.host, 12);
+    // Eighteen own blocks: two more fit (the character and its skills) and no more.
     const dialog = await openFrom(ctx);
     click(wizardOf(dialog), 'A companion');
     type(wizardOf(dialog).querySelector('[data-wiz="name"]'), 'Olwen');
     const review = await goTo(dialog, 'review');
     assert.equal(review.querySelector('[data-review="also"]'), null);
-    assert.match(review.querySelector('[data-review="not-added"]').textContent, /^Cannot add: Combat rules, Foes\. This story has no room for more blocks \(at most 8\)\./);
+    assert.match(review.querySelector('[data-review="not-added"]').textContent, /^Cannot add: Combat rules, Foes\. This story has no room for more blocks \(at most 20\)\./);
     assert.equal(review.querySelector('.rpg-wiz-create').disabled, false);
     review.querySelector('.rpg-wiz-create').click();
     await settle();
@@ -669,7 +690,7 @@ test('2.9.1: no room for the extras: the character is still made, the Review and
     assert.equal(rolesOf(ctx.host).includes('rules') || rolesOf(ctx.host).includes('foes'), false);
     const now = ctxDialog(ctx);
     assert.ok(now, 'the window stays so the reader can read it');
-    assert.match(wizardOf(now).querySelector('.rpg-wiz-status').textContent, /^Olwen is in the party\. Not added: Combat rules, Foes\. This story has no room for more blocks \(at most 8\)\. Settings → Blocks adds it later, and Settings → RPG adds the Combat rules block\.$/);
+    assert.match(wizardOf(now).querySelector('.rpg-wiz-status').textContent, /^Olwen is in the party\. Not added: Combat rules, Foes\. This story has no room for more blocks \(at most 20\)\. Settings → Blocks adds it later, and Settings → RPG adds the Combat rules block\.$/);
     assert.equal(wizardOf(now).querySelector('.rpg-wiz-create'), null, 'no second Create');
     wizardOf(now).querySelector('.rpg-wiz-done').click();
     assert.equal(ctxDialog(ctx), null);

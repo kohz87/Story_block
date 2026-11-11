@@ -25,19 +25,19 @@ async function withPacks(t) {
     return host;
 }
 
-test('eight blocks and eight pack pins coexist; each limit refuses the next addition', async t => {
+test('twenty blocks and eight pack pins coexist; each limit refuses the next addition', async t => {
     const host = await withPacks(t);
-    for (let n = 0; n < 8; n++) await define(host, n);
+    for (let n = 0; n < 20; n++) await define(host, n);
     const before = structuredClone(host.head());
-    const ninthBlock = await host.sdk.command('dm.define', { definition: block(8) });
-    assert.equal(ninthBlock.code, 'DM_BUDGET');
-    assert.match(ninthBlock.message, /at most 8 blocks/);
+    const extraBlock = await host.sdk.command('dm.define', { definition: block(20) });
+    assert.equal(extraBlock.code, 'DM_BUDGET');
+    assert.match(extraBlock.message, /at most 20 blocks/);
     assert.deepEqual(host.head(), before);
     for (let n = 0; n < 8; n++) {
         await host.send('More.', 'A reply.');
         await pin(host, [], n);
     }
-    assert.equal(Object.keys(host.head().domains.dataModules.active).length, 16);
+    assert.equal(Object.keys(host.head().domains.dataModules.active).length, 28);
     const extra = host.sdk.query('dataModules.offers').find(offer => offer.module === 'pack.dm-next/extra');
     const full = structuredClone(host.head());
     assert.equal((await host.sdk.command('dm.pin', offerPayload(extra))).code, 'DM_BUDGET');
@@ -45,13 +45,13 @@ test('eight blocks and eight pack pins coexist; each limit refuses the next addi
     await reload(host);
 });
 
-test('eight packs may precede a block, and a pack may follow seven blocks up to the shared limit', async t => {
+test('eight packs may precede a block, and a pack may follow nineteen blocks up to the shared limit', async t => {
     const host = await withPacks(t);
     for (let n = 0; n < 8; n++) {
         if (n) await host.send('More.', 'A reply.');
         await pin(host, [], n);
     }
-    for (let n = 0; n < 7; n++) {
+    for (let n = 0; n < 19; n++) {
         await host.send('Block.', 'A reply.');
         await define(host, n);
     }
@@ -59,7 +59,7 @@ test('eight packs may precede a block, and a pack may follow seven blocks up to 
     await host.send('More.', 'A reply.');
     success(await host.sdk.command('dm.pin', offerPayload(extra)));
     const before = structuredClone(host.head());
-    assert.equal((await host.sdk.command('dm.define', { definition: block(7) })).code, 'DM_BUDGET');
+    assert.equal((await host.sdk.command('dm.define', { definition: block(19) })).code, 'DM_BUDGET');
     assert.deepEqual(host.head(), before);
     await reload(host);
 });
@@ -67,15 +67,15 @@ test('eight packs may precede a block, and a pack may follow seven blocks up to 
 test('replay rechecks the block limit when an earlier removal is deleted', async t => {
     const host = await createHost(); t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
-    for (let n = 0; n < 8; n++) await define(host, n);
+    for (let n = 0; n < 20; n++) await define(host, n);
     await host.send('Remove.', 'A reply.');
     const removeAt = host.store.headIndex();
     success(await host.sdk.command('dm.remove', { module: 'pack.chat/block-0' }));
     await host.send('Replace.', 'Another reply.');
-    await define(host, 8);
+    await define(host, 20);
     await host.st.deleteMessage(removeAt);
     assert.ok(view(host, 'pack.chat/block-0'));
-    assert.equal(view(host, 'pack.chat/block-8'), null);
+    assert.equal(view(host, 'pack.chat/block-20'), null);
     assert.ok(host.store.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE'));
     await reload(host);
 });

@@ -66,6 +66,7 @@ export const STORY_STRINGS = Object.freeze({
         slotsFull: 'All eight skill slots hold a skill.',
         utilityFull: 'No free utility skill slot for {skill}: all {max} hold a skill.',
         taken: '{name} is already in the party.',
+        fullActive: 'the party is full ({max} active); someone must leave first',
         full: 'the party is full ({max} characters, counting those who left)',
         noRoom: 'the story has no room for two more blocks (at most {max}); remove one from Blocks first',
         noSkills: 'the story has no room for another block',
