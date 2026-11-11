@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 2.31.1
+
+Update Story Block, Story Director and NPC State Delta together. Replies already written replay and Re-read exactly as before. For the harder foes, start a new chat (or re-add the Foes block).
+
 - **A module can keep a tail line under a tight tail budget.** A line a module gives in its own tail as `{ text, keep: true }` is kept whatever the budget says, up to 4 lines per module and 120 tokens in all per reply (shared with the kept prelude cues; the rest are ordinary lines). Plain lines behave as before. New replies only; the static part is unchanged.
 - **A module can keep its prelude cue under a tight tail budget.** A prelude command whose receipt carries `data: { keep: true }` has its `[Happened]` cue pinned like the RPG's, up to 120 tokens in all per reply (the rest are ordinary cues), so a small tail budget no longer drops a module's per-reply line first. New replies only; the static part is unchanged and replies already written are unaffected.
 - **Event conditions: `region(name, ...)`** is true when the scene's place is in any of the named regions (1 to 16, exact names; false with no place), so one event can cover several regions. **Ersveil 2.9.6** (needs Story Block 2.31.1) merges its two flood-news events into one with it, so the bulletin is told once however you move between those regions. A chat that already heard it keeps its record; replies already written replay as before.
