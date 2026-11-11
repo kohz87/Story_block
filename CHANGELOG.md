@@ -2,8 +2,16 @@
 
 ## Unreleased
 
-- **Ersveil 2.9.5 and Story Block 2.31.0.** Claimant sway can select the restored throne branches; earlier story edits reselect later decisions. Missing or unscoped Ripples uses the fixed fallback, and a previously crowned chat keeps its reign. Ersveil adds regional name lists; name suggestions need a Director release with its names part. Home links to Quests when that screen exists.
-- **Pack fields.** Optional `ripples` and `content.names` sections are validated separately; a bad section is ignored with a warning. Once events may group alternatives with `decision`.
+- **A module can keep a tail line under a tight tail budget.** A line a module gives in its own tail as `{ text, keep: true }` is kept whatever the budget says, up to 4 lines per module and 120 tokens in all per reply (shared with the kept prelude cues; the rest are ordinary lines). Plain lines behave as before. New replies only; the static part is unchanged.
+- **A module can keep its prelude cue under a tight tail budget.** A prelude command whose receipt carries `data: { keep: true }` has its `[Happened]` cue pinned like the RPG's, up to 120 tokens in all per reply (the rest are ordinary cues), so a small tail budget no longer drops a module's per-reply line first. New replies only; the static part is unchanged and replies already written are unaffected.
+- **Event conditions: `region(name, ...)`** is true when the scene's place is in any of the named regions (1 to 16, exact names; false with no place), so one event can cover several regions. **Ersveil 2.9.6** (needs Story Block 2.31.1) merges its two flood-news events into one with it, so the bulletin is told once however you move between those regions. A chat that already heard it keeps its record; replies already written replay as before.
+- **Harder foes (new replies):** a foe has 12 + level/30 Health blocks (it had 4), a foe's hit takes 2 blocks and a decisive hit 4, foes add level/4 to their roll, a lone foe strikes ceil(party/2) times and the foes' attacks in all are capped at twice the living party. The flee roll and the odds in Settings use the foe's level/4 too, and the fight board counts the lone foe's extra attacks and the cap in its "attacks on you" line. It applies only to a fight with the doubled bars (every character a new one) and a new Foes block. Existing chats keep the old foes until their Foes block is renewed: start a new chat or re-add the Foes block to get the harder foes. Replies written before keep the old rules.
+
+## 2.31.0
+
+Update Story Block, Story Director and NPC State Delta together, then re-import the Ersveil pack (2.9.5 needs Story Block 2.31.0). The new features apply to new replies; start a new chat to see them all. Replies already written replay and Re-read exactly as before.
+
+- **Ersveil 2.9.5 and Story Block 2.31.0.** Claimant sway can select the restored throne branches; earlier story edits reselect later decisions. Missing or unscoped Ripples uses the fixed fallback, and a previously crowned chat keeps its reign. Ersveil adds regional name lists; name suggestions need a Director release with its names part. Home links to Quests when that screen exists. Pack fields: optional `ripples` and `content.names` sections are validated separately (a bad section is ignored with a warning), and events may group alternatives with `decision`.
 - **Re-read keeps what a reply made.** A Re-read of a reply that did not change leaves each inventory stack's source, the fight board's link to the reply and what the narrator was already told as they were (before, a Re-read re-pointed them and told a step again). A line you edited gets new bookkeeping; the others keep theirs.
 - **Up to six foe groups.** The Foes block holds six groups (it held four). A group of up to six foes shows each member with their own Health bar; seven or more fight as a swarm. A swarm attacks once per two members each exchange (1 + half its size, at most 6; it was one per six, at most 3), still thinning as its bar drops. Replies written before this keep four groups, five members and the old swarm attacks when read again.
 - **The fight board, redesigned.** Foes and party are compact chips with name, level and Health (a group is one chip, "Ridge hounds ×12"), and the status stays at the top while you choose. The member choosing sees their Mana and Stamina right above the skills, each skill shows its cost and is greyed when they cannot pay, and skills sit in a two-column grid with Back / Auto / Discard below. On tablet and desktop, status and actions sit side by side and nothing scrolls. The log is one line you tap to open.
@@ -13,9 +21,8 @@
 - **Tabs in one scrolling row.** On phone and tablet every tab sits in one row that scrolls sideways, with an arrow on the side that has more; there is no More menu. The wide game view shows every tab in one row. Your tab order from Settings still applies.
 - **Faction tags on world events** are taught to the narrator for new replies (a rule mark), so Story Director can add the factions they name.
 - **Reputation lists with room.** Each known entry is its own row with an 8 px bar; signed lists (standing) run from a centre line, red below 0 and green above, with the scale shown once; the top 3 show and the rest fold as "N more known · Not known yet (N)"; pencils appear only after the section's Edit. Applies to every pack's number lists.
-- **Guild card as tiles** (Ersveil 2.9.4): Rank, Standing and Dues; years as a member stays editable in the block's Edit. A chat that pinned the old guild screen offers Migrate.
 - **Enable all blocks.** Settings → Tabs & Packs → the installed blocks: one "Enable all N for this chat" button, one confirm listing the names, then each is enabled in the order they need; a block refused on its own shows why, the rest still enable.
-- Ersveil 2.9.3 removed Court favour; a chat that enabled it keeps the block.
+- **Ersveil 2.9.3 to 2.9.5.** 2.9.3 removed Court favour (a chat that enabled it keeps the block); 2.9.4 shows the guild card as tiles (Rank, Standing and Dues; years as a member stays editable in the block's Edit, and a chat that pinned the old guild screen offers Migrate); 2.9.5 is described above.
 
 ## 2.29.0
 
@@ -1127,7 +1134,7 @@ For a pinned Ersveil adventure, start a fresh chat with **Setup → Pin Ersveil 
 - Shop prices and the bestiary can still read the installed pack in pinned chats, so reinstalling a pack can affect them.
 - If an extension stops responding during recovery, the chat can remain on hold until it responds.
 
-## Unreleased
+## 2.0.0 (changes after beta.2)
 
 - Host: a capture kind or query whose `enabled` reads false is not declared (its lines are unknown kinds again, not "feature off");
   a deferred domain may say `snapshot: 'when-present'` (no save-point trace until used); the Problems of a record a planned-again

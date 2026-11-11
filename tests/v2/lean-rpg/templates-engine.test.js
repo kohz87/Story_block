@@ -174,7 +174,7 @@ test('the tail leaves out empty slots and defaults, and says only what is there:
     assert.equal(summaryOf(state, 'pack.chat/combat-rules'), '', 'a block with no fields has nothing to tell');
     success(await host.sdk.command('dm.set', { module: 'pack.chat/foes', fields: { foe1: 'Sluice Rat A', count1: 1, foe2: 'Rat Swarm', count2: 3, level2: 15, hurt2: 2 } }));
     state = host.head();
-    assert.equal(summaryOf(state, 'pack.chat/foes'), 'Foes: Sluice Rat A (Lv 1); Rat Swarm ×3 (Lv 15, Hurt).', 'a group of one needs no count, an unhurt one no health');
+    assert.equal(summaryOf(state, 'pack.chat/foes'), 'Foes: Sluice Rat A (Lv 1); Rat Swarm ×3 (Lv 15, Badly wounded).', 'a group of one needs no count, an unhurt one no health');
     await host.send('Hit.', reply(line('character', 'set-health', ' | to: Down')));
     assert.match(summaryOf(host.head(), 'pack.chat/character'), /health Down; /);
     await host.send('Hit again.', reply(line('character', 'set-health', ' | to: Down')));

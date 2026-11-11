@@ -650,6 +650,7 @@ Story Block is the only v2 code that calls `setExtensionPrompt` for the host and
 
 * `context.tail` returns `{ lines: string[], optional: string[] }`; each module has a `budget` (tokens,
   estimated chars/4); optional lines drop first. The host's total tail budget is a setting (default 1,500).
+* **Kept cues.** A `beforeGenerate` line may be `{ text, keep: true }`, and a prelude command (marked `prelude`) whose receipt carries `data: { keep: true }` has its `[Happened]` cue pinned the same way: kept whatever the budget says. A module keeps at most 4 lines / 4,000 characters through `beforeGenerate`, and the host pins prelude cues up to 120 tokens in all per reply (`KEPT_PRELUDE_TOKENS`); the rest are ordinary cues. A module's own `context.tail().lines` may hold `{ text, keep: true }` items too (kept whole, in the module's section): at most 4 per module (`KEPT_TAIL_LINES`) and 120 tokens in all per reply (`KEPT_TAIL_TOKENS`, counted after names are filled in), shared with the kept prelude cues and first come first served in tail order; any more are ordinary lines. Unmarked lines behave as before. The static part is not affected.
 * **The context size.** SillyTavern fits the extension prompts first and drops the conversation when the
   rest no longer fits, so the static part and the tail together are held to a share of the room the prompt
   has: the interceptor's context size (SillyTavern 1.19 hands it less the reply's length; a size that still

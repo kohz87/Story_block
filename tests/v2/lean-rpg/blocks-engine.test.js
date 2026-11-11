@@ -8,7 +8,8 @@ import { createHost } from '../../../testkit/index.js';
 import { STANDARD_TEMPLATES, COMBAT_PROMPT_STANDARD, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { STAGES } from '../../../src/v2/lean-rpg/names.js';
 import { readSheet } from '../../../src/v2/lean-rpg/read.js';
-import { blocksFor, foeHealthBlocks } from '../../../src/v2/lean-rpg/formula.js';
+import { blocksFor } from '../../../src/v2/lean-rpg/formula.js';
+import { hardBlocksByLevel } from '../../../src/v2/lean-rpg/foes.js';
 import { summaryOf } from '../../../src/v2/data-modules/part.js';
 import { validateDataModules, DM_LIMITS as L } from '../../../src/v2/data-modules/check.js';
 import { fullModuleGrammar } from '../../../src/v2/data-modules/grammar.js';
@@ -50,7 +51,7 @@ test('the Standard Character: Health 0..8, Stamina 0..7, Mana 0..7 marked as bar
     for (const key of ['health-blocks', 'stamina-blocks', 'mana-blocks']) assert.deepEqual([state[key].prompt, state[key].edit], [false, false], `${key} is the rules' own`);
     assert.deepEqual(rules.map(rule => rule.id), ['health-bar', 'stamina-bar', 'mana-bar', 'level-up', 'xp-cap']);
     assert.deepEqual(rules.find(rule => rule.id === 'level-up').then[1], { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], ['get', ['rise']]], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
-    assert.deepEqual(standard('Foes').state.hurt1, { type: 'int', min: 0, max: 8, default: 4, label: 'Health 1', blocks: 'foe' });
+    assert.deepEqual(standard('Foes').state.hurt1, { type: 'int', min: 0, max: 15, default: 12, label: 'Health 1', blocks: 'foe' });
 });
 
 test('the narrator\'s grammar for the bars is still the stage words, never block counts', async t => {
@@ -184,18 +185,18 @@ test('the new pin runs words, growth, Down and Rest through the real block engin
     await reload(host);
 });
 
-test('a Foes group\'s Health is blocks left out of 4 + class/3: it arrives full, the story hurts it by words, and Down means 0', async t => {
+test('a Foes group\'s Health is blocks left out of 12 + level/30 (the harder-foes rule): it arrives full, the story hurts it by words, and Down means 0', async t => {
     const host = await story(t, 'Character', 'Foes');
     await set(host, 'character', { who: 'Wessel', level: 35 });   // (level 35: a new foe may be up to 20 levels above the party's highest)
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35', '+ dm foes — why | kind: set-slot-2 | name: Sluice Rat | count: 2 | level: 5'));
-    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [foeHealthBlocks(4), foeHealthBlocks(1)]);
-    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [5, 4]);
+    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [hardBlocksByLevel(35), hardBlocksByLevel(5)]);
+    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [13, 12]);
     await host.send('Hit.', reply(say('foes', 'hurt-1', ' | to: Scratched'), say('foes', 'hurt-2', ' | to: Wounded')));
-    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [4, 2]);
+    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [10, 5]);
     await host.send('Finish.', reply(say('foes', 'hurt-1', ' | to: Down')));
     assert.equal(sheet(host, 'foes').hurt1, 0);
     await host.send('Gone.', reply('- dm foes — why | kind: clear-1 | why: down'));
-    assert.deepEqual([sheet(host, 'foes').count1, sheet(host, 'foes').hurt1], [0, 4], 'a cleared slot goes back to its default');
+    assert.deepEqual([sheet(host, 'foes').count1, sheet(host, 'foes').hurt1], [0, 12], 'a cleared slot goes back to its default');
     rebuilt(host);
 });
 
@@ -226,8 +227,8 @@ test('the sheet reader gives the blocks left and each bar\'s size for a Standard
     assert.deepEqual(wessel.size, { health: 6, stamina: 6, mana: 5 });
     assert.deepEqual(wessel.size, blocksFor({ vit: 10, agi: 15, int: 10 }));
     assert.ok(wessel.hidden.includes('health-blocks'), 'the sizes the rules keep are hidden fields');
-    assert.deepEqual([read.foes[0].hurt, read.foes[0].size], [5, 5]);
-    assert.equal(read.foes[1].size, 4);
+    assert.deepEqual([read.foes[0].hurt, read.foes[0].size], [13, 13]);
+    assert.equal(read.foes[1].size, 12);
     assert.deepEqual(STAGES.health.length, 6);
 });
 
