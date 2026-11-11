@@ -226,7 +226,7 @@ ${RARITIES.map(rarity => `          <option value="${rarity}">${html(S.rarities[
 
 const CSS = `${BASE_CSS}
 ${GRID_CSS}
-.inv { display: grid; gap: var(--sb-gap); position: relative; }
+.inv { display: grid; gap: var(--sb-gap); position: relative; container-type: inline-size; }   /* the narrow layouts below follow the screen's own width (a 300px panel on a wide window is as narrow as a phone) */
 .top { display: flex; flex-wrap: wrap; gap: var(--sb-gap); align-items: center; }
 .wallet-and-add { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
 /* the mockup's header: purse, Add item, then List / Grid at the right of the same row; the filters are the row under it */
@@ -245,7 +245,7 @@ ${GRID_CSS}
 }
 .ss-w-inventory-add:has(.inv-add-gear), .inv-add-gear, .inv-add-gear > .ss-w-editable { display: block; width: 100%; min-width: 0; }
 .inv.gear .item:has(.ss-w-editable-gear) > .body > .actions { display: none; }
-@media (max-width: 600px) {
+@container (max-width: 600px) {
   .inv.gear .item:has(.ss-w-editable-gear) > .ss-tile-box { display: none; }
   .inv.gear .item.grow:has(.ss-w-editable-gear) { grid-template-columns: minmax(0, 1fr); }
 }
@@ -334,7 +334,7 @@ ${GRID_CSS}
 .loot .pick input { width: 1em; height: 1em; min-width: 0; margin: 0; accent-color: var(--sb-accent); }
 .loot .take { justify-self: start; }
 .cond { font-size: 0.8em; font-variant-numeric: tabular-nums; }
-@media (max-width: 480px) { .filter { width: 100%; } }
+@container (max-width: 480px) { .filter { width: 100%; } }
 /* Every action is a 44px target (Equip on…, Use on…, Unequip, Drop, and the fold rows' buttons). */
 .actions .ss-button { min-height: 44px; }
 /* ---- Gear in fights (the .gear class is on only while it is on) ---- */
@@ -399,14 +399,14 @@ ${GRID_CSS}
 .bound > .bound-lock .ss-w-badge-icon { color: inherit; display: inline-flex; }
 .bound > .bound-lock .ss-icon-svg { width: 9px; height: 9px; }
 /* On a phone the buttons leave the right-hand column and sit on their own line under the item, so the name, the pill and the condition line keep the full width. */
-@media (max-width: 480px) {
+@container (max-width: 480px) {
   .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 20px 16px 16px auto; }
   .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .actions { grid-column: 1; grid-row: 4; justify-self: start; }
   .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .fold { grid-row: 5; }
   .inv.gear .g-l3 .cpart, .inv.gear .g-l3 .cword { flex: none; overflow: visible; }
 }
 /* The rarity word is for desktop widths: on a phone the name's colour already says it. */
-@media (max-width: 500px) { .inv.gear .g-l1 { gap: 4px; } .inv.gear .g-l1 .rarity { display: none; } .inv.gear .g-l1 .chip.slot { padding: 0 4px; } }
+@container (max-width: 500px) { .inv.gear .g-l1 { gap: 4px; } .inv.gear .g-l1 .rarity { display: none; } .inv.gear .g-l1 .chip.slot { padding: 0 4px; } }
 `;
 
 export const inventoryScreen = Object.freeze({

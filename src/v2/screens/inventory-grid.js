@@ -104,7 +104,7 @@ export function itemTile(doc, item, row = null, { onOpen } = {}) {
     return tile;
 }
 
-/** The tiles of a list of items, in the order given; the CSS fits four to a line on a phone and more on a wider screen. */
+/** The tiles of a list of items, in the order given; the CSS fits four to a line on a narrow screen and more on a wide one. */
 export function tileGrid(doc, items, { rows = null, onOpen } = {}) {
     const list = h(doc, 'ul', 'tile-grid');
     list.setAttribute('aria-label', S.tilesLabel);
@@ -257,7 +257,7 @@ export function itemSheet(doc, { item, row = null, wearer = '', actions = [], re
 /** The Grid view's CSS, added after the screen's own CSS (BASE_CSS first). Tiles are square, four to a line on a phone. (The sheet's CSS is in view/mounts-*.css: it is outside the screen.) */
 export const GRID_CSS = `
 .tile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; }
-@media (min-width: 760px) { .tile-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); } }
+@container (min-width: 520px) { .tile-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); } }
 .tile-cell { min-width: 0; }
 .tile { position: relative; display: flex; flex-direction: column; justify-content: flex-end; width: 100%; aspect-ratio: 1 / 1; min-width: 0; min-height: 36px;
   overflow: hidden; padding: 6px; border: 1.5px solid var(--rarity, var(--sb-common)); border-radius: 12px; background: var(--sb-surface);
