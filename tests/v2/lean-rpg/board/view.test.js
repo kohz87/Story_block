@@ -115,6 +115,9 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     fight().querySelector('[data-choice="1"]').click();
     fight().querySelector('[data-choice="2"]').click();
     assert.match(fight().querySelector('.rpg-board-log').textContent, /Exchange 1/);
+    const excerpt = fight().querySelector('.rpg-board-excerpt');   // the wide board's two-line box (board.css clamps it; a phone hides it)
+    assert.ok(excerpt && excerpt.textContent.length > 0 && !/Exchange 1/.test(excerpt.textContent), 'the last exchange\'s lines, without its heading');
+    const kids = [...fight().querySelector('.rpg-board-body').children]; assert.ok(kids.indexOf(excerpt) + 1 === kids.indexOf(fight().querySelector('.rpg-board-log')), 'the excerpt sits right above the log summary');
     assert.equal(fight().querySelector('.rpg-board-undo'), null);
     assert.equal(boardSession(host.ctx.chatMetadata).exchanges.length, 1);
     fight().querySelector('.rpg-board-discard').click();
@@ -623,8 +626,10 @@ test('the staged line of an area skill reads just "Temiwa · Shadow Cut" in a pa
     assert.equal(root.querySelector('.rpg-board-prompt').textContent, 'Wessel: choose an action');
     assert.equal(root.querySelector('.rpg-board-step').textContent, '2 of 2');
     assert.equal(boardSession(host.ctx.chatMetadata).exchanges.length, 0, 'the exchange waits for the second member');
+    assert.equal(root.querySelector('.rpg-board-back').disabled, false, 'Back is live once something is staged');
     root.querySelector('.rpg-board-back').click();   // Back takes the staged action back
     assert.equal(root.querySelector('.rpg-board-staged'), null);
+    assert.equal(root.querySelector('.rpg-board-back').disabled, true, 'Back stays in its row, disabled, with nothing to take back');
 });
 
 test('a fight staged before areaAll keeps asking for a main group when more than one group stands', async t => {

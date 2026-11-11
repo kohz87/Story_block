@@ -172,7 +172,7 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     assert.match(rule(css, '.line'), /flex-wrap: wrap;/);
     // A group that wraps on the right when the row is narrow; never a line of its own under the row.
     assert.match(rule(css, '.actions'), /display: flex; flex-wrap: wrap;/);
-    assert.doesNotMatch(css, /@container|@media[^{]*\{[^}]*\.actions/, 'the same layout on a phone');
+    assert.doesNotMatch(css, /@(?:container|media)[^{]*\{[^}]*\.actions/, 'the same layout on a phone');
     // The tile stays put when a fold opens.
     assert.match(rule(css, '.item:has(> .body > .fold)'), /align-items: start;/);
     // The template keeps its order: name line, note, detail, actions, folds.
@@ -185,6 +185,13 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     const gearOrder = ['class="line g-l1"', 'class="g-l2"', 'class="detail gear-line g-l3"', 'class="actions"', 'class="fold '].map(part => on.indexOf(part));
     assert.ok(gearOrder.every(at => at >= 0));
     assert.deepEqual([...gearOrder].sort((a, b) => a - b), gearOrder);
+});
+
+test('the gear row\'s pencil keeps an unclipped 44px tap area: its line clips along the row only, and the pencil\'s ::after is 44px', () => {
+    const css = inventoryScreen.css;
+    assert.match(css, /> \.g-l1 \{ overflow-x: clip; overflow-y: visible; \}/);
+    assert.match(css, /\.item-edit \.ss-w-editable-pencil \{[^}]*min-height: 0 !important;/);
+    assert.match(rule(css, '.inv.gear .g-l1 .item-edit .ss-w-editable-pencil::after'), /height: calc\(44px \/ var\(--ss-zoomed, 1\)\);/);
 });
 
 test('compact pills (ss-tap-pill): on a phone about 30px on the screen with a 44px-tall invisible tap area, the room for it made, never a neighbour overlapped', () => {
