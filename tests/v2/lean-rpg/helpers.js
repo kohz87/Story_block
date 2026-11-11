@@ -6,6 +6,8 @@ import { LEAN_RPG_FEATURE, ROLLS_SETTING, createLeanRpgPart } from '../../../src
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { receiptCue } from '../../../src/v2/lean-rpg/cue.js';
 import { legacyPlanner } from './legacy-planner.js';
+import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { FOE_LEVEL } from '../../../src/v2/lean-rpg/foes.js';
 
 export const OWNER = 'story-block';
 
@@ -42,6 +44,16 @@ export const foeBlock = (foes = [], key = 'class', size = 4) => ({
     ...slots('foe', foes.map(foe => foe[0]), size), ...slots('count', foes.map(foe => foe[1] ?? 1), size),
     ...slots(key, foes.map(foe => foe[2] ?? 1), size), ...slots('hurt', foes.map(foe => foe[3] ?? 5), size),
 });
+
+/** The stock Foes block as it was before the harder-foes rule (Health up to 8, 4 + level/30 blocks, no `foesHard` flag): for tests whose premise is a fight won inside one reply. */
+export function oldFoesDefinition() {
+    const definition = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition);
+    const swap = value => (Array.isArray(value) ? (value[0] === 'add' && value[1] === FOE_LEVEL.hardBase ? ['add', FOE_LEVEL.healthBase, ...value.slice(2).map(swap)] : value.map(swap))
+        : value === FOE_LEVEL.hardBase ? FOE_LEVEL.healthBase : (value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, swap(inner)])) : value));
+    for (const [key, field] of Object.entries(definition.state)) if (key.startsWith('hurt')) Object.assign(field, { max: 8, default: FOE_LEVEL.healthBase });
+    definition.kinds = swap(definition.kinds);
+    return definition;
+}
 
 /** The same with a `level{n}` column (a block of the Levels rules); `foeBlock` keeps the `class{n}` column of the earlier rules. */
 export const levelFoeBlock = (foes, size = 4) => foeBlock(foes, 'level', size);   // `size` 6: a block of the six-group rule (slots 5 and 6 present)

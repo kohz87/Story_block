@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Harder foes (new replies):** a foe has 12 + level/30 Health blocks (it had 4), a foe's hit takes 2 blocks and a decisive hit 4, foes add level/4 to their roll, a lone foe strikes ceil(party/2) times and the foes' attacks in all are capped at twice the living party. The flee roll and the odds in Settings use the foe's level/4 too, and the fight board counts the lone foe's extra attacks and the cap in its "attacks on you" line. It applies only to a fight with the doubled bars (every character a new one) and a new Foes block. Existing chats keep the old foes until their Foes block is renewed: start a new chat or re-add the Foes block to get the harder foes. Replies written before keep the old rules.
+
 ## 2.31.0
 
 Update Story Block, Story Director and NPC State Delta together, then re-import the Ersveil pack (2.9.5 needs Story Block 2.31.0). The new features apply to new replies; start a new chat to see them all. Replies already written replay and Re-read exactly as before.

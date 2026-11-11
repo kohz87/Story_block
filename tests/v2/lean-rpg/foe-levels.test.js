@@ -152,7 +152,7 @@ test('a plan\'s open list: level, rank with its band, nothing, or an old class; 
     assert.ok(openErrors([{ name: 'A', count: 2, level: 7, extra: 1 }]).length);
 });
 
-test('the Foes templates: level1..4 from 1 to 99 (default 1), no Soul Class; the set-slot kind takes a level; Standard Health follows 4 + level/30', () => {
+test('the Foes templates: level1..4 from 1 to 99 (default 1), no Soul Class; the set-slot kind takes a level; Standard Health follows 12 + level/30 (the harder-foes rule)', () => {
     for (const templates of [STANDARD_TEMPLATES]) {
         const { state, kinds, prompt } = templates.find(entry => entry.name === 'Foes').definition;
         for (const n of [1, 2, 3, 4]) {
@@ -163,8 +163,9 @@ test('the Foes templates: level1..4 from 1 to 99 (default 1), no Soul Class; the
         assert.ok(prompt.length <= 1200 && /level from 1 to 99/.test(prompt) && !/Soul Class/.test(prompt));
     }
     const standard = STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition;
-    assert.deepEqual(standard.kinds['set-slot-1'].effects.at(-1), { op: 'set', path: ['hurt1'], value: ['add', 4, ['floorDiv', ['arg', 'level'], 30]] });
-    for (const [level, blocks] of [[1, 4], [29, 4], [30, 5], [60, 6], [99, 7]]) assert.equal(sizeOf({ type: 'int', blocks: 'foe' }, { level1: level }, 'hurt1'), blocks, `level ${level}`);
+    assert.deepEqual(standard.kinds['set-slot-1'].effects.at(-1), { op: 'set', path: ['hurt1'], value: ['add', 12, ['floorDiv', ['arg', 'level'], 30]] });
+    for (const [level, blocks] of [[1, 4], [29, 4], [30, 5], [60, 6], [99, 7]]) assert.equal(sizeOf({ type: 'int', blocks: 'foe' }, { level1: level }, 'hurt1'), blocks, `level ${level}: an older Health field keeps 4 + level/30`);
+    for (const [level, blocks] of [[1, 12], [29, 12], [30, 13], [60, 14], [99, 15]]) assert.equal(sizeOf({ type: 'int', blocks: 'foe', max: 15 }, { level1: level }, 'hurt1'), blocks, `level ${level}: a new one has 12 + level/30`);
     assert.equal(sizeOf({ type: 'int', blocks: 'foe' }, { class1: 4 }, 'hurt1'), 5, 'a block of the earlier rules: 4 + class/3');
 });
 
@@ -343,17 +344,17 @@ test('the narrator\'s set-slot line: a level is kept; neither level nor rank dra
     const host = await world(t, { answers: ['none'], templates: STANDARD_TEMPLATES });
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 65'));
     let [drake] = sheetNow(host).foes;
-    assert.deepEqual([drake.level, drake.size, drake.hurt], [65, 6, 6], '4 + floor(65 / 30) blocks, arriving full');
+    assert.deepEqual([drake.level, drake.size, drake.hurt], [65, 14, 14], '12 + floor(65 / 30) blocks, arriving full');
     // Wessel is level... his Soul Class (the block still has one) stands for a level; the draw is within 2 of it.
     const around = averageLevel(partyLevels(sheetNow(host)));
     await host.send('A rat.', reply('+ dm foes — why | kind: set-slot-2 | name: Sluice Rat | count: 2'));
     const rat = sheetNow(host).foes[1];
     assert.ok(rat.level >= Math.max(1, around - 2) && rat.level <= around + 2, `drawn near ${around}: ${rat.level}`);
-    assert.equal(rat.size, 4 + Math.floor(rat.level / 30));
+    assert.equal(rat.size, 12 + Math.floor(rat.level / 30));
     await host.send('A hound.', reply('+ dm foes — why | kind: set-slot-3 | name: Silt Hound | count: 1 | level: 29'));
-    assert.deepEqual([sheetNow(host).foes[2].level, sheetNow(host).foes[2].size], [29, 4]);
+    assert.deepEqual([sheetNow(host).foes[2].level, sheetNow(host).foes[2].size], [29, 12]);
     await host.send('An ogre.', reply('+ dm foes — why | kind: set-slot-4 | name: Ogre | count: 1 | level: 30'));
-    assert.deepEqual([sheetNow(host).foes[3].level, sheetNow(host).foes[3].size], [30, 5]);
+    assert.deepEqual([sheetNow(host).foes[3].level, sheetNow(host).foes[3].size], [30, 13]);
     assert.deepEqual(host.store.problems(), []);
     const live = JSON.stringify(host.head());
     host.store.rebuild();
