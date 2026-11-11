@@ -12,14 +12,14 @@ import { discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, levelFoeBlock, recordOf, sheetDomain } from '../helpers.js';
 
-async function world({ old = false } = {}) {
+async function world({ old = false, level = 1, health = 5 } = {}) {
     const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } } });
     host.features.set(CORE_FEATURE.leanRpg, true);
     host.features.set(CORE_FEATURE.fightBoard, true);
     await host.send('Begin.', 'Opening.');
     for (const { definition } of STANDARD_TEMPLATES) assert.equal((await host.sdk.command('dm.define', { definition: structuredClone(old && definition.role === 'character' ? characterV1For() : definition) })).ok, true);
-    assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 1, str: 20, agi: 20, vit: 20, health: 5 } })).ok, true);
-    await host.send('Rats.', 'Rats.\n<Changes>\n+ dm foes — rats | kind: set-slot-1 | name: Tunnel Rat | count: 1 | level: 1\n</Changes>');
+    assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level, str: 20, agi: 20, vit: 20, health } })).ok, true);
+    await host.send('Rats.', `Rats.\n<Changes>\n+ dm foes — rats | kind: set-slot-1 | name: Tunnel Rat | count: 1 | level: ${level}\n</Changes>`);
     return host;
 }
 const hero = host => host.head().domains.dataModules.instances['pack.chat/character'].chat.fields;
@@ -49,7 +49,7 @@ for (const [name, story] of [['a new group the narrator opens', NEW], ['the Down
     test(`a board win still pays XP once when the same reply has ${name}`, async () => {
         const restore = seedCrypto(33), host = await world();
         try {
-            const want = memberXp([{ count: 1, level: 1 }], 1, true);
+            const want = memberXp([{ count: 1, level: 1 }], 1, true, true);
             await winWith(host, story);
             assert.equal(hero(host).xp, want);
             assert.equal(fights(host).length, 1);
@@ -70,10 +70,10 @@ test('a board win that leaves the block as it was carries no groups (the record 
     const restore = seedCrypto(34), host = await world();
     try {
         await winWith(host, 'Done.');
-        assert.equal(hero(host).xp, memberXp([{ count: 1, level: 1 }], 1, true));
+        assert.equal(hero(host).xp, memberXp([{ count: 1, level: 1 }], 1, true, true));
         const step = fights(host)[0];
         assert.equal(step.replan.payload.groups, undefined);
-        assert.deepEqual(Object.keys(step.replan.payload), ['was', 'bars'], 'a marked fight records its mark beside the slots');
+        assert.deepEqual(Object.keys(step.replan.payload), ['was', 'bars', 'xp'], 'a marked fight records its marks beside the slots');
     } finally { host.close(); restore(); }
 });
 
@@ -160,4 +160,57 @@ test('fightHook: a foe opening in an earlier roll of the reply names the group a
     // the same shape lost pays nothing
     const lost = { type: 'rpg.resolve', data: { v2: { result: { stop: 'lost', board: { groups: [1] } } } } };
     assert.equal(fightHook(view, { type: 'normal', receipts: [openingReceipt(bogBoars), lost] }), undefined);
+});
+
+// A fight paid before 11 Nov has a step without `xp` ({was, bars: 2}); the hook is made to write one for the test, then put back.
+const asOld = host => {
+    const original = host.registry.hookEntries;
+    host.registry.hookEntries = name => original(name).map(entry => ({ ...entry, fn: (view, info) => {
+        const out = entry.fn(view, info);
+        for (const command of out?.commands ?? []) if (command.type === 'rpg.fight') delete command.payload.xp;
+        return out;
+    } }));
+    return () => { host.registry.hookEntries = original; };
+};
+const fightPayload = host => fights(host).map(receipt => receipt.replan.payload);
+
+test('an old marked fight ({was, bars: 2}, no xp) keeps its old sum through rebuild, reload, middle delete and Re-read; a Re-read of a new one keeps the flat sum', async () => {
+    const restore = seedCrypto(36);
+    try {
+        // a level 11 foe against a level 11 member: the old sum has the band of ten levels (30), the flat one 15
+        const oldSum = memberXp([{ count: 1, level: 11 }], 11, true), flatSum = memberXp([{ count: 1, level: 11 }], 11, true, true);
+        assert.deepEqual([oldSum, flatSum], [30, 15]);
+        const old = await world({ level: 11, health: 10 });
+        try {
+            const back = asOld(old);
+            await old.send('Quiet.', 'Quiet.');
+            await winWith(old, 'Done.');
+            back();
+            const won = old.store.headIndex();
+            assert.equal(hero(old).xp, oldSum);
+            assert.deepEqual(fightPayload(old), [{ was: [1], bars: 2 }]);
+            const live = JSON.stringify(old.head());
+            old.store.rebuild();
+            assert.equal(JSON.stringify(old.head()), live, 'rebuild');
+            await old.st.loadChat(JSON.parse(JSON.stringify(old.ctx.chat)));
+            assert.equal(JSON.stringify(old.head()), live, 'reload');
+            assert.equal(hero(old).xp, oldSum);
+            await old.st.deleteMessage(won - 2);
+            await old.st.deleteMessage(won - 3);
+            assert.equal(hero(old).xp, oldSum, 'a middle delete');
+            assert.deepEqual(fightPayload(old), [{ was: [1], bars: 2 }]);
+            assert.equal((await old.turn.reread(old.store.headIndex())).ok, true);
+            assert.equal(hero(old).xp, oldSum, 'a Re-read keeps the old sum');
+            assert.deepEqual(fightPayload(old), [{ was: [1], bars: 2 }], 'and the old step');
+            assert.deepEqual(old.store.problems(), []);
+        } finally { old.close(); }
+        const fresh = await world({ level: 11, health: 10 });
+        try {
+            await winWith(fresh, 'Done.');
+            assert.equal(hero(fresh).xp, flatSum);
+            assert.equal((await fresh.turn.reread(fresh.store.headIndex())).ok, true);
+            assert.equal(hero(fresh).xp, flatSum, 'a Re-read of a new fight keeps the flat sum');
+            assert.deepEqual(fightPayload(fresh), [{ was: [1], bars: 2, xp: 2 }]);
+        } finally { fresh.close(); }
+    } finally { restore(); }
 });
