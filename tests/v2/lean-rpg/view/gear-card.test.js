@@ -16,19 +16,20 @@ const skills = { definition: skillsDefinition('wessel-skills', 'Wessel', { tab: 
 const state = () => fakeState([ren, wessel, skills]);
 
 // What is worn: Wessel (the party's bag) a rare sword, a worn jerkin and a broken buckler; Ren an uncommon cap.
-function worn() {
+function worn(tweak = () => {}) {
     const module = createCoreModule({ hooks: () => [], settings: () => ({}), extras: { gearOn: () => true, persona: () => 'Wessel' } });
     const s = stocked(module);
     const inv = s.domains.inventory;
     s.domains.party = { actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' } } };
     const piece = (id, name, slot, rarity, owner, place, cond) => {
-        inv.defs[`story/${id}`] = { id: `story/${id}`, name, kind: 'equipment', slot, rarity, value: 10, stack: false, tags: [], note: '' };
-        inv.stacks[`it_${id}0000`] = { id: `it_${id}0000`, def: `story/${id}`, qty: 1, owner, equipped: place, note: '', from: '', ...(cond === undefined ? {} : { cond }) };
+        inv.defs[`story/${id}`] = { id: `story/${id}`, name, kind: 'equipment', slot, rarity, value: 10, stack: false, tags: [], note: '', stats: {}, effect: {} };
+        inv.stacks[`it_${(id + '00000000').slice(0, 8)}`] = { id: `it_${(id + '00000000').slice(0, 8)}`, def: `story/${id}`, qty: 1, owner, equipped: place, note: '', from: '', ...(cond === undefined ? {} : { cond }) };
     };
     piece('sword', 'Cane Sword', 'weapon', 'rare', 'party', 'weapon');
     piece('jerkin', 'Boiled Leather Jerkin', 'body', 'common', 'party', 'body', 50);
     piece('buckler', 'Oak Buckler', 'off-hand', 'uncommon', 'party', 'off-hand', 0);
     piece('cap', 'Iron Cap', 'head', 'uncommon', 'ac_ren00001', 'head');
+    tweak(inv);
     return createHarness([module], { state: s, extra: { feature: id => id === 'story-block.gear' || id === 'story-block.rpg' } });
 }
 
@@ -128,4 +129,66 @@ test('the card buttons keep the width of their text and wrap to a second row ins
     assert.match(rule, /white-space: nowrap;/);
     assert.match(css, /\.rpg-card-actions-gear \{[^}]*flex-wrap: wrap;/);
     assert.doesNotMatch(rule, /flex: 0/);
+});
+
+// The tiles' buttons: Unequip on a worn tile (back to the bag), "Equip from bag" on an empty one (the bag pieces that fit it), the lock for a signature piece.
+function withApi(h) {
+    const doc = setupDom(), el = doc.createElement('div');
+    doc.body.appendChild(el);
+    const calls = [];
+    const api = { command: async (type, payload) => { calls.push([type, payload]); const r = h.run(type, payload, { cause: 'ui', extra: { feature: id => id === 'story-block.gear' || id === 'story-block.rpg' } }); return r; } };
+    createPartyWidget({ headState: () => state(), readerName: () => 'Wessel', roleOf, gear: on(h), exportCharacter: () => {} }).render(el, {}, api);
+    card(el, 'Wessel').querySelector('.rpg-gear-open').click();
+    return { el, calls };
+}
+const tile = (el, place) => el.querySelector(`.rpg-slot[data-slot="${place}"]`);
+const later = () => new Promise(resolve => setImmediate(resolve));
+
+test('a worn tile has Unequip: the piece goes back to the bag and the tile is empty with "Equip from bag"', async () => {
+    const h = worn();
+    const { el, calls } = withApi(h);
+    const button = tile(el, 'weapon').querySelector('.rpg-slot-act');
+    assert.equal(button.textContent, 'Unequip');
+    button.click();
+    await later();
+    assert.deepEqual(calls, [['inventory.unequip', { stack: 'it_sword000' }]]);
+    assert.equal(h.state.domains.inventory.stacks.it_sword000.equipped, null);
+    assert.equal(tile(el, 'weapon').classList.contains('rpg-slot-empty'), true);
+    assert.equal(tile(el, 'weapon').querySelector('.rpg-slot-act').textContent, 'Equip from bag');
+});
+
+test('an empty tile has "Equip from bag" listing the bag pieces that fit it; choosing one equips it for this member', async () => {
+    const bag = (inv, id, name, slot) => {
+        inv.defs[`story/${id}`] = { id: `story/${id}`, name, kind: 'equipment', slot, rarity: 'common', value: 5, stack: false, tags: [], note: '', stats: {}, effect: {} };
+        inv.stacks[`it_${(id + '00000000').slice(0, 8)}`] = { id: `it_${(id + '00000000').slice(0, 8)}`, def: `story/${id}`, qty: 1, owner: 'party', equipped: null, note: '', from: '' };
+    };
+    const h = worn(inv => { bag(inv, 'billhook', 'Skinner Billhook', 'weapon'); bag(inv, 'hood', 'Grey Hood', 'head'); });
+    const inv = () => h.state.domains.inventory;
+    const { el, calls } = withApi(h);
+    const cloak = tile(el, 'cloak');
+    assert.deepEqual(cloak.querySelectorAll('.rpg-slot-pick').map(node => node.textContent), [], 'nothing in the bag fits a cloak');
+    // the weapon tile is taken: no list; unequip it, then the bag lists the billhook and the sword
+    tile(el, 'weapon').querySelector('.rpg-slot-act').click();
+    await later();
+    const open = tile(el, 'weapon');
+    assert.deepEqual(open.querySelectorAll('.rpg-slot-pick').map(node => node.textContent.replace(/ ·.*/, '')), ['Skinner Billhook', 'Cane Sword'], 'by stack id');
+    open.querySelector('.rpg-slot-act').click();
+    assert.equal(open.querySelector('.rpg-slot-act').getAttribute('aria-expanded'), 'true');
+    open.querySelectorAll('.rpg-slot-pick')[0].click();
+    await later();
+    assert.deepEqual(calls[1], ['item.equip', { stack: 'it_billhook', owner: 'party', slot: 'weapon', transfer: true }]);
+    assert.deepEqual([inv().stacks.it_billhook.equipped, inv().stacks.it_sword000.equipped], ['weapon', null]);
+    assert.equal(tile(el, 'weapon').querySelector('.rpg-slot-name').textContent, 'Skinner Billhook');
+    assert.equal(tile(el, 'head').classList.contains('rpg-slot-empty'), true, 'the hood was not put on');
+});
+
+test('a signature piece keeps its lock and has no Unequip', async () => {
+    const h = worn(inv => { inv.stacks.it_cap00000.bound = 'ac_ren00001'; });
+    const { el } = withApi(h);
+    card(el, 'Wessel').querySelector('.rpg-gear-back')?.click();
+    card(el, 'Ren').querySelector('.rpg-gear-open').click();
+    const head = tile(el, 'head');
+    assert.equal(head.querySelector('.rpg-slot-act'), null, 'bound: no Unequip');
+    assert.equal(head.classList.contains('bound'), true, 'the lock stays');
+    assert.ok(head.querySelector('.rpg-slot-lock'));
 });
