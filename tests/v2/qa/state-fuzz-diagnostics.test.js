@@ -82,3 +82,36 @@ test('replay differences distinguish missing fields and escape JSON pointer segm
         { path: '/a~1b/x~0y', live: '<missing>', rebuilt: '"party"' });
     assert.deepEqual(firstDifference([1], [1, 2]), { path: '/1', live: '<missing>', rebuilt: '2' });
 });
+
+test('a store read that writes to the chat is named, and the dump holds the chat the rebuild read', async t => {
+    const dir = mkdtempSync(join(tmpdir(), 'state-fuzz-test-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Search.', 'A key.\n<Changes>\n+ item Iron Key\n</Changes>');
+    const before = structuredClone(host.ctx.chat);
+    const actual = host.store.at.bind(host.store);
+    t.mock.method(host.store, 'at', at => {
+        host.ctx.chat[at].send_date = 'written by a read';
+        return actual(at);
+    });
+    assert.throws(() => checkInvariants(host, 'a read writes', { dumpDir: dir }), error => {
+        assert.match(error.message, /store\.at\(\d+\) changed the chat it only reads/);
+        return true;
+    });
+    const dump = JSON.parse(readFileSync(join(dir, readdirSync(dir)[0], 'mismatch.json'), 'utf8'));
+    assert.deepEqual(dump.chat, before, 'the dump is the chat before the read');
+});
+
+test('a block the oracle skips says why', async t => {
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Search.', 'A key.\n<Changes>\n+ item Iron Key\n</Changes>');
+    const index = host.store.headIndex();
+    const chat = structuredClone(host.ctx.chat);
+    chat[index].extra.storySuite.ops = [...chat[index].extra.storySuite.ops, { op: 'replace', path: '/meta/nope', value: 1 }];
+    chat[index].extra.storySuite.spans = [];
+    const { skipped } = rebuildAt(chat, index);
+    assert.equal(skipped.length, 1);
+    assert.match(skipped[0].why, /no \/meta\/nope/);
+});

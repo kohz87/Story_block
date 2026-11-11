@@ -239,12 +239,12 @@ test('the Standard formula: the opened group arrives through the Standard Foes b
     await host.send(MESSAGE, 'The silt churns.');
     const fields = host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
     assert.deepEqual([fields.foe1, fields.count1, fields.level1], ['Mud-Scale Crawlers', 6, 15]);
-    assert.ok(fields.hurt1 <= 4, 'the told hits may have hurt it');
-    // The slot as the block's kind fills it, before any dice: 4 + floor(level/30) blocks.
+    assert.ok(fields.hurt1 <= 12, 'the told hits may have hurt it');
+    // The slot as the block's kind fills it, before any dice: 12 + floor(level/30) blocks.
     const domain = structuredClone(host.head().domains.dataModules);
-    Object.assign(domain.instances['pack.chat/foes'].chat.fields, { foe1: '', count1: 0, hurt1: 4 });
+    Object.assign(domain.instances['pack.chat/foes'].chat.fields, { foe1: '', count1: 0, hurt1: 12 });
     assert.equal(openFoes(domain, [{ name: 'Wolves', count: 2, level: 65 }]).length, 1);
-    assert.equal(domain.instances['pack.chat/foes'].chat.fields.hurt1, 6, '4 + floor(65/30)');
+    assert.equal(domain.instances['pack.chat/foes'].chat.fields.hurt1, 14, '12 + floor(65/30)');
     assert.equal(rolled(host).length, 1);
     assert.deepEqual(rolled(host)[0].data.v2.result.opened.map(entry => entry.slot), [1]);
     same(host);

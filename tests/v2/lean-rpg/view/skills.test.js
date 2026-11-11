@@ -189,6 +189,15 @@ test('an empty name is refused in plain words, an unchanged skill sends nothing,
     assert.equal(rows(refused.el)[0].querySelector('[data-skill-field="name"]').value, 'Other');
 });
 
+test('Escape in the skill editor closes it and stops there: the Game view behind it stays open', () => {
+    const one = draw();
+    rows(one.el)[1].querySelector('.rpg-skill-pencil').click();
+    const form = () => rows(one.el)[1].querySelector('.rpg-skill-form');
+    const event = form().dispatch('keydown', { key: 'Escape' });
+    assert.ok(!form(), 'the editor closed');
+    assert.ok(event.defaultPrevented && event.stopped, 'the key does not travel on to the Game view\'s own Escape');
+});
+
 test('without a command there is no pencil; the Skills view then only reads', () => {
     const { el } = draw({ noCommand: true });
     assert.equal(el.querySelectorAll('.rpg-skill-pencil').length, 0);

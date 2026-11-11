@@ -119,3 +119,17 @@ test('F7: the XP note ("XP reached 100 · back to N") is told only when the XP m
     const carried = rpgReplyLines({ state: world({ level: 5, xp: 35 }), before: world({ level: 4, xp: 95 }), record: record(), roleOf });
     assert.equal(carried[0].note, 'XP reached 100 · back to 35', 'the XP over 100 is carried and said');
 });
+
+test('a Soul Class rise of the earlier rules says "+1 point to spend", and "+2 points" for more', () => {
+    const legacy = ({ soul, points }) => {
+        const definition = characterDefinition('wessel', 'Wessel');
+        delete definition.state.level;
+        definition.state.soul = { type: 'int', min: 1, max: 9, default: 1, names: { 1: 'I', 2: 'II', 3: 'III' } };
+        return fakeState([{ definition, fields: { soul, points, xp: 40 } }]);
+    };
+    const rise = gain => rpgReplyLines({ state: legacy({ soul: 2, points: gain }), before: legacy({ soul: 1, points: 0 }), record: record(), roleOf })[0];
+    assert.equal(rise(1).summary.endsWith('(+1 point)'), true, rise(1).summary);
+    assert.match(rise(1).note, /\+1 point to spend$/);
+    assert.equal(rise(3).summary.endsWith('(+3 points)'), true);
+    assert.match(rise(3).note, /\+3 points to spend$/);
+});

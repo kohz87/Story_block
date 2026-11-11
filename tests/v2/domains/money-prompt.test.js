@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { coinLine, currencyOf, foreignCoin, moneyLine, parseAmount } from '../../../src/v2/domains/money.js';
+import { coinLine, coinValue, currencyOf, foreignCoin, moneyLine, parseAmount } from '../../../src/v2/domains/money.js';
 import { createHost } from '../../../testkit/index.js';
 
 const ERSVEIL = readFileSync(new URL('../../../examples/packs/ersveil/pack.json', import.meta.url), 'utf8');
@@ -91,4 +91,44 @@ test('(d) switching the setting updates the line, and it is byte-identical while
     host.settings.set('story-block', 'currency', '');
     await host.send('Back.', 'Quiet.');
     assert.deepEqual(moneyOf(staticPart(host)), ersveil, 'the setting cleared: the pack\'s coins again');
+});
+
+test('oneCoin: a one-coin list worth 1 named differently from the currency keeps the coin line (the coin word crown, never the refused marks)', () => {
+    const currency = currencyOf({ currency: 'mark', coins: [{ name: 'crown', value: 1 }] });
+    const line = moneyLine(currency, true);
+    assert.equal(line, moneyLine(currency), 'the mark changes nothing here');
+    assert.match(line, /crowns/);
+    assert.equal(coinValue('marks', currency), 0);
+    assert.equal(coinValue('crowns', currency), 1);
+    assert.doesNotMatch(line, /Name amounts in marks/);
+});
+
+test('oneCoin: never names a word coin lines refuse (penny with plural pence, a short form beside coins)', () => {
+    const penny = currencyOf({ currency: 'penny', currencyPlural: 'pence', coins: [{ name: 'penny', value: 1 }] });
+    assert.equal(coinValue('pence', penny), 0);
+    assert.equal(moneyLine(penny, true), moneyLine(penny), 'the coin line stays');
+    assert.doesNotMatch(moneyLine(penny, true), /Name amounts in pence/);
+    const short = currencyOf({ currency: 'crown', currencyShort: 'cr', coins: [{ name: 'crown', value: 1 }] });
+    assert.equal(moneyLine(short, true), moneyLine(short));
+    const plain = currencyOf({ currency: 'crown', coins: [{ name: 'crown', value: 1 }] });
+    assert.match(moneyLine(plain, true), /Name amounts in crowns .*no other coins exist/, 'the same name and plural: still a single-unit line');
+});
+
+test('oneCoin: a coin list of one coin worth 1 is told as a single-unit currency in a chat under the mark; a chat begun before keeps the coin line, byte for byte', async t => {
+    const settings = { currency: 'crown', coins: [{ name: 'crown', value: 1 }] };
+    const currency = currencyOf(settings);
+    assert.equal(moneyLine(currency), coinLine(currency), 'without the mark: the earlier text');
+    assert.match(moneyLine(currency, true), /^Money in this story is the crown \(plural: crowns\)\. Name amounts in crowns .*no other coins exist\.$/);
+    const two = currencyOf({ currency: 'copper', coins: [{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }] });
+    assert.equal(moneyLine(two, true), moneyLine(two), 'a list with a larger coin is unchanged');
+    const fresh = await start(t, { settings });
+    assert.deepEqual(moneyOf(staticPart(fresh)), [moneyLine(currency, true)]);
+    const old = await start(t, { settings });
+    for (const message of old.ctx.chat) if (message.extra?.storySuite) delete message.extra.storySuite.rules; // as a chat saved before the rule was
+    old.store.rebuild();
+    await old.send('Again.', 'Quiet.');
+    assert.deepEqual(moneyOf(staticPart(old)), [coinLine(currency)], 'the first reply has no mark: the chat keeps the earlier line');
+    assert.equal(old.ctx.chat.at(-1).extra.storySuite.rules.includes('oneCoin'), true, 'a later reply carries every mark; the chat is still told by its first reply');
+    await old.send('And again.', 'Quiet.');
+    assert.deepEqual(moneyOf(staticPart(old)), [coinLine(currency)]);
 });

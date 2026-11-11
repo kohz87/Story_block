@@ -130,7 +130,7 @@ test('Custom: thirteen fields with their ranges, started from the numbers in for
     assert.deepEqual(grid.querySelectorAll('.rpg-set-num > span').map(node => node.textContent),
         ['Foe\'s base', 'Foe adds per class', 'Level divisor', '"At a cost" when short by', 'Decisive at a margin of', 'Most exchanges per reply', 'Quick start at a lead of',
             'Stats start at', 'Points to spend at creation', 'Lowest stat at creation', 'Highest stat at creation', 'Points per Soul Class rise', 'Highest a stat can be']);
-    assert.deepEqual(grid.querySelectorAll('small').slice(0, 3).map(node => node.textContent), ['Gentle 2 · Standard 4 · Harsh 6', '1 to 5', 'a roll adds level ÷ this (3 to 8, 5 unset), both sides']);
+    assert.deepEqual(grid.querySelectorAll('small').slice(0, 3).map(node => node.textContent), ['Gentle 2 · Standard 4 · Harsh 6', '1 to 5', 'a roll adds level ÷ this (3 to 8, 5 unset); foes on a new Foes block (harder foes) always use ÷ 4']);
     const input = key => root.querySelector(`[data-rule="${key}"]`);
     assert.deepEqual(['foeBase', 'costMargin', 'decisiveMargin', 'roundCap'].map(key => [input(key).getAttribute('min'), input(key).getAttribute('max')]), [['0', '15'], ['0', '5'], ['4', '15'], ['1', '8']]);
     assert.deepEqual(input('levelDivisor').querySelectorAll('option').map(node => node.textContent), ['÷3', '÷4', '÷5', '÷6', '÷7', '÷8']);
@@ -482,7 +482,7 @@ test('the roll table and the tiles say level: level ÷ 5 in every row, "1 per 3 
     const rows = root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-table tr').map(row => row.textContent);
     assert.ok(rows.length >= 6 && rows.every(row => /level ÷ 5/.test(row)), rows.join(' | '));
     assert.match(rows.find(row => row.startsWith('Turn order')), /d20 \+ level ÷ 5 \+ AGI\/2.*foes the same with their own level/);
-    assert.deepEqual(root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-num').slice(2).map(node => node.textContent), ['1 per 3 levelsStat points', '4 + level ÷ 5Foe\'s base']);
+    assert.deepEqual(root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-num').slice(2).map(node => node.textContent), ['1 per 3 levelsStat points', '4 + level ÷ 5 (÷ 4 on a new Foes block)Foe\'s base']);
     assert.doesNotMatch(root.querySelector('[data-card="formula"]').textContent, /Soul/i);
 });
 

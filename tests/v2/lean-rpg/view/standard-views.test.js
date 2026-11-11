@@ -44,7 +44,7 @@ test('the Stat formula card is first: the roll table of Standard (the only formu
     assert.match(card('formula').querySelector('.rpg-formula-table').textContent, /Magic\s*level ÷ 5 \+ \(INT or the skill's stat \+ DEX\/2\)\/2 \+ rank \+ edge/, 'no INT×2');
     assert.doesNotMatch(card('formula').textContent, /INT×2|INT x 2/);
     assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num').map(node => [node.querySelector('b').textContent, node.querySelector('span').textContent]), [
-        ['5', 'Stats start at'], ['10', 'Points at creation'], ['1 per 3 levels', 'Stat points'], ['4 + level ÷ 5', 'Foe\'s base'],
+        ['5', 'Stats start at'], ['10', 'Points at creation'], ['1 per 3 levels', 'Stat points'], ['4 + level ÷ 5 (÷ 4 on a new Foes block)', 'Foe\'s base'],
     ]);
     assert.match(card('formula').textContent, /Level ÷ 5 \(rounded down\) stands where class stood\. LUK is a window on the edge/);
 });
@@ -61,7 +61,7 @@ test('Standard\'s Difficulty: Gentle, Standard and Harsh move the foe\'s base (2
     await settle();
     assert.equal(stored().rpgDifficulty, 'harsh');
     assert.notEqual(oddsText(), standard);
-    assert.equal(card('formula').querySelectorAll('.rpg-formula-num b')[3].textContent, '6 + level ÷ 5', 'the numbers follow the difficulty');
+    assert.equal(card('formula').querySelectorAll('.rpg-formula-num b')[3].textContent, '6 + level ÷ 5 (÷ 4 on a new Foes block)', 'the numbers follow the difficulty');
     // The odds bar is the engine's own: the exact chances of that fight.
     const view = oddsView(host => host, 'Wessel', STANDARD_PRESETS.harsh);
     assert.equal(view, null, 'no state, no odds');
@@ -84,7 +84,7 @@ test('Custom shows Standard\'s thirteen numbers, each held to its range', async 
     assert.deepEqual([stored().rpgStandard.foeBase, stored().rpgStandard.quickStartMargin, stored().rpgStandard.pointsPerSoul, stored().rpgStandard.startStat], [9, 30, 0, 5]);
     assert.equal(input('quickStartMargin').value, '30', 'held to its range');
     assert.deepEqual(rulesFromSettings(stored()).foeBase, 9);
-    assert.equal(card('formula').querySelectorAll('.rpg-formula-num b')[3].textContent, '9 + level ÷ 5');
+    assert.equal(card('formula').querySelectorAll('.rpg-formula-num b')[3].textContent, '9 + level ÷ 5 (÷ 4 on a new Foes block)');
     assert.equal(root.querySelectorAll('[data-rule]').length, 13);
 });
 
@@ -294,13 +294,13 @@ test('Settings → RPG shows a pack\'s numbers as the default, named, until the 
     const { card } = await openWithPack(t, { formula: 'standard', numbers: { foeBase: 6, startStat: 6, createPoints: 8 } });
     assert.equal(card('formula').querySelector('.rpg-from-pack').textContent, 'From the pack: Ersveil');
     assert.equal(card('difficulty').querySelector('.rpg-from-pack').textContent, 'From the pack: Ersveil');
-    assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num b').map(node => node.textContent), ['6', '8', '1 per 3 levels', '6 + level ÷ 5']);
+    assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num b').map(node => node.textContent), ['6', '8', '1 per 3 levels', '6 + level ÷ 5 (÷ 4 on a new Foes block)']);
     // The reader picks a difficulty: the preset is theirs and the pack's note goes.
     card('difficulty').querySelector('.rpg-chip[data-value="harsh"]').click();
     await settle();
     assert.equal(card('difficulty').querySelector('.rpg-from-pack'), null);
     assert.equal(card('formula').querySelector('.rpg-from-pack'), null);
-    assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num b').map(node => node.textContent), ['5', '10', '1 per 3 levels', '6 + level ÷ 5'], 'Harsh: the preset\'s own foe base');
+    assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num b').map(node => node.textContent), ['5', '10', '1 per 3 levels', '6 + level ÷ 5 (÷ 4 on a new Foes block)'], 'Harsh: the preset\'s own foe base');
 });
 
 test('the wizard\'s Stats step starts from a pack\'s numbers and says whose they are', async t => {
