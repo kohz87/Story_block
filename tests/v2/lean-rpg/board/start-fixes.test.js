@@ -121,3 +121,22 @@ test('the cue reaches the next reply\'s tail only with the RPG on and no foe set
     assert.ok(!off.tail.includes(FIGHT_CUE), 'RPG off: not told');
     assert.ok(!on.staticText.includes('under way'), 'the static prompt carries no cue');
 });
+
+test('a swipe of the reply after the fight gets the same cue as the first try', async t => {
+    const { createHost } = await import('../../../../testkit/index.js');
+    const { CORE_FEATURE } = await import('../../../../src/v2/features.js');
+    const { TAIL_KEY } = await import('../../../../src/v2/turn.js');
+    const { FIGHT_CUE } = await import('../../../../src/v2/turn/fight-start.js');
+    const host = await createHost();
+    t.after(() => host.close());
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    await host.send('Begin.', 'Opening.');
+    await host.send('I fight.', `${FIGHT}\n<Changes>\n${dice}\n</Changes>`);
+    await host.send('Go on.', 'Quiet.');
+    const tail = () => host.st.promptLog.filter(entry => entry.key === TAIL_KEY && entry.value).at(-1)?.value ?? '';
+    assert.ok(tail().includes(FIGHT_CUE), 'the first try: told');
+    await host.swipe('Still quiet.');
+    assert.ok(tail().includes(FIGHT_CUE), 'the swipe: told too');
+    await host.send('And on.', 'Calm.');
+    assert.ok(!tail().includes(FIGHT_CUE), 'two replies later: not told');
+});

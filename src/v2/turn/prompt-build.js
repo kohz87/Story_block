@@ -144,7 +144,8 @@ export function createPromptBuild(s, deps) {
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
         }
         // A fight narrated with no foes line (fight-start.js fightCue): one short tail line for this reply, only with the RPG on and no foe set.
-        const last = ctx?.chat?.at(-1), prior = ctx?.chat?.at(-2);
+        // (A swipe: the reply being swiped is the last message, so the reader's message and the reply before it sit one place further back.)
+        const back = type === 'swipe' ? 1 : 0, last = ctx?.chat?.at(-1 - back), prior = ctx?.chat?.at(-2 - back);
         if (type !== 'continue' && battleOn() && last?.is_user && prior && !prior.is_user && !prior.is_system && readRecord(prior)) {
             const state = store.head(), foesNow = rpgBlocks(state).some(block => block.role === 'foes' && foesOf(block).length > 0);
             const cue = fightCue(prior, { foesNow });
