@@ -26,6 +26,8 @@ export const RULE_LINES = Object.freeze({
     diedAny: line => line?.kind === 'key' && line.op === '-' && [line.text, ...Object.keys(line.labels ?? {}), ...Object.values(line.labels ?? {})].some(part => DEATH.test(String(part ?? ''))),
     // `+/~/- world Event | factions: A, B`: Story Director names unknown factions from an event's tags (feat/faction-from-events). Any world line counts, so an old reply with one never gains the new creation on Re-read.
     factionTags: line => line?.kind === 'world',
+    // A Re-read pays a story XP line at the rate its first run recorded (`xpRate` in its receipt's result), not today's setting (data-modules/part/act.js). Any block line counts.
+    xpKept: line => line?.kind === 'dm',
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
@@ -43,7 +45,7 @@ export function foeLine(line, state = null) {
     } catch { return false; }
 }
 
-export const MAX_RULE_MARKS = 8;
+export const MAX_RULE_MARKS = 16;
 const NAME = /^[A-Za-z][A-Za-z0-9]{0,31}$/u;
 
 /** The marks a record keeps: known names only, sorted, no repeats, at most MAX_RULE_MARKS. Anything else in the field is ignored. */
