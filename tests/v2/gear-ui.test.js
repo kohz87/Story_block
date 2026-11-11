@@ -400,3 +400,51 @@ test('Edit, gear on: renaming a piece and changing its carry on a definition two
     assert.deepEqual([after.defs[after.stacks.it_bag00002.def].name, after.defs[after.stacks.it_bag00002.def].carry], ['Satchel', 10]);
     assert.deepEqual([after.defs[after.stacks.it_bag00001.def].name, after.defs[after.stacks.it_bag00001.def].carry], ['Bag', 5], 'the other piece is untouched');
 });
+
+// The game view mounts the Inventory screen too: its body redraws from `committed` through the same hold as the panel's.
+async function gameForm(t, wrap = null) {
+    t.mock.method(console, 'warn', () => {});
+    const { doc, host, ui } = await page(t, { wrap });
+    host.features.set('story-block.gear', true);
+    await host.send('Hello.', 'The road.');
+    await host.send('Loot.', reply('Gear.', ['+ item Iron Sword | slot: weapon']));
+    assert.equal(ui.mounts.screen.open('story-block/inventory'), true);
+    await settle();
+    const fresh = () => rowOf(doc.querySelector('.ss-gameview [data-ss-screen="story-block/inventory"]'), 'Iron Sword');
+    const row = fresh();
+    row.querySelector('.ss-w-editable-pencil').click();
+    return { host, row, fresh };
+}
+const fill = row => {
+    row.querySelectorAll('input')[2].value = 'keen';
+    row.querySelectorAll('select')[1].value = 'party';
+    row.querySelector('.ss-w-editable-save').click();
+};
+
+test('Edit in the game view, gear on: a note and a wearer in one Save run both steps and the screen redraws once after', async t => {
+    const seen = [];
+    let form;
+    form = await gameForm(t, (type, payload, options, run) => { seen.push([type, form.row.isConnected]); return run(type, payload, options); });
+    fill(form.row);
+    await settle();
+    assert.deepEqual(seen, [['inventory.edit', true], ['item.equip', true]], 'the form was alive for both steps');
+    assert.equal(form.row.isConnected, false, 'the screen redrew after the plan');
+    const held = Object.values(form.host.head().domains.inventory.stacks).find(item => item.note === 'keen');
+    assert.deepEqual([held.owner, held.equipped], ['party', 'weapon']);
+    assert.match(text(form.fresh()), /keen/);
+});
+
+test('Edit in the game view, gear on: a refusal in the second step shows in the form, which holds the redraw until it closes', async t => {
+    const form = await gameForm(t, (type, payload, options, run) => (type === 'item.equip' ? { ok: false, message: 'No room to carry it.' } : run(type, payload, options)));
+    fill(form.row);
+    await settle();
+    assert.equal(form.row.isConnected, true, 'the form is still there');
+    assert.match(text(form.row.querySelector('.ss-w-editable-error')), /No room to carry it/);
+    form.row.querySelector('.ss-w-editable-cancel').click();
+    await settle();
+    assert.equal(form.row.isConnected, false, 'closing it lets the held redraw run');
+    assert.match(text(form.fresh()), /keen/);
+    const later = form.fresh();
+    form.host.events.emit('committed', {});
+    assert.equal(later.isConnected, false, 'no hold is left behind: the next redraw runs at once');
+});

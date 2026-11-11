@@ -46,6 +46,9 @@ function render(el, input, api) {
         let editing = false;
         let busy = false;
         let alive = true;
+        // The hold a refused Save keeps (the form stays with its sentence; the screen's redraw waits until the form closes, is saved again or goes).
+        let kept = null;
+        const letGo = () => { const was = kept; kept = null; was?.(); };
         // The grouped form being edited: its fields and plan (the props' own, or, for a piece the reader added by hand with Gear in fights on, the gear form's).
         let formFields = null;
         let formPlan = null;
@@ -253,6 +256,7 @@ function render(el, input, api) {
         // `quiet`: closed by the caller (the `open` prop turned off), who needs no word of it.
         function close(quiet = false) {
             editing = false;
+            letGo();
             draw();
             if (!pencil.hidden) focusNode(pencil);
             if (quiet !== true && typeof p.onClose === 'function') p.onClose();
@@ -280,6 +284,7 @@ function render(el, input, api) {
             busy = true;
             save.disabled = true;
             const release = api.hold?.();
+            letGo();
             try {
                 for (const step of steps) {
                     let result;
@@ -290,6 +295,7 @@ function render(el, input, api) {
                         busy = false;
                         save.disabled = false;
                         error.textContent = refusalText(result, E.failed);
+                        kept = release;
                         return;
                     }
                     for (const entry of fields.inputs) if (Array.isArray(step.keys) && step.keys.includes(String(entry.spec.key))) entry.spec = { ...entry.spec, value: all[String(entry.spec.key)] ?? '' };
@@ -297,7 +303,7 @@ function render(el, input, api) {
                 busy = false;
                 save.disabled = false;
                 close();
-            } finally { release?.(); }
+            } finally { if (kept !== release) release?.(); }
         }
 
         // The steps an item's Slot and Equipped by choices need: taken off, or handed to the wearer and put on. [] when nothing changed.
@@ -317,6 +323,7 @@ function render(el, input, api) {
             busy = true;
             save.disabled = true;
             const release = api.hold?.();
+            letGo();
             try {
                 for (const step of steps) {
                     let result;
@@ -327,13 +334,14 @@ function render(el, input, api) {
                         busy = false;
                         save.disabled = false;
                         error.textContent = refusalText(result, E.failed);
+                        kept = release;
                         return;
                     }
                 }
                 busy = false;
                 save.disabled = false;
                 close();
-            } finally { release?.(); }
+            } finally { if (kept !== release) release?.(); }
         }
 
         async function submit() {
@@ -431,7 +439,7 @@ function render(el, input, api) {
             else if (!p.open && editing && p.bare) close(true);
         }
         update(input);
-        return { update, destroy() { alive = false; } };
+        return { update, destroy() { alive = false; letGo(); } };
     });
 }
 

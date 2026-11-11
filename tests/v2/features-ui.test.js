@@ -457,3 +457,22 @@ test('the page: a widget\'s hold keeps the screen\'s `committed` redraw back unt
     assert.deepEqual(seen, ['redraw', 'redraw'], 'not held any more');
     host.close();
 });
+
+test('the page: the game view\'s screen redraw from `committed` waits for a widget\'s hold too, then runs once', async () => {
+    const draws = [], got = {};
+    const probe = { render: (el, props, api) => { draws.push('draw'); got.hold = api.hold; } };
+    const bag = { id: 'loot/field', title: 'Field', mounts: ['screen'], template: '<p><ss-widget name="loot.probe"></ss-widget></p>' };
+    const { host, ui } = await page({ modules: [{ ...loot(), screens: [bag], widgets: { 'loot.probe': probe } }] });
+    assert.equal(ui.mounts.screen.open('loot/field'), true);
+    const release = got.hold();
+    const before = draws.length;
+    host.events.emit('committed', {});
+    host.events.emit('committed', {});
+    assert.equal(draws.length, before, 'the game view is not redrawn while held');
+    release();
+    assert.equal(draws.length, before + 1, "it redraws once after the release");
+    const after = draws.length;
+    host.events.emit('committed', {});
+    assert.ok(draws.length > after, 'and not held any more');
+    host.close();
+});
