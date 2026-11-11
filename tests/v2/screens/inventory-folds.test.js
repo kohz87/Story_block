@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inventoryScreen } from '../../../src/v2/screens/index.js';
 import { core, foldButtons, foldOf, openFold, queries, renderSkip, settle, show, stocked, text } from './helpers.js';
+import { readFileSync } from 'node:fs';
 import { stackOf } from '../../../src/v2/view/modal-stack.js';
 import { gearHost } from '../helpers/gear-ui-state.js';
 import { createInventoryGridWidget, createInventoryViewWidget, INVENTORY_GRID_WIDGET, INVENTORY_VIEW_WIDGET } from '../../../src/v2/screens/inventory-add.js';
@@ -238,4 +239,11 @@ test('Inventory Grid: a storage that throws on every call still draws the folds'
     head.click();
     assert.ok(el.querySelector('.fold-head'), 'drawn again');
     assert.equal(el.querySelector('.fold-head').getAttribute('aria-expanded'), 'false', 'the choice lasts this page');
+});
+
+test('the inventory sheet\'s style sheet is imported by size.css and its rules are not in mounts.css', () => {
+    const read = name => readFileSync(new URL(`../../../src/v2/view/${name}`, import.meta.url), 'utf8');
+    assert.match(read('size.css'), /^@import url\('\.\/inv-sheet\.css'\);$/m);
+    assert.match(read('inv-sheet.css'), /\.ss-dialog\.inv-sheet/);
+    assert.doesNotMatch(read('mounts.css'), /inv-sheet/);
 });
