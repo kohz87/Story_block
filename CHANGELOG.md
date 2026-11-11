@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 2.31.0
+
+Update Story Block, Story Director and NPC State Delta together, then re-import the Ersveil pack (2.9.5 needs Story Block 2.31.0). The new features apply to new replies; start a new chat to see them all. Replies already written replay and Re-read exactly as before.
+
 - **Ersveil 2.9.5 and Story Block 2.31.0.** Claimant sway can select the restored throne branches; earlier story edits reselect later decisions. Missing or unscoped Ripples uses the fixed fallback, and a previously crowned chat keeps its reign. Ersveil adds regional name lists; name suggestions need a Director release with its names part. Home links to Quests when that screen exists.
 - **Pack fields.** Optional `ripples` and `content.names` sections are validated separately; a bad section is ignored with a warning. Once events may group alternatives with `decision`.
 - **Up to six foe groups.** The Foes block holds six groups (it held four). A group of up to six foes shows each member with their own Health bar; seven or more fight as a swarm. A swarm attacks once per two members each exchange (1 + half its size, at most 6; it was one per six, at most 3), still thinning as its bar drops. Replies written before this keep four groups, five members and the old swarm attacks when read again.
