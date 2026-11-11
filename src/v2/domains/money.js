@@ -189,12 +189,13 @@ export function coinLine(currency) {
  * never falls back on the lore's own coins once the reader names a different one. With coins it is
  * coinLine (the currency's name is added first when it is none of the coins); a single-unit currency says
  * its name, plural and short form (when the reader set one) and that no other coins exist, which is what
- * foreignCoin enforces on a coin line. It changes only when the currency setting does.
+ * foreignCoin enforces on a coin line. It changes only when the currency setting does. `oneCoin`: a one-coin list worth 1 is told as a single-unit currency.
  */
-export function moneyLine(currency = DEFAULT_CURRENCY) {
+export function moneyLine(currency = DEFAULT_CURRENCY, oneCoin = false) {
     const name = tidy(currency?.name, MAX_NAME) || DEFAULT_CURRENCY.name;
     const plural = tidy(currency?.plural, MAX_NAME) || pluralOf(name);
-    const coins = coinList(currency);
+    // `oneCoin` (the chat is under the `oneCoin` rule mark): a coin list of one coin worth 1 is a single-unit currency, so it also says that no other coins exist.
+    const coins = oneCoin && coinList(currency).length === 1 && coinList(currency)[0].value === 1 ? [] : coinList(currency);
     if (coins.length) {
         const known = coins.some(coin => [coin.name, coin.plural].some(word => word.toLowerCase() === name.toLowerCase() || word.toLowerCase() === plural.toLowerCase()));
         return `${known ? '' : `Money in this story is the ${name}${plural.toLowerCase() === name.toLowerCase() ? '' : ` (plural: ${plural})`}. `}${coinLine(currency)}`;

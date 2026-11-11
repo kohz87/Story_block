@@ -92,3 +92,22 @@ test('(d) switching the setting updates the line, and it is byte-identical while
     await host.send('Back.', 'Quiet.');
     assert.deepEqual(moneyOf(staticPart(host)), ersveil, 'the setting cleared: the pack\'s coins again');
 });
+
+test('oneCoin: a coin list of one coin worth 1 is told as a single-unit currency in a chat under the mark; a chat begun before keeps the coin line, byte for byte', async t => {
+    const settings = { currency: 'crown', coins: [{ name: 'crown', value: 1 }] };
+    const currency = currencyOf(settings);
+    assert.equal(moneyLine(currency), coinLine(currency), 'without the mark: the earlier text');
+    assert.match(moneyLine(currency, true), /^Money in this story is the crown \(plural: crowns\)\. Name amounts in crowns .*no other coins exist\.$/);
+    const two = currencyOf({ currency: 'copper', coins: [{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }] });
+    assert.equal(moneyLine(two, true), moneyLine(two), 'a list with a larger coin is unchanged');
+    const fresh = await start(t, { settings });
+    assert.deepEqual(moneyOf(staticPart(fresh)), [moneyLine(currency, true)]);
+    const old = await start(t, { settings });
+    for (const message of old.ctx.chat) if (message.extra?.storySuite) delete message.extra.storySuite.rules; // as a chat saved before the rule was
+    old.store.rebuild();
+    await old.send('Again.', 'Quiet.');
+    assert.deepEqual(moneyOf(staticPart(old)), [coinLine(currency)], 'the first reply has no mark: the chat keeps the earlier line');
+    assert.equal(old.ctx.chat.at(-1).extra.storySuite.rules.includes('oneCoin'), true, 'a later reply carries every mark; the chat is still told by its first reply');
+    await old.send('And again.', 'Quiet.');
+    assert.deepEqual(moneyOf(staticPart(old)), [coinLine(currency)]);
+});
