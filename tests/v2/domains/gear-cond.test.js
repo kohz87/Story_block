@@ -284,3 +284,16 @@ test('a wear line answered by item.wear with its feature off is a quiet Problem,
     assert.equal(host.sdk.query('inventory.items')[0].cond, undefined);
     assert.equal(host.head().domains.inventory.condLog, undefined);
 });
+
+test('the item list keeps its order: owner, kind, name (digits by value, case and accents folded as localeCompare did), then stack', () => {
+    const names = ['Torch 10', 'Torch 9', 'torch 2', 'Élan', 'Eagle', 'elk', 'Zed', 'apple', 'Apple', 'Torch 9a', 'Ärger', 'x'];
+    const inv = { defs: {}, stacks: {}, wallets: {}, aliases: {} };
+    names.forEach((name, at) => {
+        inv.defs[`story/d${at}`] = { id: `story/d${at}`, name, kind: 'misc', rarity: 'common', value: 1, stack: false, slot: null, stats: {}, effect: '', tags: [], note: '' };
+        inv.stacks[`it_${at}`] = { id: `it_${at}`, def: `story/d${at}`, qty: 1, owner: 'party', equipped: null, note: '', from: '' };
+    });
+    const got = listItems(inv).map(row => row.name);
+    const want = [...names].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+    assert.deepEqual(got, want);
+    assert.deepEqual(got.slice(0, 3), ['apple', 'Apple', 'Ärger']);
+});
