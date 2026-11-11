@@ -427,6 +427,27 @@ test('member cards, target lines and the grouped order line come from the staged
         ['1. Bristle-boar 1  Unhurt', '2. Bristle-boar 3  Unhurt'], 'Down members are not targetable');
 });
 
+test('the board draws only party members who have not left, and draws one again when they return', async t => {
+    const { doc, host } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host);
+    const sister = await makeBlocks(host, { who: 'Temiwa', character: { left: true } });
+    await defineFoes(host, [['Bristle-boar', 1, 1, 5]]);
+    const foe = { slot: 11, group: 1, n: 1, name: 'Bristle-boar', value: 4, size: 4, pack: false, count: 1, left: 1, attacks: 1, standing: true };
+    const order = [{ id: 'c:wessel', name: 'Wessel', party: true }, { id: 'f:11', name: 'Bristle-boar', party: false }];
+    const names = root => [...root.querySelectorAll('.rpg-board-cards .rpg-pc .rpg-name')].map(node => node.textContent);
+    for (const members of [[foe], null]) {
+        assert.deepEqual(names(renderMembers(t, { doc, host, members, order })), ['Wessel'], `a member who left is not drawn (${members ? 'members' : 'plain'} layout)`);
+        discardBoard(host.ctx.chatMetadata);
+    }
+    const back = await host.sdk.command('dm.set', { module: sister.character, field: 'left', value: false });
+    assert.equal(back.ok, true, back.message);
+    for (const members of [[foe], null]) {
+        assert.deepEqual(names(renderMembers(t, { doc, host, members, order })).sort(), ['Temiwa', 'Wessel'], 'a member who returns is drawn again');
+        discardBoard(host.ctx.chatMetadata);
+    }
+});
+
 test('E5: a newly opened board shows the seeded member order before the first choice', async t => {
     const { doc, host, ui } = await page(t, { formula: 'standard' });
     await begin(host);
