@@ -108,6 +108,7 @@ Last checked: 2026-11-07.
 - `src/v2/view/clock.js`: formats story minutes as calendar dates and times using the best available calendar.
 - `src/v2/view/download.js`: saves text files through a temporary browser download link.
 - `src/v2/view/scroll-cue.js`: marks which edge of a scroller has overflow and brings items into view.
+- `src/v2/view/screenbar-strip.css`: the screen bar as one scrolling strip (edge fades, snapping slots, a centred full row from 1000px), loaded after mounts.css and glass.css.
 - `src/v2/view/tab-merge.js`: merges screens that share a tab id into one tab with ordered sections.
 
 ## src/v2/view/mounts/
