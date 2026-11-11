@@ -8,7 +8,7 @@ import { hashJson } from '../../replay.js';
 import { fill } from '../../strings.js';
 import { actorIdOf } from '../../lean-rpg/roster.js';
 import { isTypedSkills } from '../../skill-slots.js';
-import { E, B, J, stateOf, draftOf, activeCount, blockCount, instancePath, checkedTarget, newInstance } from './shared.js';
+import { E, B, J, partyWitness, partyFull, stateOf, draftOf, activeCount, blockCount, instancePath, checkedTarget, newInstance } from './shared.js';
 
 export function createBlocks(deps) {
     const { reader, offers, dependency, guard, finish, defaultSeeds, seededData, restore } = deps;
@@ -89,6 +89,9 @@ export function createBlocks(deps) {
         // fields no kind sets: only its kinds count.
         const slots = definition.role ? Object.keys(definition.kinds).length : Object.keys(definition.state).length + Object.values(definition.kinds).filter(kind => kind.ui).length;
         if (slots > (definition.role === 'skills' && isTypedSkills(definition.state) ? L.skillsKinds : L.kinds)) refuse('DM_BUDGET', 'fields', B.kindLimit);
+        // A Character made here (the wizard, Edit first, the template) joins the party: the limit is checked now and the party is witnessed for a replay.
+        const joins = action === 'define' && definition.role === 'character';
+        if (joins) partyFull(ctx, prefix);
         dependency(definition, prefix);
         const inputs = inputsOf(prefix, definition), hash = dataModuleHash(definition);
         const generation = Math.max(ctx.rev, (old?.generation ?? 0) + 1);
@@ -121,7 +124,7 @@ export function createBlocks(deps) {
         if (old && old.hash !== hash && !Object.values(draft.active).some(entry => entry.hash === old.hash)) delete draft.pins[old.hash];
         const recorded = guard(ctx, prefix, { kind: `dm.${action}`, module, hash, generation,
             reads: previous ? [['fields'], ['timers'], ['offers'], ['settled']] : [], imports: Object.keys(definition.imports),
-            decision: { subjects: ['chat'], inputs, previous: old?.hash ?? null }, pin, bound: true });
+            decision: { subjects: ['chat'], inputs, previous: old?.hash ?? null }, pin, bound: true, party: joins && partyWitness(ctx) });
         const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module, generation },
             summary: fill(action === 'define' ? B.defined : B.redefined, { name: definition.name }) });
         answer.data.edit = true;

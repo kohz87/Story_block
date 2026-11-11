@@ -4,8 +4,10 @@ import { validateDataModules, dataModuleDefaults, dataModuleHash } from '../chec
 import { bytes, refuse } from '../interpreter.js';
 import { activeDefinition } from '../adapters.js';
 import { hashJson } from '../../replay.js';
-import { STRINGS } from '../../strings.js';
+import { STRINGS, fill } from '../../strings.js';
 import { rpgLib } from '../../rpg-lazy.js';
+import { DM_OLD_ROOM, dmRoom } from '../schema.js';
+import { PARTY_MAX } from '../../lean-rpg/names.js';
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
@@ -34,6 +36,12 @@ const subjectsOf = (state, id) => state.domains.dataModules?.active?.[id]?.subje
 const activeCount = domain => Object.keys(domain?.active ?? {}).length;
 const blockCount = domain => Object.values(domain?.active ?? {})
     .filter(active => domain?.pins?.[active.hash]?.packId === 'chat').length;
+// Every way a Character joins or comes back (a story `+ party` / `- party` line, the reader's Add to party, the wizard's and the template's Character) records the
+// party it relied on and keeps the 8-active limit: `partyWitness` says a guard records it (a story reply from before the `partyRoom` mark does not), `partyFull` refuses live.
+const partyWitness = ctx => ctx.cause === 'ui' || (ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM);
+const partyFull = (ctx, prefix) => {
+    if (ctx.cause === 'ui' && (rpgLib()?.partyOf(prefix) ?? []).filter(person => !person.left).length >= PARTY_MAX) refuse('REFUSED', '', fill(J.fullActive, { max: PARTY_MAX }));
+};
 const instancePath = (id, subject) => ['instances', id, ...(subject === 'chat' ? ['chat'] : ['characters', subject])];
 const rawDefinition = definition => Object.fromEntries(Object.entries(definition).filter(([key]) => !['id', 'pack'].includes(key)));
 // Clock/actor identities and inputs used for eligibility are live prerequisites even when the
@@ -64,4 +72,4 @@ function newInstance(definition, inputs) {
 }
 
 export { E, B, rpg, J, SET_FIELDS, initial, kept, hashOf, sizeOf, draftOf, stateOf, pairKey, subjectsOf,
-    activeCount, blockCount, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };
+    activeCount, blockCount, partyWitness, partyFull, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };

@@ -1,6 +1,6 @@
 // The read-only data-module views (moved out of data-modules/part.js unchanged): domain checks,
 // module lookup and values, pinned screens, grammar, replay witnesses and the guard check.
-import { DM_LIMITS as L, dmObject } from '../schema.js';
+import { DM_LIMITS as L, DM_OLD_ROOM, dmObject } from '../schema.js';
 import { validateDataMigration } from '../check.js';
 import { copy, refuse, atPath, scalarHolds, conditionHolds } from '../interpreter.js';
 import { activeDefinition, actorsOf, instanceOf, publicView, projectImport } from '../adapters.js';
@@ -141,10 +141,12 @@ export function dataModuleGuard(view, info) {
             if (join && (!Array.isArray(more) || more.length < 1 || more.length > 1 + (rpgLib()?.RPG_EXTRAS.length ?? Infinity) || !more.every(dmObject))) return { ok: false, reason: 'Malformed data module guard.' };
             if (domain?.active?.[predicate.module] || recorded.pin.interpreter !== 1 || recorded.pin.definition.id !== predicate.module
                 || hashOf(recorded.pin.definition) !== predicate.hash) return { ok: false, reason: 'Pin selection or checked definition changed.' };
-            if (activeCount(domain) + more.length >= L.pins) return { ok: false, reason: 'Data module limit changed.' };
+            // (a join recorded without the party witness was made under the old room, 8 own blocks and 16 pins: the guard keeps that, as Re-read does)
+            const room = join && recorded.selector?.party !== true ? DM_OLD_ROOM : L;
+            if (activeCount(domain) + more.length >= room.pins) return { ok: false, reason: 'Data module limit changed.' };
             const chatBlock = (pin, module) => pin?.packId === 'chat' && pin.packVersion === '0' && pin.packHash === null && pin.definition?.pack === 'chat'
                 && module === `pack.chat/${pin.definition.slug}` && pin.definition.scope === 'chat';
-            if ((predicate.kind !== 'dm.pin' && (!chatBlock(recorded.pin, predicate.module) || blockCount(domain) + more.length >= L.definitions))) return { ok: false, reason: 'Block selection or chat limit changed.' };
+            if ((predicate.kind !== 'dm.pin' && (!chatBlock(recorded.pin, predicate.module) || blockCount(domain) + more.length >= room.definitions))) return { ok: false, reason: 'Block selection or chat limit changed.' };
             // A companion joined a story that had blocks: if every one of them is gone (a delete or swipe of the reply that made them), the join is skipped
             // with its own reason instead of failing to find the place it was written in.
             if (join && recorded.decision?.base === true && !domain) return { ok: false, reason: 'The blocks this story had when the companion joined are gone; Re-read this action.' };

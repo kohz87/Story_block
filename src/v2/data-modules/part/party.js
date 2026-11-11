@@ -1,6 +1,6 @@
 // The data modules' companions (extracted from data-modules/part.js): joining, leaving and
 // returning, their signature skills and gear, and the Ask card's reader action.
-import { DM_LIMITS as L, DM_OLD_ROOM, dmObject, dmRoom } from '../schema.js';
+import { dmObject, dmRoom } from '../schema.js';
 import { validateDataModules } from '../check.js';
 import { copy, refuse, atPath } from '../interpreter.js';
 import { activeDefinition, inputsOf, instanceOf } from '../adapters.js';
@@ -14,7 +14,7 @@ import { actorIdOf } from '../../lean-rpg/roster.js';
 import { placeOf } from '../../domains/gear.js';
 import { CLASS_NAMES } from '../../lean-rpg/names.js';
 import { packLevelsOf } from '../../lean-rpg/levels.js';
-import { E, B, J, rpg, stateOf, draftOf, instancePath, blockCount, activeCount, hashOf, newInstance } from './shared.js';
+import { E, B, J, rpg, partyWitness, stateOf, draftOf, instancePath, blockCount, activeCount, hashOf, newInstance } from './shared.js';
 import { skillCapacity, skillRow } from './skills.js';
 
 export function createParty(deps) {
@@ -184,7 +184,7 @@ export function createParty(deps) {
         return answer;
     }
     // A reply captured with the `partyRoom` mark records the party it relied on (replayInputs `party`); an older one does not.
-    const marked = ctx => ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM;
+    const marked = partyWitness;
     function makeParty(ctx, request, soul, call, { added = false } = {}) {
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
