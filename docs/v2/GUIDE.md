@@ -52,8 +52,9 @@ the editor in Settings → Blocks. The RPG's blocks are listed too, marked **RPG
 tabs while the RPG is on, so their Show as is locked.
 Templates are shared across your chats, without the current values; manage them under **Settings →
 Tabs & Packs → Block templates**. Swipe or delete the reply that created, changed or removed a block
-to take that action back. A chat can have up to eight blocks, and blocks and pack modules share the
-16-pin budget, including retained pins. Definitions and their generated story kinds must fit the
+to take that action back. A chat can have up to 20 blocks of its own, and blocks and pack modules share the
+28-pin budget, including retained pins. (A reply written before the party-room change keeps the old 8 and 16 when it is read again; the
+party itself holds at most 8 active members.) Definitions and their generated story kinds must fit the
 data-module limits.
 
 An exported block keeps its tab, Home card and buttons when its pack is imported and enabled. Edit
@@ -64,7 +65,7 @@ The story decides how much money and how many items a reply gives; there is no p
 
 ## RPG
 
-The optional RPG adds a party sheet, automatic dice for fights and checks, and levels and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. In a new chat, Health, Stamina and Mana are one smooth strip each (red, green and blue; the strip dulls at 3/4 and 1/3 and shows a word and a number like "Hurt · 5/10"); XP comes from board fights only, and resting is the story's (no rest buttons: when the character rests, the narrator writes it); Skills are combat or utility, with a **Used for** switch, and utility skills stay off the fight board and Auto. An existing chat keeps its old bars and rules. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
+The optional RPG adds a party sheet, automatic dice for fights and checks, and levels and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. In a new chat, Health, Stamina and Mana are one smooth strip each (red, green and blue; the strip dulls at 3/4 and 1/3 and shows a word and a number like "Hurt · 5/10"); XP comes from board fights only, and resting is the story's (no rest buttons: when the character rests, the narrator writes it); Skills are combat or utility, with a **Used for** switch, and utility skills stay off the fight board and Auto. An existing chat keeps its old bars and rules. On the Party tab, members who left fold into one row under the cards (folded by default; the header says "N active · M left"); opening it shows their cards, and the choice is kept per chat on this device. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
 
 With the RPG on, the Fight tab can also offer a **fight board**. Choose each character's action, tap or number-key it, and the code rolls the exchange at once. Each rolled exchange is final; use **Discard fight** to start again after confirming. If the sheet or gear changes before sending, restore it or discard the fight.
 

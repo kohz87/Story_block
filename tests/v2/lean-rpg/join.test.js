@@ -9,11 +9,11 @@ import { STANDARD } from '../../../src/v2/lean-rpg/rules.js';
 import { levelOfClass } from '../../../src/v2/lean-rpg/formula.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
-import { definition as filler } from '../data-modules/helpers.js';
+import { definition as filler, pack as dmPack } from '../data-modules/helpers.js';
 import { DM_OLD_ROOM } from '../../../src/v2/data-modules/schema.js';
 import { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
-import { setRpgLib } from '../../../src/v2/rpg-lazy.js';
+import { rpgLib, setRpgLib } from '../../../src/v2/rpg-lazy.js';
 import * as leanRpg from '../../../src/v2/lean-rpg/index.js';
 import { partyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { fakeState, characterDefinition, skillsDefinition } from './view/helpers.js';
@@ -716,4 +716,43 @@ test('2.17.0: a companion made by a party line or Add to party has the same leve
     const rule = character.rules.find(item => item.id === 'level-up');
     assert.equal(character.rules.some(item => item.id === 'class-up'), false);
     assert.deepEqual(rule.then.find(effect => effect.path[0] === 'points'), { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], ['get', ['rise']]], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
+});
+
+test('wizard characters replay with the RPG off: two made without a roll, join or note stay after a rebuild and a cold reload, the RPG off and then on', { skip }, async t => {
+    const host = await world({ feature: false, wessel: false });
+    t.after(() => host.close());
+    setRpgLib(null);
+    await make(host, 'Ann');
+    await make(host, 'Bob');
+    assert.equal(rpgLib(), null, 'the RPG library was never loaded');
+    const both = ['pack.chat/ann', 'pack.chat/ann-skills', 'pack.chat/bob', 'pack.chat/bob-skills'];
+    assert.deepEqual(blocks(host), both);
+    await settled(host, 'RPG off');
+    assert.equal(rpgLib(), null, 'a cold reload did not need the library');
+    assert.deepEqual(blocks(host), both, 'both are still there');
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    await settled(host, 'RPG on');
+    assert.deepEqual(blocks(host), both, 'the same with the RPG on');
+});
+
+test('a standard Character pinned from a pack keeps the 8-active limit and records the party: refused at eight, and with the earlier leave deleted it is skipped, not a ninth', { skip }, async t => {
+    const hero = templateCharacter();
+    delete hero.slug; hero.slug = 'pinned-hero'; hero.name = 'Pinned hero';
+    const host = await packedAsk();
+    t.after(() => host.close());
+    const installed = await host.packs.packs.install(dmPack([hero]));
+    assert.equal(installed.ok, true, JSON.stringify(installed.errors));
+    const offer = () => host.sdk.query('dataModules.offers').find(entry => entry.module.endsWith('/pinned-hero'));
+    const pinIt = () => host.sdk.command('dm.pin', { module: offer().module, hash: offer().hash, packHash: offer().packHash, subjects: [] });
+    const refused = await pinIt();
+    assert.equal(refused.ok, false);
+    assert.match(refused.message, /the party is full \(8 active\); someone must leave first/);
+    await host.send('Ren goes.', reply('- party Ren'));
+    const leave = lastAt(host);
+    const pinned = await pinIt();
+    assert.equal(pinned.ok, true, pinned.message);
+    assert.equal(active(host), 8);
+    await host.st.deleteMessage(leave);
+    await settled(host, 'after deleting the leave');
+    assert.equal(active(host), 8, 'Ren is active again and the pin is skipped, not a ninth');
 });

@@ -2,7 +2,8 @@
 // data-modules/part.js unchanged): pin/instance paths, budgets, and the checked target.
 import { validateDataModules, dataModuleDefaults, dataModuleHash } from '../check.js';
 import { bytes, refuse } from '../interpreter.js';
-import { activeDefinition } from '../adapters.js';
+import { activeDefinition, instanceOf } from '../adapters.js';
+import { oneLine } from '../../../text.js';
 import { hashJson } from '../../replay.js';
 import { STRINGS, fill } from '../../strings.js';
 import { rpgLib } from '../../rpg-lazy.js';
@@ -39,8 +40,21 @@ const blockCount = domain => Object.values(domain?.active ?? {})
 // Every way a Character joins or comes back (a story `+ party` / `- party` line, the reader's Add to party, the wizard's and the template's Character) records the
 // party it relied on and keeps the 8-active limit: `partyWitness` says a guard records it (a story reply from before the `partyRoom` mark does not), `partyFull` refuses live.
 const partyWitness = ctx => ctx.cause === 'ui' || (ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM);
+// (the party is read from this domain's own blocks, never from the lazy RPG library: a chat with the RPG off must replay the same witness; it is lean-rpg/join.js partyOf's
+// [module, left] pairs, a chat-scope Character with a name)
+const partyPairs = state => {
+    const out = [], active = state?.domains?.dataModules?.active;
+    for (const module of Object.keys(active !== null && typeof active === 'object' ? active : {})) {
+        const definition = activeDefinition(state, module);
+        if (definition?.role !== 'character' || definition.scope !== 'chat') continue;
+        const fields = instanceOf(state, module)?.fields;
+        if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) continue;
+        if (oneLine(fields.who) || oneLine(definition.name)) out.push([module, fields.left === true]);
+    }
+    return out;
+};
 const partyFull = (ctx, prefix) => {
-    if (ctx.cause === 'ui' && (rpgLib()?.partyOf(prefix) ?? []).filter(person => !person.left).length >= PARTY_MAX) refuse('REFUSED', '', fill(J.fullActive, { max: PARTY_MAX }));
+    if (ctx.cause === 'ui' && partyPairs(prefix).filter(pair => !pair[1]).length >= PARTY_MAX) refuse('REFUSED', '', fill(B.partyFull, { max: PARTY_MAX }));
 };
 const instancePath = (id, subject) => ['instances', id, ...(subject === 'chat' ? ['chat'] : ['characters', subject])];
 const rawDefinition = definition => Object.fromEntries(Object.entries(definition).filter(([key]) => !['id', 'pack'].includes(key)));
@@ -72,4 +86,4 @@ function newInstance(definition, inputs) {
 }
 
 export { E, B, rpg, J, SET_FIELDS, initial, kept, hashOf, sizeOf, draftOf, stateOf, pairKey, subjectsOf,
-    activeCount, blockCount, partyWitness, partyFull, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };
+    activeCount, blockCount, partyWitness, partyPairs, partyFull, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };

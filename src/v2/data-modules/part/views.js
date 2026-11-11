@@ -12,7 +12,7 @@ import { blockTabScreen } from '../block-screen.js';
 import { boardGrammar, boardXpGuide } from '../board-static.js';
 import { isMarkedCharacter, restLine } from '../recovery.js';
 import { rpgLib } from '../../rpg-lazy.js';
-import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget } from './shared.js';
+import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget, partyPairs } from './shared.js';
 
 export function validateDomain(domain) {
     if (!dmObject(domain) || Object.keys(domain).some(key => !['pins', 'active', 'instances', 'perReply', 'boardFlags'].includes(key))
@@ -114,7 +114,7 @@ export function replayInputs(state, { module, subject = 'chat', reads = [], impo
     return { active: active ? { hash: active.hash, generation: active.generation, attached: active.subjects.includes(subject) } : null,
         ...(clock ? { clock: state?.domains?.director?.time?.minutes ?? null } : {}),
         // (a marked join or return: who is in the party and who has left, so an earlier leave that went changes the answer; unmarked replies record none)
-        ...(party ? { party: (rpgLib()?.partyOf(state) ?? []).map(person => [person.module, person.left]) } : {}),
+        ...(party ? { party: partyPairs(state) } : {}),
         reads: reads.map(path => ({ path, value: copy(atPath(instance, path)) })),
         imports: Object.fromEntries(imports.map(alias => [alias, (adapters ?? definition?.imports)?.[alias] ? projectImport(state, (adapters ?? definition.imports)[alias]) : null])),
         actor: actor ? actorsOf(state)[subject] ?? null : null,

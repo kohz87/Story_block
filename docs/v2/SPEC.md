@@ -210,6 +210,11 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   and no earlier op of the block wrote the list, the append is passed over, so deleting the reply in
   between does not list someone twice. Ops stored without the mark replay as written, except appends to the scene's present list, which are
   treated as marked (2.11.2: that list never holds a name twice, so the old outcome was a skipped block).
+  (f) The party room (`partyRoom` rule mark, `DM_LIMITS` 20 blocks / 28 pins; a story reply without the mark keeps `DM_OLD_ROOM`, 8 / 16, whenever it is read again).
+  Every way a chat-scope Character comes in (a `+ party` join or return, Add to party, the wizard, a template, a pack's `dm.pin`) records, in its guard's selector
+  (`party: true`), the party it relied on: `[module, left]` for each Character block, read from the data modules' own state (never from the lazily loaded RPG
+  library, so a chat with the RPG off replays the same). A replay whose party differs fails the guard and the block is skipped, so a deleted earlier leave never
+  leaves a ninth active member. A record without the witness (before the mark, or an old pin) replays as it was.
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,

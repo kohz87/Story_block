@@ -35,6 +35,9 @@ export function createBlocks(deps) {
             if (!result.ok) refuse('DM_SCHEMA', result.errors[0].path, result.errors[0].message);
             addition = dataModuleDefaults(result.add);
         }
+        // A standard Character pinned from a pack joins the party like one made here: the live limit and the witness (a pin recorded before has none).
+        const joins = !migrate && definition.role === 'character' && definition.scope === 'chat';
+        if (joins) partyFull(ctx, prefix);
         const pin = { definition, packId: offer.packId, packVersion: offer.packVersion, packHash: offer.packHash, interpreter: 1 };
         draft.pins[offer.hash] = copy(pin);
         draft.active[definition.id] = { hash: offer.hash, generation, subjects };
@@ -43,7 +46,7 @@ export function createBlocks(deps) {
         else for (const subject of subjects) Object.assign(atPath(draft, instancePath(definition.id, subject)).fields, addition);
         const decision = { subjects, inputs, addition, previous: old?.hash ?? null };
         const recorded = guard(ctx, prefix, { kind: migrate ? 'dm.migrate' : 'dm.pin', module: definition.id, hash: offer.hash, generation,
-            imports: Object.keys(definition.imports), decision, pin, bound: true });
+            imports: Object.keys(definition.imports), decision, pin, bound: true, party: joins && partyWitness(ctx) });
         return finish(ctx, prefix, draft, recorded, { pin: true, result: { subjects, generation }, summary: `${definition.name}: ${migrate ? 'migrated' : 'pinned'} for this chat.` });
     }
     function changeBlock(ctx, payload, action, call = {}) {
