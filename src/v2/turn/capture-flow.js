@@ -374,7 +374,7 @@ export function createCaptureFlow(s, deps) {
             }
             state = result.state ?? (base ? state : store.head());
             // The money guard (warns only; the line is applied): a repeated payment or one far above the purse.
-            const warned = line.op === '+' ? moneyWarning(result.receipt, [...earlierReceipts(ctx?.chat, index), ...receipts]) : null;
+            const warned = line.op === '+' ? moneyWarning(result.receipt, [...earlierReceipts(ctx?.chat, index), ...receipts], earlierReceipts(ctx?.chat, index, 1)) : null;
             if (warned) found.push(problem({ module: entry.moduleId, index, line: line.raw, code: 'LIMITED', message: warned }));
             receipts.push(result.receipt);
             // Used, but not all of it (a clamp): the owner says why, and that goes to the Problems list.
