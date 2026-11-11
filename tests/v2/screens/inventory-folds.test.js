@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { stackOf } from '../../../src/v2/view/modal-stack.js';
 import { gearHost } from '../helpers/gear-ui-state.js';
 import { createInventoryGridWidget, createInventoryViewWidget, INVENTORY_GRID_WIDGET, INVENTORY_VIEW_WIDGET } from '../../../src/v2/screens/inventory-add.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const skip = renderSkip;
 function world() {
@@ -245,5 +246,5 @@ test('the inventory sheet\'s style sheet is imported by size.css and its rules a
     const read = name => readFileSync(new URL(`../../../src/v2/view/${name}`, import.meta.url), 'utf8');
     assert.match(read('size.css'), /^@import url\('\.\/inv-sheet\.css'\);$/m);
     assert.match(read('inv-sheet.css'), /\.ss-dialog\.inv-sheet/);
-    assert.doesNotMatch(read('mounts.css'), /inv-sheet/);
+    assert.doesNotMatch(cssOf('mounts'), /inv-sheet/);
 });

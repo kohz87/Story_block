@@ -4,10 +4,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { cssOf } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/view/${path}`, import.meta.url), 'utf8');
-const mounts = read('mounts.css');
-const glass = read('glass.css');
+const mounts = cssOf('mounts');
+const glass = cssOf('glass');
 
 // The declarations of the first rule whose selector is `selector` (the text before its `{`, with the rest of the line).
 const rules = (css, selector) => {

@@ -9,11 +9,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ROOT_SELECTOR, THEME_ROOTS, themeCss, themeTokens } from '../../../src/v2/view/theme.js';
 import { changesCardScreen } from '../../../src/v2/screens/changes-card.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
-const host = read('view/host.css');
-const mounts = read('view/mounts.css');
-const glass = read('view/glass.css');
+const host = cssOf('host');
+const mounts = cssOf('mounts');
+const glass = cssOf('glass');
 
 // The declarations of every rule whose selector is exactly `selector` (outside at-rules; `at` starts the search at an
 // at-rule, e.g. a media query), joined: a later rule that adds to an earlier one counts.
@@ -47,7 +48,7 @@ test('the three chat-side surfaces are theme roots, so the look\'s tokens reach 
     }
     // The literal lists in the stylesheets name the same roots (a rule under a missing root would never apply).
     for (const file of ['controls.css', 'glass.css', 'settings.css']) {
-        const text = read(`view/${file}`);
+        const text = file === 'controls.css' ? read('view/controls.css') : cssOf(file.replace('.css', ''));
         assert.ok(text.includes('.story-suite-bar, .story-suite-extras, .story-suite-reply-note'), file);
     }
     assert.match(themeCss({ scheme: 'dark', panel: 'glass' }), /\.story-suite-bar[^{]*\{/);
@@ -176,7 +177,7 @@ test('the story panel: the tabs are the screen bar at its foot (no strip left), 
 });
 
 test('the bar\'s buttons are at least 40px tall on a phone (44 preferred); desktop keeps its 36px pills', () => {
-    const host = readFileSync(new URL('../../../src/v2/view/host.css', import.meta.url), 'utf8');
+    const host = cssOf('host');
     const phone = host.slice(host.indexOf('@media (max-width: 560px)'));
     const at = phone.indexOf('.story-suite-bar .menu_button');
     assert.ok(at > 0, 'a phone rule for the bar buttons');
@@ -186,7 +187,7 @@ test('the bar\'s buttons are at least 40px tall on a phone (44 preferred); deskt
 });
 
 test('the HUD strip keeps 8px of air above SillyTavern\'s message box (#send_form) at every width', () => {
-    const mounts = read('view/mounts.css');
+    const mounts = cssOf('mounts');
     const rule = /\.ss-hud \{([^}]*)\}/.exec(mounts)?.[1] ?? '';
     assert.match(rule, /margin: 0 0 8px;/, 'a bottom margin of 8px on the strip');
 });

@@ -7,9 +7,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PALETTES, ROOT_SELECTOR, parseColor } from '../../../src/v2/view/theme.js';
 import { HOST_SETTINGS_SCHEMA } from '../../../src/v2/sdk.js';
+import { cssOf, hostImports } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
-const css = read('view/settings.css');
+const css = cssOf('settings');
 
 function splitTop(text) {
     const out = [];
@@ -56,7 +57,7 @@ const all = rules(css);
 const block = (selector, at = []) => all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} ${selector}`) && at.every((a, n) => rule.at[n] === a) && rule.at.length === at.length).map(rule => rule.block).join('\n');
 
 test('host.css loads settings.css after glass.css', () => {
-    assert.match(read('view/host.css'), /@import url\('\.\/glass\.css'\);\s*@import url\('\.\/settings\.css'\);/);
+    assert.match(hostImports(), /@import url\('\.\/glass-pages-modules\.css'\);\s*@import url\('\.\/settings-window\.css'\);\s*@import url\('\.\/settings-folds\.css'\);/);
 });
 
 test('every rule is scoped to Story Suite\'s roots; the window weighs two classes at most, the old folds\' rules a few more to beat host.css and SillyTavern\'s own', () => {
@@ -153,7 +154,7 @@ test('the folds and rows the sections still draw take the look: a tile card, tok
 // ---- the legacy surfaces
 
 test('the side sheet is glass when the theme sets the glass tokens, the tint as before when it does not', () => {
-    const host = read('view/host.css');
+    const host = cssOf('host');
     const sheet = host.slice(host.indexOf('.story-suite-sheet {'), host.indexOf('}', host.indexOf('.story-suite-sheet {')));
     assert.match(sheet, /background: var\(--ss-sheet-bg, var\(--story-suite-bg\)\);/, 'the tint is the fallback');
     assert.match(sheet, /backdrop-filter: var\(--ss-sheet-blur, blur\(var\(--SmartThemeBlurStrength, 8px\)\)\);/);
@@ -161,7 +162,7 @@ test('the side sheet is glass when the theme sets the glass tokens, the tint as 
 });
 
 test('the game view is glass when the theme sets the glass tokens, opaque as before when it does not', () => {
-    const mounts = read('view/mounts.css');
+    const mounts = cssOf('mounts');
     const at = mounts.indexOf('.ss-gameview {');
     const base = mounts.slice(at, mounts.indexOf('}', at));
     assert.match(base, /background-color: var\(--ss-sheet-bg, var\(--ss-surface\)\);/);
@@ -173,7 +174,7 @@ test('the game view is glass when the theme sets the glass tokens, opaque as bef
 });
 
 test('the layer around the window paints a see-through scrim and no filter, so the page reaches the window\'s glass', () => {
-    const host = read('view/host.css');
+    const host = cssOf('host');
     const at = host.indexOf('.story-suite-overlay {');
     const layer = host.slice(at, host.indexOf('}', at));
     assert.match(layer, /background: color-mix\(in srgb, var\(--ss-scrim, rgba\(0, 0, 0, 0\.55\)\) \d+%, transparent\);/);
@@ -184,7 +185,7 @@ test('the layer around the window paints a see-through scrim and no filter, so t
 // ---- the features form (glass.css, step 3b)
 
 test('the features form: tiles on the tokens, two columns where there is room and one on a phone, the groups plain headings', () => {
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     const rule = selector => {
         const head = `${ROOT_SELECTOR} ${selector} {`;
         const at = glass.indexOf(head);
@@ -209,7 +210,7 @@ test('the features form: tiles on the tokens, two columns where there is room an
 // ---- step 3c
 
 test('the Money page: cards of stacked fields, one column and two from 900px, the Coins card down the left', () => {
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     const rule = (selector, media = null) => {
         const body = media ? glass.slice(glass.indexOf(media)) : glass;
         const head = `${ROOT_SELECTOR} ${selector} {`;
@@ -227,7 +228,7 @@ test('the Money page: cards of stacked fields, one column and two from 900px, th
 // ---- step 3d
 
 test('the Assist page: cards of stacked fields, one column and two from 900px, the Safety net card down the right; a locked row\'s tag is a sentence', () => {
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     const rule = (selector, media = null) => {
         const body = media ? glass.slice(glass.indexOf(media, glass.indexOf('the Assist page'))) : glass;
         const head = `${ROOT_SELECTOR} ${selector} {`;
@@ -249,8 +250,8 @@ test('the Assist page: cards of stacked fields, one column and two from 900px, t
 // ---- step 3e
 
 test('the Tabs & Packs page: one column, two from 900px with Prompt across both; buttons, tab rows and the footer bar are styled', () => {
-    const glass = read('view/glass.css');
-    const settings = read('view/settings.css');
+    const glass = cssOf('glass');
+    const settings = cssOf('settings');
     const rule = (sheet, selector, media = null, after = null) => {
         const from = after ? sheet.indexOf(after) : 0;
         const body = media ? sheet.slice(sheet.indexOf(media, from)) : sheet.slice(from);
@@ -275,13 +276,13 @@ test('the Tabs & Packs page: one column, two from 900px with Prompt across both;
     assert.match(rule(settings, '.ss-settings-foot-over .ss-settings-foot-fill'), /var\(--ss-warn\)/);
     assert.equal(weight(`${ROOT_SELECTOR} .ss-prompt-card .ss-form .ss-section`), 30);
     // The old Tabs list and its rules are gone.
-    assert.doesNotMatch(read('view/host.css') + settings, /story-suite-taborder/);
+    assert.doesNotMatch(cssOf('host') + settings, /story-suite-taborder/);
 });
 
 // ---- step 3f
 
 test('the Modules page: one column of full-width cards; a module\'s fields in two columns from 900px; groups are sub-sections, a fold has a chevron that turns', () => {
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     const rule = (selector, media = null, after = 'the Modules page') => {
         const from = glass.indexOf(after);
         const body = media ? glass.slice(glass.indexOf(media, from)) : glass.slice(from);
@@ -302,7 +303,7 @@ test('the Modules page: one column of full-width cards; a module\'s fields in tw
     assert.equal(weight(`${ROOT_SELECTOR} .ss-section-fold-open > .ss-section-head::before`) <= 30, true);
     // The end of a page clears the footer bar: the page scrolls inside a box that ends where the bar begins (the bar is in the flow, not over
     // the page), and keeps a bottom padding of its own.
-    const settings = read('view/settings.css');
+    const settings = cssOf('settings');
     const at = settings.indexOf(`${ROOT_SELECTOR} .ss-settings-content {`);
     assert.match(settings.slice(at, settings.indexOf('}', at)), /padding: var\(--ss-space-4\) var\(--ss-space-4\) calc\(var\(--ss-space-5\) \+ env\(safe-area-inset-bottom, 0px\)\);/);
     const foot = settings.slice(settings.indexOf(`${ROOT_SELECTOR} .ss-settings-foot {`));
@@ -310,7 +311,7 @@ test('the Modules page: one column of full-width cards; a module\'s fields in tw
 });
 
 test('a select never clips its text: it ends in an ellipsis; the Look choices are short words, their help says what each is', () => {
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     const at = glass.indexOf(`${ROOT_SELECTOR} .ss-select {`);
     assert.ok(at >= 0);
     assert.match(glass.slice(at, glass.indexOf('}', at)), /overflow: hidden;\s*text-overflow: ellipsis;\s*white-space: nowrap;/);
@@ -323,7 +324,7 @@ test('a select never clips its text: it ends in an ellipsis; the Look choices ar
 test('a light scheme\'s slider track is a light token: the unfilled part is a faint tint, not the body colour, and nothing of SillyTavern\'s bar is left under it', () => {
     const track = parseColor(PALETTES.light.track);
     assert.ok(track && track.a <= 0.15, `light track ${PALETTES.light.track}`);
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     for (const pseudo of ['::-webkit-slider-runnable-track', '::-moz-range-track']) {
         const head = `${ROOT_SELECTOR} .ss-slider .ss-slider-input${pseudo} {`;
         const at = glass.indexOf(head);
@@ -340,7 +341,7 @@ test('a light scheme\'s slider track is a light token: the unfilled part is a fa
 
 // ---- the phone hotfix: nothing scrolls around the window; the story behind does not read through; folds a finger can hit
 test('the layer and the window clip (a script cannot scroll them) and do not chain scrolling to the page', () => {
-    const host = read('view/host.css');
+    const host = cssOf('host');
     const layer = host.slice(host.indexOf('.story-suite-overlay {'), host.indexOf('}', host.indexOf('.story-suite-overlay {')));
     assert.match(layer, /overflow: hidden;\s*overflow: clip;\s*overscroll-behavior: none;/);
     const at = css.indexOf(`${ROOT_SELECTOR} .ss-settings {`);
@@ -357,7 +358,7 @@ test('a full-screen phone window is dense: the tint is layered over itself below
     assert.doesNotMatch(phone.block, /backdrop-filter/);
     assert.equal(weight(`${ROOT_SELECTOR} .ss-settings`) <= 40, true);
     // The game view is full screen on a phone too.
-    const mounts = read('view/mounts.css');
+    const mounts = cssOf('mounts');
     const at = mounts.indexOf('@media (max-width: 759.98px)');
     assert.ok(at > 0);
     // the phone's layers are Glass only (a token the theme sets for Glass); the window's own layers are unchanged
@@ -365,7 +366,7 @@ test('a full-screen phone window is dense: the tint is layered over itself below
 });
 
 test('folds on the Features and Modules pages are whole rows (44px), a fold of module features has the chevron', () => {
-    const glass = read('view/glass.css');
+    const glass = cssOf('glass');
     const at = glass.indexOf('Folds a finger can hit');
     assert.ok(at > 0);
     const block = glass.slice(at, glass.indexOf('/* helpers of the UI sample', at));
@@ -374,6 +375,6 @@ test('folds on the Features and Modules pages are whole rows (44px), a fold of m
 });
 
 test('the desktop settings window puts Glass over an opaque floor (the phone\'s floor), so the busy page behind does not reach its text', () => {
-    const css = readFileSync(new URL('../../../src/v2/view/settings.css', import.meta.url), 'utf8');
+    const css = cssOf('settings');
     assert.match(css, /@media \(min-width: 760px\) \{\s*:where\([^)]*\) \.ss-settings \{\s*background-color: var\(--ss-sheet-floor, transparent\);\s*background-image: linear-gradient\(var\(--ss-glass\), var\(--ss-glass\)\);/);
 });

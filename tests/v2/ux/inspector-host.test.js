@@ -9,6 +9,7 @@ import { mountUi } from '../../../src/v2/ui-host.js';
 import { createHudMount } from '../../../src/v2/view/mounts/index.js';
 import { readFileSync } from 'node:fs';
 import { fakeRenderer, screen, screensWith, setupDom } from '../view/mounts/helpers.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
 
@@ -104,7 +105,7 @@ test('hud: the strip marks the side with more to scroll to, follows scrolling, a
     assert.equal(strip.getAttribute('data-ss-more'), 'both');
     hud.hide();
     assert.equal(sheld.querySelector('.ss-hud'), null);
-    const css = read('view/mounts.css');
+    const css = cssOf('mounts');
     for (const side of ['end', 'start', 'both']) assert.match(css, new RegExp(`\\.ss-hud\\[data-ss-more="${side}"\\] \\{[^}]*mask-image`), side);
 });
 

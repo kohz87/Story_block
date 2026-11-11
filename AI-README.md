@@ -202,7 +202,7 @@ Look tokens (`view/theme.js` `PALETTES`, `SHARED`; dark / light where they diffe
 | `--ss-blur`, `--ss-motion` | `blur(16px) saturate(1.2)` (Solid: `none`), `0.2s` (`0s` with reduced motion) | glass blur, transitions |
 | `--ss-zoom` | `0.8` (`size.css`, on `:root`); Text size 110 / 120 write `0.88` / `0.96` on `html:root` | the size Story Suite is drawn at |
 
-Building-block classes any template may use (`view/glass.css`): `.ss-glass`, `.ss-glass-strong`, `.ss-label`, `.ss-pill`, `.ss-bar`, `.ss-tile`, `.ss-status`.
+Building-block classes any template may use (`view/glass-*.css`): `.ss-glass`, `.ss-glass-strong`, `.ss-label`, `.ss-pill`, `.ss-bar`, `.ss-tile`, `.ss-status`.
 
 **Widget tokens** (`view/widgets/styles.js`, documented in `docs/v2/WIDGETS.md` "Styling"). One `<style data-ss-widgets>` holds the base sheet,
 every rule inside `:where()`. Every widget root has the class `ss-w` plus `ss-w-<name>`.

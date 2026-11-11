@@ -74,7 +74,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   sets `--ss-motion: 0s`. SillyTavern's own "No blur effect" (`body.no-blur`) still removes every blur. The
   class `ss-scheme-light` / `ss-scheme-dark` inside a root forces a scheme there (`data-ss-*` attributes are
   reserved by the sanitiser, so it is a class). Nothing is set on SillyTavern's elements.
-- **Building blocks** (`src/v2/view/glass.css`, loaded by host.css): plain classes any template can use, every
+- **Building blocks** (`src/v2/view/glass-*.css` (once one glass.css; the mounts, settings and host sheets are split the same way), loaded by host.css): plain classes any template can use, every
   rule `:where(<roots>) .ss-…` (one class of weight, so `[data-ss-screen="id"] .x` in a screen's CSS wins):
   `.ss-glass` (card: glass, blur, hairline, shadow, radius l; children in a column, gap 12px),
   `.ss-glass-strong` (denser, radius xl), `.ss-label` (section label: small caps, spaced, muted),

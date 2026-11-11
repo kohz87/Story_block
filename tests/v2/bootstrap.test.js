@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setupDom } from './view/mounts/helpers.js';
 import { createFakeContext } from '../../testkit/index.js';
+import { hostImports } from './helpers/css-parts.js';
 
 const doc = setupDom();
 doc.head = doc.createElement('head');
@@ -33,7 +34,7 @@ test('the global host and the manifest agree: v2, the interceptor, the CSS, 2.30
     assert.equal(pkg.version, manifest.version);
     assert.equal(globalThis.StoryBlock.version, manifest.version);
     assert.equal(manifest.css, 'src/v2/view/host.css');
-    assert.match(readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8'), /@import url\('\.\/mounts\.css'\)/);
+    assert.match(hostImports(), /@import url\('\.\/mounts-game\.css'\)/);
     assert.equal(typeof globalThis[manifest.generate_interceptor], 'function');
     assert.equal(globalThis.StoryBlock.apiVersion, 2);
     assert.equal(globalThis.StoryBlock.sdk, sdk);

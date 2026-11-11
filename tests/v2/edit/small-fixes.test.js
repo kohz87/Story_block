@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { changesCardScreen } from '../../../src/v2/screens/changes-card.js';
 import { luminance, parseColor, themeTokens } from '../../../src/v2/view/theme.js';
 import { core, queries, show, stocked } from '../screens/helpers.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const read = name => readFileSync(new URL(`../../../src/v2/view/${name}`, import.meta.url), 'utf8');
 
@@ -15,7 +16,7 @@ test('a changed purse has one coin icon', () => {
 });
 
 test('the phone Story panel has an opaque, readable surface in every panel style', () => {
-    const css = read('mounts.css');
+    const css = cssOf('mounts');
     assert.match(css, /@media \(max-width: 759\.98px\)\s*\{\s*\.story-suite-sheet\.story-suite-sheet\s*\{\s*background: var\(--ss-panel-opaque\);\s*color: var\(--ss-panel-text\);/);
     for (const scheme of ['dark', 'light']) for (const panel of ['glass', 'solid', 'sillytavern']) {
         const tokens = Object.fromEntries(themeTokens({ scheme, panel }));

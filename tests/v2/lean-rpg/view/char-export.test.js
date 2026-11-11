@@ -12,6 +12,7 @@ import { WIZARD_SCREEN_ID } from '../../../../src/v2/lean-rpg/view/wizard.js';
 import { reload } from '../../data-modules/helpers.js';
 import { begin, fieldsOf, fillBlocks, makeBlocks, page, party, settle } from './page.js';
 import { characterDefinition, skillsDefinition } from './helpers.js';
+import { cssOf } from '../../helpers/css-parts.js';
 
 const goTo = async (dialog, step) => { dialog.goTo(['who', 'stats', 'skills', 'review'].indexOf(step)); await settle(); return dialog.root.querySelector('.ss-w-rpg-wizard'); };
 const wizardOf = dialog => dialog.root.querySelector('.ss-w-rpg-wizard');
@@ -713,7 +714,7 @@ test('the RPG\'s dialogs are opaque: the party cards behind the New character wi
     assert.match(body, /backdrop-filter: none;/);
     assert.doesNotMatch(body, /transparent|rgba|opacity/, 'nothing in it lets the page through');
     // The floor is the one the Game view's own window uses, so the dialog and its surroundings agree.
-    assert.match(readFileSync(new URL('../../../../src/v2/view/mounts.css', import.meta.url), 'utf8'), /background-color: var\(--ss-sheet-floor, var\(--ss-surface\)\);/);
+    assert.match(cssOf('mounts'), /background-color: var\(--ss-sheet-floor, var\(--ss-surface\)\);/);
     // The widgets named are the ones the dialogs really draw.
     assert.equal(EXPORT_WIDGET.replace('.', '-'), 'rpg-export');
 });

@@ -5,6 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { hostImports } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
 const css = read('view/controls.css');
@@ -43,7 +44,7 @@ function weight(selector) {
 }
 
 test('host.css loads controls.css (the manifest loads host.css)', () => {
-    assert.match(read('view/host.css'), /@import url\('\.\/controls\.css'\);/);
+    assert.match(hostImports(), /@import url\('\.\/controls\.css'\);/);
 });
 
 test('every rule is scoped to Story Suite\'s roots, so SillyTavern\'s own inputs are untouched', () => {

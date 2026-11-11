@@ -13,6 +13,7 @@ import { problemReason, refusedFrom } from '../../../src/v2/reply-notes.js';
 import { THIS_REPLY_ID } from '../../../src/v2/reply-cards.js';
 import { STRINGS } from '../../../src/v2/strings.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const WITH_LINES = 'You find a rope.\n<Changes>\n+ item Rope | qty: 1\n- item Lantern | qty: 1\n</Changes>';
 const HUD_MODULE = {
@@ -285,7 +286,7 @@ test('the bar and drawer texts come from strings.js', async () => {
 });
 
 test('host.css: subtle transitions, and none under prefers-reduced-motion', () => {
-    const css = readFileSync(new URL('../../../src/v2/view/host.css', import.meta.url), 'utf8');
+    const css = cssOf('host');
     assert.match(css, /@keyframes story-suite-fade-in/);
     assert.match(css, /\.ss-l-meter-fill \{ transition: width/);
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
