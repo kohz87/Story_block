@@ -70,3 +70,50 @@ jobs:
           path: ${{ runner.temp }}/state-fuzz-*/mismatch.json
           if-no-files-found: ignore
           retention-days: 7
+
+  # The tests that need the other two repos beside this one skip when those are missing, so the
+  # "verify" job never runs them. This job checks all three repos out side by side (Story_block,
+  # Story_director, npc_state_delta; the two siblings at their default branch) and runs only those
+  # tests, and fails if any of them skipped instead of ran.
+  suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Story_block
+      - uses: actions/checkout@v4
+        with:
+          repository: kohz87/Story_director
+          path: Story_director
+      - uses: actions/checkout@v4
+        with:
+          repository: kohz87/npc_state_delta
+          path: npc_state_delta
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Cross-repo suite tests (a skip fails the job)
+        working-directory: Story_block
+        env:
+          STORY_SUITE_ROOT: ${{ github.workspace }}
+        run: |
+          # The tests that look for Story_director / npc_state_delta (keep in step with CLAUDE.md "Known traps").
+          files="
+            tests/v2/lean-rpg/checks/suite.test.js
+            tests/v2/packs/holidays-world.test.js
+            tests/v2/packs/cast-presets.test.js
+            tests/v2/integration/checks-flip.test.js
+            tests/v2/data-modules/unused.test.js
+          "
+          for f in $files; do test -f "$f" || { echo "::error::missing suite test $f"; exit 1; }; done
+          # shellcheck disable=SC2086
+          node --test --test-reporter=tap $files | tee "$RUNNER_TEMP/suite.tap"
+          status=${PIPESTATUS[0]}
+          skipped="$(sed -n 's/^# skipped //p' "$RUNNER_TEMP/suite.tap" | tail -n 1)"
+          echo "skipped suite tests: ${skipped:-unknown}"
+          if [ "$skipped" != "0" ]; then
+            echo "::error::suite tests skipped instead of running (siblings not found, or a test is skipped)"
+            grep -E '# SKIP' "$RUNNER_TEMP/suite.tap" || true
+            exit 1
+          fi
+          exit "$status"
