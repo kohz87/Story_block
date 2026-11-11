@@ -245,3 +245,28 @@ test('afterCapture: a Re-read keeps the step\'s receipt id, so what was told sta
     assert.equal(new Set(recordOf(host, index).receipts.map(receipt => receipt.id)).size, recordOf(host, index).receipts.length, 'no id twice in the record');
     sameRebuilt(host);
 });
+
+// Two modules each give a prelude (a command marked `prelude`, asked for by beforeGenerate), so a generated reply holds two preludes in a row.
+const preluder = id => ({
+    id, name: id, version: '0.0.0',
+    domains: { [id]: { initial: () => ({ n: 0 }), validate: () => [], counters: ['n'] } },
+    commands: { [`${id}.tick`]: Object.assign(ctx => { ctx.draft(id).n += 1; return { summary: `${id} ticks.`, narrate: false }; }, { prelude: true }) },
+    hooks: { beforeGenerate: () => ({ commands: [{ type: `${id}.tick`, payload: {} }] }) },
+});
+
+test('afterCapture: a reply with two preludes and a step, Re-read twice: receipts, blocks and /meta/rev stay as live', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost({ modules: [ledger(), preluder('pre-a'), preluder('pre-b')] });
+    t.after(() => host.close());
+    await host.send('Back to town.', reply('You owe the guild.', ['! owe 5', TOWN]));
+    const index = host.ctx.chat.length - 1;
+    const shape = () => ({ receipts: recordOf(host, index).receipts.map(receipt => [receipt.cause, receipt.type, receipt.beforeGenerate === true]),
+        spans: recordOf(host, index).spans.filter(span => !span.story).map(span => span.n), rev: host.head().meta.rev, state: host.head().domains });
+    const live = structuredClone(shape());
+    assert.equal(live.receipts.filter(receipt => receipt[2]).length, 2, 'two preludes were stored');
+    for (let pass = 0; pass < 2; pass += 1) {
+        assert.equal((await host.sdk.reread(index)).ok, true);
+        assert.deepEqual(shape(), live, `Re-read ${pass + 1}: as live`);
+    }
+    sameRebuilt(host);
+});
