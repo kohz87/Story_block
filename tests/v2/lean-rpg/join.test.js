@@ -912,6 +912,14 @@ test('A long name in the bench card keeps its level', () => {
     assert.match(labels[0], /^Sir Bartholomew.*… · Lv \d+$/);
     assert.equal([...labels[0]].length <= 32, true);
     assert.match(labels[1], /^Kel · Lv \d+$/, 'a short name is unchanged');
+    // a name of astral characters (emoji) counts by code points in both places: it keeps " · Lv N"
+    const emoji = fakeState([character('m0', 'M0'), character('m1', '🐉'.repeat(25)), character('m2', 'Kel'), character('m3', 'M3')]);
+    const emojiLabel = joinCard([{ name: 'New', about: '', soul: 1, best: '', full: true }], emoji).actions[0].label;
+    assert.match(emojiLabel, / · Lv \d+$/, 'an emoji name keeps its level');
+    assert.equal([...emojiLabel].length <= 32, true);
+    // a huge label is cut before it is spread into code points, and still comes out at 32
+    const huge = joinCard([{ name: '🐉'.repeat(5000), about: '', soul: 1, best: '', full: true }], emoji).actions[0].label;
+    assert.equal([...huge].length <= 32, true);
     // 5 active: the card keeps room for Not now
     const five = fakeState(['m0', 'm1', 'm2', 'm3', 'm4'].map(slug => character(slug, slug.toUpperCase())));
     const many = joinCard([{ name: 'New', about: '', soul: 1, best: '', full: true }], five).actions;

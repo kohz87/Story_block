@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { stackOf } from '../../../src/v2/view/modal-stack.js';
 import { gearHost } from '../helpers/gear-ui-state.js';
 import { createInventoryGridWidget, createInventoryViewWidget, INVENTORY_GRID_WIDGET, INVENTORY_VIEW_WIDGET } from '../../../src/v2/screens/inventory-add.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const skip = renderSkip;
 function world() {
@@ -245,5 +246,78 @@ test('the inventory sheet\'s style sheet is imported by size.css and its rules a
     const read = name => readFileSync(new URL(`../../../src/v2/view/${name}`, import.meta.url), 'utf8');
     assert.match(read('size.css'), /^@import url\('\.\/inv-sheet\.css'\);$/m);
     assert.match(read('inv-sheet.css'), /\.ss-dialog\.inv-sheet/);
-    assert.doesNotMatch(read('mounts.css'), /inv-sheet/);
+    assert.match(read('inv-sheet.css'), /@supports[^{]*rgb\(from[^{]*\{\s*\.ss-dialog\.inv-sheet \{ background-color: var\(--ss-sheet-floor, rgb\(from var\(--ss-surface\) r g b \/ 1\)\)/, 'an opaque floor under non-Glass styles');
+    assert.doesNotMatch(cssOf('mounts'), /inv-sheet/);
+});
+
+test('Inventory Grid: the focus survives the screen building the widget again (tab and game-view mounts); a gone item hands it to the next tile', { skip }, async t => {
+    const { run } = await gridWorld(t);
+    const { doc } = run();
+    await settle2();
+    const widget = createInventoryGridWidget({ chatKey: () => 'rebuild' });
+    const item = (stack, name) => ({ stack, name, kind: 'goods', qty: 1, rarity: '', note: '' });
+    const all = [item('s1', 'Aa'), item('s2', 'Bb'), item('s3', 'Cc')];
+    const mount = items => {
+        const host = doc.createElement('div');
+        doc.body.append(host);
+        const view = widget.render(host, { items, counts: {}, users: {} }, { command: () => {} });
+        return { host, view };
+    };
+    const tileOf = (host, stack) => host.querySelector(`[data-stack="${stack}"]`);
+    // Drop: the sheet closes, the screen is built again without the item: the focus goes to the next tile
+    let now = mount(all);
+    tileOf(now.host, 's2').click();
+    [...sheetOf(doc).querySelectorAll('.sheet-act > button')].find(node => text(node) === 'Drop').click();
+    now.view.destroy();
+    now.host.remove();
+    now = mount(all.filter(one => one.stack !== 's2'));
+    assert.equal(doc.activeElement, tileOf(now.host, 's3'), 'the next tile, not the body');
+    // the last item gone: the one before it
+    tileOf(now.host, 's3').click();
+    sheetOf(doc).querySelector('.sheet-close').click();
+    now.view.destroy();
+    now.host.remove();
+    now = mount([all[0]]);
+    assert.equal(doc.activeElement, tileOf(now.host, 's1'), 'the same tile when the item is still there, else its neighbour');
+    // the item stays (Edit save): the same tile
+    tileOf(now.host, 's1').click();
+    sheetOf(doc).querySelector('.sheet-close').click();
+    now.view.destroy();
+    now.host.remove();
+    doc.activeElement?.blur?.();
+    now = mount(all);
+    assert.equal(doc.activeElement, tileOf(now.host, 's1'));
+    // focus somewhere else is left alone
+    const other = doc.createElement('button');
+    doc.body.append(other);
+    tileOf(now.host, 's1').click();
+    sheetOf(doc).querySelector('.sheet-close').click();
+    now.view.destroy();
+    now.host.remove();
+    other.focus();
+    mount(all);
+    assert.equal(doc.activeElement, other, 'a focus on something else stays');
+});
+
+test('Inventory Grid: a focus carried from one chat\'s sheet is not taken by another chat\'s grid', { skip }, async t => {
+    const { run } = await gridWorld(t);
+    const { doc } = run();
+    await settle2();
+    let chat = 'one';
+    const widget = createInventoryGridWidget({ chatKey: () => chat });
+    const items = [{ stack: 's1', name: 'Aa', kind: 'goods', qty: 1, rarity: '', note: '' }];
+    const mount = () => {
+        const host = doc.createElement('div');
+        doc.body.append(host);
+        return { host, view: widget.render(host, { items, counts: {}, users: {} }, { command: () => {} }) };
+    };
+    const first = mount();
+    first.host.querySelector('[data-stack="s1"]').click();
+    sheetOf(doc).querySelector('.sheet-close').click();
+    first.view.destroy();
+    first.host.remove();
+    doc.activeElement?.blur?.();
+    chat = 'two';
+    mount();
+    assert.equal(doc.activeElement === doc.body || doc.activeElement === null, true, 'another chat keeps the focus where it was (on the body)');
 });

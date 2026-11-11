@@ -8,7 +8,7 @@ import { fakeRenderer, setupDom, stateWith } from './helpers.js';
 
 const screen = (id, title) => ({ id, title, icon: 'fa-star', mounts: ['screen'], template: `<p>${title}</p>` });
 
-function setup({ heroOf, head, fight = false, phone = false }) {
+function setup({ heroOf = null, head, fight = false, phone = false, headerControls, api = {} }) {
     const doc = setupDom();
     let boardObserver;
     if (phone) doc.defaultView = {
@@ -29,8 +29,9 @@ function setup({ heroOf, head, fight = false, phone = false }) {
         render,
         head: () => current,
         query: () => null,
-        api: {},
+        api,
         heroOf,
+        headerControls,
         document: doc,
         container: () => doc.body,
     });
@@ -154,4 +155,71 @@ test('a Travel row under the header while there is a trip line, gone when it end
     bare.mount.open('test/one');
     assert.equal(bare.doc.querySelector('.ss-gameview-hero .ss-hero-travel'), null, 'no trace without a trip');
     bare.close();
+});
+
+test('a header toggle: a pill in the title bar before the close button, aria-pressed, updated in place, a press sends the command with on flipped', async () => {
+    let on = false;
+    const sent = [];
+    const api = { command: async (type, payload) => { sent.push([type, payload]); on = payload.on; return { ok: true }; } };
+    const env = setup({ head: stateWith(3), api, headerControls: () => [{ key: 'quiet/scene', label: 'Quiet scene', icon: '🌙', command: 'quiet.set', payload: { chat: 'a' }, on }] });
+    env.mount.open('test/one');
+    const bar = env.doc.querySelector('.ss-gameview-bar');
+    const pills = () => [...env.doc.querySelectorAll('.ss-gameview-pill')];
+    assert.equal(pills().length, 1);
+    const pill = pills()[0];
+    assert.equal(pill.parentNode, bar);
+    const kids = [...bar.children];
+    assert.ok(kids.indexOf(pill) === kids.length - 2 && kids.at(-1).className.includes('ss-gameview-close'), 'between the title and the close button');
+    assert.equal(pill.tagName.toLowerCase(), 'button');
+    assert.equal(pill.getAttribute('type'), 'button');
+    assert.equal(pill.getAttribute('aria-pressed'), 'false');
+    assert.equal(pill.querySelector('.ss-gameview-pill-icon').getAttribute('aria-hidden'), 'true');
+    assert.equal(pill.querySelector('.ss-gameview-pill-label').textContent, 'Quiet scene');
+    pill.click();
+    assert.deepEqual(sent, [['quiet.set', { chat: 'a', on: true }]]);
+    assert.equal(pill.getAttribute('aria-disabled'), 'true', 'busy until the command is back');
+    pill.click();
+    assert.equal(sent.length, 1, 'a second press while busy is ignored');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(pill.hasAttribute('aria-disabled'), false);
+    env.mount.update();
+    assert.equal(pills()[0], pill, 'the same node: no new pill, no refocus');
+    assert.equal(pill.getAttribute('aria-pressed'), 'true');
+    assert.equal(pill.querySelector('.ss-gameview-pill-label').textContent, 'Quiet scene', 'the label does not change with the state');
+    pill.click();
+    assert.deepEqual(sent.at(-1), ['quiet.set', { chat: 'a', on: false }]);
+    env.close();
+    assert.equal(env.doc.querySelector('.ss-gameview-pill'), null);
+});
+
+test('a header toggle goes when it stops answering (feature off), and a throwing or missing headerControls draws none', () => {
+    let items = [{ key: 'quiet/scene', label: 'Quiet scene', icon: '🌙', command: 'quiet.set', payload: {}, on: false }];
+    const env = setup({ head: stateWith(3), headerControls: () => items });
+    env.mount.open('test/one');
+    assert.equal(env.doc.querySelectorAll('.ss-gameview-pill').length, 1);
+    items = [];
+    env.mount.update();
+    assert.equal(env.doc.querySelectorAll('.ss-gameview-pill').length, 0);
+    items = [{ key: 'quiet/scene', label: 'Quiet scene', icon: '🌙', command: 'quiet.set', payload: {}, on: true }];
+    env.mount.open('test/two');
+    assert.equal(env.doc.querySelectorAll('.ss-gameview-pill').length, 1, 'back on a screen change');
+    env.close();
+    const boom = setup({ head: stateWith(3), headerControls: () => { throw new Error('x'); } });
+    assert.equal(boom.mount.open('test/one'), true);
+    assert.equal(boom.doc.querySelectorAll('.ss-gameview-pill').length, 0);
+    boom.close();
+    const none = setup({ head: stateWith(3) });
+    none.mount.open('test/one');
+    assert.equal(none.doc.querySelectorAll('.ss-gameview-pill').length, 0);
+    none.close();
+});
+
+test('a header toggle: a command that rejects leaves the pill usable', async () => {
+    const env = setup({ head: stateWith(3), api: { command: async () => { throw new Error('down'); } }, headerControls: () => [{ key: 'q/s', label: 'Q', icon: '🌙', command: 'q.set', payload: {}, on: false }] });
+    env.mount.open('test/one');
+    const pill = env.doc.querySelector('.ss-gameview-pill');
+    pill.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(pill.hasAttribute('aria-disabled'), false);
+    env.close();
 });

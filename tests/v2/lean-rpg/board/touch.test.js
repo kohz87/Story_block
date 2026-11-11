@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="stylesheet" href="/src/v2/view/host.css"><link rel="stylesheet" href="/src/v2/view/mounts.css"><link rel="stylesheet" href="/src/v2/view/glass.css"><link rel="stylesheet" href="/src/v2/view/size.css">
+<link rel="stylesheet" href="/src/v2/view/host.css"><link rel="stylesheet" href="/src/v2/view/size.css">
 <link rel="stylesheet" href="/src/v2/lean-rpg/view/lean-rpg.css"><link rel="stylesheet" href="/src/v2/lean-rpg/board/board.css">
 <style>html,body { margin:0; --ss-font:Arial,sans-serif; } * { box-sizing:border-box; } .ss-gameview-bar { height:50px; }
 .ss-gameview-nav { background:#222; } .ss-gameview-body { padding:12px; }

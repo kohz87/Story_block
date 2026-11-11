@@ -2,7 +2,7 @@
 // The current item: the icon and label in the accent colour and a 4px dot under it, no pill or background.
 // createScreenBar(doc, host, { label, onSelect(id) })
 //   host: the positioned box the bar is added to (the game view or the Story panel).
-//   className: the host's own class for the bar (its placement: mounts.css, host.css), e.g. `ss-gameview-nav`.
+//   className: the host's own class for the bar (its placement: mounts-*.css, host.css), e.g. `ss-gameview-nav`.
 //   onSelect(id): a slot was chosen (the caller shows that screen, then calls update).
 //   decorate(node, item): optional; called for each slot on every draw (the Story panel adds its own names).
 //   → { el, update({ items, current }), destroy() }

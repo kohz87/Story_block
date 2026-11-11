@@ -5,10 +5,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { reply, fixture, success, view } from './helpers.js';
 import { createHost } from '../../../testkit/index.js';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-let suite = null;
-try { suite = await import('../break/helpers/suite.js'); } catch (error) { suite = { error }; }
-const skip = suite?.error ? `the four Story Suite checkouts are not side by side: ${suite.error.message}` : false;
+let SD_DIR = null;
+let skip = false;
+try {
+    SD_DIR = (await import('../break/helpers/suite.js')).roots().sd ?? null;
+    if (!SD_DIR) skip = 'no Story_director checkout beside this one (STORY_SUITE_ROOT, SUITE_SD)';
+} catch (error) { skip = `the suite helper did not load: ${error.message}`; }
 
 const ID = 'pack.ersveil-survival/survival';
 const REST = (hours = 6) => `! dm pack.ersveil-survival/survival — slept at the camp | kind: rest | who: Wessel | hours: ${hours}`;
@@ -25,7 +30,7 @@ const reload = async host => {
 };
 
 async function camp(t, { attachLater = false } = {}) {
-    const SD = await import(new URL('Story_director/src/v2/module.js', `file://${suite.ROOT}/`).href);
+    const SD = await import(pathToFileURL(path.join(SD_DIR, 'src/v2/module.js')).href);
     let sdk = null;
     const sd = SD.createModule({ host: { settings: id => sdk?.settings(id) ?? null, substitute: text => sdk?.substitute(text) } });
     const host = await createHost({ modules: [sd] });

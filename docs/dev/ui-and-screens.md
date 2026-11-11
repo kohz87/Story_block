@@ -74,7 +74,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   sets `--ss-motion: 0s`. SillyTavern's own "No blur effect" (`body.no-blur`) still removes every blur. The
   class `ss-scheme-light` / `ss-scheme-dark` inside a root forces a scheme there (`data-ss-*` attributes are
   reserved by the sanitiser, so it is a class). Nothing is set on SillyTavern's elements.
-- **Building blocks** (`src/v2/view/glass.css`, loaded by host.css): plain classes any template can use, every
+- **Building blocks** (`src/v2/view/glass-*.css` (once one glass.css; the mounts, settings and host sheets are split the same way), loaded by host.css): plain classes any template can use, every
   rule `:where(<roots>) .ss-…` (one class of weight, so `[data-ss-screen="id"] .x` in a screen's CSS wins):
   `.ss-glass` (card: glass, blur, hairline, shadow, radius l; children in a column, gap 12px),
   `.ss-glass-strong` (denser, radius xl), `.ss-label` (section label: small caps, spaced, muted),
@@ -522,6 +522,12 @@ their states, the plates, the class-level exceptions and their specificity), `te
   shows `aria-expanded`. The open state is kept per card (a page-level map keyed by card, e.g. `story-block/home:quests`), so a
   redraw or a new head or commit does not fold it back. The button's list watches its own size (a ResizeObserver, guarded), and
   the Save points list disconnects its observer on each redraw and on destroy.
+- **A module's header toggle** (`headerControls` in a module definition, MODULES F131): `registry.headerControls()` lists each ready module's one toggle (its feature on);
+  `headerControlItems({ controls, query })` (`view/game-header.js`) asks each control's own query (`true`/`false`/`{ on }`, else no pill) and
+  gives `[{ key, label, icon, command, payload, on }]`; `ui-host/mounts.js` hands it to the screen mount as `deps.headerControls(state)`.
+  `drawControls` (`mounts/screen.js`) keeps one `.ss-gameview-pill` button per key in the title bar, before the close button, updated in place
+  (no refocus, no move) with `aria-pressed`; a press sends the command with `{ ...payload, on: !on }` through `deps.api.command`. The pill's CSS is in
+  `controls.css` (`mounts.css` is over its size limit).
 - **The section label** (`glass.css`, `.ss-section-label`): documented in WIDGETS.md. Use it for any heading of a part of a screen. Its line is `var(--ss-rule, var(--ss-border))`; a module that draws its own rule uses the same.
 - Tests: `tests/v2/view/game-header.test.js` (the lead, the scene, the fallbacks, the portrait order, the avatar paths),
   `tests/v2/view/mounts/game-header.test.js` (the slot on open, a head change, a screen change, no state, a throwing `heroOf`),
