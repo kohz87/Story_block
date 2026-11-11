@@ -13,8 +13,8 @@
 - **Tabs in one scrolling row.** On phone and tablet every tab sits in one row that scrolls sideways, with an arrow on the side that has more; there is no More menu. The wide game view shows every tab in one row. Your tab order from Settings still applies.
 - The skill editor's Escape no longer closes the Game view.
 - A stuck SillyTavern branch call no longer blocks save points and rewinds.
-- A Soul Class rise of one point says "+1 point"; a `[battle]` line you type yourself stays visible.
-- **Replies keep their rules.** Fixes that change what a line does apply only to replies written after them (rule marks), so Re-read of an older reply is unchanged: a Re-read pays a story XP line at the rate it was first paid at; a `- party` line still lets a companion leave after your persona is renamed to them. A chat begun after this tells a one-coin currency worth 1 "no other coins exist" and names its own class field in the `+ party` line; a chat begun before keeps its earlier prompt. Removing a block you made also drops its stored definition, and a rename that merges two stacks notices when the stack it joins is no longer the story's.
+- A Soul Class rise of one point says "+1 point".
+- A `[battle]` line you type yourself stays visible.
 - **Faction tags on world events** are taught to the narrator for new replies (a rule mark), so Story Director can add the factions they name.
 - **Reputation lists with room.** Each known entry is its own row with an 8 px bar; signed lists (standing) run from a centre line, red below 0 and green above, with the scale shown once; the top 3 show and the rest fold as "N more known · Not known yet (N)"; pencils appear only after the section's Edit. Applies to every pack's number lists.
 - **Guild card as tiles** (Ersveil 2.9.4): Rank, Standing and Dues; years as a member stays editable in the block's Edit. A chat that pinned the old guild screen offers Migrate.
