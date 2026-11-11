@@ -16,7 +16,7 @@ import { CORE_FEATURE } from './features.js';
 import { AUTO_CAP, AUTO_CAP_SETTING, BOARD_SKILL, BOARD_SKILL_CARRY, CHECKS_SETTING, CHECK_STEP, DICE, FIGHT, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, NOROLL, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, PRECHECK_LIMIT_MS, PRECHECK_SETTING, RESOLVE, ROLLS, ROLLS_SETTING } from './lean-rpg/names.js';
 import { noRoll } from './lean-rpg/noroll.js';
 import { RANK_QUERY, SETTINGS_SCHEMA, XP_RATE, XP_RATE_SETTING, rankQuery } from './lean-rpg/levels.js';
-import { rosterQueries } from './lean-rpg/roster.js';
+import { levelsQuery, rosterQueries } from './lean-rpg/roster.js';
 
 let library = null;
 
@@ -126,6 +126,7 @@ export function createLazyRpgPart(deps = {}) {
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),
             // (the roster is a pure read of the Character blocks: answered at once too, roster.js)
             ...rosterQueries({ persona: deps?.persona, on: deps?.rosterOn }),
+            'party.levels': Object.assign(levelsQuery, { feature: LEAN_RPG_FEATURE }),
         },
         hooks: {
             canGenerate: Object.assign((view, info) => part()?.hooks.canGenerate(view, info), { feature: LEAN_RPG_FEATURE }),

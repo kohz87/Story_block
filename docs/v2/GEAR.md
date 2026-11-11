@@ -141,7 +141,7 @@ Members of the party own and wear their own gear, so something has to say who th
 (`src/v2/lean-rpg/roster.js`), only while the RPG is on **and** Gear in fights is on (with the gear switch off nothing answers: the inventory, its screens and commands are exactly as in 2.18.0, no members, pickers or Give to a member):
 
 * `party.actors` → `[{ id, name, pc? }]`: one actor per Character block that is in the party (a companion who left is not on it), in block order; `pc: true` on the
-  reader's own.
+  reader's own. (`party.levels` → `[{ id, name, level, left }]` lists the same ids with the sheet level and the members who left; MODULES.md §E.)
 * `party.pc` → `{ id }`: the reader's own Character: the one named like the persona (the same name, or a first name that means only them), or the only Character; with several and
   none named so, null (nothing guesses who the reader is; the rolls fall back to the first block themselves, and the screens call the bag by the persona's name). Only the id: the
   header keeps the persona's name.

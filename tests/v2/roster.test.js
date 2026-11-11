@@ -8,7 +8,7 @@ import { createFakeModel } from '../../testkit/model.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
 import { STANDARD_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
-import { actorIdOf, rosterOf, rosterQueries } from '../../src/v2/lean-rpg/roster.js';
+import { actorIdOf, levelsQuery, rosterOf, rosterQueries } from '../../src/v2/lean-rpg/roster.js';
 import { gearMatches, planGear } from '../../src/v2/lean-rpg/gear.js';
 import { readSheet } from '../../src/v2/lean-rpg/index.js';
 import { hashJson } from '../../src/v2/replay.js';
@@ -127,6 +127,21 @@ test('nothing answers party.actors or party.pc with the RPG off, or with Gear in
     host.features.set('story-block.rpg', false);
     assert.equal(host.sdk.query('party.actors'), null);
     assert.equal(host.sdk.query('party.pc'), null);
+});
+
+test('party.levels lists every member with the sheet level, the ones who left too (left: true); no Character gives []; the ids are party.actors\'s', () => {
+    const state = { domains: { dataModules: sheetDomain({
+        ash: { role: 'character', fields: character('Ash', { level: 12 }) },
+        bram: { role: 'character', fields: character('Bram', { level: 40, left: true }) },
+        cole: { role: 'character', fields: (({ soul, ...rest }) => rest)(character('Cole')) },
+    }) } };
+    const levels = levelsQuery(state);
+    assert.deepEqual(levels.map(row => [row.name, row.level, row.left]), [['Ash', 12, false], ['Bram', 40, true], ['Cole', null, false]]);
+    assert.deepEqual(levels.filter(row => !row.left).map(row => row.id), rosterQueries()['party.actors'](state, { recorded: true }).map(actor => actor.id), 'the same ids as the active roster');
+    assert.equal(levels[1].id, actorIdOf('pack.chat/bram'));
+    assert.deepEqual(rosterQueries()['party.actors'](state, { recorded: true }).map(actor => actor.name), ['Ash', 'Cole'], 'party.actors still leaves Bram out');
+    assert.deepEqual(levelsQuery({ domains: { dataModules: sheetDomain({}) } }), []);
+    assert.deepEqual(levelsQuery({}), []);
 });
 
 // ---- a module that answers party.actors itself keeps priority --------------------------------------------------------------------------------

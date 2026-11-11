@@ -93,6 +93,7 @@ comes back if the host goes away. NSD's own storage, capture and prompt keys are
 * **party roster** (2.18.1, `lean-rpg/roster.js`): with the RPG and Gear in fights on, Story Block answers `party.actors` (`[{ id, name, pc? }]`, one per Character
   block) and `party.pc` as **`{ id }` only** (no `level`, `name` or pools: `query('party.pc').level` is undefined unless a party module answers it). Both are registry fallbacks (`fallback: true` on
   the query): a module that owns the name is asked first, and the fallback answers when that module is held back, its feature is off, or it answers null or an empty list.
+  **`party.levels`** (same file, read only, owned by Story Block, with the RPG's feature): `[{ id, name, level, left }]` for every Character block, a companion who left too (`left: true`; `party.actors` leaves them out), in block order, with the same `id` as `party.actors`. `level` is the sheet's whole number (1–99), `null` when the block states none; `[]` with no Character, `null` while the RPG is off. It does not need Gear in fights. Asked at the state it is given, so a reply's own state gives that reply's levels.
 * **events** (agent SB-events): condition language (numbers, strings, `== != < <= > >= && || !`, calls to
   queries: `query('party.pc').level >= 30`, `quest('Granary Rats').status == 'resolved'`), event defs
   `{ id, when, cue, once, then: [{ command, payload }] }` from packs, evaluated in `beforeGenerate`; a met
