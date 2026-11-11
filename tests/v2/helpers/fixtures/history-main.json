@@ -365,7 +365,7 @@
                 ],
                 "receipts": [
                   {
-                    "id": "rc_q4cmfvmr",
+                    "id": "rc_yycxp5n2",
                     "type": "capture.coin",
                     "module": "story-block",
                     "cause": "story",
@@ -512,7 +512,7 @@
             ],
             "receipts": [
               {
-                "id": "rc_q4cmfvmr",
+                "id": "rc_yycxp5n2",
                 "type": "capture.coin",
                 "module": "story-block",
                 "cause": "story",
@@ -873,7 +873,7 @@
                 ],
                 "receipts": [
                   {
-                    "id": "rc_d1joyycx",
+                    "id": "rc_wx9ptuzb",
                     "type": "capture.coin",
                     "module": "story-block",
                     "cause": "story",
@@ -1014,7 +1014,7 @@
             ],
             "receipts": [
               {
-                "id": "rc_d1joyycx",
+                "id": "rc_wx9ptuzb",
                 "type": "capture.coin",
                 "module": "story-block",
                 "cause": "story",
@@ -1489,7 +1489,7 @@
                 ],
                 "receipts": [
                   {
-                    "id": "rc_q4cmfvmr",
+                    "id": "rc_yycxp5n2",
                     "type": "capture.coin",
                     "module": "story-block",
                     "cause": "story",
@@ -1630,7 +1630,7 @@
             ],
             "receipts": [
               {
-                "id": "rc_q4cmfvmr",
+                "id": "rc_yycxp5n2",
                 "type": "capture.coin",
                 "module": "story-block",
                 "cause": "story",

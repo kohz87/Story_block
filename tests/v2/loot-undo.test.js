@@ -472,3 +472,17 @@ test('a scratch entry of another domain keyed by a deleted reply\'s record ID is
     t.after(() => loaded.close());
     assert.deepEqual(loaded.head(), live, 'a reload equals live');
 });
+
+test('a Re-read of an unchanged reply keeps the receipt that made each stack: stacks.<id>.from is equal', async t => {
+    const host = await fresh(t);
+    await host.send('Find things.', reply('You find things.', ['+ item Torch x2', '+ item Rope']));
+    const index = at(host, 'You find things.');
+    const froms = () => Object.fromEntries(Object.values(host.head().domains.inventory.stacks).map(stack => [stack.id, stack.from]));
+    const before = froms();
+    assert.ok(Object.keys(before).length >= 2 && Object.values(before).every(from => from !== ''), 'the stacks name their receipts');
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(froms(), before, 'the same stacks name the same receipts after a Re-read');
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(froms(), before, 'and after a second one');
+    await agrees(t, host, 'after the Re-reads');
+});
