@@ -132,11 +132,9 @@ export function wornSection(doc, { wearers = [], items, rows, open, onToggle, on
     for (const who of wearers) {
         const pieces = items.filter(item => rows?.[item.stack]?.byId === who.value && rows[item.stack].place);
         if (pieces.length === 0) continue;
-        const label = pieces.length === 1
-            ? fill(S.wornWhoOne, { name: who.label })
-            : fill(S.wornWho, { name: who.label, n: pieces.length });
+        const count = pieces.length === 1 ? S.wornWhoOne : fill(S.wornWho, { n: pieces.length });   // the mockup's fold: chevron, the name, "5 pieces" at the right
         wrap.append(foldSection(doc, {
-            id: `worn-${who.value}`, label, open: open(who.value),
+            id: `worn-${who.value}`, label: who.label, count, rule: true, open: open(who.value),
             onToggle: on => onToggle?.(who.value, on),
             body: tileGrid(doc, pieces, { rows, onOpen }), className: 'worn-wearer',
         }));
@@ -282,6 +280,7 @@ export const GRID_CSS = `
 .fold-chev { flex: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; }
 .fold-chev svg { width: 12px; height: 12px; display: block; transition: transform 0.15s; }
 .fold-head.is-open .fold-chev svg { transform: rotate(90deg); }
+.fold-sec.worn-wearer > .fold-head .fold-label { font-weight: 700; }
 /* the category heads are the mockup's rule-style section heads (no box): chevron, UPPERCASE label, a hairline filling the row, the count at the right. The row is
    30px; the 44px tap area is the button's own padding taken back with a negative margin, so the rows keep the mockup's spacing. */
 .fold-sec.cat > .fold-head { gap: 8px; min-height: 44px; margin-block: -7px; padding: 7px 0; border: 0; border-radius: 0; font-size: 11.5px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; }

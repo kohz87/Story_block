@@ -172,7 +172,7 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     assert.match(rule(css, '.line'), /flex-wrap: wrap;/);
     // A group that wraps on the right when the row is narrow; never a line of its own under the row.
     assert.match(rule(css, '.actions'), /display: flex; flex-wrap: wrap;/);
-    assert.doesNotMatch(css, /@container|@media[^{]*\{[^}]*\.actions/, 'the same layout on a phone');
+    assert.doesNotMatch(css, /@(?:container|media)[^{]*\{[^}]*\.actions/, 'the same layout on a phone');
     // The tile stays put when a fold opens.
     assert.match(rule(css, '.item:has(> .body > .fold)'), /align-items: start;/);
     // The template keeps its order: name line, note, detail, actions, folds.
