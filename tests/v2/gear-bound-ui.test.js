@@ -83,20 +83,20 @@ test('rows, gear off: none of the gear lines (today\'s rows)', () => {
     assert.equal(el.querySelectorAll('.g-l1, .g-l2, .g-l3, .grow, .bound').length, 0);
 });
 
-test('phone: the rarity word is hidden at phone width (a CSS rule), and shown on desktop', () => {
+test('narrow screen: the rarity word is hidden when the screen is narrow (a container rule), and shown on a wide one', () => {
     const css = inventoryScreen.css;
-    const phone = css.match(/@media \(max-width: 500px\) \{([^\n]*)\}/g)?.find(rule => /\.rarity \{ display: none; \}/.test(rule));
-    assert.ok(phone, 'the media rule hides .rarity in the gear rows');
+    const phone = css.match(/@container \(max-width: 500px\) \{([^\n]*)\}/g)?.find(rule => /\.rarity \{ display: none; \}/.test(rule));
+    assert.ok(phone, 'the container rule hides .rarity in the gear rows');
     assert.match(phone, /\.inv\.gear \.g-l1 \.rarity \{ display: none; \}/);
     // Outside the media rule nothing hides it.
-    const outside = css.replace(/@media[^\n]*\n/g, '');
+    const outside = css.replace(/@container[^\n]*\n/g, '');
     assert.doesNotMatch(outside, /\.rarity[^{]*\{[^}]*display: none/);
 });
 
-test('phone: under 480px the row buttons sit on their own line under the item (one column, actions in row 4, a fold in row 5); the Equip payload names no slot', () => {
+test('narrow screen: under 480px the row buttons sit on their own line under the item (one column, actions in row 4, a fold in row 5); the Equip payload names no slot', () => {
     const css = inventoryScreen.css;
-    const block = css.match(/@media \(max-width: 480px\) \{\n([\s\S]*?)\n\}\n/g)?.find(rule => /\.actions \{ grid-column: 1; grid-row: 4;/.test(rule));
-    assert.ok(block, 'a 480px media rule moves .actions to their own row');
+    const block = css.match(/@container \(max-width: 480px\) \{\n([\s\S]*?)\n\}\n/g)?.find(rule => /\.actions \{ grid-column: 1; grid-row: 4;/.test(rule));
+    assert.ok(block, 'a 480px container rule moves .actions to their own row');
     assert.match(block, /grid-template-columns: minmax\(0, 1fr\)/);
     assert.match(block, /> \.fold \{ grid-row: 5; \}/);
     // Equip leaves the slot out (item.equip then picks the first free accessory place).
