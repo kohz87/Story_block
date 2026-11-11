@@ -92,9 +92,9 @@ test('hostile conditions are never met, never throw, and change nothing', async 
     assert.equal(JSON.stringify(h.ctx.chat), chat, 'the chat is unchanged');
 });
 
-test('the allow-list is exactly query, quest, has, time, actor, count; every other name is refused', async t => {
+test('the allow-list is exactly query, quest, has, time, actor, count, region; every other name is refused', async t => {
     const h = await setup(t);
-    assert.deepEqual([...CALLS].sort(), ['actor', 'count', 'has', 'query', 'quest', 'time']);
+    assert.deepEqual([...CALLS].sort(), ['actor', 'count', 'has', 'query', 'quest', 'region', 'time']);
     for (const name of ['eval', 'Function', 'fetch', 'require', 'import', 'setTimeout', 'alert', 'globalThis', 'window', 'document', 'process',
         'constructor', '__proto__', 'prototype', 'toString', 'valueOf', 'hasOwnProperty', 'Object', 'Array', 'JSON', 'Math', 'Date', 'Reflect', 'Proxy', 'StoryBlock', 'sdk', 'ctx', 'state', 'view']) {
         const result = evaluateCondition(`${name}("x") == 1`, h.sdk.view());

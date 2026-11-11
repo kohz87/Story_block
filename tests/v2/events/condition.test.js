@@ -207,8 +207,8 @@ test('limits: length, parts, depth, words, names, record keys, calls', () => {
     assert.equal(evaluateCondition(Array(60).fill('true').join(' && ')).met, true);
 });
 
-test('allow-list: only the six calls, only by their own name', () => {
-    assert.deepEqual(CALLS, ['query', 'quest', 'has', 'time', 'actor', 'count']);
+test('allow-list: only the seven calls, only by their own name', () => {
+    assert.deepEqual(CALLS, ['query', 'quest', 'has', 'time', 'actor', 'count', 'region']);
     for (const source of ['eval("1")', 'Function("return 1")()', 'require("fs")', 'fetch("x")', 'setTimeout()', 'alert(1)', 'constructor()']) {
         const result = evaluateCondition(source);
         assert.equal(result.met, false, source);
@@ -305,7 +305,7 @@ test('options for other users of the language (SPEC §13.2): extra calls and bar
     assert.match(run('ratio(1, 2) > 0', { scope, calls: { ratio: () => { throw new Error('zero'); } } }).error.message, /ratio\(\) failed: zero/);
     assert.match(run('ratio(1, 2) > 0', { scope, calls: { ratio: () => () => 1 } }).error.message, /is not data/);
     assert.match(parse('ratio(1)', options).error.message, /ratio\(\) takes 2 values, not 1/);
-    assert.match(parse('fmt.other(1)', options).error.message, /Only query, quest, has, time, actor, count, fmt.money, ratio can be called/);
+    assert.match(parse('fmt.other(1)', options).error.message, /Only query, quest, has, time, actor, count, region, fmt.money, ratio can be called/);
     assert.equal(parse('constructor', options).error.code, 'NOT_ALLOWED');
     assert.equal(parse('__proto__.x', options).error.code, 'NOT_ALLOWED');
     // Off by default: events see neither.

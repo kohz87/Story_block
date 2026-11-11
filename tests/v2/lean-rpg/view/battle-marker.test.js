@@ -78,6 +78,17 @@ test('no recorded rolls: the marker line is hidden, not shown as text, and kept 
     assert.equal(text.querySelectorAll(`.${MARKER_HIDDEN}`).length, 0);
 });
 
+test('a reader\'s own message keeps a literal [battle] line visible', async t => {
+    const { host, doc, log, head } = await world(t, { rolled: false });
+    const mine = head - 1;
+    assert.equal(host.ctx.chat[mine].is_user, true);
+    const el = message(doc, mine, ['I type this:', '[battle]']);
+    const text = el.querySelector('.mes_text');
+    assert.equal(log.refresh(mine, el), null);
+    assert.equal(visibleText(text), 'I type this:[battle]', 'the reader\'s own line is not hidden');
+    assert.equal(text.querySelectorAll(`.${MARKER_HIDDEN}`).length, 0);
+});
+
 test('a marker that shares its paragraph is hidden on its own; the lines around it stay', async t => {
     const { doc, log, head } = await world(t, { rolled: false });
     const el = makeMessage(doc, head), text = el.querySelector('.mes_text');

@@ -2,6 +2,8 @@
 import { SB_V2 } from './sb-root.mjs';
 
 const { LIMITS, RECORD_LIMITS, CAST_LIMITS, PORTRAIT_LIMITS, ZIP_LIMITS, NAMES_LIMITS, RIPPLES_LIMITS } = await import(new URL('packs/limits.js', SB_V2));
+const { LIMITS: CONDITION_LIMITS } = await import(new URL('events/condition-errors.js', SB_V2));
+const { MAX_REGIONS } = await import(new URL('events/calls.js', SB_V2));
 const { DM_LIMITS } = await import(new URL('data-modules/schema.js', SB_V2));
 const group = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const table = (head, rows) => [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`, ...rows.map(row => `| ${row.join(' | ')} |`)].join('\n');
@@ -41,6 +43,12 @@ say('## The cast and its portraits', table(['What', 'Limit'], [
     ['A pack zip: the zip, unpacked in all, one file in it, entries', `${ZIP_LIMITS.archive / 1048576} MB, ${ZIP_LIMITS.unpacked / 1048576} MB, ${ZIP_LIMITS.entry / 1048576} MB, ${ZIP_LIMITS.entries}`],
 ]));
 
+say('## Event conditions', table(['What', 'Limit'], [
+    ['One condition', `${CONDITION_LIMITS.source} characters, ${CONDITION_LIMITS.tokens} tokens, nesting ${CONDITION_LIMITS.depth}`],
+    ['A quoted word, a name', `${CONDITION_LIMITS.string}, ${CONDITION_LIMITS.name} characters`],
+    ['Calls made while checking one condition', `${CONDITION_LIMITS.calls}`],
+    ['Names in one \`region(...)\` call', `1 to ${MAX_REGIONS}`],
+]));
 say('## Data modules (interpreter 1)', table(['What', 'Limit'], [
     ['Definitions in one pack', DM_LIMITS.definitions],
     ['Pins per chat, subjects per module', `${DM_LIMITS.pins}, ${DM_LIMITS.subjects}`],

@@ -95,7 +95,7 @@ comes back if the host goes away. NSD's own storage, capture and prompt keys are
   the query): a module that owns the name is asked first, and the fallback answers when that module is held back, its feature is off, or it answers null or an empty list.
   **`party.levels`** (same file, read only, owned by Story Block, with the RPG's feature): `[{ id, name, level, left }]` for every Character block, a companion who left too (`left: true`; `party.actors` leaves them out), sorted by block id, with the same `id` as `party.actors`. `level` is the sheet's whole number (1–99), `null` when the block states none; `null` when the RPG is off, `[]` when there is no Character (a consumer treats `null` as "no answer"). Every Character the Party card shows is listed (a blank Name uses the block's name; `level` is clamped 1–99 as the card clamps it). It does not need Gear in fights. Asked at the state it is given, so a reply's own state gives that reply's levels.
 * **events** (agent SB-events): condition language (numbers, strings, `== != < <= > >= && || !`, calls to
-  queries: `query('party.pc').level >= 30`, `quest('Granary Rats').status == 'resolved'`), event defs
+  queries: `query('party.pc').level >= 30`, `quest('Granary Rats').status == 'resolved'`; `region('Shornmarch', 'Valegard')` is true when the scene's place is in any of the 1 to 16 named regions), event defs
   `{ id, when, cue, once, then: [{ command, payload }] }` from packs, evaluated in `beforeGenerate`; a met
   event commits a `system` receipt (claim `event:<id>`) whose summary is the cue; checkpoint chains
   (`after: <event id>`).

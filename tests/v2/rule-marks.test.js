@@ -44,7 +44,7 @@ test('the rule table: a key line with a death word is diedAny; other lines and k
     assert.deepEqual(ruleMarksFor([line('+ party Mara')]), ['partyFields', 'partyFour', 'partyRoom']);
     assert.deepEqual(ruleMarksFor([line('- party Mara')]), ['partyLeft'], 'a leaving line changes no room, and carries only partyLeft');
     assert.deepEqual(RULE_LINES.partyRoom({ kind: 'dm', op: '+', raw: '+ party Mara' }), true, 'conservative: the raw words count, however it parsed');
-    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'partyRoom', 'partyFour', 'diedAny', 'factionTags', 'xpKept', 'oneCoin', 'partyFields', 'partyLeft']);
+    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'partyRoom', 'partyFour', 'diedAny', 'factionTags', 'xpKept', 'oneCoin', 'partyFields', 'partyLeft', 'caretWords']);
     assert.deepEqual(ruleMarksFor([line('+ world Harbour Fight | factions: Quay Watch')]), ['factionTags'], 'any world line');
     assert.deepEqual(ruleMarksFor([line('~ world Harbour Fight | factions: Quay Watch'), line('- world Harbour Fight')]), ['factionTags']);
     assert.ok(allRuleNames().includes('factionTags'));
@@ -282,4 +282,37 @@ test('a new reply with a world line carries factionTags; an old reply recorded w
     assert.equal((await host.turn.reread(old)).ok, true);
     assert.equal(recordOf(host, old).rules, undefined);
     assert.ok(recordOf(host, fresh).rules.includes('factionTags'));
+});
+
+test('caretWords: a ^ before every word is dropped only for a fresh or marked reply; an old reply keeps reading such a line as unreadable', async t => {
+    const written = '^- ^key ^Vorn ^| ^note: ^a^b ^and ^more';
+    assert.equal(parseChanges(written).lines.length, 0, 'default reading is unchanged');
+    const read = parseChanges(written, { caret: true });
+    assert.deepEqual(read.problems, []);
+    assert.equal(read.lines[0].kind, 'key');
+    assert.equal(read.lines[0].labels.note, 'a^b and more', 'a ^ inside a word stays');
+    assert.equal(read.lines[0].raw, '- key Vorn | note: a^b and more');
+    assert.equal(parseChanges('+ item Hat^Box', { caret: true }).lines[0].name, 'Hat^Box', 'a line not starting with ^ is untouched');
+    assert.deepEqual(ruleMarksFor(read.lines), [], 'no parsed line falls under the rule: only a first capture marks it');
+    const seen = [], host = await world(t, seen), setter = host.store.setRuleMarks;
+    const edit = (index, text) => { const message = host.ctx.chat[index]; message.mes = text; if (message.swipes) message.swipes[message.swipe_id ?? 0] = text; };
+    await host.send('Vorn.', reply('He nods.', ['^- ^key ^Vorn ^| ^unpinned']));
+    const fresh = host.ctx.chat.length - 1;
+    assert.ok(recordOf(host, fresh).rules.includes('caretWords'));
+    assert.equal(seen.length, 1, 'a new reply is read tolerantly at its first capture');
+    assert.equal((await host.turn.reread(fresh)).ok, true);
+    assert.equal(seen.length, 2, 'the marked reply\'s Re-read reads it again');
+    host.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await host.send('Ann.', reply('She nods.', ['- key Ann | unpinned']));
+    host.store.setRuleMarks = setter;
+    const old = host.ctx.chat.length - 1;
+    assert.equal(recordOf(host, old).rules, undefined);
+    assert.equal(seen.length, 3);
+    edit(old, reply('She nods.', ['^- ^key ^Ann ^| ^unpinned']));
+    assert.equal((await host.turn.reread(old)).ok, true);
+    assert.equal(seen.length, 3, 'an old unmarked reply\'s Re-read still finds the line unreadable');
+    assert.equal(recordOf(host, old).rules, undefined);
+    edit(fresh, reply('He nods.', ['^- ^key ^Vorn ^| ^unpinned']));
+    assert.equal((await host.turn.reread(fresh)).ok, true);
+    assert.equal(seen.length, 4, 'a marked reply reads the edited line');
 });

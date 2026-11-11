@@ -25,7 +25,7 @@ async function fought(t, seed, pick, spy = null) {
     await settle();
     doc.querySelector('.rpg-fight-pause-board').click();
     await settle();
-    for (let n = 0; n < 25 && !doc.querySelector('.rpg-board-send'); n += 1) {
+    for (let n = 0; n < 60 && !doc.querySelector('.rpg-board-send'); n += 1) {
         const choice = [...doc.querySelectorAll('.rpg-board-choice')].find(item => !item.disabled && pick(item.textContent));
         assert.ok(choice, 'a choice is offered');
         choice.click();

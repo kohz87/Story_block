@@ -34,6 +34,9 @@ export const RULE_LINES = Object.freeze({
     partyFields: partyJoin,
     // `- party Name`: a Re-read lets the line leave someone its first run made leave, even after the reader's persona was renamed to that name (data-modules/part/party.js). Any `- party` line counts.
     partyLeft: line => line?.kind === 'party' && line.op === '-',
+    // A preset's ^ before every word of a change line is dropped when the block is read (capture/lines.js stripCaretWords). It changes how a
+    // line is read, not what a parsed line is, so no parsed line falls under it: only a reply's first live capture is marked.
+    caretWords: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */

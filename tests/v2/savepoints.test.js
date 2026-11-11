@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
-import { SAVEPOINT_LIMITS, createSavePoints, stCreateBranch } from '../../src/v2/rewind.js';
+import { SAVEPOINT_LIMITS, STILL_WAITING_MS, createSavePoints, stCreateBranch } from '../../src/v2/rewind.js';
 import { createSavePointsWidget, savedAt } from '../../src/v2/screens/savepoints.js';
 import { homeScreen } from '../../src/v2/screens/home.js';
 import { CORE_FEATURES } from '../../src/v2/domains/index.js';
@@ -271,4 +271,21 @@ test('Home holds the save points slot; the feature is declared on by default, th
     for (const f of ours) assert.ok(f.label && f.describe, f.id);
     assert.equal(savedAt('not a date'), '');
     assert.ok(savedAt(new Date(NOW).toISOString(), 'en-GB').includes('2026'));
+});
+
+test('a branch call that never settles fails after STILL_WAITING_MS and the next save point is not refused as running', async t => {
+    const { host, st } = await played();
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let calls = 0;
+    const points = createSavePoints({ ctx: host.ctx, store: host.store, live: () => host.ctx, open: st.open, now: () => NOW,
+        createBranch: index => (++calls === 1 ? new Promise(() => {}) : st.createBranch(index)) });
+    const stuck = points.save();
+    for (let i = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve));
+    t.mock.timers.tick(STILL_WAITING_MS);
+    const first = await stuck;
+    assert.equal(first.code, 'FAILED');
+    assert.match(first.message, /did not make the branch within 60 s/);
+    const again = await points.save();
+    assert.equal(again.ok, true, 'the running flag was cleared');
+    host.close();
 });

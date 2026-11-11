@@ -16,7 +16,7 @@ const standard = (name, slug) => ({ ...(name === 'Character' ? characterV1For() 
 const roleOf = definition => definition.role ?? null;
 const wessel = { definition: standard('Character', 'wessel'), fields: { who: 'Wessel', str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 3, cha: 5, level: 2, health: 4, stamina: 2, mana: 4, 'health-blocks': 6, 'stamina-blocks': 5, 'mana-blocks': 4 } };
 const ren = { definition: standard('Character', 'ren'), fields: { who: 'Ren' } };
-const foes = { definition: standard('Foes', 'foes'), fields: { foe1: 'Weir-drake', count1: 1, level1: 35, hurt1: 5, foe2: 'Sluice Rat', count2: 2, level2: 15, hurt2: 1 } };
+const foes = { definition: standard('Foes', 'foes'), fields: { foe1: 'Weir-drake', count1: 1, level1: 35, hurt1: 13, foe2: 'Sluice Rat', count2: 2, level2: 15, hurt2: 3 } };
 const state = () => fakeState([wessel, ren, foes]);
 
 function draw(widgetOf, props) {
@@ -75,16 +75,16 @@ test('the header\'s hero bars have the same sizes and the word', () => {
         { kind: 'hp', label: 'Health', value: 4, max: 6, text: 'Hurt · 4/6' }, { kind: 'mp', label: 'Mana', value: 4, max: 4, text: 'Fresh · 4/4' }, { kind: 'sp', label: 'Stamina', value: 2, max: 5, text: 'Tired · 2/5' }]);
 });
 
-test('foe groups have Health by level: level 35 has 5 blocks, level 15 has 4, the words spread over them', () => {
-    assert.deepEqual(readFoes(state(), { roleOf }).map(foe => [foe.name, foe.hurt, foe.max, foe.word]), [['Weir-drake', 5, 5, 'Unhurt'], ['Sluice Rat', 1, 4, 'Badly wounded']]);
+test('foe groups have Health by level: level 35 has 13 blocks, level 15 has 12, the words spread over them', () => {
+    assert.deepEqual(readFoes(state(), { roleOf }).map(foe => [foe.name, foe.hurt, foe.max, foe.word]), [['Weir-drake', 13, 13, 'Unhurt'], ['Sluice Rat', 3, 12, 'Badly wounded']]);
     const el = draw(createFightWidget, { headState: state, readerName: () => 'Wessel', roleOf, battleLog: { latest: () => null } });
     const bar = name => el.querySelector(`.rpg-foe[data-foe="${name}"] .ss-w-meter`);
     assert.deepEqual([bar('Weir-drake'), bar('Sluice Rat')].map(node => node.querySelectorAll('.ss-w-meter-cell').length), [0, 0], 'the same smooth strip as the party\'s');
     assert.deepEqual([bar('Weir-drake'), bar('Sluice Rat')].map(node => node.className.split(" ").filter(item => /^ss-w-(bar|step)-/.test(item)).join(' ')), ['ss-w-bar-health ss-w-step-full', 'ss-w-bar-health ss-w-step-low']);
-    assert.match(el.querySelector('.rpg-foe[data-foe="Weir-drake"]').textContent, /Unhurt · 5\/5/);
-    assert.match(el.querySelector('.rpg-foe[data-foe="Sluice Rat"]').textContent, /Badly wounded · 1\/4/);
-    assert.match(el.querySelector('.rpg-fight-note').textContent, /^Foe Health grows with level: 4 \+ level\/30 blocks/);
-    assert.deepEqual(readFight(state(), { roleOf }).map(foe => foe.stages.length), [6, 5]);
+    assert.match(el.querySelector('.rpg-foe[data-foe="Weir-drake"]').textContent, /Unhurt · 13\/13/);
+    assert.match(el.querySelector('.rpg-foe[data-foe="Sluice Rat"]').textContent, /Badly wounded · 3\/12/);
+    assert.match(el.querySelector('.rpg-fight-note').textContent, /^Foe Health grows with level: 12 \+ level\/30 blocks/);
+    assert.deepEqual(readFight(state(), { roleOf }).map(foe => foe.stages.length), [14, 13]);
     assert.equal(el.querySelector('.rpg-order'), null, 'no recorded order, no row');
 });
 
