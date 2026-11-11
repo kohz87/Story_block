@@ -3181,7 +3181,7 @@
                   "total": 27,
                   "vs": 21,
                   "skill": "",
-                  "breakdown": "Defence, dodge: d20 11 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 21 · vs Cellar Brute d20 13 + 4 + Lv 40 ÷ 5 = 10 = 27 · Astra loses 2 blocks (10 of 12)",
+                  "breakdown": "Defence, dodge: d20 11 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 21 · vs Cellar Brute d20 13 + 4 + Lv 40 ÷ 4 = 10 = 27 · Astra loses 2 blocks (10 of 12)",
                   "arrows": [],
                   "who": "Cellar Brute",
                   "target": "Astra",
@@ -3194,7 +3194,7 @@
                   "total": 19,
                   "vs": 29,
                   "skill": "",
-                  "breakdown": "Defence, dodge: d20 19 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 29 · vs Cellar Rat d20 13 + 4 + Lv 8 ÷ 5 = 2 = 19 · Decisive",
+                  "breakdown": "Defence, dodge: d20 19 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 29 · vs Cellar Rat d20 13 + 4 + Lv 8 ÷ 4 = 2 = 19 · Decisive",
                   "arrows": [],
                   "decisive": true,
                   "who": "Cellar Rat",
@@ -3208,7 +3208,7 @@
                   "total": 28,
                   "vs": 16,
                   "skill": "",
-                  "breakdown": "Physical: d20 16 + (STR 14 + DEX 10/2)/2 = 9 + Lv 15 ÷ 5 = 3 = 28 · vs Cellar Brute d20 2 + 4 + Lv 40 ÷ 5 = 10 = 16 · Cellar Brute loses 2 blocks (11 of 13) · Decisive",
+                  "breakdown": "Physical: d20 16 + (STR 14 + DEX 10/2)/2 = 9 + Lv 15 ÷ 5 = 3 = 28 · vs Cellar Brute d20 2 + 4 + Lv 40 ÷ 4 = 10 = 16 · Cellar Brute loses 2 blocks (11 of 13) · Decisive",
                   "arrows": [],
                   "decisive": true,
                   "who": "Astra",
@@ -3226,7 +3226,7 @@
                   "total": 30,
                   "vs": 21,
                   "skill": "",
-                  "breakdown": "Defence, dodge: d20 11 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 21 · vs Cellar Brute d20 16 + 4 + Lv 40 ÷ 5 = 10 = 30 · Astra loses 4 blocks (6 of 12) · Decisive",
+                  "breakdown": "Defence, dodge: d20 11 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 21 · vs Cellar Brute d20 16 + 4 + Lv 40 ÷ 4 = 10 = 30 · Astra loses 4 blocks (6 of 12) · Decisive",
                   "arrows": [],
                   "decisive": true,
                   "who": "Cellar Brute",
@@ -3240,7 +3240,7 @@
                   "total": 17,
                   "vs": 15,
                   "skill": "",
-                  "breakdown": "Defence, dodge: d20 5 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 15 · vs Cellar Rat d20 11 + 4 + Lv 8 ÷ 5 = 2 = 17",
+                  "breakdown": "Defence, dodge: d20 5 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 15 · vs Cellar Rat d20 11 + 4 + Lv 8 ÷ 4 = 2 = 17",
                   "arrows": [],
                   "who": "Cellar Rat",
                   "target": "Astra",
@@ -3253,7 +3253,7 @@
                   "total": 30,
                   "vs": 34,
                   "skill": "",
-                  "breakdown": "Physical: d20 18 + (STR 14 + DEX 10/2)/2 = 9 + Lv 15 ÷ 5 = 3 = 30 · vs Cellar Brute d20 20 + 4 + Lv 40 ÷ 5 = 10 = 34 · Decisive",
+                  "breakdown": "Physical: d20 18 + (STR 14 + DEX 10/2)/2 = 9 + Lv 15 ÷ 5 = 3 = 30 · vs Cellar Brute d20 20 + 4 + Lv 40 ÷ 4 = 10 = 34 · Decisive",
                   "arrows": [],
                   "decisive": true,
                   "who": "Astra",
@@ -3271,7 +3271,7 @@
                   "total": 23,
                   "vs": 19,
                   "skill": "",
-                  "breakdown": "Defence, dodge: d20 9 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 19 · vs Cellar Brute d20 9 + 4 + Lv 40 ÷ 5 = 10 = 23",
+                  "breakdown": "Defence, dodge: d20 9 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 19 · vs Cellar Brute d20 9 + 4 + Lv 40 ÷ 4 = 10 = 23",
                   "arrows": [],
                   "soaked": true,
                   "who": "Cellar Brute",
@@ -3285,7 +3285,7 @@
                   "total": 11,
                   "vs": 28,
                   "skill": "",
-                  "breakdown": "Defence, dodge: d20 18 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 28 · vs Cellar Rat d20 5 + 4 + Lv 8 ÷ 5 = 2 = 11 · Decisive",
+                  "breakdown": "Defence, dodge: d20 18 + (AGI 10 + VIT 10/2)/2 = 7 + Lv 15 ÷ 5 = 3 = 28 · vs Cellar Rat d20 5 + 4 + Lv 8 ÷ 4 = 2 = 11 · Decisive",
                   "arrows": [
                     "Astra Hurt"
                   ],
@@ -3301,7 +3301,7 @@
                   "total": 26,
                   "vs": 24,
                   "skill": "",
-                  "breakdown": "Physical: d20 14 + (STR 14 + DEX 10/2)/2 = 9 + Lv 15 ÷ 5 = 3 = 26 · vs Cellar Brute d20 10 + 4 + Lv 40 ÷ 5 = 10 = 24 · Cellar Brute loses 1 block (10 of 13)",
+                  "breakdown": "Physical: d20 14 + (STR 14 + DEX 10/2)/2 = 9 + Lv 15 ÷ 5 = 3 = 26 · vs Cellar Brute d20 10 + 4 + Lv 40 ÷ 4 = 10 = 24 · Cellar Brute loses 1 block (10 of 13)",
                   "arrows": [
                     "Cellar Brute Scratched"
                   ],
@@ -3481,6 +3481,7 @@
                           "base": 4,
                           "classValue": 40,
                           "classBonus": 10,
+                          "divisor": 4,
                           "die": 13,
                           "total": 27
                         },
@@ -3527,6 +3528,7 @@
                           "base": 4,
                           "classValue": 8,
                           "classBonus": 2,
+                          "divisor": 4,
                           "die": 13,
                           "total": 19
                         },
@@ -3563,6 +3565,7 @@
                           "base": 4,
                           "classValue": 40,
                           "classBonus": 10,
+                          "divisor": 4,
                           "die": 2,
                           "total": 16
                         },
@@ -3615,6 +3618,7 @@
                           "base": 4,
                           "classValue": 40,
                           "classBonus": 10,
+                          "divisor": 4,
                           "die": 16,
                           "total": 30
                         },
@@ -3661,6 +3665,7 @@
                           "base": 4,
                           "classValue": 8,
                           "classBonus": 2,
+                          "divisor": 4,
                           "die": 11,
                           "total": 17
                         },
@@ -3697,6 +3702,7 @@
                           "base": 4,
                           "classValue": 40,
                           "classBonus": 10,
+                          "divisor": 4,
                           "die": 20,
                           "total": 34
                         },
@@ -3740,6 +3746,7 @@
                           "base": 4,
                           "classValue": 40,
                           "classBonus": 10,
+                          "divisor": 4,
                           "die": 9,
                           "total": 23
                         },
@@ -3778,6 +3785,7 @@
                           "base": 4,
                           "classValue": 8,
                           "classBonus": 2,
+                          "divisor": 4,
                           "die": 5,
                           "total": 11
                         },
@@ -3814,6 +3822,7 @@
                           "base": 4,
                           "classValue": 40,
                           "classBonus": 10,
+                          "divisor": 4,
                           "die": 10,
                           "total": 24
                         },

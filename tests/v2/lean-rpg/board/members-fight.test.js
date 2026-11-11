@@ -377,3 +377,14 @@ test('harder foes: the board\'s "attacks on you" count is what the plan makes (l
         assert.equal(shown, built.plan.foes.length, `${party} heroes, exchange ${offset + 1}`);
     }
 });
+
+test('harder foes: the foe side of a new roll records its divisor (4); an old roll records none, so its log keeps ÷ 5', () => {
+    const sheet = readSheet(stateOf(hardBlocks([['Ogre', 1, 20, 12]])));
+    const built = exchangePlan(sheet, everyone(1), {}, 1, { members: false });
+    const side = hard => prepareStandard(built.plan, sheet, rules, { lv: true, hard }).foes[0].foe;
+    assert.equal(side(true).divisor, 4);
+    assert.equal(Object.hasOwn(side(false), 'divisor'), false);
+    const played = playBoard(stateOf(hardBlocks([['Ogre', 1, 20, 12]])), { seed: 2, offset: 0, rules, members: 1, foesSix: 1, foesHard: 1 }, [{ actions: everyone(1) }]);
+    const lines = played.result.rounds.flatMap(round => round.lines).filter(line => line.foe);
+    assert.ok(lines.length > 0 && lines.every(line => line.foe.divisor === 4), 'every recorded foe side of the fight tells ÷ 4');
+});

@@ -6955,6 +6955,7 @@
                                     "base": 4,
                                     "classValue": 40,
                                     "classBonus": 10,
+                                    "divisor": 4,
                                     "die": 13,
                                     "total": 27
                                   },
@@ -7001,6 +7002,7 @@
                                     "base": 4,
                                     "classValue": 8,
                                     "classBonus": 2,
+                                    "divisor": 4,
                                     "die": 13,
                                     "total": 19
                                   },
@@ -7037,6 +7039,7 @@
                                     "base": 4,
                                     "classValue": 40,
                                     "classBonus": 10,
+                                    "divisor": 4,
                                     "die": 2,
                                     "total": 16
                                   },
@@ -7089,6 +7092,7 @@
                                     "base": 4,
                                     "classValue": 40,
                                     "classBonus": 10,
+                                    "divisor": 4,
                                     "die": 16,
                                     "total": 30
                                   },
@@ -7135,6 +7139,7 @@
                                     "base": 4,
                                     "classValue": 8,
                                     "classBonus": 2,
+                                    "divisor": 4,
                                     "die": 11,
                                     "total": 17
                                   },
@@ -7171,6 +7176,7 @@
                                     "base": 4,
                                     "classValue": 40,
                                     "classBonus": 10,
+                                    "divisor": 4,
                                     "die": 20,
                                     "total": 34
                                   },
@@ -7214,6 +7220,7 @@
                                     "base": 4,
                                     "classValue": 40,
                                     "classBonus": 10,
+                                    "divisor": 4,
                                     "die": 9,
                                     "total": 23
                                   },
@@ -7252,6 +7259,7 @@
                                     "base": 4,
                                     "classValue": 8,
                                     "classBonus": 2,
+                                    "divisor": 4,
                                     "die": 5,
                                     "total": 11
                                   },
@@ -7288,6 +7296,7 @@
                                     "base": 4,
                                     "classValue": 40,
                                     "classBonus": 10,
+                                    "divisor": 4,
                                     "die": 10,
                                     "total": 24
                                   },
@@ -7826,6 +7835,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 13,
                                 "total": 27
                               },
@@ -7872,6 +7882,7 @@
                                 "base": 4,
                                 "classValue": 8,
                                 "classBonus": 2,
+                                "divisor": 4,
                                 "die": 13,
                                 "total": 19
                               },
@@ -7908,6 +7919,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 2,
                                 "total": 16
                               },
@@ -7960,6 +7972,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 16,
                                 "total": 30
                               },
@@ -8006,6 +8019,7 @@
                                 "base": 4,
                                 "classValue": 8,
                                 "classBonus": 2,
+                                "divisor": 4,
                                 "die": 11,
                                 "total": 17
                               },
@@ -8042,6 +8056,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 20,
                                 "total": 34
                               },
@@ -8085,6 +8100,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 9,
                                 "total": 23
                               },
@@ -8123,6 +8139,7 @@
                                 "base": 4,
                                 "classValue": 8,
                                 "classBonus": 2,
+                                "divisor": 4,
                                 "die": 5,
                                 "total": 11
                               },
@@ -8159,6 +8176,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 10,
                                 "total": 24
                               },
@@ -8531,6 +8549,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 13,
                                 "total": 27
                               },
@@ -8577,6 +8596,7 @@
                                 "base": 4,
                                 "classValue": 8,
                                 "classBonus": 2,
+                                "divisor": 4,
                                 "die": 13,
                                 "total": 19
                               },
@@ -8613,6 +8633,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 2,
                                 "total": 16
                               },
@@ -8665,6 +8686,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 16,
                                 "total": 30
                               },
@@ -8711,6 +8733,7 @@
                                 "base": 4,
                                 "classValue": 8,
                                 "classBonus": 2,
+                                "divisor": 4,
                                 "die": 11,
                                 "total": 17
                               },
@@ -8747,6 +8770,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 20,
                                 "total": 34
                               },
@@ -8790,6 +8814,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 9,
                                 "total": 23
                               },
@@ -8828,6 +8853,7 @@
                                 "base": 4,
                                 "classValue": 8,
                                 "classBonus": 2,
+                                "divisor": 4,
                                 "die": 5,
                                 "total": 11
                               },
@@ -8864,6 +8890,7 @@
                                 "base": 4,
                                 "classValue": 40,
                                 "classBonus": 10,
+                                "divisor": 4,
                                 "die": 10,
                                 "total": 24
                               },
@@ -9402,6 +9429,7 @@
                             "base": 4,
                             "classValue": 40,
                             "classBonus": 10,
+                            "divisor": 4,
                             "die": 13,
                             "total": 27
                           },
@@ -9448,6 +9476,7 @@
                             "base": 4,
                             "classValue": 8,
                             "classBonus": 2,
+                            "divisor": 4,
                             "die": 13,
                             "total": 19
                           },
@@ -9484,6 +9513,7 @@
                             "base": 4,
                             "classValue": 40,
                             "classBonus": 10,
+                            "divisor": 4,
                             "die": 2,
                             "total": 16
                           },
@@ -9536,6 +9566,7 @@
                             "base": 4,
                             "classValue": 40,
                             "classBonus": 10,
+                            "divisor": 4,
                             "die": 16,
                             "total": 30
                           },
@@ -9582,6 +9613,7 @@
                             "base": 4,
                             "classValue": 8,
                             "classBonus": 2,
+                            "divisor": 4,
                             "die": 11,
                             "total": 17
                           },
@@ -9618,6 +9650,7 @@
                             "base": 4,
                             "classValue": 40,
                             "classBonus": 10,
+                            "divisor": 4,
                             "die": 20,
                             "total": 34
                           },
@@ -9661,6 +9694,7 @@
                             "base": 4,
                             "classValue": 40,
                             "classBonus": 10,
+                            "divisor": 4,
                             "die": 9,
                             "total": 23
                           },
@@ -9699,6 +9733,7 @@
                             "base": 4,
                             "classValue": 8,
                             "classBonus": 2,
+                            "divisor": 4,
                             "die": 5,
                             "total": 11
                           },
@@ -9735,6 +9770,7 @@
                             "base": 4,
                             "classValue": 40,
                             "classBonus": 10,
+                            "divisor": 4,
                             "die": 10,
                             "total": 24
                           },

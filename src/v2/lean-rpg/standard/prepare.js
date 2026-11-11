@@ -61,7 +61,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity, lv
     const roster = rosterOf(sheet, maxOf);
     // A foe's side of the roll: from a roll of the Levels rules (`lv`) the foe adds floor(level / divisor), else foeClassWeight × class, as it did.
     const foeSide = foe => (lv
-        ? { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.level, classBonus: levelBonus(foe.level, hard ? FOE_LEVEL.hardDivisor : rules.levelDivisor) }
+        ? { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.level, classBonus: levelBonus(foe.level, hard ? FOE_LEVEL.hardDivisor : rules.levelDivisor), ...(hard ? { divisor: FOE_LEVEL.hardDivisor } : {}) }
         : { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.foeClassWeight * foe.class });
     if (lv) for (const bar of roster.foes) bar.initiative = levelBonus(bar.foe.level, rules.levelDivisor);
     const refuse = (who, text, plain = text) => { out.refused.push({ who, text }); out.plainRefused.push(plain); };
