@@ -17,7 +17,7 @@ const T = (year, month, day, hour = 0) => year * 360 * DAY + (month - 1) * 30 * 
 const START = T(611, 5, 12, 6) + 40;
 const lastingOf = event => (event.then ?? []).filter(step => step.command === 'chronicle.lasting').map(step => step.payload);
 const written = new Set(beats.flatMap(event => lastingOf(event).map(payload => payload.name)));
-const delays = event => [...event.when.matchAll(/chronicle\.passed', \{ name: "([^"]*)"/g)].map(match => match[1]);
+const delays = event => [...event.when.matchAll(/(?<!!)query\('chronicle\.passed', \{ name: "([^"]*)"/g)].map(match => match[1]);
 // The view a condition reads: the clock, the place and the stand-in chronicle.
 function view({ minutes, place, chronicle = new Map() }) {
     return {
@@ -55,7 +55,7 @@ test('the timeline is data Story Block and Story Director accept: conditions rea
     // resolved entries past 30, never open ones (review 169 B3).
     const states = new Map();
     for (const event of beats) for (const payload of lastingOf(event)) states.set(payload.name, [...(states.get(payload.name) ?? []), payload.state]);
-    for (const event of beats) for (const match of event.when.matchAll(/chronicle\.passed', \{ name: "([^"]*)", minutes: (\d+)/g)) {
+    for (const event of beats) for (const match of event.when.matchAll(/(?<!!)query\('chronicle\.passed', \{ name: "([^"]*)", minutes: (\d+)/g)) {
         if (Number(match[2]) <= 16 * DAY && !/^marrowbridge|^crown|^last-wall|^auvoth|^after-wall|^hasse|^corvin|^wendhild/.test(event.id)) continue;
         assert.ok(states.get(match[1]).some(state => state !== 'resolved'), `${event.id} waits on "${match[1]}", which is open`);
     }
@@ -74,6 +74,20 @@ test('the pack has no Court favour module and no event reads one', () => {
     assert.equal(pack.content.dataModules.some(definition => definition.slug === 'succession'), false);
     assert.equal(JSON.stringify(pack.content).includes('pack.ersveil/succession'), false);
     assert.equal(JSON.stringify(pack.content).includes('dataModules.view'), false, 'no event reads a data module');
+});
+
+// A chat that already fired a Court favour branch in 2.9.2 holds that branch's chronicle names (which nothing writes now);
+// the fixed road's guards read them negated, so it never fires on top of the branch.
+test('a chat already on a Court favour branch never gets the fixed road too', () => {
+    const fires = (id, minutes, names) => {
+        const chronicle = new Map(names.map(name => [name, { since: 0, state: 'resolved', touched: 0 }]));
+        return evaluateCondition(events.find(event => event.id === id).when, view({ minutes, place: { name: 'x', region: 'y' }, chronicle })).met;
+    };
+    const crown = ['Highmark\'s war: Wendhild against Corvin'];
+    assert.equal(fires('crown-wendhild-over-corvin', 318400000, crown), true, 'control: the fixed road fires on a plain chronicle');
+    assert.equal(fires('crown-wendhild-over-corvin', 318400000, [...crown, 'Reign of Emperor Corvin']), false, 'Corvin already crowned');
+    assert.equal(fires('marrowbridge-hasse', 318200000, []), true, 'control');
+    for (const name of ['Highmark\'s war: Wendhild against Hasse', 'Highmark\'s war: Corvin against Hasse']) assert.equal(fires('marrowbridge-hasse', 318200000, [name]), false, name);
 });
 
 // Walk the clock at Bluewatch (or `place`), one reply every `step` story minutes, firing what is due like the engine does
