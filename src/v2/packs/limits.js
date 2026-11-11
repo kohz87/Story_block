@@ -19,10 +19,10 @@ export const LIMITS = Object.freeze({
 export const RECORD_LIMITS = Object.freeze({ slug: 64, note: 500, word: 40, element: 24 });
 
 // Content kinds a pack may carry. Each is a list of records.
-export const CONTENT_KINDS = Object.freeze(['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets', 'markets', 'dataModules', 'rpg', 'cast']);
+export const CONTENT_KINDS = Object.freeze(['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets', 'markets', 'dataModules', 'rpg', 'cast', 'names']);
 // Kinds added after the first pack format: a normalized pack has them only when the file gives
 // them, so what older packs list (counts) stays as it was.
-export const OPTIONAL_KINDS = Object.freeze(['skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets', 'markets', 'dataModules', 'rpg', 'cast']);
+export const OPTIONAL_KINDS = Object.freeze(['skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets', 'markets', 'dataModules', 'rpg', 'cast', 'names']);
 // `content.you` (Your look, MODULES §F126): an object, not a list. A pack opts in to a Rank for {{user}} with
 // `content.you.rank: { "label": "Guild rank" }` (the label is what Home and the Status card call it, 1 to 30 characters).
 export const YOU_FIELDS = Object.freeze(['rank']);
@@ -76,6 +76,11 @@ export const TERM_SEPARATORS = /[|:#<>\r\n]/;
 // A ladder of ranks, lowest first: `{ id: 'F', title?, levels?: [lo, hi], reward?: [lo, hi], xp?: [lo, hi] }`, the
 // reward in whole units of the chat's one currency and `xp` the experience a job of the rank may give (whole XP, 0 to
 // RANKS_LIMITS.xp). Without `xp`, an open quest template's XP is held to `reward` as before (2.5.0 added `xp`).
+// The `names` content kind: ONE object (not a list), `{ banned?: [..], <culture id>: { regions, given, family? } }`. Story Director's names
+// part reads it through `packs.content { kind: 'names' }` to suggest given names for new people in a scene whose `place.region` contains
+// one of a culture's regions (first culture in key order wins). `banned` (overused names) is merged across packs.
+export const NAMES_FIELDS = Object.freeze(['regions', 'given', 'family']);
+export const NAMES_LIMITS = Object.freeze({ cultures: 20, regions: 8, region: 80, given: 60, family: 60, name: 40, banned: 200, bannedName: 80 });
 export const RANK_FIELDS = Object.freeze(['id', 'title', 'levels', 'reward', 'xp']);
 export const RANK_ID = /^[\p{L}\p{N}+-]{1,8}$/u;
 export const RANKS_LIMITS = Object.freeze({ records: 12, title: 30, level: 999, xp: 1000000 });

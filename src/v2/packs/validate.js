@@ -28,7 +28,7 @@ import {
     checkCurrency, checkEconomy, checkWeather, checkRipples, checkEvent, checkChoice, linkEvents, checkSkill, choiceRefs,
     checkPreset, checkStart,
 } from './validate/events-economy.js';
-import { checkCalendar, checkPlace, placeRefs, checkRoute, routeSlug, checkTerms, termsSlug, checkRanks, checkMarkets } from './validate/world.js';
+import { checkCalendar, checkPlace, placeRefs, checkRoute, routeSlug, checkTerms, termsSlug, checkRanks, checkMarkets, checkNames } from './validate/world.js';
 import { checkItem, itemRefs, checkShop, checkCrafts, checkRecipe, checkMeterPreset, checkRpg, checkYou } from './validate/items.js';
 import { checkScreens, checkTheme } from './validate/theme.js';
 export { HOST_VERSION, slugify } from './validate/core.js';
@@ -138,6 +138,11 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
     if (given.rpg !== undefined) content.rpg = checkRpg(given.rpg, packId, add);
     // The cast (cast.js): kept only when given, so older packs normalize as they always did.
     if (given.cast !== undefined) content.cast = checkCast(given.cast, packId, add, items);
+    // The name lists: one object (not a list), kept only when given and when every part checks.
+    if (given.names !== undefined) {
+        const names = checkNames(given.names, add);
+        if (names) content.names = names;
+    }
     // Not a list: kept only when given (so older packs' bytes and hashes stay), and only when it checks.
     if (given.you !== undefined) {
         const you = checkYou(given.you, add);

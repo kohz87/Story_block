@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validatePack, slugify } from '../../../src/v2/packs/validate.js';
-import { LIMITS } from '../../../src/v2/packs/limits.js';
+import { LIMITS, CONTENT_KINDS, OPTIONAL_KINDS } from '../../../src/v2/packs/limits.js';
 import { pack, sample, sampleText } from './helpers/fixtures.js';
 
 const codes = result => (result.ok ? [] : result.errors.map(error => error.code));
@@ -404,4 +404,36 @@ test('ripples: a bad section is refused with BAD_RIPPLES (or UNKNOWN_FIELD) nami
     }
     refused(pack({ ripples: ripples({ extra: 1 }) }), 'UNKNOWN_FIELD');
     refused(pack({ ripples: ripples({ powers: [{ id: 'a', name: 'A', base: 1, favour: 2 }] }) }), 'UNKNOWN_FIELD');
+});
+
+// A pack's name lists (`content.names`, read by Story Director's names part through packs.content { kind: 'names' }): ONE object; a bad section is a Problem and is left out.
+const names = extra => ({ banned: ['Elara'], river: { regions: ['River Confederacy'], given: ['Wenna', 'Joost'], family: ['Lockwright'] }, ...extra });
+test('names: a good object is kept (trimmed, de-duplicated ignoring case, key order); no section leaves no key; names is a content kind', () => {
+    assert.ok(CONTENT_KINDS.includes('names') && OPTIONAL_KINDS.includes('names'));
+    const result = validatePack(pack({ content: { names: names({ hill: { regions: [' Northern  Holds '], given: ['Torgun', 'torgun', ' Sigrun '] } }) } }));
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    assert.deepEqual(result.pack.content.names, { banned: ['Elara'], river: { regions: ['River Confederacy'], given: ['Wenna', 'Joost'], family: ['Lockwright'] }, hill: { regions: ['Northern Holds'], given: ['Torgun', 'Sigrun'] } });
+    assert.deepEqual(Object.keys(result.pack.content.names), ['banned', 'river', 'hill']);
+    assert.equal('names' in validatePack(pack()).pack.content, false, 'a pack without the section keeps its old bytes');
+});
+
+test('names: a bad section is a pack Problem naming the path and is not kept', () => {
+    const many = n => Array.from({ length: n }, (_, i) => `N${i}`);
+    const culture = extra => names({ river: { regions: ['River'], given: ['Wenna'], ...extra } });
+    const bad = [
+        ['a list', [], 'content.names'], ['a culture that is a list', names({ river: ['Wenna'] }), 'content.names.river'], ['a culture that is text', names({ river: 'Wenna' }), 'content.names.river'],
+        ['an id that is not a slug', names({ 'River Folk': { regions: ['R'], given: ['W'] } }), 'content.names.River Folk'],
+        ['no regions', culture({ regions: [] }), 'content.names.river.regions'], ['no given names', culture({ given: [] }), 'content.names.river.given'],
+        ['a region that is a number', culture({ regions: [4] }), 'content.names.river.regions'], ['a blank given name', culture({ given: ['Wenna', '  '] }), 'content.names.river.given'],
+        ['61 given names', culture({ given: many(61) }), 'content.names.river.given'], ['9 regions', culture({ regions: many(9) }), 'content.names.river.regions'],
+        ['a 41-character name', culture({ given: ['x'.repeat(41)] }), 'content.names.river.given'], ['family that is text', culture({ family: 'Lock' }), 'content.names.river.family'],
+        ['banned that is text', names({ banned: 'Elara' }), 'content.names.banned'], ['201 banned', names({ banned: many(201) }), 'content.names.banned'],
+        ['21 cultures', Object.fromEntries(many(21).map(id => [id.toLowerCase(), { regions: ['R'], given: ['W'] }])), 'content.names'],
+    ];
+    for (const [label, section, path] of bad) {
+        const result = refused(pack({ content: { names: section } }), 'BAD_CONTENT');
+        assert.ok(result.errors.some(error => error.path === path), `${label}: ${JSON.stringify(result.errors)}`);
+    }
+    const unknown = refused(pack({ content: { names: culture({ bynames: ['Long-Oar'] }) } }), 'UNKNOWN_FIELD');
+    assert.equal(unknown.errors[0].path, 'content.names.river.bynames');
 });

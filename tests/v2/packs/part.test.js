@@ -139,3 +139,21 @@ test('packs.ripples answers the first enabled pack\'s table with its pack id (a 
     await packs.setEnabled('rivals', false);
     assert.equal(ctx.query('packs.ripples'), null, 'a disabled pack gives nothing');
 });
+
+test('packs.content { kind: "names" } answers each enabled pack\'s name object (a fresh copy); a pack without names adds nothing', async () => {
+    const { part, packs } = createPacksPart({ settings: fakeSettings() });
+    const ctx = fakeCtx({ queries: part.queries });
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), []);
+    await packs.install(sampleText);
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), [], 'a pack without the section');
+    const names = { banned: ['Elara'], river: { regions: ['River Confederacy'], given: ['Wenna'], family: ['Lockwright'] } };
+    const added = await packs.install(JSON.stringify(pack({ id: 'rivers', content: { names } })));
+    assert.equal(added.ok, true, JSON.stringify(added.errors));
+    const answer = ctx.query('packs.content', { kind: 'names' });
+    assert.deepEqual(answer, [names]);
+    answer[0].river.given.pop();
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), [names], 'the caller cannot change the pack');
+    assert.equal((await packs.install(JSON.stringify(pack({ id: 'bad-names', content: { names: { river: 'x' } } })))).ok, false, 'a bad section is a Problem');
+    await packs.setEnabled('rivers', false);
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), []);
+});
