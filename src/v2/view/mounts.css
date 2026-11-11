@@ -294,16 +294,18 @@
     body.ss-gameview-open { overflow: hidden; }
 }
 
-/* The wide bar: the screens that are in the bar are a centred row of even slots, then More; its sheet opens over the window's foot, as
-   a centred panel (on a phone it floats above the pill). */
-@media (min-width: 760px) {
-    .ss-gameview-nav.ss-screenbar-row {
-        justify-content: center;
+/* The wide bar: from 1000px the strip's slots are even and centred, one full row; narrower, it scrolls sideways (glass.css). The
+   (unused) More sheet opens over the window's foot, as a centred panel (on a phone it floats above the pill). */
+@media (min-width: 1000px) {
+    .ss-gameview-nav.ss-screenbar-strip {
+        justify-content: safe center;
         gap: 6px;
     }
-    .ss-gameview-nav.ss-screenbar-row .ss-screenbar-item {
+    .ss-gameview-nav.ss-screenbar-strip > .ss-screenbar-item {
         flex: 0 1 112px;
     }
+}
+@media (min-width: 760px) {
     .ss-gameview-main > .ss-screenbar-sheet {
         left: 50%;
         right: auto;

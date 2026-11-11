@@ -72,9 +72,8 @@ test('off: the screen is not on the bar, the More sheet or the row, and it still
     view.close();
 });
 
-test('on with an alert: it shows in the pinned slot with a red dot; the item it displaced is under More; off again, it goes', () => {
+test('on with an alert: it shows in its own place in the strip with a red dot, nothing is displaced; off again, it goes', () => {
     const slots = doc => doc.body.querySelector('.ss-gameview').querySelectorAll('.ss-screenbar-item').map(node => node.getAttribute('data-id')).filter(id => id);
-    // The same screens with no alert first: where each one sits, and what holds the fourth slot (that one goes to More).
     const calm = world({ on: true, badge: null });
     calm.view.update();
     const before = slots(calm.doc);
@@ -82,15 +81,10 @@ test('on with an alert: it shows in the pinned slot with a red dot; the item it 
     const battle = { on: true, badge: 'alert' };
     const { doc, view } = world(battle);
     view.update();
-    const pinned = slots(doc);
-    assert.equal(pinned[3], 'game/fight', 'the last pinned slot');
-    assert.deepEqual(pinned.slice(0, 3), before.filter(id => id !== 'game/fight').slice(0, 3), 'the first three keep their order');
-    assert.equal(pinned.length, 4, 'four pinned, the rest under More');
-    const displaced = before.filter(id => id !== 'game/fight')[3];
-    assert.equal(pinned.includes(displaced), false, `${displaced}, the one that held the slot, is under More`);
+    assert.deepEqual(slots(doc), before, 'the same strip in the same order: an alert moves nothing and nothing goes under More');
     const fight = doc.body.querySelector('.ss-gameview').querySelector('[data-id="game/fight"]');
     assert.ok(fight.querySelector('.ss-screenbar-alert'), 'the red dot');
-    assert.equal(doc.body.querySelector('.ss-gameview').querySelector(`[data-id="${displaced}"]`)?.querySelector('.ss-screenbar-alert') ?? null, null);
+    assert.equal(doc.body.querySelector('.ss-gameview').querySelector('.ss-screenbar-more').hidden, true, 'no More');
     battle.on = false;
     view.update();
     assert.equal(listed(doc).includes('game/fight'), false, 'gone once it is off');

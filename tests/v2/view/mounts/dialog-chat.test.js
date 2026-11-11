@@ -64,7 +64,7 @@ test('the same chat and branch: the submit goes through as before', async () => 
     assert.deepEqual(api.calls, [['command', 'party.create', { name: 'Ren' }, { cause: 'ui' }]]);
 });
 
-test('a chat change closes every open dialog and the More sheet; the old dialog cannot create anything', async t => {
+test('a chat change closes every open dialog; the old dialog cannot create anything', async t => {
     t.mock.method(console, 'warn', () => {});
     const created = [];
     const doc = setupDom();
@@ -87,14 +87,11 @@ test('a chat change closes every open dialog and the More sheet; the old dialog 
     const handle = ui.mounts.dialog.open('qa-wiz/new', { submit: 'qa-wiz.create', draft: { name: 'Ren' } });
     assert.ok(handle, 'the dialog opened');
     assert.equal(ui.mounts.screen.open('qa-wiz/bag'), true);
-    assert.equal(ui.mounts.screen.openMore(), true, 'the More sheet is open');
-    assert.equal(ui.mounts.screen.isMoreOpen(), true);
 
     await st.loadChat([], 'chat-b');
 
     assert.equal(handle.isOpen(), false, 'the dialog closed with the chat');
     assert.equal(ui.mounts.dialog.current(), null);
-    assert.equal(ui.mounts.screen.isMoreOpen(), false, 'the More sheet closed with the chat');
     assert.equal(ui.mounts.screen.isOpen(), true, 'the game view itself stays open');
     assert.equal((await handle.submit()).code, 'CLOSED');
     assert.deepEqual(created, []);

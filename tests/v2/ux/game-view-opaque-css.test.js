@@ -39,7 +39,7 @@ test('a phone\'s full-screen view keeps its opaque floor and the Story panel is 
     assert.doesNotMatch(host, /ss-sheet-floor/, 'the Story panel\'s own rules do not use the game view\'s floor');
 });
 
-test('the wide More sheet opens over the window\'s foot, centred, and the row of the bar is centred', () => {
-    assert.match(mounts, /\.ss-gameview-nav\.ss-screenbar-row \{\s*justify-content: center;/);
+test('the wide More sheet opens over the window\'s foot, centred, and from 1000px the strip is one centred row', () => {
+    assert.match(mounts, /@media \(min-width: 1000px\) \{\s*\.ss-gameview-nav\.ss-screenbar-strip \{\s*justify-content: safe center;/);
     assert.match(mounts, /\.ss-gameview-main > \.ss-screenbar-sheet \{[^}]*left: 50%;[^}]*bottom: 24px;[^}]*transform: translateX\(-50%\);/);
 });

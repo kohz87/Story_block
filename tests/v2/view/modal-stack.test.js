@@ -136,7 +136,7 @@ test('a game view with a dialog over it: one Escape closes the dialog only, the 
     assert.equal(doc.activeElement, opener, 'the focus is back on what opened the view');
 });
 
-test('Tab inside the game view stays in it, and the More sheet takes the keys while it is open', () => {
+test('Tab inside the game view stays in it, and the strip has no More to take the keys', () => {
     const doc = setupDom();
     const chat = fakeChat(doc, [1]);
     const screens = screensWith([
@@ -154,11 +154,9 @@ test('Tab inside the game view stays in it, and the More sheet takes the keys wh
         dispatch(doc, 'keydown', { key: 'Tab' });
         assert.ok(root.contains(doc.activeElement) || inside().includes(doc.activeElement), `Tab ${i + 1} stayed in the game view`);
     }
-    assert.equal(view.openMore(), true);
+    assert.equal(view.openMore(), false, 'there is no More');
     dispatch(doc, 'keydown', { key: 'Escape' });
-    assert.equal(view.isMoreOpen(), false, 'Escape closes More first');
-    assert.equal(view.isOpen(), true, 'the view is still open');
-    view.close();
+    assert.equal(view.isOpen(), false, 'Escape closes the view');
 });
 
 test('a layer whose element has left the page is dropped: it takes no key, and the layers under it still do (fix 8a review, blocking 1)', () => {

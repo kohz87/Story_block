@@ -54,7 +54,7 @@ test('export, import and enable retain the tab, Home card and buttons without ch
     const presentation = host.sdk.query('dataModules.presentation', { kind: 'screens' });
     assert.equal(presentation.find(screen => screen.id === screenId)?.title, 'Vigor');
     assert.equal(ui.screens.resolve(screenId).screen.icon, 'ph-star');
-    assert.ok(doc.querySelector(`.ss-gameview .ss-screenbar-tile[data-id="${screenId}"]`));
+    assert.ok(doc.querySelector(`.ss-gameview .ss-screenbar-item[data-id="${screenId}"]`));
     assert.equal(ui.mounts.screen.open(screenId), true);
     const tab = () => doc.querySelector(`.ss-gameview [data-ss-screen="${screenId}"]`);
     assert.match(tab().textContent, /Stamina/);
