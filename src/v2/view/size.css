@@ -8,6 +8,7 @@
    must stay a screen's length (a full-screen layer in vw/dvh, a 44px tap area). Outside a root `--ss-zoomed` is unset (1).
    Measured distances (getBoundingClientRect, a pointer's clientX) are drawn pixels and a node's own lengths (style.left,
    scrollTop) are not: scripts divide by the node's zoom (view/scroll.js zoomOf; Story Director's map does the same). */
+@import url('../screens/block-maps.css');   /* the number lists, guild tiles and Enable all box (REPUI) */
 :root {
     --ss-zoom: 0.8;
 }

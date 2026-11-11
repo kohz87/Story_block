@@ -231,3 +231,80 @@ test('a block of plain fields draws them as one record card, a pencil on each li
     assert.equal(second.el.querySelectorAll('.ss-b-plain').length, 0);
     assert.equal(second.el.querySelectorAll('.ss-block-value').length, 1);
 });
+
+// ---- REPUI: lists with room, the top three, the Edit button, a signed bar's colours ------------------------------------------------------
+
+test('a signed list colours its bars and values by direction and shows the scale once, under the first row', async t => {
+    const { doc, host, api } = await world(t);
+    const module = await define(host, mapDefinition(-100, 100));
+    await set(host, module, 'fame', 60, 'north'); await set(host, module, 'fame', -30, 'east'); await set(host, module, 'fame', 10, 'west');
+    const { el, view } = render(doc, api, module);
+    t.after(() => view.destroy());
+    const list = el.querySelector('.ss-b-box > .ss-b-list');
+    const rows = list.querySelectorAll('.ss-b-row');
+    assert.deepEqual(rows.map(row => row.querySelector('.ss-b-name').textContent), ['North', 'West', 'East']);
+    assert.deepEqual(rows.map(row => has(row.querySelector('.ss-b-val'), 'ss-rm-pos') ? 'pos' : has(row.querySelector('.ss-b-val'), 'ss-rm-neg') ? 'neg' : 'none'), ['pos', 'pos', 'neg'], 'the value takes the bar\'s side');
+    assert.deepEqual(rows.map(row => has(row.querySelector('.ss-bar-fill'), 'ss-b-neg')), [false, false, true], 'below 0 grows left of the centre line, above 0 right');
+    assert.equal(rows[2].querySelector('.ss-bar-fill').styleProps['--ss-bar-color'], 'var(--ss-bad)', 'red below 0');
+    assert.equal(rows[0].querySelector('.ss-bar-fill').styleProps['--ss-bar-color'], 'var(--ss-tick)', 'green above 0');
+    const scales = el.querySelectorAll('.ss-rm-scale');
+    assert.equal(scales.length, 1, 'once');
+    assert.deepEqual(scales[0].querySelectorAll('span').map(node => node.textContent), ['−100', '0', '+100']);
+    assert.equal(list.children[1], scales[0], 'directly under the first row');
+});
+
+test('an unsigned list has no scale and no colour on its values', async t => {
+    const { doc, host, api } = await world(t);
+    const module = await define(host, mapDefinition());
+    await set(host, module, 'fame', 5, 'north');
+    const { el, view } = render(doc, api, module);
+    t.after(() => view.destroy());
+    assert.equal(el.querySelectorAll('.ss-rm-scale').length, 0);
+    assert.equal(el.querySelectorAll('.ss-rm-pos, .ss-rm-neg').length, 0);
+});
+
+test('a list shows its top three known rows; the rest of the known ones and the unknown fold into one row with both counts', async t => {
+    const { doc, host, api } = await world(t);
+    const module = await define(host, mapDefinition());
+    for (const [key, value] of [['north', 50], ['south', 40], ['east', 30], ['west', 20]]) await set(host, module, 'fame', value, key);
+    const { el, view } = render(doc, api, module);
+    t.after(() => view.destroy());
+    assert.deepEqual(el.querySelectorAll('.ss-b-box > .ss-b-list > .ss-b-row').map(row => row.querySelector('.ss-b-name').textContent), ['North', 'South', 'East'], 'three, highest first');
+    const folds = el.querySelectorAll('details.ss-rm-fold');
+    assert.equal(folds.length, 1, 'one fold row');
+    assert.equal(folds[0].querySelector('summary').textContent, '1 more known · Not known yet (1)');
+    assert.deepEqual(folds[0].querySelectorAll('.ss-b-name').map(node => node.textContent), ['West', 'Old town'], 'the 4th known, then the unknown, in place');
+    assert.equal(folds[0].querySelectorAll('.ss-bar-track').length, 1, 'a known row keeps its value and bar');
+});
+
+test('a list with no more known rows says only Not known yet, and one with nothing unknown says only N more known', async t => {
+    const { doc, host, api } = await world(t);
+    const module = await define(host, mapDefinition());
+    await set(host, module, 'fame', 9, 'north');
+    const first = render(doc, api, module);
+    t.after(() => first.view.destroy());
+    assert.equal(first.el.querySelector('summary').textContent, 'Not known yet (4)');
+    for (const [key, value] of [['south', 8], ['east', 7], ['west', 6], ['old-town', 5]]) await set(host, module, 'fame', value, key);
+    const second = render(doc, api, module);
+    t.after(() => second.view.destroy());
+    assert.equal(second.el.querySelector('summary').textContent, '2 more known');
+});
+
+test('the pencils stay hidden until the section\'s Edit button is pressed, for that section only', async t => {
+    const { doc, host, api } = await world(t);
+    const module = await define(host, mapDefinition());
+    await set(host, module, 'fame', 9, 'north');
+    const { el, view } = render(doc, api, module);
+    t.after(() => view.destroy());
+    const section = el.querySelector('section.ss-b-map');
+    const edit = el.querySelector('.ss-rm-head .ss-rm-edit-btn');
+    assert.equal(edit.textContent, 'Edit');
+    assert.equal(el.querySelector('.ss-rm-head .ss-section-label').textContent, 'Fame by region', 'the button sits in the section heading');
+    assert.equal(has(section, 'ss-rm-editing'), false, 'pencils hidden');
+    assert.equal(edit.getAttribute('aria-pressed'), 'false');
+    edit.click();
+    assert.equal(has(section, 'ss-rm-editing'), true, 'pencils shown');
+    assert.equal(edit.getAttribute('aria-pressed'), 'true');
+    edit.click();
+    assert.equal(has(section, 'ss-rm-editing'), false);
+});
