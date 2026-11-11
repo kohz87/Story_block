@@ -44,7 +44,7 @@ function view({ minutes, place, chronicle = new Map(), sway = null }) {
 }
 
 test('the timeline is data Story Block and Story Director accept: conditions read, links resolve, lasting changes fit', () => {
-    assert.equal(events.length, 136);
+    assert.equal(events.length, 135);
     assert.deepEqual(events.slice(0, 7).map(event => event.id), OWN, 'the 2.1.0 events come first, unchanged');
     const ids = new Set(events.map(event => event.id));
     assert.equal(ids.size, events.length, 'ids are unique');
@@ -412,4 +412,50 @@ test('a decision whose story did not change is kept when the scoring changes: sw
     const again = await host.turn.reread(earlier);
     assert.equal(again.ok, true, again.message);
     assert.deepEqual(chosen(host).reigns, ['Reign of Emperor Hasse']);
+});
+
+// ---- 2.9.6: the flood news is one event (region(...)), so moving between the regions that hear it never repeats it ----
+const NEWS_REGIONS = ['Highmark Empire', 'Valegard', 'River Confederacy: core cities', 'River Confederacy: locks/connectors', 'Wallwright League', 'Kingdom of Ashmere',
+    'Aurelion/Church Heartland', 'Silver Mark', 'Startrace Tower', 'Ironanvil'];
+
+test('2.9.6: one flood-news event covers both old region groups and the split event is gone', () => {
+    const news = events.filter(event => event.id.startsWith('flood-611-news'));
+    assert.deepEqual(news.map(event => event.id), ['flood-611-news']);
+    assert.equal(news[0].after, 'flood-611');
+    assert.match(news[0].when, /region\('Highmark Empire', 'Valegard'/);
+    assert.ok(!/region ==/.test(news[0].when), 'no region chain is left');
+    const at = (region, minutes = 316974720 + 9000) => evaluateCondition(news[0].when, view({ minutes, place: { name: 'x', region }, chronicle: new Map([['The early flood', { since: 316974720 }]]) })).met;
+    for (const region of NEWS_REGIONS) assert.equal(at(region), true, region);
+    for (const region of ['River Confederacy: Bluewatch', 'Shornmarch', 'Auvoth Compact', 'Ardelian Empire and Southmarch', '']) assert.equal(at(region), false, region);
+    assert.equal(at('Valegard', 316974720 + 100), false, 'not before the news has had its days to travel');
+    assert.equal(pack.version, '2.9.6');
+});
+
+test('2.9.6: moving between the two old region groups tells the flood news once', () => {
+    const regions = ['Valegard', 'Silver Mark', 'Highmark Empire', 'Ironanvil', 'Startrace Tower'];
+    const fired = [];
+    const done = new Set(['flood-611']);
+    const chronicle = new Map([['The early flood', { since: 316974720 }]]);
+    const news = events.filter(event => event.id.startsWith('flood-611-news'));
+    for (let reply = 0; reply < regions.length; reply += 1) {
+        const env = view({ minutes: 316974720 + 9000 + reply * 360, place: { name: 'x', region: regions[reply] }, chronicle });
+        for (const event of news) if (!done.has(event.id) && evaluateCondition(event.when, env).met) { done.add(event.id); fired.push(event.id); }
+    }
+    assert.deepEqual(fired, ['flood-611-news'], 'one bulletin, however the player moves between the groups');
+});
+
+test('2.9.6: a chat that already heard the news keeps its record, and written replies replay as they were', async t => {
+    const { createHost } = await import('../../../testkit/index.js');
+    const host = await createHost({});
+    t.after(() => host.close());
+    const mini = { id: 'ersveil', version: '2.9.6', requires: { storyBlock: '^2.31.0' }, content: { events: events.filter(event => event.id === 'flood-611-news').map(({ after, when, ...event }) => ({ ...event, when: "query('scene.place') != null && region('Valegard', 'Silver Mark')" })) } };
+    const installed = await host.packs.packs.install(mini);
+    assert.equal(installed.ok, true, JSON.stringify(installed.errors));
+    await host.send('Begin.', '<Changes>\n~ place Valegard Keep | kind: town | region: Valegard\n</Changes>');
+    const before = JSON.stringify(host.ctx.chat.map(message => message.mes));
+    const first = await host.bus.command('events.fire', { id: 'pack.ersveil/flood-611-news' }, { cause: 'system' });
+    assert.equal(first.ok, true, first.message);
+    const again = await host.bus.command('events.fire', { id: 'pack.ersveil/flood-611-news' }, { cause: 'system' });
+    assert.equal(again.ok, false, 'the record stands: it is not told twice');
+    assert.equal(JSON.stringify(host.ctx.chat.map(message => message.mes)), before, 'written replies are untouched');
 });
