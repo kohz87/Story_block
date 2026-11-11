@@ -118,7 +118,6 @@ export const CHARACTER_STRINGS = Object.freeze({
         summaryLabel: 'Your character',
         you: 'You',
         companion: 'Companion',
-        soulOne: 'Lv 1',
         statsHead: 'Stats',
         skillsHead: 'Skills',
         noSkills: '—',
