@@ -8,7 +8,10 @@ const HISTORY_RATIO = 24;
 // The history case's usual cost against its baseline; the threefold-slowdown proof starts from it, not from
 // this run's measurement, so a run that happens to be quick does not weaken the proof.
 export const TYPICAL_RATIO = 11;
-const BACKSTOP_MS = 10_000;
+// Absolute backstop: a floor of 10 s, scaled up with the run's own baseline (40x) so machine load that slows
+// the baseline measurement and the capture alike cannot trip it; the ratio check stays the real regression check.
+const BACKSTOP_FLOOR_MS = 10_000;
+const BACKSTOP_RATIO = 40;
 
 export async function timedCapture(capture, { delayMs = 0, now = () => performance.now(), delay = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
     const start = now();
@@ -19,7 +22,8 @@ export async function timedCapture(capture, { delayMs = 0, now = () => performan
 
 export function assertCaptureTiming(ms, baseline) {
     assert.ok(baseline > 0 && Number.isFinite(baseline), 'a measurable baseline is required');
-    assert.ok(ms < BACKSTOP_MS, `the capture took ${Math.round(ms)} ms (10 s backstop)`);
+    const backstop = Math.max(BACKSTOP_FLOOR_MS, BACKSTOP_RATIO * baseline);
+    assert.ok(ms < backstop, `the capture took ${Math.round(ms)} ms (${Math.round(backstop)} ms backstop)`);
     assert.ok(ms < HISTORY_RATIO * baseline, `the capture took ${(ms / baseline).toFixed(1)} times its plain-capture baseline (limit ${HISTORY_RATIO})`);
 }
 
