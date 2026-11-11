@@ -11,8 +11,9 @@ import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { PARTY_ACTIVE, PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { definition as filler, pack as dmPack } from '../data-modules/helpers.js';
 import { DM_OLD_ROOM } from '../../../src/v2/data-modules/schema.js';
-import { JOIN_ADD, JOIN_BENCH, JOIN_NO, benchable, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
+import { JOIN_ADD, JOIN_BENCH, JOIN_NO, benchable, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinGrammarOwn, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+import { LEAN_RPG_TEMPLATES } from './fixtures/templates-2.16.js';
 import { rpgLib, setRpgLib } from '../../../src/v2/rpg-lazy.js';
 import * as leanRpg from '../../../src/v2/lean-rpg/index.js';
 import { partyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
@@ -954,7 +955,7 @@ test('A long name in the bench card keeps its level', () => {
 test('partyFour: a new reply is marked partyFour and partyRoom, and the 5th member of a story is not made but offered; a reply with only partyRoom still takes the 5th', { skip }, async t => {
     const host = await four();
     t.after(() => host.close());
-    assert.deepEqual(host.ctx.chat.at(-1).extra.storySuite.rules.filter(name => name.startsWith('party')), ['partyFour', 'partyRoom']);
+    assert.deepEqual(host.ctx.chat.at(-1).extra.storySuite.rules.filter(name => /^party(Four|Room)$/.test(name)), ['partyFour', 'partyRoom']);
     await host.send('Torka walks in.', reply(TORKA));
     assert.deepEqual(names(host), ['Wessel', 'Mara', 'Ren', 'Ilse'], 'not made');
     assert.deepEqual(problems(host), [], 'and not refused silently: no Problems line');
@@ -1049,4 +1050,32 @@ test('the bench action replays like other reader actions: a rebuild and a reload
     const stale = await host.sdk.command(JOIN_BENCH, { name: 'Torka Bloodsong', bench: 'Mara' });
     assert.equal(stale.ok, false, 'a stale bench button: there is room now, nobody steps out');
     assert.match(stale.message, /room now/);
+});
+
+test('partyFields: the + party grammar names the story\'s own class field in a chat under the mark; a chat begun before keeps the earlier text, byte for byte', { skip }, async t => {
+    const sent = host => host.st.requests.at(-1).chat.find(message => message.role === 'system').content.split('\n').find(line => line.startsWith('+ party Mara'));
+    const names = { 1: 'Novice', 2: 'Adept', 3: 'Master', 4: 'Sage', 5: 'Hero', 6: 'Legend', 7: 'Myth', 8: 'Titan', 9: 'Mythic' };
+    async function story() {
+        const host = await world({ wessel: false });
+        t.after(() => host.close());
+        const def = structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === 'character').definition);
+        def.state.soul.label = 'Rank';
+        def.state.soul.names = names;
+        assert.equal((await host.sdk.command('dm.define', { definition: def })).ok, true);
+        return host;
+    }
+    const fresh = await story();
+    await fresh.send('Onward.', 'The road.');
+    assert.match(sent(fresh), /\| class: Novice \|.*class Novice to Mythic,/);
+    assert.equal(joinGrammarOwn(leanRpg.soulNaming(fresh.head())), sent(fresh));
+    const old = await story();
+    for (const message of old.ctx.chat) if (message.extra?.storySuite) delete message.extra.storySuite.rules; // as a chat saved before the rule was
+    old.store.rebuild();
+    await old.send('Onward.', 'The road.');
+    assert.equal(sent(old), joinGrammar(), 'the first reply has no mark: the earlier line');
+    await old.send('Again.', 'The road.');
+    assert.equal(sent(old), joinGrammar());
+    const plain = await world();
+    await plain.send('Onward.', 'The road.');
+    assert.equal(sent(plain), joinGrammar(), 'the template\'s own words give the earlier text, mark or not');
 });
