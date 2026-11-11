@@ -86,7 +86,8 @@ Last checked: 2026-11-07.
 - `src/v2/screens/block-layouts.js`: draws block and data-module values as cards, number maps, record cards or previews.
 - `src/v2/screens/blocks-editor.js`: provides the in-chat form for authoring a block from fields, starters, layout and preview.
 - `src/v2/screens/rebuild-banner.js`: Home's dossier banner: blocked branch, start-from-chat dialog, catching-up progress with Skip, and the done or stopped notes.
-- `src/v2/screens/inventory-add.js`: places the inline form for adding an item to the reader's own inventory, and the folded "Worn (N)" row of the Inventory tab.
+- `src/v2/screens/inventory-add.js`: places the inline form for adding an item to the reader's own inventory, the folded "Worn (N)" row of the Inventory tab, and the Grid view's two widgets (the List | Grid switch, the tiles with folds and the item sheet).
+- `src/v2/screens/inventory-grid.js`: pure DOM helpers for the Inventory Grid view: square item tiles, foldable category and per-wearer Worn sections (with their remembered open state), and the bottom sheet for one item calling the same actions as the list rows.
 
 ## src/v2/timeline/
 - `src/v2/timeline/boundary.js`: hashes and checks logical clock markers against transactions and captured proofs.
