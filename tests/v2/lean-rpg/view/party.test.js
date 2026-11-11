@@ -204,3 +204,12 @@ test('nobody left: no fold row, and the header says "N active" alone', () => {
     assert.equal(el.querySelector('.rpg-left-fold'), null);
     assert.equal(el.querySelector('.rpg-count').textContent, '2 active');
 });
+
+test('Long names in the left row are cut with an ellipsis', () => {
+    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
+    assert.match(css, /\.rpg-main \{[^}]*grid-template-columns: minmax\(0, 1fr\)/, 'the one column may shrink below its content');
+    assert.match(css, /\.rpg-left-fold \{[^}]*min-width: 0[^}]*overflow: hidden/);
+    assert.match(css, /\.rpg-left-fold b \{[^}]*white-space: nowrap[^}]*flex: none/);
+    assert.match(css, /\.rpg-left-names \{[^}]*min-width: 0[^}]*overflow: hidden[^}]*text-overflow: ellipsis[^}]*white-space: nowrap/);
+    assert.match(css, /\.rpg-left-chev \{[^}]*flex: none/);
+});
