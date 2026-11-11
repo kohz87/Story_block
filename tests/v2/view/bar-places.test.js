@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { HOME_ID, inDefaultBar, validateScreen } from '../../../src/v2/view/screens.js';
 import { homeScreen, inventoryScreen } from '../../../src/v2/screens/index.js';
 import { isDefaultChoice, isInBar, moveNav, readTabChoice, setNavHidden, setNavInBar, createTabOrderStore } from '../../../src/v2/view/tab-order.js';
-import { createScreenBar, pinAlerts, slotsForWidth, splitItems } from '../../../src/v2/view/screen-bar.js';
+import { createScreenBar, pinAlerts, splitItems } from '../../../src/v2/view/screen-bar.js';
 import { createScreenMount } from '../../../src/v2/view/mounts/screen.js';
 import { createScreens } from '../../../src/v2/view/screens.js';
 import { createTabHost } from '../../../src/v2/host-ui.js';
@@ -201,21 +201,23 @@ function gameView({ inBar, wide = true }) {
     return { doc, mount, slots: () => ids([...nav().querySelectorAll('.ss-screenbar-item[data-id]')]), tiles: () => ids([...nav().querySelectorAll('.ss-screenbar-tile[data-id]')]), more: () => nav().querySelector('.ss-screenbar-more') };
 }
 
-test('the game view on a wide screen: the screens in the bar in a row, then More with the others', () => {
+test('the game view: one strip, the screens in the bar first, the others after them in the same strip, no More', () => {
     const view = gameView({ inBar: id => inBarNow({}, id) });
-    assert.deepEqual(view.slots(), ['story-block/home', 'story-block/inventory', 'example-module/quests', 'example-module/world', 'example-module/map']);
-    assert.equal(view.more().hidden, false);
-    assert.equal(view.mount.openMore(), true);
-    assert.deepEqual(view.tiles().sort(), ['story-block/scene', 'example-module/chronicle', 'example-module/director'].sort());
+    assert.deepEqual(view.slots(), ['story-block/home', 'story-block/inventory', 'example-module/quests', 'example-module/world', 'example-module/map',
+        'story-block/scene', 'example-module/chronicle', 'example-module/director']);
+    assert.equal(view.more().hidden, true);
+    assert.equal(view.mount.openMore(), false);
+    assert.deepEqual(view.tiles(), [], 'no sheet tiles');
     view.mount.close();
 });
 
-test('the reader\'s place for a screen moves it: Chronicle into the bar, Map under More', () => {
+test('the reader\'s place for a screen moves it: Chronicle into the bar (before the others), Map under More (after them)', () => {
     const choice = setNavInBar(setNavInBar(null, 'example-module/chronicle', true), 'example-module/map', false, true);
     const view = gameView({ inBar: id => inBarNow(choice, id) });
-    assert.deepEqual(view.slots(), ['story-block/home', 'story-block/inventory', 'example-module/quests', 'example-module/world', 'example-module/chronicle']);
-    view.mount.openMore();
-    assert.ok(view.tiles().includes('example-module/map'));
+    const slots = view.slots();
+    assert.deepEqual(slots.slice(0, 5), ['story-block/home', 'story-block/inventory', 'example-module/quests', 'example-module/world', 'example-module/chronicle']);
+    assert.ok(slots.indexOf('example-module/map') >= 5, 'Map follows the ones in the bar');
+    assert.equal(slots.length, 8, 'nothing is hidden');
     view.mount.close();
 });
 
@@ -226,7 +228,7 @@ test('with no `inBar` (a host that does not choose) every screen is in the bar, 
     view.mount.close();
 });
 
-test('the Story panel\'s strip follows the same places (a slot only for the screens in the bar)', () => {
+test('the Story panel\'s strip follows the same places (the screens in the bar first, the others after them, every one a slot)', () => {
     const doc = installFakeDom();
     const root = doc.createElement('div');
     doc.body.appendChild(root);
@@ -235,87 +237,39 @@ test('the Story panel\'s strip follows the same places (a slot only for the scre
     const key = tab => `${tab.moduleId}/${tab.id}`;
     // the default places: Inventory says `bar: true`, the others (here under Story Block's own ids) are under More
     createTabHost(root, { registry: { tabs: () => tabs }, view: () => ({}), api: null, doc, inBar: tab => isInBar({}, key(tab), tab.id === 'inventory') });
-    const slotIds = () => root.querySelectorAll('.story-suite-tab').filter(node => !node.classList.contains('ss-screenbar-more') && !node.classList.contains('ss-screenbar-tile')).map(node => node.getAttribute('data-tab-id'));
-    assert.deepEqual(slotIds(), ['inventory']);
-    assert.deepEqual(root.querySelectorAll('.ss-screenbar-tile').map(node => node.getAttribute('data-tab-id')), ['quests', 'chronicle', 'director']);
+    const slotIds = node => node.querySelectorAll('.story-suite-tab').filter(n => !n.classList.contains('ss-screenbar-more')).map(n => n.getAttribute('data-tab-id'));
+    assert.deepEqual(slotIds(root), ['inventory', 'quests', 'chronicle', 'director']);
+    assert.deepEqual(root.querySelectorAll('.ss-screenbar-tile'), [], 'no tiles');
     const chosen = { inBar: ['story-block/director'] };
     const second = doc.createElement('div');
     doc.body.appendChild(second);
     createTabHost(second, { registry: { tabs: () => tabs }, view: () => ({}), api: null, doc, inBar: tab => isInBar(chosen, key(tab), tab.id === 'inventory') });
-    assert.deepEqual(second.querySelectorAll('.ss-screenbar-item').filter(node => !node.classList.contains('ss-screenbar-more')).map(node => node.getAttribute('data-tab-id')), ['inventory', 'director']);
+    assert.deepEqual(slotIds(second), ['inventory', 'director', 'quests', 'chronicle'], 'the reader\'s bar first, then the rest in order');
 });
 
-// ---- the Story panel's strip: the same places, within its slots ----------------------------------------------------------------
+// ---- the Story panel's strip: every tab, in the tab order, "In the bar" first ---------------------------------------------------
 
 const PANEL_TABS = ['home', 'inventory', 'quests', 'world', 'map', 'chronicle', 'director'].map(id => ({ id, title: id[0].toUpperCase() + id.slice(1), icon: 'fa-star', moduleId: 'example-module', render(el) { el.textContent = id; } }));
-function strip({ chosen = {}, room, tabs = PANEL_TABS, inBar = tab => isInBar(chosen, `example-module/${tab.id}`, ['home', 'inventory', 'quests', 'world', 'map'].includes(tab.id)) } = {}) {
+function strip({ chosen = {}, tabs = PANEL_TABS, inBar = tab => isInBar(chosen, `example-module/${tab.id}`, ['home', 'inventory', 'quests', 'world', 'map'].includes(tab.id)) } = {}) {
     const doc = installFakeDom();
     const root = doc.createElement('div');
     doc.body.appendChild(root);
-    const host = createTabHost(root, { registry: { tabs: () => tabs }, view: () => ({}), api: null, doc, inBar, ...(room ? { slots: room } : {}) });
-    const slots = () => root.querySelectorAll('.story-suite-tab').filter(node => !node.classList.contains('ss-screenbar-more') && !node.classList.contains('ss-screenbar-tile')).map(node => node.getAttribute('data-tab-id'));
-    const tiles = () => root.querySelectorAll('.ss-screenbar-tile').map(node => node.getAttribute('data-tab-id'));
-    return { doc, root, host, slots, tiles, nav: () => root.querySelector('.ss-screenbar') };
+    const host = createTabHost(root, { registry: { tabs: () => tabs }, view: () => ({}), api: null, doc, inBar });
+    const slots = () => root.querySelectorAll('.story-suite-tab').filter(node => !node.classList.contains('ss-screenbar-more')).map(node => node.getAttribute('data-tab-id'));
+    return { doc, root, host, slots, nav: () => root.querySelector('.ss-screenbar') };
 }
 
-test('the Story panel\'s strip: the screens in the bar take the slots in the reader\'s order; more in the bar than there are slots, the rest go under More', () => {
-    // four slots (a phone, or a narrow panel): the first four in the bar; the fifth in the bar is under More with the others
-    const narrow = strip();
-    assert.deepEqual(narrow.slots(), ['home', 'inventory', 'quests', 'world']);
-    assert.deepEqual(narrow.tiles(), ['map', 'chronicle', 'director']);
-    assert.equal(narrow.nav().style.getPropertyValue('grid-template-columns'), '', 'the five columns stay');
-    // a screen the reader put in the bar comes after the others in their order: it takes a slot only when there is one
+test('the Story panel\'s bar has every tab and no More; the order follows the tab order with "In the bar" first', () => {
+    const plain = strip();
+    assert.deepEqual(plain.slots(), ['home', 'inventory', 'quests', 'world', 'map', 'chronicle', 'director'], 'all seven, none hidden');
+    assert.equal(plain.nav().querySelector('.ss-screenbar-more').hidden, true, 'no More');
+    assert.equal(plain.root.querySelectorAll('.ss-screenbar-tile').length, 0);
+    assert.equal(plain.nav().style.getPropertyValue('grid-template-columns'), '', 'no pill columns');
+    // Director sits second in the tab order but is under More: it follows the ones in the bar; Chronicle (put in the bar) is among them
     const chosen = { inBar: ['example-module/chronicle'] };
-    assert.deepEqual(strip({ chosen }).slots(), ['home', 'inventory', 'quests', 'world']);
-    assert.deepEqual(strip({ chosen }).tiles(), ['map', 'chronicle', 'director']);
-    // five slots (the side sheet, wide enough): all five defaults, and the reader's one under More until its order puts it in the five
-    const wide = strip({ chosen, room: () => 5 });
-    assert.deepEqual(wide.slots(), ['home', 'inventory', 'quests', 'world', 'map']);
-    assert.deepEqual(wide.tiles(), ['chronicle', 'director']);
-    assert.equal(wide.nav().style.getPropertyValue('grid-template-columns'), 'repeat(6, minmax(0, 1fr))', 'a column for each slot and More');
-    assert.equal(wide.nav().querySelector('.ss-screenbar-more').style.getPropertyValue('grid-column'), '6', 'More in the last of them (the stylesheet puts it in the fifth)');
-    // the reader's order decides who gets the slots: Chronicle moved up takes one, the last in the bar goes under More
-    const moved = [PANEL_TABS[0], PANEL_TABS[5], ...PANEL_TABS.filter(tab => !['home', 'chronicle'].includes(tab.id))];
-    const ordered = strip({ chosen, room: () => 5, tabs: moved });
-    assert.deepEqual(ordered.slots(), ['home', 'chronicle', 'inventory', 'quests', 'world']);
-    assert.deepEqual(ordered.tiles(), ['map', 'director']);
-    // a screen put under More takes no slot, wherever it sits
-    const under = strip({ chosen: { underMore: ['example-module/inventory'] }, room: () => 5 });
-    assert.deepEqual(under.slots(), ['home', 'quests', 'world', 'map']);
-    assert.ok(under.tiles().includes('inventory'));
-    assert.equal(under.nav().style.getPropertyValue('grid-template-columns'), '', 'four slots and More: the pill\'s five columns, no empty column');
-    assert.equal(under.nav().querySelector('.ss-screenbar-more').style.getPropertyValue('grid-column'), '');
-});
-
-test('the Story panel\'s strip is laid out again when the window changes size (the open tab is not redrawn)', () => {
-    let room = 4;
-    const doc = installFakeDom();
-    const listeners = new Map();
-    doc.defaultView = { addEventListener: (type, fn) => listeners.set(type, fn), removeEventListener: type => listeners.delete(type) };
-    const root = doc.createElement('div');
-    doc.body.appendChild(root);
-    let draws = 0;
-    const tabs = PANEL_TABS.map(tab => ({ ...tab, render(el) { draws += 1; el.textContent = tab.id; } }));
-    const inBar = tab => ['home', 'inventory', 'quests', 'world', 'map'].includes(tab.id);
-    const host = createTabHost(root, { registry: { tabs: () => tabs }, view: () => ({}), api: null, doc, inBar, slots: () => room });
-    const slots = () => root.querySelectorAll('.story-suite-tab').filter(node => !node.classList.contains('ss-screenbar-more') && !node.classList.contains('ss-screenbar-tile')).map(node => node.getAttribute('data-tab-id'));
-    assert.equal(slots().length, 4);
-    room = 5;
-    listeners.get('resize')();
-    assert.equal(slots().length, 5);
-    assert.equal(draws, 1, 'the pane was drawn once');
-    host.destroy();
-    assert.equal(listeners.has('resize'), false, 'the listener goes with the host');
-});
-
-test('the slots the Story panel has: four on a phone or a narrow panel, five on a side sheet with room (about 60px a slot), never more than six', () => {
-    assert.equal(slotsForWidth(420, { wide: true }), 5);
-    assert.equal(slotsForWidth(398, { wide: true }), 5);
-    assert.equal(slotsForWidth(397, { wide: true }), 4);
-    assert.equal(slotsForWidth(300, { wide: true }), 4);
-    assert.equal(slotsForWidth(420, { wide: false }), 4, 'a bottom sheet keeps the pill\'s four');
-    assert.equal(slotsForWidth(900, { wide: true }), 6);
-    assert.equal(slotsForWidth(0, { wide: true }), 4);
-    assert.equal(slotsForWidth(undefined, { wide: true }), 4);
-    assert.equal(slotsForWidth(NaN, { wide: true }), 4);
+    const moved = [PANEL_TABS[0], PANEL_TABS[6], ...PANEL_TABS.filter(tab => !['home', 'director'].includes(tab.id))];
+    assert.deepEqual(strip({ chosen, tabs: moved }).slots(), ['home', 'inventory', 'quests', 'world', 'map', 'chronicle', 'director'], 'the bar\'s tabs in the tab order, then Director (under More)');
+    // a screen put under More follows the ones in the bar, wherever it sits in the order
+    const under = strip({ chosen: { underMore: ['example-module/inventory'] } });
+    assert.deepEqual(under.slots(), ['home', 'quests', 'world', 'map', 'inventory', 'chronicle', 'director']);
 });

@@ -72,7 +72,7 @@ test('destroying the UI closes every open dialog and disposes the open tab pane'
     assert.equal(disposed, 1, 'the open tab pane was disposed');
 });
 
-test('a chat change closes the Story panel\'s More sheet too (the sheet belongs to the chat it was opened in)', async () => {
+test('the Story panel\'s bar is one strip with every tab and no More, and a chat change leaves it so', async () => {
     const { doc, ui, runtime, st } = await setup();
     await runtime.sdk.registerModule({
         id: 'qa-teardown',
@@ -89,11 +89,13 @@ test('a chat change closes the Story panel\'s More sheet too (the sheet belongs 
     });
     ui.refresh();
     ui.openPanel();
-    const more = doc.querySelector('.story-suite-sheet .ss-screenbar-more');
-    assert.ok(more, 'the panel bar has a More button');
-    more.click();
-    assert.equal(more.getAttribute('aria-expanded'), 'true', 'the panel\'s More sheet is open');
+    const bar = () => doc.querySelector('.story-suite-sheet .ss-screenbar');
+    const tabs = () => doc.querySelectorAll('.story-suite-sheet .story-suite-tab[data-tab-id]').map(node => node.getAttribute('data-tab-id'));
+    assert.ok(bar().classList.contains('ss-screenbar-strip'), 'one scrolling strip');
+    assert.equal(bar().querySelector('.ss-screenbar-more').hidden, true, 'no More button');
+    for (const id of ['bag', 'map', 'log', 'people', 'notes']) assert.ok(tabs().some(tab => tab.endsWith(id)), `${id} is in the strip`);
+    const before = tabs();
     await st.loadChat([], 'chat-b');
-    assert.equal(more.getAttribute('aria-expanded'), 'false', 'the sheet closed with the chat');
-    assert.equal(doc.querySelector('.story-suite-sheet-bar .ss-screenbar-sheet')?.hidden ?? true, true, 'its sheet is hidden');
+    assert.deepEqual(tabs(), before, 'the same tabs after the chat changed');
+    assert.equal(bar().querySelector('.ss-screenbar-more').hidden, true);
 });

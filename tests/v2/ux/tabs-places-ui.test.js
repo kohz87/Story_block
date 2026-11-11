@@ -39,7 +39,8 @@ const place = (doc, id) => row(doc, id).querySelector('.ss-tabrow-place');
 const choose = (doc, id, value) => { const select = place(doc, id); select.value = value; select.dispatch('change'); };
 const saved = st => st.ctx.extensionSettings.storySuite?.tabs;
 const slotIds = doc => [...doc.querySelector('.ss-gameview').querySelectorAll('.ss-screenbar-item[data-id]')].map(node => node.getAttribute('data-id'));
-const tileIds = doc => [...doc.querySelector('.ss-gameview').querySelectorAll('.ss-screenbar-tile[data-id]')].map(node => node.getAttribute('data-id'));
+// `id` comes after `other` in the one strip (the screens under More follow the ones in the bar; nothing is hidden).
+const after = (doc, id, other) => slotIds(doc).indexOf(id) > slotIds(doc).indexOf(other);
 
 test('every row has a place: In the bar for Home, Inventory, Quests, World and Map, Under More for the rest; Home\'s is locked', async t => {
     t.mock.method(console, 'warn', () => {});
@@ -58,8 +59,7 @@ test('choosing a place moves the screen in the bar at once, is stored with the r
     t.mock.method(console, 'warn', () => {});
     const { doc, st, ui } = await setup({}, { wide: true });
     ui.mounts.screen.open();
-    assert.ok(tileIds(doc).includes('example-module/chronicle'), 'under More to begin with');
-    assert.ok(!slotIds(doc).includes('example-module/chronicle'));
+    assert.ok(after(doc, 'example-module/chronicle', 'example-module/map'), 'after the ones in the bar to begin with');
     ui.openSettings({ fold: TABS_FOLD });
     choose(doc, 'example-module/chronicle', 'bar');
     assert.deepEqual(saved(st).inBar, ['example-module/chronicle']);
@@ -67,14 +67,12 @@ test('choosing a place moves the screen in the bar at once, is stored with the r
     assert.equal(place(doc, 'example-module/chronicle').value, 'bar', 'the row shows it');
     assert.equal(doc.activeElement, place(doc, 'example-module/chronicle'), 'the focus stays on the choice');
     ui.mounts.screen.update();
-    assert.ok(slotIds(doc).includes('example-module/chronicle'), 'in the bar');
-    assert.ok(!tileIds(doc).includes('example-module/chronicle'));
+    assert.ok(slotIds(doc).indexOf('example-module/chronicle') < slotIds(doc).indexOf('example-module/director'), 'the bar\'s ones come first');
     choose(doc, 'example-module/map', 'more');
     assert.deepEqual(saved(st), { order: [], hidden: [], shown: [], inBar: ['example-module/chronicle'], underMore: ['example-module/map'] });
     assert.equal(doc.querySelector('.ss-tabrows-status').textContent, fill(TABS_TEXT.movedToMore, { name: 'Map' }));
     ui.mounts.screen.update();
-    assert.ok(tileIds(doc).includes('example-module/map'), 'Map is under More now');
-    assert.ok(!slotIds(doc).includes('example-module/map'));
+    assert.ok(after(doc, 'example-module/map', 'example-module/chronicle'), 'Map follows the ones in the bar now');
     // an order and a hidden screen chosen before are untouched by it
     row(doc, 'example-module/director').querySelector('.ss-tabrow-up').click();
     assert.deepEqual(saved(st).inBar, ['example-module/chronicle']);
@@ -92,11 +90,10 @@ test('the Story panel\'s strip follows the choice, and a saved choice from befor
     const strip = () => doc.querySelectorAll('.story-suite-tab').map(node => node.getAttribute('data-tab-id'));
     const slots = () => doc.querySelectorAll('.story-suite-sheet-bar .ss-screenbar-item').filter(node => !node.classList.contains('ss-screenbar-more')).map(node => node.getAttribute('data-tab-id'));
     assert.ok(!strip().includes('notes/b'), 'hidden stays hidden');
-    assert.ok(!slots().includes('example-module/director'), 'an order alone does not put a screen in the bar');
-    assert.ok(slots().includes('example-module/world'));
+    assert.ok(slots().indexOf('example-module/director') > slots().indexOf('example-module/world'), 'an order alone does not put a screen in the bar: it follows the ones that are');
     ui.openSettings({ fold: TABS_FOLD });
     choose(doc, 'example-module/director', 'bar');
-    assert.ok(slots().includes('example-module/director'), 'the strip follows at once');
+    assert.ok(slots().indexOf('example-module/director') < slots().indexOf('example-module/world'), 'the strip follows at once: Director is in the bar, in the reader\'s order');
 });
 
 test('two tabs with the same name are told apart in the list, whatever the case and the spaces; the first keeps its name', async t => {

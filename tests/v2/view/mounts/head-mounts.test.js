@@ -228,20 +228,19 @@ test('screen: opened by a pointer, the window takes the focus (no ring on the cl
     assert.equal(doc.listeners.filter(l => l.type === 'pointerdown' || l.type === 'keydown').length, 0, 'destroy leaves no input tracker');
 });
 
-test('screen: a screen opened by name while More is open closes More (scrim, sheet, keys) and the focus goes back to More', () => {
+test('screen: a screen opened by name moves the current slot in the one strip (no More) and scrolls it into view', () => {
     const { doc, deps } = world([1, 2, 3, 4, 5, 6].map(i => screen(`m/s${i}`, ['screen'], { title: `Screen ${i}` })));
     const view = createScreenMount(deps);
     view.open('m/s1');
     const root = doc.body.querySelector('.ss-gameview');
-    const more = root.querySelector('.ss-screenbar-more');
-    more.click();
-    assert.equal(root.querySelector('.ss-screenbar-sheet').hidden, false);
+    assert.equal(root.querySelector('.ss-screenbar-more').hidden, true, 'no More');
+    const slot = id => root.querySelector(`.ss-screenbar-item[data-id="${id}"]`);
+    assert.equal(slot('m/s6') !== null, true, 'the sixth screen is a slot, not a tile');
+    const scrolled = [];
+    slot('m/s6').scrollIntoView = options => scrolled.push(options);
     assert.equal(view.open('m/s6'), true);
-    assert.equal(view.current(), 'm/s6');
-    assert.equal(root.querySelector('.ss-screenbar-sheet').hidden, true, 'the sheet is gone');
-    assert.equal(root.querySelector('.ss-screenbar-scrim').hidden, true, 'the scrim is gone');
-    // the keys: the mount's own tracker and the view's Escape, not More's trap (which would make three)
-    assert.equal(doc.listeners.filter(l => l.type === 'keydown').length, 2, 'More released its keys');
-    assert.equal(doc.activeElement, more, 'the focus is back on More');
+    assert.equal(slot('m/s6').getAttribute('aria-current'), 'page');
+    assert.equal(slot('m/s1').getAttribute('aria-current'), null);
+    assert.equal(scrolled.length, 1, 'scrollIntoView was called for the new current slot');
     view.destroy();
 });
