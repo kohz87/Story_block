@@ -6,7 +6,7 @@
 //              xp, down (the death latch, hidden), alive
 //   skills:    who, then per slot 1…5: skillN (name), aboutN (what it does), statN (one of the seven stats), usesN (stamina |
 //              mana), rankN (0–3), practiceN (0–100)
-//   foes:      foe1…foe4 (text), count1…count4, level1…level4 (1–99; a block of the earlier rules has class1…class4, 1–9), hurt1…hurt4 (0–5)
+//   foes:      foe1…foe6 (text; an older block has 1…4), count1…count6, level1…level6 (1–99; a block of the earlier rules has class1…class6, 1–9), hurt1…hurt6 (0–5)
 // Pure and read-only: it takes a state (or anything shaped `{ domains: { dataModules } }`) and answers plain data. It
 // never validates the definitions (the data-module checker did when they were pinned); a block it cannot read is left
 // out, with a plain `problems` line.
@@ -147,7 +147,7 @@ function skillsOf(fields, hidden = new Set()) {
     return out;
 }
 
-// A block's slots (six; an older block has 1…4). `offset`: where its numbering starts (the first Foes block is 1…4, the next 5…8, and so on), so every
+// A block's slots (six; an older block has 1…4). `offset`: where its numbering starts (the first Foes block is 1…6, the next 7…12, and so on; an older four-slot block is 1…4), so every
 // slot of every Foes block has a number of its own in the plan.
 // A hidden foe name is the slot's ("Foe 2"); a hidden count, class or health still counts for the rules and is listed in `hidden`.
 function foesOf(id, fields, offset = 0, hidden = new Set(), state = null) {
@@ -175,7 +175,7 @@ function foesOf(id, fields, offset = 0, hidden = new Set(), state = null) {
  *                  skills: [{ slot, name, about, rank, practice, stat, uses }] }]   (a Skills block joins the character its `who` names;
  *                  stat is one of STATS and uses 'stamina' | 'mana', or null for a block that has neither)
  *                  `size`: { health, stamina, mana } only for a Standard Character block, where those three are the blocks left)
- *   foes: the four slots of every Foes block in block order, [{ slot, module, name, count, level, class, hurt, size?, filled }] ([] without one; `level` 1–99, worked out from `class` for a block of the earlier rules, which has no `levelled`; `class` of a levelled group is the Soul Class its level stands for, which the fight XP table of the earlier rules still reads); `size`: the
+ *   foes: the slots (six; an older block has four) of every Foes block in block order, [{ slot, module, name, count, level, class, hurt, size?, filled }] ([] without one; `level` 1–99, worked out from `class` for a block of the earlier rules, which has no `levelled`; `class` of a levelled group is the Soul Class its level stands for, which the fight XP table of the earlier rules still reads); `size`: the
  *         blocks a Standard group's Health has (`hurt` is the blocks left); `slot`
  *         counts on across blocks (1–4, then 5–8, …), `filled` = a name and a count above 0
  *   problems: plain sentences for blocks left out (no `who`, two characters of one name)

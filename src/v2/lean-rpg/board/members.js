@@ -54,7 +54,7 @@ export function packAttacks(count, value, size, full = packFullAttacks(count)) {
 export const packLeft = (count, value, size) => (num(value) <= 0 ? 0
     : Math.ceil(Math.max(0, num(count)) * num(value) / Math.max(1, num(size))));
 
-/** A virtual bar's slot: group 3, pack 2 is 32. Virtual slots are never a real slot 1..4. */
+/** A virtual bar's slot: group 3, pack 2 is 32. Virtual slots are never a real slot 1..6. */
 export const virtualSlot = (group, n) => num(group) * 10 + num(n);
 
 /** How many foes each pack holds: packs of at most 12, evenly split, earlier packs taking the extra. */
