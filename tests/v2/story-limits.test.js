@@ -53,7 +53,8 @@ test('an old saved storyCoinPerReply is ignored: not in the schema or the defaul
         const before = coin(host);
         await host.send('Paid.', reply('A purse.', ['+ coin 5000', '+ item Rope | qty: 40']));
         assert.equal(coin(host) - before, 5000, String(value));
-        assert.deepEqual(problems(host), [], String(value));
+        // The same award every round is only told as a possible repeat (money-guard.js); no cap is mentioned.
+        assert.deepEqual(problems(host).filter(line => !/^LIMITED: Possible repeat/u.test(line)), [], String(value));
     }
 });
 

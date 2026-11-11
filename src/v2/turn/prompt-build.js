@@ -11,7 +11,8 @@ import { cutAt } from '../../text.js';
 import { CORE_FEATURE } from '../features.js';
 import { DICE as RPG_DICE, RESOLVE as RPG_RESOLVE } from '../lean-rpg/names.js';
 import { NO_ROLLS_LINE, receiptCue } from '../lean-rpg/cue.js';
-import { holdStart } from './fight-start.js';
+import { fightCue, holdStart } from './fight-start.js';
+import { rpgLib } from '../rpg-lazy.js';
 import { readRecord } from '../persist.js';
 import { hashText } from '../assist/common.js';
 import { boardFailure, boardStartState } from './held-board.js';
@@ -151,6 +152,14 @@ export function createPromptBuild(s, deps) {
                 problem({ module: moduleId, code: result?.code ?? 'FAILED', message: reason });
                 return { blocked: { moduleId, reason } };
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
+        }
+        // A fight narrated with no foes line (fight-start.js fightCue): one short tail line for this reply, only with the RPG on and no foe set.
+        // (A swipe: the reply being swiped is the last message, so the reader's message and the reply before it sit one place further back.)
+        const back = type === 'swipe' ? 1 : 0, last = ctx?.chat?.at(-1 - back), prior = ctx?.chat?.at(-2 - back);
+        if (type !== 'continue' && battleOn() && last?.is_user && prior && !prior.is_user && !prior.is_system && readRecord(prior)) {
+            const state = store.head(), lib = rpgLib(), foesNow = (lib?.rpgBlocks(state) ?? []).some(block => block.role === 'foes' && lib.foesOf(block).length > 0);
+            const cue = fightCue(prior, { foesNow });
+            if (cue) cues[HOST_MODULE] = [...(cues[HOST_MODULE] ?? []), cue];
         }
         // Saved with the reply (MESSAGE_RECEIVED), not now: each save writes the whole chat file, and the
         // reply's save comes moments later with these cues in it. A reply that never comes still has them
