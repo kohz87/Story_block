@@ -1,4 +1,4 @@
-/* mounts-game.css: the game view: bottom bar, header, window, wide bar (split from mounts.css, same rules in the same order). */
+/* mounts-game.css: the game view: bottom bar, header, window (split from mounts.css, same rules in the same order). */
 /* Story Suite v2 mounts (SPEC §13.4): the game view, inline cards, the hud strip and dialogs.
    Mobile first: the narrow layout is the base, wider screens adjust. Colours come from SillyTavern's
    theme variables; a screen's own `theme` sets --ss-* properties on its root. */
@@ -152,7 +152,7 @@
     scroll-padding-top: 8px;
 }
 
-/* The screen bar (view/screen-bar.js, glass.css) in the game view: on a phone a floating pill at the foot of the window, over
+/* The screen bar (view/screen-bar.js, glass-*.css) in the game view: on a phone a floating pill at the foot of the window, over
    the screen (the body keeps room for it, below); from 760px one row under the header (the wide block below). With one screen
    or none the bar is not drawn. */
 .ss-gameview {
@@ -293,23 +293,4 @@
 }
 @media (min-width: 760px) {
     body.ss-gameview-open { overflow: hidden; }
-}
-
-/* The wide bar: the screens that are in the bar are a centred row of even slots, then More; its sheet opens over the window's foot, as
-   a centred panel (on a phone it floats above the pill). */
-@media (min-width: 760px) {
-    .ss-gameview-nav.ss-screenbar-row {
-        justify-content: center;
-        gap: 6px;
-    }
-    .ss-gameview-nav.ss-screenbar-row .ss-screenbar-item {
-        flex: 0 1 112px;
-    }
-    .ss-gameview-main > .ss-screenbar-sheet {
-        left: 50%;
-        right: auto;
-        bottom: 24px;
-        width: min(640px, calc(100% - 48px));
-        transform: translateX(-50%);
-    }
 }

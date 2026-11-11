@@ -156,7 +156,6 @@ test('the screen bar takes the navbar\'s look: a glass pill on a phone, a glass 
     const label = declared(glass, '.ss-screenbar-label {');
     assert.ok(/font-size: 11px;/.test(label) && /font-weight: 700;/.test(label) && /white-space: nowrap;/.test(label) && /text-overflow: ellipsis;/.test(label), 'the label: 11px, 700, one line, ellipsis');
     assert.match(declared(glass, '.ss-screenbar-item[aria-current="page"] {'), /color: var\(--ss-accent-text\);/, 'the label reads in the accent text token');
-    assert.match(declared(glass, '.ss-screenbar-tile[aria-current="page"] {'), /border-color: var\(--ss-accent\);[^}]*background: var\(--ss-accent-soft\);/, 'the current tile: accent ring, accent-soft fill');
     // Wide: the row is 68px, under the header card (the tab row's air), its pill-less slots spread evenly (the glass rule above).
     const wide = mounts.slice(mounts.indexOf('@media (min-width: 760px) {', mounts.indexOf('.ss-gameview-body {')));
     assert.match(wide, /\.ss-gameview-nav \{[^}]*margin: var\(--ss-space-3, 12px\) 24px 0;/);

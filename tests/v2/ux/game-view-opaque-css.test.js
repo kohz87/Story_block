@@ -47,7 +47,6 @@ test('screenbar-strip.css is imported by size.css, which host.css loads after th
     assert.match(read('size.css'), /^@import url\('\.\/screenbar-strip\.css'\);$/m);
 });
 
-test('the wide More sheet opens over the window\'s foot, centred, and (screenbar-strip.css) from 1000px the strip is one centred row', () => {
+test('from 1000px the strip (screenbar-strip.css) is one centred row', () => {
     assert.match(strip, /@media \(min-width: 1000px\) \{\s*\.ss-gameview-nav\.ss-screenbar-strip \{\s*justify-content: safe center;/);
-    assert.match(mounts, /\.ss-gameview-main > \.ss-screenbar-sheet \{[^}]*left: 50%;[^}]*bottom: 24px;[^}]*transform: translateX\(-50%\);/);
 });

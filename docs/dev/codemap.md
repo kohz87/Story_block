@@ -122,7 +122,7 @@ Last checked: 2026-11-07.
 - `src/v2/view/host-furniture.css`: the host furniture: tokens, bar, card offer, Story panel, tab host, settings folds and rows. Part of the split of host.css, loaded by host.css in the original order.
 - `src/v2/view/host-notes-blocks.css`: notes and Choices under a reply, motion, the Data modules card, block records and the block editor. Part of the split of host.css, loaded by host.css in the original order.
 - `src/v2/view/inv-sheet.css`: styles the Inventory Grid's item sheet dialog contents (`.ss-dialog.inv-sheet`), split out of the mounts sheets.
-- `src/v2/view/mounts-game.css`: the game view: bottom bar, header, window and wide bar. Part of the split of mounts.css, loaded by host.css in the original order.
+- `src/v2/view/mounts-game.css`: the game view: bottom bar, header, window. Part of the split of mounts.css, loaded by host.css in the original order.
 - `src/v2/view/mounts-cards-hud.css`: inline cards under replies and the HUD strip. Part of the split of mounts.css, loaded by host.css in the original order.
 - `src/v2/view/mounts-dialogs.css`: dialogs, cards under replies, tags, tab alerts and the Story panel floor. Part of the split of mounts.css, loaded by host.css in the original order.
 - `src/v2/view/settings-window.css`: the settings window: shell, side, rail, page and form sections. Part of the split of settings.css, loaded by host.css in the original order.

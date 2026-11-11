@@ -146,11 +146,11 @@
 /* The side sheet floats over SillyTavern's chat column on every width: opening or closing it never moves or resizes the chat
    (the reader's choice, 5 Nov 2026; it used to dock from 1000px, narrowing the chat column beside it). */
 
-/* ---- the tab host: the pane under the head; the tabs are the screen bar at the foot (mounts/screen-bar: glass.css) ---- */
+/* ---- the tab host: the pane under the head; the tabs are the screen bar at the foot (mounts/screen-bar: glass-*.css) ---- */
 .story-suite-pane { padding-top: 8px; min-width: 0; }
 
 /* ---- the settings window ----
-   `.story-suite-overlay` is the layer over the page (the window is `.ss-settings`, settings.css): a dimmed page beside
+   `.story-suite-overlay` is the layer over the page (the window is `.ss-settings`, settings-*.css): a dimmed page beside
    the window on a wide screen, the window itself on a phone. The layer paints a see-through scrim and has no blur or
    filter of its own: one on a parent would hide the page from the window's glass. The folds the sections still hold
    (the old overlay's) never shrink: a closed one keeps its full summary row however long an open one is, and the

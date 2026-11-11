@@ -5,7 +5,7 @@
    background (the layer has neither). A phone gets the window full-screen and the rail as a row that scrolls sideways
    above the page; from 760px it is a centred window with the rail down the left side.
 
-   Every rule is `:where(<roots>) .ss-settings…` (see glass.css). The rules for the folds and rows the sections still
+   Every rule is `:where(<roots>) .ss-settings…` (see glass-*.css). The rules for the folds and rows the sections still
    draw (the old overlay's `story-suite-*` classes, until steps 3b–3g move each section to the form engine) start with
    `.ss-settings` so they outweigh host.css, which loads after this sheet. */
 
