@@ -61,7 +61,8 @@ test('a new reply replays at most one carrier once the older prefixes are known'
     answers(host, cursorsOf(host));
     const spent = host.store.work();
     assert.ok(spent.prefixReplays - before.prefixReplays <= 1, 'at most one full replay for the new prefix');
-    assert.ok(spent.prefixHits - before.prefixHits >= 10, 'the older prefixes were found');
+    // (the witnesses of the older prefixes are found by their own prefix: they do not even ask the prefix memo)
+    assert.ok(spent.witnessMisses - before.witnessMisses <= 1, 'only the new reply\'s witness was worked out');
 });
 
 test('a guarded chat takes the full replay and still answers like a cold host', async t => {
@@ -89,14 +90,15 @@ test('a guarded chat takes the full replay and still answers like a cold host', 
     assert.deepEqual(answers(cold, cursorsOf(cold)), warm);
 });
 
-test('a rebuild clears the prefix memo and the answers stay the same', async t => {
+test('a rebuild clears the prefix memo; the answers stay the same and are found again by their own prefix', async t => {
     const host = await createHost({ modules: [rulesModule(), nativeModule().def] });
     t.after(() => host.close());
     for (let i = 0; i < 6; i++) await host.send(`Hello ${i}.`, `Reply ${i}.`);
     const cursors = cursorsOf(host);
     const warm = answers(host, cursors);
     host.store.rebuild();
-    const replays = host.store.work().prefixReplays;
+    const misses = host.store.work().witnessMisses;
     assert.deepEqual(answers(host, cursors), warm);
-    assert.ok(host.store.work().prefixReplays > replays, 'the cleared memo replayed again');
+    assert.equal(host.store.work().witnessMisses, misses, 'no record changed: no witness is worked out again');
+    assert.deepEqual(fresh(host, cursors), warm, 'a fresh replay (no memo at all) gives the same answers');
 });

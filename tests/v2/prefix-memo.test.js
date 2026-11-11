@@ -287,3 +287,27 @@ test('prefix memo: a recordless carrier has the state of the record before it', 
     const arr = [reply('a'), { is_user: false, mes: 'not read yet', extra: {} }];
     assert.deepEqual(memo.stateAfterPrefix(arr, 1).domains.test, { n: 1, seen: ['a'] });
 });
+
+test('witness memo: a hit by the witness\'s own prefix lowers replanFrom again, as the replay it skips would', () => {
+    const arr = [reply('a', 0, { checkpoint: state(0) }), reply('b'), reply('c')];
+    arr[1].extra.storySuite = { ...arr[1].extra.storySuite,
+        ops: [{ op: 'replace', path: '/meta/rev', value: 0 }], spans: [{ n: 1, story: false }] };
+    delete arr[2].extra.storySuite;
+    let id = 0;
+    const store = createStore({ chat: () => arr, save: async () => {}, checkpointEvery: 1,
+        recordId: () => `sw_${String(++id).padStart(8, '0')}` });
+    store.setNarrated(2, []);
+    store.head();
+    const source = store.sourceAt(1);
+    const cursor = { sid: source.sid, swipeKey: source.swipeKey, op: 1 };
+    const first = store.prefixWitness(cursor);
+    assert.ok(first, 'the witness is there');
+    assert.equal(store.replansFrom(), 1, 'the replay found the repeated revision');
+    arr[2].extra.storySuite = { ...arr[2].extra.storySuite };   // (a new record object after it: the generation is dropped, the prefix is the same)
+    store.head();
+    assert.equal(store.replansFrom(), null, 'the head replay reset it');
+    const misses = store.work().witnessMisses;
+    assert.deepEqual(store.prefixWitness(cursor), first);
+    assert.equal(store.work().witnessMisses, misses, 'the answer came from its own prefix');
+    assert.equal(store.replansFrom(), 1, 'and the hit lowered replanFrom as the replay would have');
+});

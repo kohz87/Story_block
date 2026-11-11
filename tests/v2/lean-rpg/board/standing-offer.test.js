@@ -70,3 +70,20 @@ test('a won fight (no foe up) and a fight left open offer nothing', async t => {
     if (result.stop === 'won') assert.equal(offers(host).find(), null);
     else assert.ok(!offers(host).find()?.fight.standing || result.stop !== 'won');
 });
+
+// The Fight tab asks for the offer on every redraw; the switch behind it reads the pack through sdk queries (each settles the timeline),
+// so it is asked last, only once a foe stands, and the answer is the one the flag gave.
+test('the offer\'s switch may be a function: not asked with no foe standing, asked once after, and the answer equals the flag\'s', async t => {
+    let asked = 0;
+    const idle = createFightOffers({ ctx: { chat: [] }, store: { head: () => null, receipts: () => [], at: () => null }, meta: () => ({}), on: () => { asked++; return true; } });
+    assert.equal(idle.find(), null);
+    assert.equal(asked, 0, 'no foe, no question');
+    const { host } = await fought(t, 802, label => /flee|run|retreat/i.test(label));
+    const make = on => createFightOffers({ ctx: host.ctx, store: host.store, meta: () => host.ctx.chatMetadata, on });
+    const flag = make(true).find();
+    assert.ok(flag, 'a fled fight offers the board');
+    assert.deepEqual(make(() => { asked++; return true; }).find(), flag, 'a function that says yes gives the flag\'s answer');
+    assert.equal(asked, 1, 'asked once');
+    assert.equal(make(() => false).find(), null);
+    assert.equal(make(false).find(), null);
+});
