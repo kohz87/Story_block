@@ -194,10 +194,10 @@ export function readSheet(state, { withLeft = false } = {}) {
             // (`withLeft`, for `party.levels`: read too, `left: true`; `sheetLevel` is the stated level or null.)
             const gone = fields.left === true;
             if (gone && !withLeft) continue;
-            const found = character(id, fields, hidden.has('who') ? definition.name : '', hidden, definition);
-            if (found && withLeft) Object.assign(found, { left: gone, sheetLevel: int(fields.level) ?? (Object.hasOwn(fields, 'soul') ? found.level : null) });
+            const found = character(id, fields, hidden.has('who') || withLeft ? definition.name : '', hidden, definition);   // (`withLeft`: a blank Name uses the block's name, as the Party card does)
+            if (found && withLeft) Object.assign(found, { left: gone, sheetLevel: int(fields.level) !== null || Object.hasOwn(fields, 'soul') ? found.level : null });   // (the level the card shows: clamped 1–99)
             if (!found) sheet.problems.push(`The Character block "${id}" has no name in its Who field, so it is left out.`);
-            else if (sheet.characters.some(other => other.key === found.key)) sheet.problems.push(`Two Character blocks are called ${found.who}; only the first is used.`);
+            else if (!withLeft && sheet.characters.some(other => other.key === found.key)) sheet.problems.push(`Two Character blocks are called ${found.who}; only the first is used.`);
             else sheet.characters.push(found);
         } else if (role === 'skills') {
             const who = text(fields.who) || (hidden.has('who') ? text(definition.name) : '');

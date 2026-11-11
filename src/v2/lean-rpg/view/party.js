@@ -171,7 +171,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 if (!away.length) return;
                 // One row for the members who left: a chevron on the left, the whole row a button; opened, their full cards as ever.
                 const opened = leftOpen();
-                const row = button(main, '', `rpg-left-fold${opened ? ' rpg-left-open' : ''}`, () => { setLeftOpen(!opened); tell(); });
+                const row = button(main, '', `rpg-left-fold${opened ? ' rpg-left-open' : ''}`, () => { setLeftOpen(!opened); tell(); root.querySelector('.rpg-left-fold')?.focus?.(); });   // (the redraw replaced the button: focus its replacement, so a keyboard reader keeps their place)
                 row.setAttribute('aria-expanded', String(opened));
                 const chevron = h(doc, 'span', 'rpg-left-chev');
                 const drawn = s(doc, 'svg', { viewBox: '0 0 12 12', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });

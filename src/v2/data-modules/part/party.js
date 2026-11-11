@@ -1,6 +1,6 @@
 // The data modules' companions (extracted from data-modules/part.js): joining, leaving and
 // returning, their signature skills and gear, and the Ask card's reader action.
-import { DM_LIMITS as L, dmObject, dmRoom } from '../schema.js';
+import { DM_LIMITS as L, DM_OLD_ROOM, dmObject, dmRoom } from '../schema.js';
 import { validateDataModules } from '../check.js';
 import { copy, refuse, atPath } from '../interpreter.js';
 import { activeDefinition, inputsOf, instanceOf } from '../adapters.js';
@@ -183,6 +183,8 @@ export function createParty(deps) {
         answer.data.gear = { owner, items: added };
         return answer;
     }
+    // A reply captured with the `partyRoom` mark records the party it relied on (replayInputs `party`); an older one does not.
+    const marked = ctx => ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM;
     function makeParty(ctx, request, soul, call, { added = false } = {}) {
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
@@ -218,7 +220,7 @@ export function createParty(deps) {
             draft.instances[definition.id] = { chat: newInstance(definition, inputsOf(prefix, definition)) };
         }
         const [head, ...rest] = pins;
-        const recorded = guard(ctx, prefix, { kind: 'dm.join', module: head.definition.id, hash: head.hash, generation, imports: [],
+        const recorded = guard(ctx, prefix, { kind: 'dm.join', module: head.definition.id, hash: head.hash, generation, imports: [], party: marked(ctx),
             decision: { subjects: ['chat'], inputs: {}, previous: null, base: Boolean(domain && Object.keys(domain.active ?? {}).length),
                 more: rest.map(entry => ({ module: entry.definition.id, hash: entry.hash, generation, pin: entry.pin })) }, pin: head.pin, bound: true });
         const left = plan.skipped.length ? ` ${fill(J.noExtras, { list: plan.skipped.map(item => rpg().extraName(item.role)).join(', ') })}` : '';
@@ -263,7 +265,7 @@ export function createParty(deps) {
         if (!person.canLeave || !definition) refuse('DM_SCHEMA', '', fill(J.noLeave, { name: person.name }));
         // (their actor is found before the field changes: a member who left is no longer on the roster)
         const owner = left && gearOn(ctx) ? gearOwnerOf(ctx, person.name, person.module) : 'party';
-        const answer = deps.setField(ctx, { module: person.module, field: 'left', value: left }, call, { story: true });
+        const answer = deps.setField(ctx, { module: person.module, field: 'left', value: left }, call, { story: true, party: !left && marked(ctx) });
         answer.summary = fill(left ? J.left : J.returned, { name: person.name });
         answer.data.join = { op: left ? 'left' : 'back', name: person.name };
         // With gear on, the pieces bound to them leave with them, in this receipt (they come back once when they return: giveGear).

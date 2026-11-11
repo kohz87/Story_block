@@ -108,11 +108,13 @@ export function grammarFor(state, quiet = null, { rolled = false, board = false 
 
 // Witnesses contain only relevant local paths. A guard never interprets effects or asks live
 // services: it verifies the recorded decision against the prefix and allows the host's saved ops.
-export function replayInputs(state, { module, subject = 'chat', reads = [], imports = [], actor = false, adapters = null, subjects = [], available = [], clock = false } = {}) {
+export function replayInputs(state, { module, subject = 'chat', reads = [], imports = [], actor = false, adapters = null, subjects = [], available = [], clock = false, party = false } = {}) {
     const domain = state?.domains?.dataModules, active = domain?.active?.[module];
     const definition = activeDefinition(state, module), instance = instanceOf(state, module, subject);
     return { active: active ? { hash: active.hash, generation: active.generation, attached: active.subjects.includes(subject) } : null,
         ...(clock ? { clock: state?.domains?.director?.time?.minutes ?? null } : {}),
+        // (a marked join or return: who is in the party and who has left, so an earlier leave that went changes the answer; unmarked replies record none)
+        ...(party ? { party: (rpgLib()?.partyOf(state) ?? []).map(person => [person.module, person.left]) } : {}),
         reads: reads.map(path => ({ path, value: copy(atPath(instance, path)) })),
         imports: Object.fromEntries(imports.map(alias => [alias, (adapters ?? definition?.imports)?.[alias] ? projectImport(state, (adapters ?? definition.imports)[alias]) : null])),
         actor: actor ? actorsOf(state)[subject] ?? null : null,

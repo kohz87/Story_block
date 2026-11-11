@@ -213,3 +213,19 @@ test('Long names in the left row are cut with an ellipsis', () => {
     assert.match(css, /\.rpg-left-names \{[^}]*min-width: 0[^}]*overflow: hidden[^}]*text-overflow: ellipsis[^}]*white-space: nowrap/);
     assert.match(css, /\.rpg-left-chev \{[^}]*flex: none/);
 });
+
+test('the fold row keeps the keyboard focus after it is toggled (the redraw replaces the button; its replacement is focused)', () => {
+    const gone = { definition: characterDefinition('gone', 'Gone'), fields: { who: 'Gone', left: true, level: 5 } };
+    const doc = setupDom(), el = doc.createElement('div');
+    doc.body.appendChild(el);
+    const baseRole = roleOf;
+    createPartyWidget({ headState: () => fakeState([wessel, ren, gone]), readerName: () => 'Wessel', roleOf: definition => (definition.slug === 'gone' ? 'character' : baseRole(definition)), chatKey: () => 'chat-f', storage: null }).render(el, {}, {});
+    const before = el.querySelector('.rpg-left-fold');
+    before.focus();
+    before.click();
+    const opened = el.querySelector('.rpg-left-fold');
+    assert.ok(opened !== before, 'drawn again');
+    assert.ok(doc.activeElement === opened, 'opened: the focus is on the new button');
+    opened.click();
+    assert.ok(doc.activeElement === el.querySelector('.rpg-left-fold'), 'closed: and again');
+});

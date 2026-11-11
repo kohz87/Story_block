@@ -392,3 +392,11 @@ test('a Re-read after Gear in fights is switched off keeps the companion\'s gear
     assert.equal(success(await host.turn.reread(at)) !== null, true);
     assert.deepEqual(resultOf().gear, before, 'the roll is worked out as it was made');
 });
+
+test('party.levels lists every Character the Party card shows: a blank Name uses the block\'s name, and the level is clamped as the card clamps it', () => {
+    const blank = { role: 'character', fields: character('', { level: 7 }) };
+    const state = { domains: { dataModules: sheetDomain({ ash: { role: 'character', fields: character('Ash', { level: 500 }) }, nameless: blank, low: { role: 'character', fields: character('Low', { level: -3, left: true }) } }) } };
+    const rows = levelsQuery(state);
+    assert.deepEqual(rows.map(row => [row.name, row.level, row.left]), [['Ash', 99, false], ['Low', 1, true], ['nameless', 7, false]], 'the card shows 99 and 1 for those, and the block name for the blank Name');
+    assert.deepEqual(rosterQueries()['party.actors'](state, { recorded: true }).map(actor => actor.name), ['Ash'], 'the dice roster is unchanged: a blank Name is still left out, and who left');
+});
