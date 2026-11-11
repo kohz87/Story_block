@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Reputation lists with room.** Each known entry is its own row with an 8 px bar; signed lists (standing) run from a centre line, red below 0 and green above, with the scale shown once; the top 3 show and the rest fold as "N more known · Not known yet (N)"; pencils appear only after the section's Edit. Applies to every pack's number lists.
+- **Guild card as tiles** (Ersveil 2.9.4): Rank, Standing and Dues; years as a member stays editable in the block's Edit. A chat that pinned the old guild screen offers Migrate.
+- **Enable all blocks.** Settings → Tabs & Packs → the installed blocks: one "Enable all N for this chat" button, one confirm listing the names, then each is enabled in the order they need; a block refused on its own shows why, the rest still enable.
+- Version 2.30.0 (Ersveil 2.9.4 needs it for the guild tiles).
 - **Example pack Ersveil 2.9.3: no Court favour block.** Highmark's throne follows one fixed road for now (a later release lets your deeds decide it); a chat already on another throne branch keeps it, and a chat that enabled Court favour keeps the block.
 
 ## 2.29.0
