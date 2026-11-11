@@ -407,6 +407,72 @@ test('the strip\'s edge fade says which side has more tabs', () => {
     assert.equal(nav.getAttribute('data-fade'), 'start');
 });
 
+// the fake page has no layout: a slot or the bar answers getBoundingClientRect from a left/right pair
+const boxed = (node, left, right) => { node.getBoundingClientRect = () => ({ left, right, top: 0, bottom: 56, width: right - left, height: 56 }); };
+
+test('the strip: an alerting tab scrolled out past an edge shows a dot on that edge, and it clears when the tab is in view', () => {
+    const { root, bar, slots } = stripSetup(ITEMS);
+    const nav = root.querySelector('.ss-screenbar');
+    const dots = () => [...root.querySelectorAll('.ss-screenbar-edge-alert')].filter(node => !node.hidden).map(node => node.getAttribute('data-edge'));
+    const alerting = ITEMS.map(item => (item.id === 'rpg-battle/craft' ? { ...item, alert: true } : item));
+    Object.assign(nav, { scrollWidth: 800, clientWidth: 300, scrollLeft: 0 });
+    boxed(nav, 0, 300);
+    bar.update({ items: alerting, current: null, strip: true });
+    const craft = slots().find(node => node.getAttribute('data-id') === 'rpg-battle/craft');
+    boxed(craft, 700, 776);
+    nav.dispatch('scroll');
+    assert.deepEqual(dots(), ['end'], 'beyond the right edge');
+    assert.equal(nav.getAttribute('data-alert'), 'end');
+    boxed(craft, -80, -4);
+    nav.dispatch('scroll');
+    assert.deepEqual(dots(), ['start'], 'beyond the left edge');
+    assert.equal(nav.getAttribute('data-alert'), 'start');
+    boxed(craft, 100, 176);
+    nav.dispatch('scroll');
+    assert.deepEqual(dots(), [], 'in view: cleared');
+    assert.equal(nav.getAttribute('data-alert'), '');
+    boxed(craft, 700, 776);
+    nav.dispatch('scroll');
+    bar.update({ items: ITEMS, current: null, strip: true });
+    assert.deepEqual(dots(), [], 'the alert ended: cleared');
+});
+
+test('the strip: the fade is recomputed when the bar is resized (a ResizeObserver), and the observer is disconnected on destroy', () => {
+    const seen = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { constructor(callback) { this.callback = callback; this.nodes = []; this.off = false; seen.push(this); } observe(node) { this.nodes.push(node); } disconnect() { this.off = true; } };
+    try {
+        const { root, bar } = stripSetup(ITEMS);
+        const nav = root.querySelector('.ss-screenbar');
+        assert.equal(seen.length, 1);
+        assert.deepEqual(seen[0].nodes, [nav], 'it watches the bar');
+        assert.equal(nav.getAttribute('data-fade'), null);
+        Object.assign(nav, { scrollWidth: 800, clientWidth: 300, scrollLeft: 0 });
+        seen[0].callback();
+        assert.equal(nav.getAttribute('data-fade'), 'end', 'a resize that makes it overflow');
+        Object.assign(nav, { clientWidth: 800 });
+        seen[0].callback();
+        assert.equal(nav.getAttribute('data-fade'), null, 'a resize that makes it fit');
+        assert.equal(seen[0].off, false);
+        bar.destroy();
+        assert.equal(seen[0].off, true, 'disconnected on destroy');
+    } finally {
+        globalThis.ResizeObserver = original;
+    }
+});
+
+test('the strip works without a ResizeObserver', () => {
+    const original = globalThis.ResizeObserver;
+    delete globalThis.ResizeObserver;
+    try {
+        const { bar, slots } = stripSetup(ITEMS);
+        assert.equal(slots().length, ITEMS.length);
+        bar.destroy();
+    } finally {
+        if (original) globalThis.ResizeObserver = original;
+    }
+});
+
 test('the strip: Left and Right move the focus between slots, Home and End go to the first and last, and nothing wraps', () => {
     const { doc, slots, root } = stripSetup(ITEMS);
     const nav = root.querySelector('.ss-screenbar');

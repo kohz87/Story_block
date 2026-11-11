@@ -1,5 +1,5 @@
-// The screen bar (UI stage 7): the navigation between screens, one component for two places: the game view and the
-// Story panel (desktop and tablet too). The callers draw the strip (below). The older pill is kept for `strip: false`: on a phone it is a floating glass pill at the foot of the window with five slots:
+// The screen bar (UI stage 7): the navigation between screens for the game view and the Story panel; both draw the strip (below).
+// The older pill is kept for `strip: false`: on a phone a floating glass pill at the foot of the window with five slots:
 // the first four screens that are in the bar (an item says `moreOnly` when it is not; Settings → Tabs & Packs), in the reader's
 // order, then More. More opens a glass sheet over the bar with the remaining screens in a four-column grid; a tap on the scrim,
 // Escape or a tile closes it, and the focus goes back to More. The wide game view draws every screen that is in the bar in one
@@ -9,7 +9,6 @@
 //
 // The current item: the icon and label in the accent colour and a 4px dot under it, no pill or background. While a screen
 // under More is current, More shows that screen's icon and label (More's accessible name says so) and is current itself.
-//
 // createScreenBar(doc, host, { label, onSelect(id), pinned? })
 //   host: the positioned box the bar, its scrim and its sheet are added to (the game view or the Story panel).
 //   className: the host's own class for the bar (its placement: mounts.css, host.css), e.g. `ss-gameview-nav`.
@@ -18,18 +17,15 @@
 //   → { el, update({ items, current, strip?, row, pinned? }), isMoreOpen(), openMore(), closeMore(), destroy() }
 // items: [{ id, label, icon, moreOnly? }] in the reader's order; current: the id on screen; row: every item that is in the bar in one
 // row, More after them (hidden while nothing is under it).
-//
 // Icons: the item's icon is a `ph-*` id from the Phosphor set (view/icons: iconFor gives it, the screen's own icon or the
 // default for the id); the current one draws the solid weight (`ph-x:fill`), the others the line weight. A Font Awesome class
 // (a module's own icon) still draws as it did. More is `ph-dots-three-outline`.
-//
 // The strip (`strip: true`, what the game view and the Story panel pass): every item is a slot in ONE row that scrolls sideways (the
 // CSS snaps it and hides the scrollbar), the ones the reader put in the bar first, the `moreOnly` ones after them in the same order; More
-// is never drawn. `data-fade` on the bar says which edge has more tabs (`start`, `end`, `both`) and the CSS fades it. The current slot
-// is scrolled into view when the bar opens and when the current screen changes. Left and Right (Home, End) move the focus between slots.
-//
-// Keys: each slot is a button in the page's Tab order. While the sheet is open Tab stays inside it, Escape closes it.
-// Built with createElement and textContent only, like every standard widget (dom.js). Focus moves with focusNode (scroll.js).
+// is never drawn. `data-fade` on the bar says which edge has more tabs (`start`, `end`, `both`; kept on scroll and on resize) and the CSS fades it;
+// `data-alert` and a dot on that edge say an alerting tab is out of sight beyond it. The current slot is scrolled into view when the bar opens
+// and when the current screen changes. Left and Right (Home, End) move the focus between slots. Slots are buttons in the page's Tab order;
+// the sheet (`strip: false`) keeps Tab inside and closes on Escape. Built with createElement and textContent only (dom.js); focusNode (scroll.js).
 
 import { h, iconNode, str } from './widgets/dom.js';
 import { focusNode, revealIn } from './scroll.js';
@@ -146,7 +142,10 @@ export function createScreenBar(doc, host, options = {}) {
     more.setAttribute('type', 'button');
     more.setAttribute('aria-expanded', 'false');
     more.setAttribute('aria-controls', `${id}-sheet`);
-    nav.appendChild(more);
+    // The strip's edge alert dots (sticky at each edge while an alerting tab is scrolled out past it; see edgeAlerts()).
+    const edgeDot = edge => { const dot = h(doc, 'span', 'ss-screenbar-edge-alert'); dot.hidden = true; dot.setAttribute('aria-hidden', 'true'); dot.setAttribute('data-edge', edge); return dot; };
+    const [startDot, endDot] = [edgeDot('start'), edgeDot('end')];
+    nav.append(startDot, more, endDot);
 
     // The scrim and the sheet: over the host, under the bar (which stays tappable: More closes the sheet).
     const scrim = h(doc, 'div', 'ss-screenbar-scrim');
@@ -339,7 +338,7 @@ export function createScreenBar(doc, host, options = {}) {
         empty.hidden = rest.length > 0;
         restoreFocus(focusBefore);
         if (strip) showCurrent();
-        else nav.removeAttribute('data-fade');
+        else { nav.removeAttribute('data-fade'); edgeAlerts(false); }
     }
 
     // The strip: the current slot into view (once for each current id), and the fade on the edge that has more tabs.
@@ -356,6 +355,21 @@ export function createScreenBar(doc, host, options = {}) {
         const edge = room > 1 ? `${left > 1 ? 'start' : ''}${left < room - 1 ? 'end' : ''}` : '';
         if (edge) nav.setAttribute('data-fade', edge === 'startend' ? 'both' : edge);
         else nav.removeAttribute('data-fade');
+        edgeAlerts(edge !== '');
+    }
+    // An alerting slot scrolled out past an edge: the dot shows on that edge (inside the fade); it clears when the slot is in view.
+    function edgeAlerts(fading) {
+        let before = false, after = false;
+        const box = fading && strip && nav.getBoundingClientRect?.();
+        for (const item of box ? items : []) {
+            const at = item.alert && slots.get(item.id)?.getBoundingClientRect?.();
+            if (!at) continue;
+            if (at.right <= box.left + 1) before = true;
+            else if (at.left >= box.right - 1) after = true;
+        }
+        startDot.hidden = !before;
+        endDot.hidden = !after;
+        nav.setAttribute('data-alert', `${before ? 'start' : ''} ${after ? 'end' : ''}`.trim());
     }
     // Arrow keys between the slots (the strip's own keys; Tab still walks them too).
     nav.addEventListener('keydown', event => {
@@ -369,6 +383,9 @@ export function createScreenBar(doc, host, options = {}) {
         at[to].scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
     });
     nav.addEventListener('scroll', fade);
+    // The fade follows the bar's size (a resize or a rotation that changes what fits); no observer, no recompute.
+    const resizes = typeof globalThis.ResizeObserver === 'function' ? new globalThis.ResizeObserver(() => { if (strip) fade(); }) : null;
+    resizes?.observe(nav);
 
     function tileNodes() {
         return [...grid.children].filter(node => node.getAttribute?.('data-id') && !node.hidden);
@@ -421,6 +438,7 @@ export function createScreenBar(doc, host, options = {}) {
         closeMore: (options = {}) => closeMore({ focus: options.focus !== false }),
         destroy() {
             closeMore({ focus: false });
+            resizes?.disconnect();
             nav.remove();
             scrim.remove();
             sheet.remove();

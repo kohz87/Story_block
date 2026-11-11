@@ -25,10 +25,30 @@
     scroll-snap-align: center;
 }
 
-/* ---- the edge fades: `data-fade` says which edge has more slots beyond it (set by screen-bar.js on scroll) ---- */
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-fade="end"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-fade="start"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-fade="both"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+/* ---- the edge fades: `data-fade` says which edge has more slots beyond it (set by screen-bar.js on scroll and resize).
+   `data-alert` lists the edges with an alerting tab out of sight: that edge's fade stops at half strength, so its dot shows through. ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip { --ss-fade-start: transparent; --ss-fade-end: transparent; }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-alert~="start"] { --ss-fade-start: rgba(0, 0, 0, .5); }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-alert~="end"] { --ss-fade-end: rgba(0, 0, 0, .5); }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-fade="end"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), var(--ss-fade-end)); mask-image: linear-gradient(to right, #000 calc(100% - 28px), var(--ss-fade-end)); }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-fade="start"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), var(--ss-fade-start)); mask-image: linear-gradient(to left, #000 calc(100% - 28px), var(--ss-fade-start)); }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip[data-fade="both"] { -webkit-mask-image: linear-gradient(to right, var(--ss-fade-start), #000 28px, #000 calc(100% - 28px), var(--ss-fade-end)); mask-image: linear-gradient(to right, var(--ss-fade-start), #000 28px, #000 calc(100% - 28px), var(--ss-fade-end)); }
+
+/* ---- the edge alert dot: a zero-width sticky item at each edge (screen-bar.js), the red dot drawn inside the fade ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip > .ss-screenbar-edge-alert {
+    position: sticky; flex: 0 0 0; width: 0; height: 0; align-self: flex-start; margin-top: 8px; pointer-events: none; z-index: 1;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip > .ss-screenbar-edge-alert[hidden] { display: none; }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip > .ss-screenbar-edge-alert::before {
+    content: ""; position: absolute; top: 0; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--ss-bad); border: 2px solid var(--ss-badge, #1e2132); box-sizing: content-box;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip > .ss-screenbar-edge-alert[data-edge="start"] { left: 8px; }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip > .ss-screenbar-edge-alert[data-edge="end"] { right: 8px; }
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip > .ss-screenbar-edge-alert[data-edge="end"]::before { right: 0; }
+
+/* ---- the focus ring stays inside the strip (the strip clips it above and below otherwise) ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note, .rpg-fight-offer, .rpg-fight-pause) .ss-screenbar-strip > .ss-screenbar-item:focus-visible { outline-offset: -3px; }
 
 /* ---- the strip beats the old wide row (mounts.css, 760px): a nav with both classes keeps the strip's slots, not 112px ones ---- */
 .ss-gameview-nav.ss-screenbar-strip.ss-screenbar-row {
@@ -36,6 +56,14 @@
 }
 .ss-gameview-nav.ss-screenbar-strip.ss-screenbar-row > .ss-screenbar-item {
     flex: 0 0 76px;
+}
+
+/* ---- from 760px: a row that fits is centred, not left-aligned (safe: one that overflows still starts at the left and scrolls) ---- */
+@media (min-width: 760px) {
+    .ss-gameview-nav.ss-screenbar-strip,
+    .ss-gameview-nav.ss-screenbar-strip.ss-screenbar-row {
+        justify-content: safe center;
+    }
 }
 
 /* ---- from 1000px: the game view's bar is one full row, slots even and centred (the old 760px row, now 1000px) ---- */
