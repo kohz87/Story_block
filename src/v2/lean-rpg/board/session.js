@@ -16,6 +16,8 @@ const KEY = 'rpgFightBoard', ATTEMPTS = 'rpgFightAttempts', LAST = 'rpgFightLast
 const LINKS = 'rpgFightLinks', SEND = 'rpgFightSend';
 const START = 'rpgFightStart';
 const OPENING_KEYS = ['opening', 'approach', 'drop', 'opened'];
+// The harder-foes rule (setup.foesHard = 1) starts a fight only when every foe on the sheet is of a new Foes block (read.js `hard`); a fight on an older block keeps the old numbers.
+const hardFoes = sheet => sheet.foes.filter(foe => foe.filled).length > 0 && sheet.foes.filter(foe => foe.filled).every(foe => foe.hard === 1);
 const object = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const openingContext = setup => Object.fromEntries(OPENING_KEYS.filter(key => Object.hasOwn(setup ?? {}, key))
     .map(key => [key, structuredClone(setup[key])]));
@@ -35,7 +37,7 @@ export function openBoard(meta, state, { sid, rules, gear = null, weapons = {}, 
     const resumed = resumeMembers(records, groups, sheet.foes);
     const session = { id: `${sid}:${attempt}`, origin: sid, anchor: sid, groups, ...(resumed ? { resumed: true } : {}),
         // (`bars: 2`: the fight's rule mark for the doubled bars, set only when every character on the sheet has them; a mixed or older party plays as before; `soak: 1` goes with it: VIT soak, soak.js)
-        setup: { seed, offset: 0, rules: structuredClone(rules), members: 1, aoe: 1, areaAll: 1, foesSix: 1, ...(sheet.characters.length && sheet.characters.every(actor => actor.scale === 2) ? { bars: 2, soak: 1 } : {}), ...(resumed ? { carriedMembers: resumed } : {}), ...(opened ? { opened } : {}),
+        setup: { seed, offset: 0, rules: structuredClone(rules), members: 1, aoe: 1, areaAll: 1, foesSix: 1, ...(hardFoes(sheet) ? { foesHard: 1 } : {}), ...(sheet.characters.length && sheet.characters.every(actor => actor.scale === 2) ? { bars: 2, soak: 1 } : {}), ...(resumed ? { carriedMembers: resumed } : {}), ...(opened ? { opened } : {}),
             flags: boardFlags(state), weapons: structuredClone(weapons), ...(gear ? { gear: structuredClone(gear) } : {}) }, exchanges: [] };
     const preview = playBoard(state, session.setup, []);
     if (preview.error) return preview;

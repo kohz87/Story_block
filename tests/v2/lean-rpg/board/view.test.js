@@ -83,7 +83,7 @@ test('the board selects a target, keeps its exchange final and confirms discard'
     const { doc, host, ui } = await page(t, { formula: 'standard' });
     await begin(host);
     await makeBlocks(host, { skills: { skill1: 'Shadow Cut', about1: 'sweep every foe', uses1: 'mana' }, character: { mana: 0 } });
-    await defineFoes(host, [['Rats', 2, 1, 5], ['Spiders', 1, 1, 5]]);
+    await defineFoes(host, [['Rats', 2, 1, 12], ['Spiders', 1, 1, 12]]);
     await settle();
     ui.mounts.screen.open('story-block/fight');
     await settle();
@@ -160,7 +160,7 @@ test('the board ends on a won card', async t => {
 
 test('the board ends on a lost card', async t => {
     const { doc, result } = await showStop(t, {
-        character: { str: 3, agi: 3, vit: 3, health: 1 }, foes: [['Rats', 12, 99, 5]],
+        character: { str: 3, agi: 3, vit: 3, health: 1 }, foes: [['Rats', 12, 99, 15]],
         action: [{ who: 'Wessel', kind: 'attack', target: 11 }], stop: 'lost',
     });
     const fight = doc.querySelector('[data-ss-screen="story-block/fight"]');
@@ -170,7 +170,7 @@ test('the board ends on a lost card', async t => {
 
 test('the board ends on a fled card', async t => {
     const { doc, result } = await showStop(t, {
-        character: { agi: 20 }, foes: [['Rats', 1, 1, 5]],
+        character: { agi: 20 }, foes: [['Rats', 1, 1, 12]],
         action: [{ who: 'Wessel', kind: 'flee' }], stop: 'fled',
     });
     const fight = doc.querySelector('[data-ss-screen="story-block/fight"]');

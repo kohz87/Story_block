@@ -144,7 +144,7 @@ test('a fight the narrator opens without a plan still parses; from the next repl
     assert.match(text, /kind: clear-N/u);
     assert.match(text, /\+ party /u);
     assert.deepEqual(host.store.problems(), []);
-    assert.ok(fieldsOf(host).hurt2 < 4, 'the hurt line was read');
+    assert.ok(fieldsOf(host).hurt2 < 12, 'the hurt line was read');
     // (PINNED CHANGE, FIGHT-FIX 1: a block of Down groups alone is a won fight, not an open one: the next reply is quiet and the combat text is not told; a
     // new fight takes the Down group's slot, so the narrator no longer needs the clear kind. A clear line written all the same still parses.)
     const { request: down } = await host.send('I finish it.', reply('~ dm foes — it falls | kind: hurt-2 | to: Down'));

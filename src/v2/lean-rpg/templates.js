@@ -7,6 +7,7 @@
 import { CREATION, LEVEL, STATS, STAGES, USES } from './names.js';
 import { SIGNATURE_FIELD, SKILL_SLOTS_MAX } from '../skill-slots.js';
 import { STANDARD_NUMBERS } from './formula.js';
+import { FOE_LEVEL } from './foes.js';
 import { scaledCharacter } from './templates-bars.js';
 import { withRecovery } from './templates-recovery.js';
 import { typedSkills } from './templates-skills.js';
@@ -162,7 +163,8 @@ const SIZE = {
     stamina: ['add', 3, ['floorDiv', get('agi'), 5]],
     mana: ['add', 3, ['floorDiv', get('int'), 5]],
 };
-const FOE_SIZE = n => ['add', 4, ['floorDiv', get(`level${n}`), 30]];
+// A foe group's Health: 12 + level/30 blocks (the harder-foes rule; the field holds up to 15, which is how the reader tells such a block from an older one, foes.js isHardBar).
+const FOE_SIZE = n => ['add', FOE_LEVEL.hardBase, ['floorDiv', get(`level${n}`), FOE_LEVEL.healthStep]];
 // Blocks for a stage word, in a bar of `size` blocks: round(word index × size / (words − 1)), half up; the first word is 0 and the last the full bar.
 const blocksOf = (word, size, count) => ['floorDiv', ['add', ['mul', word, size], Math.floor((count - 1) / 2)], count - 1];
 const stageLabel = words => ({ type: 'int', min: 0, max: words.length - 1, names: names(words) });
@@ -227,17 +229,17 @@ const standardFoes = {
         [`foe${n}`, text(`Foe ${n}`)],
         [`count${n}`, int(`Count ${n}`, 0, 99, 0)],
         [`level${n}`, int(`Level ${n}`, 1, 99, 1)],
-        [`hurt${n}`, bar(`Health ${n}`, 8, 'foe', 4)],
+        [`hurt${n}`, bar(`Health ${n}`, FOE_LEVEL.hardMax, 'foe', FOE_LEVEL.hardBase)],
     ])),
     kinds: Object.fromEntries(SLOTS.flatMap(n => [
         [`set-slot-${n}`, { op: '+', labels: { name: { type: 'text', max: 40 }, count: range(1, 99), level: range(1, 99) },
             when: ['eq', get(`count${n}`), 0], refusal: 'That slot is taken; clear it first.',
             effects: [{ op: 'set', path: [`foe${n}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${n}`], value: ['arg', 'count'] },
-                { op: 'set', path: [`level${n}`], value: ['arg', 'level'] }, { op: 'set', path: [`hurt${n}`], value: ['add', 4, ['floorDiv', ['arg', 'level'], 30]] }] }],
+                { op: 'set', path: [`level${n}`], value: ['arg', 'level'] }, { op: 'set', path: [`hurt${n}`], value: ['add', FOE_LEVEL.hardBase, ['floorDiv', ['arg', 'level'], FOE_LEVEL.healthStep]] }] }],
         [`hurt-${n}`, { op: '~', labels: { to: stageLabel(STAGES.health) }, when: ['gt', get(`count${n}`), 0], refusal: 'That slot is empty.',
             effects: [{ op: 'set', path: [`hurt${n}`], value: blocksOf(['arg', 'to'], FOE_SIZE(n), STAGES.health.length) }] }],
         [`clear-${n}`, { op: '-', labels: { why: { type: 'enum', values: ['down', 'fled', 'yielded', 'captured', 'gone'] } },
-            effects: [{ op: 'set', path: [`count${n}`], value: 0 }, { op: 'set', path: [`foe${n}`], value: '' }, { op: 'set', path: [`hurt${n}`], value: 4 }] }],
+            effects: [{ op: 'set', path: [`count${n}`], value: 0 }, { op: 'set', path: [`foe${n}`], value: '' }, { op: 'set', path: [`hurt${n}`], value: FOE_LEVEL.hardBase }] }],
     ])),
 };
 

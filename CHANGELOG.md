@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Harder foes (new replies):** a foe has 12 + level/30 Health blocks (it had 4), a foe's hit takes 2 blocks and a decisive hit 4, foes add level/4 to their roll, a lone foe strikes ceil(party/2) times and the foes' attacks in all are capped at twice the living party. New Foes blocks carry it; replies written before keep the old rules.
 - **Ersveil 2.9.5 and Story Block 2.31.0.** Claimant sway can select the restored throne branches; earlier story edits reselect later decisions. Missing or unscoped Ripples uses the fixed fallback, and a previously crowned chat keeps its reign. Ersveil adds regional name lists; name suggestions need a Director release with its names part. Home links to Quests when that screen exists.
 - **Pack fields.** Optional `ripples` and `content.names` sections are validated separately; a bad section is ignored with a warning. Once events may group alternatives with `decision`.
 - **Re-read keeps what a reply made.** A Re-read of a reply that did not change leaves each inventory stack's source, the fight board's link to the reply and what the narrator was already told as they were (before, a Re-read re-pointed them and told a step again). A line you edited gets new bookkeeping; the others keep theirs.

@@ -3,8 +3,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
+import { FOE_LEVEL, foeBlocksByLevel, hardBlocksByLevel } from '../../../../src/v2/lean-rpg/foes.js';
+import { DM_LIMITS } from '../../../../src/v2/data-modules/schema.js';
+import { openBoard } from '../../../../src/v2/lean-rpg/board/session.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
-import { carriedFrom, collapseFoes, packAreaBlocks, splitFoes } from '../../../../src/v2/lean-rpg/board/members.js';
+import { capAttackers, carriedFrom, collapseFoes, packAreaBlocks, splitFoes } from '../../../../src/v2/lean-rpg/board/members.js';
 import { memberRolls } from '../../../../src/v2/lean-rpg/board/member-rolls.js';
 import { exchangePlan } from '../../../../src/v2/lean-rpg/board/plan.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
@@ -255,4 +259,98 @@ test('six groups: a four-slot Foes block loads unchanged (slots 5 and 6 are abse
     assert.ok(sheet.foes.every(foe => !('local' in foe)), 'an older block reads with the keys it always had');
     const two = readSheet(stateOf({ a: sixBlocks([['Boars', 2, 1, 4]], 4).foes, b: sixBlocks([['Rats', 2, 1, 4]], 4).foes }));
     assert.deepEqual(two.foes.map(foe => [foe.slot, foe.local]), [[1, undefined], [2, undefined], [3, undefined], [4, undefined], [5, undefined], [6, undefined], [7, undefined], [8, undefined]], 'a second block still numbers 5…8');
+});
+
+// ---- the harder-foes rule: setup `foesHard: 1`, on a Foes block of the new template (its Health field holds up to 15) ----
+
+const HURT = Object.fromEntries([1, 2, 3, 4, 5, 6].map(n => [`hurt${n}`, { type: 'int', min: 0, max: 15, blocks: 'foe' }]));
+const OLD_HURT = Object.fromEntries([1, 2, 3, 4, 5, 6].map(n => [`hurt${n}`, { type: 'int', min: 0, max: 8, blocks: 'foe' }]));
+const partyOf = n => Object.fromEntries(['Astra', 'Bram', 'Cass', 'Dov'].slice(0, n).map(who => [who, { role: 'character', fields: character(who, { str: 8, agi: 8, vit: 8, health: 8 }) }]));
+const hardBlocks = (foes, party = 1, state = HURT) => ({ ...partyOf(party), foes: { role: 'foes', fields: levelFoeBlock(foes, 6), definition: { state } } });
+const everyone = n => ['Astra', 'Bram', 'Cass', 'Dov'].slice(0, n).map(who => ({ who, kind: 'attack', target: 1 }));
+const attacksOf = (foes, party, hard, number = 1) => {
+    const sheet = readSheet(stateOf(hardBlocks(foes, party))), bars = splitFoes(sheet.foes, { six: true });
+    const built = exchangePlan({ ...sheet, foes: bars }, everyone(party).map((act, at) => ({ ...act, target: bars[Math.min(at, bars.length - 1)].slot })), {}, number, { members: true, hard });
+    assert.equal(built.error, undefined);
+    return built.plan.foes;
+};
+
+test('harder foes: a foe has 12 + level/30 Health blocks on a new Foes block and reads as hard; an older block keeps its 4 + level/30', () => {
+    const hard = readSheet(stateOf(hardBlocks([['Ogre', 1, 1, 12], ['Troll', 1, 45, 13], ['Giant', 1, 99, 15]])));
+    assert.deepEqual(hard.foes.filter(foe => foe.filled).map(foe => [foe.size, foe.hard]), [[12, 1], [13, 1], [15, 1]]);
+    const old = readSheet(stateOf(hardBlocks([['Ogre', 1, 1, 4], ['Troll', 1, 45, 5]], 1, OLD_HURT)));
+    assert.deepEqual(old.foes.filter(foe => foe.filled).map(foe => [foe.size, foe.hard]), [[4, undefined], [5, undefined]]);
+});
+
+test('harder foes: a fight opens with foesHard only when every foe is on a new Foes block', () => {
+    const rulesOf = { ...rules };
+    const open = blocks => openBoard({}, stateOf(blocks), { sid: '5-abcdef', rules: rulesOf }).session.setup;
+    assert.equal(open(hardBlocks([['Ogre', 1, 1, 12]])).foesHard, 1);
+    assert.equal(open(hardBlocks([['Ogre', 1, 1, 4]], 1, OLD_HURT)).foesHard, undefined);
+    assert.equal(open(sixBlocks([['Ogre', 1, 1, 4]])).foesHard, undefined, 'a block with no definition of its own is an older one');
+});
+
+test('harder foes: a foe hit costs 2 Health blocks, a decisive one 4; without the flag 1 and 2', () => {
+    const state = stateOf(hardBlocks([['Ogre', 1, 1, 12]])), seen = { hard: new Set(), old: new Set() };
+    for (let seed = 1; seed <= 40; seed += 1) for (const [name, extra] of [['hard', { foesHard: 1 }], ['old', {}]]) {
+        const played = playBoard(state, { seed, offset: 0, rules, members: 1, foesSix: 1, ...extra }, [{ actions: everyone(1) }]);
+        assert.equal(played.error, undefined);
+        for (const line of played.result.rounds.flatMap(round => round.lines)) if (line.kind === 'foe' && line.damage) seen[name].add(`${line.decisive ? 'decisive' : 'clean'}:${line.damage.blocks}`);
+        assert.equal(played.result.foesHard, extra.foesHard);
+    }
+    assert.deepEqual([...seen.hard].sort(), ['clean:2', 'decisive:4']);
+    assert.deepEqual([...seen.old].sort(), ['clean:1', 'decisive:2']);
+});
+
+test('harder foes: the foe side of a roll adds level / 4 (heroes and the order keep the numbers\' divisor)', () => {
+    const sheet = readSheet(stateOf(hardBlocks([['Ogre', 1, 20, 12]])));
+    const built = exchangePlan(sheet, everyone(1), {}, 1, { members: false });
+    const bonus = hard => prepareStandard(built.plan, sheet, rules, { lv: true, hard }).foes[0].foe.classBonus;
+    assert.equal(bonus(true), 5);
+    assert.equal(bonus(false), 4);
+    const initiative = hard => prepareStandard(built.plan, sheet, rules, { lv: true, hard }).roster.foes[0].initiative;
+    assert.equal(initiative(true), initiative(false));
+});
+
+test('harder foes: a lone foe attacks ceil(living party / 2) times; a group of several foes and the old rules keep one each', () => {
+    for (const [party, attacks] of [[1, 1], [2, 1], [3, 2], [4, 2]]) {
+        assert.equal(attacksOf([['Ogre', 1, 5, 12]], party, true).length, attacks, `${party} heroes`);
+        assert.equal(attacksOf([['Ogre', 1, 5, 12]], party, false).length, 1, `${party} heroes, old rules`);
+    }
+    assert.equal(attacksOf([['Wolves', 3, 5, 12]], 4, true).length, 3, 'a group of three foes: one attack each');
+    assert.equal(attacksOf([['Ogre', 1, 5, 12], ['Troll', 1, 5, 12], ['Giant', 1, 5, 12]], 4, true).length, 6, 'three single foes, two attacks each, under the cap of 8');
+});
+
+test('harder foes: the foes\' attacks in all are capped at 2 x the living party, in proportion and the same each time', () => {
+    const six = [['A', 1, 5, 12], ['B', 1, 5, 12], ['C', 1, 5, 12], ['D', 1, 5, 12], ['E', 1, 5, 12], ['F', 1, 5, 12]];
+    const first = attacksOf(six, 2, true, 1);
+    assert.equal(first.length, 4, 'six groups, two heroes: at most 4 attacks');
+    assert.deepEqual(attacksOf(six, 2, true, 1), first);
+    assert.notDeepEqual(attacksOf(six, 2, true, 2).map(foe => foe.slot), first.map(foe => foe.slot), 'which groups attack turns with the exchange');
+    assert.equal(attacksOf(six, 2, false, 1).length, 6, 'without the flag there is no cap');
+    const list = [1, 1, 1, 1, 1, 1, 2, 2, 3].map(slot => ({ slot }));
+    assert.deepEqual(capAttackers(list, 4).map(foe => foe.slot), [1, 1, 2, 3], 'proportional, at least one per living group');
+    assert.equal(capAttackers(list, 20), list);
+});
+
+test('harder foes: a fight begun without the flag replays its old numbers byte for byte, and the flag is the only difference', () => {
+    const state = stateOf(hardBlocks([['Ogre', 1, 1, 12]])), old = { seed: 9, offset: 0, rules, members: 1, foesSix: 1 };
+    const choices = [{ actions: everyone(1) }, { actions: everyone(1) }];
+    const before = playBoard(state, old, choices);
+    assert.deepEqual(playBoard(state, structuredClone(old), choices), before);
+    assert.equal(before.result.foesHard, undefined);
+    const marked = playBoard(state, { ...old, foesHard: 1 }, choices);
+    assert.equal(marked.result.foesHard, 1);
+    const differs = [1, 2, 3, 4, 5, 6, 7, 8].some(seed => JSON.stringify(playBoard(state, { ...old, seed }, choices).result.rounds) !== JSON.stringify(playBoard(state, { ...old, seed, foesHard: 1 }, choices).result.rounds));
+    assert.ok(differs, 'the flag changes the numbers on some seed');
+});
+
+test('harder foes: the new Foes template starts a group at 12 Health, holds up to 15, and the checker allows that many stages', () => {
+    const foes = STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition;
+    assert.equal(foes.state.hurt1.default, 12);
+    assert.equal(foes.state.hurt6.max, FOE_LEVEL.hardMax);
+    assert.equal(hardBlocksByLevel(99), FOE_LEVEL.hardMax, 'level 99 is the most');
+    assert.equal(DM_LIMITS.foeStages, FOE_LEVEL.hardMax + 1);
+    assert.deepEqual([1, 29, 30, 60, 90].map(hardBlocksByLevel), [12, 12, 13, 14, 15]);
+    assert.deepEqual([1, 29, 30, 60, 90].map(level => foeBlocksByLevel(level)), [4, 4, 5, 6, 7], 'the older rule is untouched');
 });
