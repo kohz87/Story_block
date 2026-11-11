@@ -17,7 +17,8 @@ import { displayLines } from '../../../src/v2/extras.js';
 import { readRecord } from '../../../src/v2/persist.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../src/v2/lean-rpg/rules.js';
-import { memberXp } from '../../../src/v2/lean-rpg/fight.js';
+import { memberLevel, memberXp } from '../../../src/v2/lean-rpg/fight.js';
+import { readSheet } from '../../../src/v2/lean-rpg/read.js';
 import { usesOf } from '../../../src/v2/lean-rpg/practice.js';
 import { boardSession, discardBoard, openBoard, stageExchange } from '../../../src/v2/lean-rpg/board/session.js';
 
@@ -223,6 +224,8 @@ for (const seed of SEEDS) {
                 staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 1 }], 'count-one exchange');
                 stagedKind = 'member'; stagedCount = 1; stagedSkill = 'Cut';
             }
+            // (the member's level before the reply: earlier wins may have raised it, and a flat fight pays by the gap)
+            const astraLevel = staged ? memberLevel(readSheet(host.head()).characters.find(actor => actor.who === 'Astra')) : 1;
             await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, all));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
@@ -237,9 +240,9 @@ for (const seed of SEEDS) {
                 assert.ok(uses, `seed ${seed} step ${step}: Astra actually uses ${stagedSkill}`);
                 assert.equal(practice.find(entry => entry.who === 'Astra' && entry.skill === stagedSkill)?.amount ?? 0, Math.min(20, uses.n * 3),
                     `seed ${seed} step ${step}: ${stagedSkill} practice follows its actual uses`);
-                const expectedXp = memberXp([{ count: stagedCount, level: 1 }], 1, true);
+                const expectedXp = memberXp([{ count: stagedCount, level: 1 }], astraLevel, true, true);
                 assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, expectedXp, `seed ${seed} step ${step}: the original count pays its XP`);
-                made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards, skill: stagedSkill, xp: expectedXp,
+                made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards, skill: stagedSkill, xp: expectedXp, count: stagedCount,
                     member: stagedKind === 'member', pack: stagedKind === 'pack' };
                 boardFights += 1;
                 if (stagedKind === 'member') memberWins += 1;
@@ -276,7 +279,7 @@ for (const seed of SEEDS) {
             assert.deepEqual(validators(host), [], `${label}: the head passes its validators`);
             checkFuzzInvariants(host, label);
             const kept = [...done.values()];
-            let expectedCut = 0, expectedSweep = 0, expectedXp = 0;
+            let expectedCut = 0, expectedSweep = 0, expectedXp = 0, expectedLevel = 1;
             for (const [at, message] of host.ctx.chat.entries()) {
                 const board = message.is_user ? null : done.get(host.store.carrierSid(at))?.board;
                 if (!board) continue;
@@ -291,7 +294,9 @@ for (const seed of SEEDS) {
                 for (const skill of ['Cut', 'Sweep']) assert.equal(board.practice.find(entry => entry.who === 'Astra' && entry.skill === skill)?.amount ?? 0,
                     paid(skill), `${label}: ${skill} practice follows its actual uses`);
                 expectedCut += paid('Cut'); expectedSweep += paid('Sweep');
-                expectedXp += board.xp;
+                // (the replay pays in order at the level then: 100 XP raise the level, the rest carries, and a flat fight pays by the gap)
+                expectedXp += memberXp([{ count: board.count, level: 1 }], expectedLevel, true, true);
+                for (; expectedXp >= 100; expectedXp -= 100) expectedLevel += 1;
                 if (at >= gone - 1) boardReplays += 1;
                 if (board.pack) packReplays += 1;
             }

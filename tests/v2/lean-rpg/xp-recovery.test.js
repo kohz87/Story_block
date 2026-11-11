@@ -1,10 +1,11 @@
-// Marked Character (scale 2): XP comes from won fights only (the story's add-xp is refused, the marked fight formula pays 15 + 2 per extra foe), the story
+// Marked Character (scale 2): XP comes from won fights only (the story's add-xp is refused; a flat fight pays 15 a foe, an older marked one 15 + 2 per extra foe), the story
 // cannot raise Health, Stamina or Mana, and rest / full-rest / heal recover them. An unmarked pin keeps every old rule. Replay == live.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
+import { scaleXp } from '../../../src/v2/lean-rpg/levels.js';
 import { memberXp, fightGuard } from '../../../src/v2/lean-rpg/fight.js';
 import { hasRestButtons, isMarkedCharacter, fullRestTooSoon, recoveryNote } from '../../../src/v2/data-modules/recovery.js';
 import { directorStub, reload } from '../data-modules/helpers.js';
@@ -29,12 +30,25 @@ const set = (host, patch) => host.sdk.command('dm.set', { module: 'pack.chat/cha
 const problems = host => JSON.stringify(host.turn.problems().map(problem => problem.message));
 const same = host => { const live = JSON.stringify(host.head()); host.store.rebuild(); assert.equal(JSON.stringify(host.head()), live, 'rebuild == live'); };
 
-test('the marked fight pays (15 + 2 per extra foe) x levels x gap: 15, 17, 25, 37 at one level, 60 for a level 14 foe against level 4', () => {
+test('an old marked fight (no xp field) replays with the old sum: (15 + 2 per extra foe) x levels x gap: 15, 17, 25, 37 at one level, 60 for a level 14 foe against level 4', () => {
     const at = (count, level = 4, own = 4) => memberXp([{ count, level }], own, true);
     assert.deepEqual([1, 2, 6, 12].map(count => at(count)), [15, 17, 25, 37]);
     assert.equal(at(1, 14, 4), 60);
     assert.equal(memberXp([{ count: 6, level: 5 }], 25, true), 0);
     assert.equal(memberXp([{ count: 3, level: 4 }, { count: 2, level: 4 }], 4, true), 19 + 17);
+});
+
+test('flat fight XP (xp: 2): 15 a same-level foe, 60 for four, 19 for a foe 3 above, 0 for ten below, 100 cap, own level each, rate after the cap', () => {
+    const flat = (groups, own = 4) => memberXp(groups, own, true, true);
+    assert.equal(flat([{ count: 1, level: 4 }]), 15);
+    assert.equal(flat([{ count: 4, level: 4 }]), 60);
+    assert.equal(flat([{ count: 1, level: 7 }]), 19, '15 x 130 % = 19.5, rounded down');
+    assert.equal(flat([{ count: 1, level: 4 }], 14), 0, 'ten levels below pays nothing');
+    assert.equal(flat([{ count: 12, level: 4 }]), 100, 'a swarm of 12 is held at 100');
+    assert.equal(flat([{ count: 1, level: 4 }, { count: 2, level: 4 }]), 45, 'every foe of every group pays');
+    assert.deepEqual([4, 7].map(own => flat([{ count: 2, level: 7 }], own)), [39, 30], 'each member at their own level');
+    assert.equal(scaleXp(flat([{ count: 12, level: 4 }]), 200), 200, 'the XP rate applies after the cap');
+    assert.equal(flat([{ count: 1, level: 30 }], 1), 15 * 390 / 100 | 0, 'no upper limit per foe');
 });
 
 test('the unmarked fight sum is what it was (count x bands x 2)', () => {

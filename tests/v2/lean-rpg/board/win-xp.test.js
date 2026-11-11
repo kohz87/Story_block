@@ -49,7 +49,7 @@ for (const [name, story] of [['a new group the narrator opens', NEW], ['the Down
     test(`a board win still pays XP once when the same reply has ${name}`, async () => {
         const restore = seedCrypto(33), host = await world();
         try {
-            const want = memberXp([{ count: 1, level: 1 }], 1, true);
+            const want = memberXp([{ count: 1, level: 1 }], 1, true, true);
             await winWith(host, story);
             assert.equal(hero(host).xp, want);
             assert.equal(fights(host).length, 1);
@@ -70,10 +70,10 @@ test('a board win that leaves the block as it was carries no groups (the record 
     const restore = seedCrypto(34), host = await world();
     try {
         await winWith(host, 'Done.');
-        assert.equal(hero(host).xp, memberXp([{ count: 1, level: 1 }], 1, true));
+        assert.equal(hero(host).xp, memberXp([{ count: 1, level: 1 }], 1, true, true));
         const step = fights(host)[0];
         assert.equal(step.replan.payload.groups, undefined);
-        assert.deepEqual(Object.keys(step.replan.payload), ['was', 'bars'], 'a marked fight records its mark beside the slots');
+        assert.deepEqual(Object.keys(step.replan.payload), ['was', 'bars', 'xp'], 'a marked fight records its marks beside the slots');
     } finally { host.close(); restore(); }
 });
 
