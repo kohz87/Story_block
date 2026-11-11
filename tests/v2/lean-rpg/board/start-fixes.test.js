@@ -83,3 +83,41 @@ test('F3: the battle log calls a turn-order lead initiative, and leaves it to th
         assert.fail(`battle log render: ${error.message}`);
     }
 });
+
+// A fight narrated with no foes line gets one short tail cue on the next reply (turn/fight-start.js fightCue).
+const FIGHT = 'He struck the first cutpurse dead, slashed the second, and blood ran from the wounded third.';
+const dice = '? roll Astra | AGI | normal | 12';
+const mes = (story, ...lines) => ({ mes: `${story}\n<Changes>\n${lines.join('\n')}\n</Changes>` });
+
+test('fightCue: a fight in the prose with a roll and no foes line is told; each missing part stops it', async () => {
+    const { fightCue, FIGHT_CUE } = await import('../../../../src/v2/turn/fight-start.js');
+    assert.equal(fightCue(mes(FIGHT, dice, '+ item Rope')), FIGHT_CUE);
+    assert.equal(fightCue(mes(FIGHT, dice, '+ dm foes - Ridge cutpurses x2 | kind: set-slot-1 | level: 3')), null, 'a foes line was written');
+    assert.equal(fightCue(mes(FIGHT, dice, '+ dm Ridge cutpurses | kind: set-slot-1 | level: 3')), null, 'a set-slot line was written');
+    assert.equal(fightCue(mes(FIGHT, dice), { foesNow: true }), null, 'a foe is already set');
+    assert.equal(fightCue(mes(FIGHT, '+ item Rope')), null, 'no roll');
+    assert.equal(fightCue(mes('He struck the table and sat down.', dice)), null, 'too few fight words');
+    assert.equal(fightCue({ mes: FIGHT }), null, 'no block, no roll');
+    assert.equal(fightCue(null), null);
+});
+
+test('the cue reaches the next reply\'s tail only with the RPG on and no foe set; the static prompt is unchanged', async t => {
+    const { createHost } = await import('../../../../testkit/index.js');
+    const { CORE_FEATURE } = await import('../../../../src/v2/features.js');
+    const { TAIL_KEY, STATIC_KEY } = await import('../../../../src/v2/turn.js');
+    const { FIGHT_CUE } = await import('../../../../src/v2/turn/fight-start.js');
+    const run = async rpg => {
+        const host = await createHost();
+        t.after(() => host.close());
+        if (rpg) host.features.set(CORE_FEATURE.leanRpg, true);
+        await host.send('Begin.', 'Opening.');
+        await host.send('I fight.', `${FIGHT}\n<Changes>\n${dice}\n</Changes>`);
+        await host.send('Go on.', 'Quiet.');
+        const last = key => host.st.promptLog.filter(entry => entry.key === key && entry.value).at(-1)?.value ?? '';
+        return { tail: last(TAIL_KEY), staticText: last(STATIC_KEY) };
+    };
+    const on = await run(true), off = await run(false);
+    assert.ok(on.tail.includes(FIGHT_CUE), 'RPG on: told');
+    assert.ok(!off.tail.includes(FIGHT_CUE), 'RPG off: not told');
+    assert.ok(!on.staticText.includes('under way'), 'the static prompt carries no cue');
+});
