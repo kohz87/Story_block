@@ -11,10 +11,6 @@ const S = SCREEN_STRINGS.inventory;
 const G = S.gear;
 const COMMON = 'common';
 const NOT_GOOD = Object.freeze(['worn', 'torn', 'broken']);
-const KIND_ICONS = Object.freeze({
-    quest: 'fa-scroll', equipment: 'fa-shield-halved', consumable: 'fa-flask',
-    material: 'fa-cubes', goods: 'fa-box', money: 'fa-gem',
-});
 
 /** Open or closed, remembered per key. `prefix` names the chat (the caller adds it), so each chat keeps its own folds on this device. A storage that
  *  throws or is missing gives the fallback, and the choice then lasts only this page. */
@@ -48,7 +44,7 @@ function chevron(doc) {
 }
 
 /** A foldable section: a button with a chevron, the label (and an icon, a count when given) and the body under it. `onToggle(open)` gets the new state. */
-export function foldSection(doc, { id, label, icon = '', count = null, open, onToggle, body, className = '' }) {
+export function foldSection(doc, { id, label, icon = '', count = null, open, onToggle, body, className = '', rule = false }) {
     const section = h(doc, 'section', `fold-sec ${className}`.trim());
     const bodyId = `fold-body-${slug(id)}`;
     const head = h(doc, 'button', `fold-head${open ? ' is-open' : ''}`);
@@ -56,6 +52,7 @@ export function foldSection(doc, { id, label, icon = '', count = null, open, onT
     head.setAttribute('aria-expanded', String(open));
     head.setAttribute('aria-controls', bodyId);
     head.setAttribute('data-fold', String(id));
+    if (rule) head.append(chevron(doc));   // the rule-style head: chevron, label, a hairline (CSS) and the count at the right
     if (icon) {
         const mark = h(doc, 'i', `fa-solid ${icon}`);
         mark.setAttribute('aria-hidden', 'true');
@@ -63,7 +60,7 @@ export function foldSection(doc, { id, label, icon = '', count = null, open, onT
     }
     head.append(h(doc, 'span', 'fold-label', label));
     if (count !== null) head.append(h(doc, 'span', 'fold-count', String(count)));
-    head.append(chevron(doc));
+    if (!rule) head.append(chevron(doc));
     head.addEventListener('click', () => onToggle?.(!open));
     body.id = bodyId;
     body.hidden = !open;
@@ -123,7 +120,7 @@ export function tileGrid(doc, items, { rows = null, onOpen } = {}) {
 export function categorySection(doc, { kind, title, items, rows = null, open, onToggle, onOpen }) {
     if (items.length === 0) return null;
     return foldSection(doc, {
-        id: `cat-${kind}`, label: title, icon: KIND_ICONS[kind] ?? '', count: items.length, open, onToggle,
+        id: `cat-${kind}`, label: title, count: items.length, open, onToggle, rule: true,
         body: tileGrid(doc, items, { rows, onOpen }), className: `cat cat-${kind}`,
     });
 }
@@ -285,6 +282,13 @@ export const GRID_CSS = `
 .fold-chev { flex: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; }
 .fold-chev svg { width: 12px; height: 12px; display: block; transition: transform 0.15s; }
 .fold-head.is-open .fold-chev svg { transform: rotate(90deg); }
+/* the category heads are the mockup's rule-style section heads (no box): chevron, UPPERCASE label, a hairline filling the row, the count at the right. The row is
+   30px; the 44px tap area is the button's own padding taken back with a negative margin, so the rows keep the mockup's spacing. */
+.fold-sec.cat > .fold-head { gap: 8px; min-height: 44px; margin-block: -7px; padding: 7px 0; border: 0; border-radius: 0; font-size: 11.5px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; }
+.fold-sec.cat > .fold-head .fold-label { flex: 0 1 auto; font-weight: 800; }
+.fold-sec.cat > .fold-head .fold-chev { color: var(--sb-em); }
+.fold-sec.cat > .fold-head::after { content: ""; flex: 1 1 0; min-width: 12px; height: 1px; background: var(--sb-border); }
+.fold-sec.cat > .fold-head .fold-count { order: 2; margin-left: 0; letter-spacing: 0; text-transform: none; font-weight: 700; }
 .inv-view { display: inline-flex; border: 1px solid var(--sb-border); border-radius: 10px; overflow: hidden; }
 .inv-view button { min-height: 36px; padding: 0 12px; border: 0; background: transparent; color: var(--sb-em); font: inherit; cursor: pointer; }
 .inv-view button[aria-pressed="true"] { background: color-mix(in srgb, var(--sb-accent) 24%, transparent); color: var(--sb-fg); }
