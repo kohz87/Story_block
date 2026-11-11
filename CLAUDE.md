@@ -111,10 +111,12 @@ matches. Board touch coverage uses a rendered browser at 390×844 and 360×740 w
 
 ## Known traps
 
-- Suite tests (`tests/v2/break/helpers/suite.js`, `suite-final.js`, `packs/terms.test.js`,
-  `packs/holidays-world.test.js`) need the four checkouts side by side in one folder, named exactly
-  `Story_block`, `Story_director`, `npc_state_delta` (or `STORY_SUITE_ROOT=<folder>`).
-  Without them they **skip** (CI has only this repo), so a green CI does not cover them: run `suite-check`.
+- Suite tests (`lean-rpg/checks/suite.test.js`, `integration/checks-flip.test.js`, `packs/holidays-world.test.js`,
+  `packs/cast-presets.test.js`, `data-modules/unused.test.js`) need the three repos side by side in one folder, named exactly
+  `Story_block`, `Story_director`, `npc_state_delta` (or `STORY_SUITE_ROOT=<folder>`). Without them they **skip**.
+  The `verify` CI job has only this repo, so it does not cover them; the `suite` job in `.github/workflows/ci.yml`
+  checks out Story Director and NPC State Delta at their default branch and runs only these files, failing if any skips.
+  Keep its file list in step with this one; locally run `suite-check`.
 - A `test.todo` that fails prints `X` / `⚠` in the dot output but does not fail the run; it is a known open problem.
 - The testkit has no chat file of its own, so saves there are immediate (`ctx.saveChat`); the 1.5 s / 8 s
   turn save of SPEC §3.3 only happens in SillyTavern.
