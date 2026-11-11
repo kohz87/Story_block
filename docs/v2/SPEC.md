@@ -485,7 +485,10 @@ A swipe of that reply is a new carrier swipe: it gets its own capture; the recei
 because the new swipe's `narrated` starts empty. Editing a reply's text does not re-capture; a **Re-read**
 action in Story Block (`sdk.reread`, §3.1) replaces that carrier's `story` receipts with a fresh capture
 (its `ui` and `system` receipts stay after them; a system step marked `replan`, §3, runs again on them;
-the afterCapture steps are asked for again right after the new story lines, step 3).
+the afterCapture steps are asked for again right after the new story lines, step 3). A Re-read keeps each line's and
+step's receipt `id` when the line (its kind and text) or the step (its type) is read again, in the order the old ones had
+them: a stack's `from`, the fight board's link to its reply and what was told stay as they were. A changed line gets a
+fresh id; a step whose result changed keeps its old id, so a step that was told is not told again with its new summary.
 
 ### 4.3 What the model is told
 

@@ -111,10 +111,12 @@ matches. Board touch coverage uses a rendered browser at 390×844 and 360×740 w
 
 ## Known traps
 
-- Suite tests (`tests/v2/break/helpers/suite.js`, `suite-final.js`, `packs/terms.test.js`,
-  `packs/holidays-world.test.js`) need the four checkouts side by side in one folder, named exactly
-  `Story_block`, `Story_director`, `npc_state_delta` (or `STORY_SUITE_ROOT=<folder>`).
-  Without them they **skip** (CI has only this repo), so a green CI does not cover them: run `suite-check`.
+- Suite tests (`tests/v2/break/helpers/suite.js` with `break/e2e-playthrough.test.js` and `data-modules/example-b.test.js`,
+  `packs/terms.test.js`, `packs/holidays-world.test.js`) need the three repos side by side in one folder, named exactly
+  `Story_block`, `Story_director`, `npc_state_delta`. Where each checkout comes from: `SUITE_SB` / `SUITE_SD` / `SUITE_NSD`
+  (a folder each), else `STORY_SUITE_ROOT=<folder>`, else the folders beside this checkout. A missing or too old sibling
+  (e2e-playthrough needs NSD's `src/npc-notes-kinds.js`) makes the test **skip** with a message (CI has only this repo),
+  so a green CI does not cover them: run `suite-check`.
 - A `test.todo` that fails prints `X` / `⚠` in the dot output but does not fail the run; it is a known open problem.
 - The testkit has no chat file of its own, so saves there are immediate (`ctx.saveChat`); the 1.5 s / 8 s
   turn save of SPEC §3.3 only happens in SillyTavern.

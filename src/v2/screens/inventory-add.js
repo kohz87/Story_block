@@ -208,7 +208,7 @@ const shown = (item, filter) => (!filter.rarity || filter.rarity === item.rarity
 export function createInventoryGridWidget({ chatKey = () => '', storage = undefined } = {}) {
     const stores = new Map();
     // The tab and game-view mounts build this widget again on every redraw (view/mounts/common.js, keep=false), so the focus cannot ride on the old instance: where it was
-    // (a tile's stack and the stacks in order, or none) waits here for the next instance's first draw, a few seconds at most.
+    // (a tile's stack and the stacks in order, or none; only for the same chat) waits here for the next instance's first draw, a few seconds at most.
     let carry = null;
     const foldsFor = () => {
         const prefix = `story-block.inventoryFold|${chatKey()}|`;
@@ -260,14 +260,14 @@ export function createInventoryGridWidget({ chatKey = () => '', storage = undefi
                 const closeSheet = () => { sheet?.close(); };
                 const noteFocus = stack => {
                     const order = Array.from(content.querySelectorAll?.('[data-stack]') ?? []).map(node => node.getAttribute('data-stack'));
-                    carry = { stack, order, at: Date.now() };
+                    carry = { stack, order, at: Date.now(), chat: chatKey() };
                 };
                 // First draw of a new instance: the tile of the carried stack, else the next one after it, else the one before, else the first tile. Only while nothing else has the focus.
                 const takeCarry = () => {
                     const was = carry;
                     carry = null;
                     const active = doc.activeElement;
-                    if (!was || Date.now() - was.at > CARRY_MS || (active && active !== doc.body)) return;
+                    if (!was || was.chat !== chatKey() || Date.now() - was.at > CARRY_MS || (active && active !== doc.body)) return;
                     const from = was.order.indexOf(was.stack);
                     const later = from < 0 ? [] : was.order.slice(from + 1);
                     const earlier = from < 0 ? [] : was.order.slice(0, from).reverse();

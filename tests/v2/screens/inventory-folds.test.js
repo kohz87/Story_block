@@ -298,3 +298,26 @@ test('Inventory Grid: the focus survives the screen building the widget again (t
     mount(all);
     assert.equal(doc.activeElement, other, 'a focus on something else stays');
 });
+
+test('Inventory Grid: a focus carried from one chat\'s sheet is not taken by another chat\'s grid', { skip }, async t => {
+    const { run } = await gridWorld(t);
+    const { doc } = run();
+    await settle2();
+    let chat = 'one';
+    const widget = createInventoryGridWidget({ chatKey: () => chat });
+    const items = [{ stack: 's1', name: 'Aa', kind: 'goods', qty: 1, rarity: '', note: '' }];
+    const mount = () => {
+        const host = doc.createElement('div');
+        doc.body.append(host);
+        return { host, view: widget.render(host, { items, counts: {}, users: {} }, { command: () => {} }) };
+    };
+    const first = mount();
+    first.host.querySelector('[data-stack="s1"]').click();
+    sheetOf(doc).querySelector('.sheet-close').click();
+    first.view.destroy();
+    first.host.remove();
+    doc.activeElement?.blur?.();
+    chat = 'two';
+    mount();
+    assert.equal(doc.activeElement === doc.body || doc.activeElement === null, true, 'another chat keeps the focus where it was (on the body)');
+});

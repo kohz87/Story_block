@@ -1,6 +1,6 @@
 // Story Suite v2: the `screen` mount (SPEC §13.4), a full-screen game view over the chat. Its navigation is the screen bar
 // (view/screen-bar.js): one strip of every screen that scrolls sideways; from 1000px wide
-// it is one full row (mounts.css does the switch). The navigation is in Home-first order
+// it is one full row (mounts-*.css does the switch). The navigation is in Home-first order
 // (screens.js screenOrder). A close button, and Escape closes it. It shows the
 // head state and redraws when the head changes while it is open.
 //

@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "NODE_OPTIONS=--max-old-space-size=4096 node --test \"tests/*.test.js\" \"tests/v2/**/*.test.js\" \"examples/fishing/tests/*.test.js\"",
-    "test:dot": "NODE_OPTIONS=--max-old-space-size=4096 node --test --test-reporter=dot \"tests/*.test.js\" \"tests/v2/**/*.test.js\" \"examples/fishing/tests/*.test.js\"",
+    "test": "NODE_OPTIONS=\"--max-old-space-size=4096 $NODE_OPTIONS\" node --test \"tests/*.test.js\" \"tests/v2/**/*.test.js\" \"examples/fishing/tests/*.test.js\"",
+    "test:dot": "NODE_OPTIONS=\"--max-old-space-size=4096 $NODE_OPTIONS\" node --test --test-reporter=dot \"tests/*.test.js\" \"tests/v2/**/*.test.js\" \"examples/fishing/tests/*.test.js\"",
     "check": "node scripts/check.mjs",
     "sync-testkit": "node scripts/sync-testkit.mjs",
     "matrix": "node scripts/matrix.mjs"

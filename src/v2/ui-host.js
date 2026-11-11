@@ -182,7 +182,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     const gameButton = iconButton(doc, 'story-suite-bar-game', 'fa-expand', S.bar.game, S.bar.gameTitle);
     gameButton.setAttribute('aria-keyshortcuts', 'Alt+G');
     const settingsButton = iconButton(doc, 'story-suite-bar-settings', 'fa-sliders', S.bar.suite, S.bar.suiteTitle);
-    // The dot on the Story button while a card offer waits for an answer (the app's own alert dot, view/mounts.css).
+    // The dot on the Story button while a card offer waits for an answer (the app's own alert dot, view/mounts-*.css).
     const offerDot = el(doc, 'span', 'ss-screenbar-alert ss-card-offer-dot');
     offerDot.hidden = true;
     storyButton.appendChild(offerDot);
