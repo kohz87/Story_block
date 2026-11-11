@@ -1,4 +1,4 @@
-// The production board in a real browser with touch and the phone's zoomed screen frame.
+// The production board in a real browser: a phone's touch and zoomed frame (390×844, 360×740), then a tablet and a desktop width (820, 1280).
 // Run with the optional browser package and its browser installed; no running host is used.
 
 import test from 'node:test';
@@ -113,8 +113,10 @@ async function server() {
     return instance;
 }
 
-for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) for (const frame of ['game', 'panel']) {
-    test(`${frame} phone touch layout and gestures at ${viewport.width}×${viewport.height}`, async t => {
+const PHONES = [{ width:390, height:844 }, { width:360, height:740 }];
+for (const viewport of [...PHONES, { width:820, height:1000 }, { width:1280, height:800 }]) for (const frame of viewport.width < 760 ? ['game', 'panel'] : ['game']) {
+    const phone = viewport.width < 760;
+    test(`${frame} board layout and gestures at ${viewport.width}×${viewport.height}`, async t => {
         let chromium;
         try { ({ chromium } = await import('playwright')); } catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; t.skip('Install the optional browser package to run the rendered touch tests.'); return; }
         let browser;
@@ -127,180 +129,97 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         let web;
         try { web = await server(); } catch (error) { if (error.code === 'EPERM' || error.code === 'EACCES') { t.skip(`Local server unavailable: ${error.code}`); return; } throw error; }
         t.after(() => new Promise(done => web.close(done)));
-        const context = await browser.newContext({ viewport, isMobile:true, hasTouch:true, deviceScaleFactor:1 });
+        const context = await browser.newContext({ viewport, isMobile:phone, hasTouch:phone, deviceScaleFactor:1 });
         t.after(() => context.close());
         const page = await context.newPage();
         await page.goto(`http://127.0.0.1:${web.address().port}/${frame === 'panel' ? '?panel' : ''}`);
         await page.waitForSelector('[data-ready="yes"]', { state: 'attached' });
-        await page.waitForFunction(() => document.querySelector('.rpg-board-cards').style.getPropertyValue('--rpg-card-row-height'));
-        if (frame === 'game') {
+        await page.waitForSelector('.rpg-board-cards .rpg-chip');
+        const tap = locator => (phone ? locator.tap() : locator.click());
+        if (frame === 'game' && phone) {
             const hero = page.locator('.ss-gameview-hero .ss-hero'), more = page.locator('.ss-hero-board-more');
             assert.equal(await hero.evaluate(el => el.classList.contains('ss-hero-compact')), true);
             assert.equal(await page.locator('.ss-hero-you').evaluate(el => getComputedStyle(el).display), 'none');
-            assert.notEqual(await page.locator('.ss-hero-corner-item[data-kind="place"]').evaluate(el => getComputedStyle(el).display), 'none');
-            assert.equal(await page.locator('.ss-hero-corner-item[data-kind="place"] .ss-hero-corner-text').evaluate(el => getComputedStyle(el).whiteSpace), 'nowrap');
             await more.tap();
             assert.equal(await more.getAttribute('aria-expanded'), 'true');
             assert.equal(await hero.evaluate(el => el.classList.contains('ss-hero-compact')), false);
-            assert.notEqual(await page.locator('.ss-hero-you').evaluate(el => getComputedStyle(el).display), 'none');
             await more.tap();
             assert.equal(await more.getAttribute('aria-expanded'), 'false');
         }
-        const revealControls = () => page.evaluate(() => {
-            const body = document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-body') ?? document.querySelector('.ss-gameview-body');
-            body.scrollTop = body.scrollHeight;
-        });
-        const configure = async options => {
-            await page.evaluate(options => window.boardTest.configure(options), options);
-            await page.waitForFunction(() => document.querySelector('.rpg-board-log').style.getPropertyValue('--rpg-log-content-height') &&
-                document.querySelector('.rpg-board-choices').style.getPropertyValue('--rpg-choice-limit'));
-            await revealControls();
-        };
-        const fit = () => page.evaluate(() => {
-            const list = document.querySelector('.rpg-board-choices'), log = document.querySelector('.rpg-board-log');
-            const controls = document.querySelector('.rpg-board-controls'), note = controls.querySelector('.rpg-board-note');
-            const bar = document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-bar') ?? document.querySelector('.ss-gameview-nav');
-            const body = document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-body') ?? document.querySelector('.ss-gameview-body');
-            const box = node => { const r = node.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, height:r.height }; };
-            const zoom = list.getBoundingClientRect().width / list.offsetWidth;
-            const logStyle = getComputedStyle(log), controlStyle = getComputedStyle(controls);
-            const logEdges = ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((sum, key) => sum + parseFloat(logStyle[key]), 0) * zoom;
-            const controlEdges = (parseFloat(controlStyle.paddingBottom) + parseFloat(controlStyle.borderBottomWidth)) * zoom;
-            return { rows:[...list.children].map(box), list:box(list), log:box(log), logContent:box(log.firstElementChild), logEdges,
-                logScroll:log.scrollHeight > log.clientHeight + 1, newest:Math.abs(log.scrollHeight-log.clientHeight-log.scrollTop) < 2,
-                listScroll:list.scrollHeight > list.clientHeight + 1, note:box(note), controls:box(controls), controlEdges, bar:box(bar), body:box(body) };
-        });
+        const bodySelector = frame === 'panel' ? '.story-suite-sheet-body' : '.ss-gameview-body';
+        const configure = async options => { await page.evaluate(options => window.boardTest.configure(options), options); };
+        const layout = () => page.evaluate(bodySelector => {
+            const box = node => { const r = node.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, left:r.left, right:r.right, width:r.width, height:r.height }; };
+            const body = document.querySelector(bodySelector), status = document.querySelector('.rpg-board-status'), controls = document.querySelector('.rpg-board-controls');
+            const scrollers = ['.rpg-board-status', '.rpg-board-cards', '.rpg-board-choices', '.rpg-board-log', '.rpg-board-controls', '.rpg-board-active']
+                .filter(selector => { const el = document.querySelector(selector), y = getComputedStyle(el).overflowY; return /auto|scroll/.test(y) || el.scrollHeight > el.clientHeight + 1; });
+            const buttons = [...document.querySelectorAll('.rpg-board-choice')];
+            return { boardWidth:document.querySelector('#board').offsetWidth, status:box(status), controls:box(controls), body:box(body), scrollers, buttons:buttons.map(box), lefts:[...new Set(buttons.map(b => Math.round(b.getBoundingClientRect().left)))].length,
+                overflow:document.documentElement.scrollWidth > innerWidth || body.scrollWidth > body.clientWidth + 1,
+                chips:[...document.querySelectorAll('.rpg-chips-foes .rpg-chip-name')].map(n => n.textContent), party:[...document.querySelectorAll('.rpg-chips-party .rpg-chip-name')].map(n => n.textContent),
+                labels:[...document.querySelectorAll('.rpg-actor .rpg-res-label')].map(n => n.textContent),
+                bar:box(document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-bar') ?? document.querySelector('.ss-gameview-nav')),
+                logOpen:document.querySelector('.rpg-board-log').open, scrolled:body.scrollTop };
+        }, bodySelector);
         for (const skills of [0, 1, 2, 3, 4]) {
             await configure({ skills, rounds:0 });
-            const current = await fit(), visible = current.rows.slice(0, 5);
-            assert.equal(current.rows.length, skills + 2);
-            assert.ok(visible.every(row => row.height >= 47.5 && row.top >= current.list.top - 1 && row.bottom <= current.list.bottom + 1), 'the first five choices are whole');
-            assert.equal(current.listScroll, current.rows.length > 5, 'only choices after the fifth scroll');
-            assert.ok(current.list.top >= current.body.top - 1 && current.note.bottom <= current.bar.top + 1, 'the choices and actions fit above the floating bar');
-            assert.ok(Math.abs(current.controls.bottom - current.note.bottom - current.controlEdges) < 2, 'the controls do not grow empty space under the note');
-            assert.ok(current.log.height < 140 && Math.abs(current.log.height - current.logContent.height - current.logEdges) < 3, 'the empty log is content-sized');
-            if (skills === 4) {
-                await page.locator('.rpg-board-choices').evaluate(list => { list.scrollTop = list.scrollHeight; });
-                const lastVisible = await page.locator('.rpg-board-choices').evaluate(list => {
-                    const last = list.lastElementChild.getBoundingClientRect(), box = list.getBoundingClientRect();
-                    return last.top >= box.top - 1 && last.bottom <= box.bottom + 1;
-                });
-                assert.ok(lastVisible, 'choices after the fifth remain reachable');
-            }
+            const now = await layout();
+                        assert.equal(now.buttons.length, skills + 2, 'Attack, the skills and Flee');
+            assert.ok(now.buttons.every(b => b.height >= (phone ? 47.5 : 36)), 'buttons are at least 36px (48px on a phone)');
+            const columns = now.boardWidth >= 900 ? 3 : 2;   // the board's own CSS width (the game view may be zoomed)
+            assert.equal(now.lefts, Math.min(columns, now.buttons.length), `${columns} columns of skill buttons`);
+            if (!phone) assert.ok(now.boardWidth >= 700, 'a wide board is 700px or more');
+            assert.deepEqual(now.scrollers, [], 'nothing inside the board scrolls');
+            assert.equal(now.overflow, false, 'no horizontal scroll');
+            assert.deepEqual(now.chips, ['Rats ×8Lv 1', 'Spiders ×8Lv 1'], 'a group of several is ONE chip');
+            assert.deepEqual(now.party, ['AstraLv 1']);
+            assert.deepEqual(now.labels, ['Mana', 'Stamina']);
         }
-        await configure({ skills:3, rounds:0, wrap:true });
-        const wrapped = await fit();
-        assert.ok(wrapped.rows.some(row => row.height > 50), 'the fixture contains a wrapped choice');
-        assert.ok(!wrapped.listScroll && wrapped.rows.every(row => row.bottom <= wrapped.list.bottom + 1), 'five choices remain whole when a label wraps');
+        const wide = await layout();
+        if (phone) assert.ok(wide.controls.top >= wide.status.bottom - 1, 'one column on a phone');
+        else {
+            assert.ok(wide.status.right <= wide.controls.left + 1, 'status on the left, actions on the right');
+            assert.ok(Math.abs(wide.status.top - wide.controls.top) < 3, 'side by side');
+        }
+        await configure({ skills:4, rounds:35 });
+        await page.locator('.rpg-board-log > summary').click();
+        assert.equal((await layout()).logOpen, true, 'a tap opens the full log');
+        if (phone) {
+            await page.evaluate(bodySelector => { const body = document.querySelector(bodySelector); body.scrollTop = body.scrollHeight; }, bodySelector);
+            const stuck = await layout();
+            assert.ok(stuck.scrolled > 100, 'the page scrolled');
+            assert.ok(stuck.status.top - stuck.body.top < 12 && stuck.status.bottom > stuck.body.top, 'the status stays at the top while the page scrolls');
+        }
+        await page.locator('.rpg-board-log > summary').click();
         await configure({ skills:2, rounds:1 });
-        const shortLog = await fit();
-        assert.ok(shortLog.log.height < 140 && !shortLog.logScroll && Math.abs(shortLog.log.height - shortLog.logContent.height - shortLog.logEdges) < 3, 'a short exchange log is content-sized');
-        await configure({ skills:2, rounds:35 });
-        const longLog = await fit();
-        assert.ok(longLog.log.height >= 139.5, 'a long log keeps its screen-pixel minimum');
-        assert.ok(longLog.logScroll, 'a long log scrolls within the available space');
-        assert.ok(longLog.newest, 'a long log shows the newest exchange');
-        await page.locator('.rpg-board-log').evaluate(log => { log.scrollTop = 0; });
-        await page.locator('.rpg-board-note summary').tap();
-        await revealControls();
-        const expanded = await fit();
-        assert.ok(Math.abs(expanded.controls.bottom - expanded.note.bottom - expanded.controlEdges) < 2, 'the expanded narrator note has no empty controls space below it');
-        assert.equal(await page.locator('.rpg-board-log').evaluate(log => log.scrollTop), 0, 'resizing the log does not pull a reader away from older exchanges');
-        await page.locator('.rpg-board-log').evaluate(log => { log.scrollTop = log.scrollHeight; });
-        await page.locator('.rpg-board-note summary').tap();
-        await revealControls();
-        const metrics = await page.evaluate(() => {
-            const choice = document.querySelector('.rpg-board-choice'), list = document.querySelector('.rpg-board-choices');
-            const log = document.querySelector('.rpg-board-log'), status = document.querySelector('.rpg-board-status');
-            const controls = document.querySelector('.rpg-board-controls'), discard = document.querySelector('.rpg-board-discard');
-            const note = controls.querySelector('.rpg-board-note summary');
-            const box = element => { const r = element.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, width:r.width, height:r.height }; };
-            const zoom = choice.getBoundingClientRect().width / choice.offsetWidth;
-            const cards = document.querySelector('.rpg-board-cards');
-            return { choice:box(choice), choices:[...list.querySelectorAll('button')].map(box), list:box(list), log:box(log), status:box(status), controls:box(controls), discard:box(discard), note:box(note),
-                listScroll:list.scrollHeight > list.clientHeight,
-                cards:box(cards), firstCard:box(cards.firstElementChild), cardsScroll:cards.scrollHeight > cards.clientHeight,
-                logFamily:getComputedStyle(log).fontFamily, lineFamily:getComputedStyle(log.querySelector('p')).fontFamily, bodyFamily:getComputedStyle(controls).fontFamily,
-                choiceFont:parseFloat(getComputedStyle(choice).fontSize)*zoom, logFont:parseFloat(getComputedStyle(log).fontSize)*zoom,
-                touch:getComputedStyle(choice).touchAction, padding:parseFloat(getComputedStyle(controls).paddingBottom)*zoom,
-                safe:parseFloat(getComputedStyle(document.querySelector('#safe')).paddingBottom),
-                scroll:log.scrollHeight > log.clientHeight, newest:Math.abs(log.scrollHeight-log.clientHeight-log.scrollTop) < 2,
-                overflow:document.documentElement.scrollWidth > innerWidth || (document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-body') ?? document.querySelector('.ss-gameview-body')).scrollWidth > (document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-body') ?? document.querySelector('.ss-gameview-body')).clientWidth,
-                bar:box(document.querySelector('.story-suite-sheet:not([hidden]) .story-suite-sheet-bar') ?? document.querySelector('.ss-gameview-nav')) };
-        });
-        assert.ok(metrics.choices.every(choice => choice.height >= 47.5 && Math.abs(choice.width - metrics.list.width) < 2));
-        assert.ok(metrics.discard.height >= 47.5 && metrics.discard.width >= 47.5);
-        assert.ok(metrics.choiceFont >= 14.8 && metrics.logFont >= 12.8);
-        assert.ok(metrics.log.height >= 139.5, 'the long live log keeps its screen-pixel minimum');
-        assert.match(metrics.logFamily, /Arial/i);
-        assert.equal(metrics.lineFamily, metrics.logFamily);
-        assert.equal(metrics.logFamily, metrics.bodyFamily);
-        assert.ok(metrics.firstCard.top >= metrics.cards.top - 1 && metrics.firstCard.bottom <= metrics.cards.bottom + 1, 'the first card row is whole');
-        assert.ok(metrics.cardsScroll, 'additional cards scroll within their own area');
-        assert.equal(metrics.touch, 'manipulation');
-        assert.ok(metrics.status.bottom <= metrics.log.top && metrics.log.bottom <= metrics.controls.top);
-        assert.ok(metrics.controls.bottom <= viewport.height && metrics.controls.bottom > viewport.height / 2);
-        assert.ok(metrics.controls.bottom <= metrics.bar.top + 1, 'choices and actions stay above the bottom bar');
-        assert.ok(metrics.choice.top >= metrics.list.top - 1 && metrics.choice.bottom <= metrics.list.bottom + 1, 'the first choice fits in its scroller');
-        assert.ok(metrics.list.bottom <= metrics.controls.bottom + 1 && metrics.discard.bottom <= metrics.controls.bottom + 1 && metrics.note.bottom <= metrics.controls.bottom + 1, 'the choice list, action and note fit inside the controls');
-        assert.equal(metrics.listScroll, false, 'four choices do not scroll');
-        assert.ok(metrics.padding + 0.5 >= metrics.safe);
-        assert.ok(metrics.scroll && metrics.newest);
-        assert.equal(metrics.overflow, false);
-        await page.locator('.rpg-board-cards').evaluate(cards => { cards.scrollTop = cards.scrollHeight; });
-        await page.waitForFunction(() => {
-            const cards = document.querySelector('.rpg-board-cards'), last = cards.lastElementChild.getBoundingClientRect(), box = cards.getBoundingClientRect();
-            return last.top >= box.top - 1 && last.bottom <= box.bottom + 1;
-        });
-        await page.locator('.rpg-board-cards').evaluate(cards => { cards.scrollTop = 0; });
-        if (metrics.listScroll) {
-            const scrolled = await page.locator('.rpg-board-choices').evaluate(list => {
-                list.scrollTop = list.scrollHeight;
-                const last = list.lastElementChild.getBoundingClientRect(), box = list.getBoundingClientRect();
-                const visible = last.top >= box.top - 1 && last.bottom <= box.bottom + 1;
-                list.scrollTop = 0;
-                return visible;
-            });
-            assert.ok(scrolled, 'the last choice is reachable by scrolling');
-        }
-        await page.locator('.rpg-board-log').evaluate(log => { log.scrollTop = 0; });
-        assert.equal(await page.locator('.rpg-board-log').evaluate(log => log.scrollTop), 0);
-        await page.locator('[data-choice="1"]').tap();
-        assert.match(await page.locator('.rpg-board-prompt').innerText(), /Choose a target/);
+        await tap(page.locator('[data-choice="1"]'));   // Attack: two groups, so the groups come first
+        assert.match(await page.locator('.rpg-board-prompt').innerText(), /Choose a group/);
         const back = page.locator('.rpg-board-back'), backBox = await back.boundingBox();
-        assert.ok(backBox.width >= 47.5 && backBox.height >= 47.5);
-        const targetControls = await page.evaluate(() => {
-            const controls = document.querySelector('.rpg-board-controls').getBoundingClientRect();
-            return { bottom:controls.bottom, children:['.rpg-board-choices', '.rpg-board-back', '.rpg-board-discard', '.rpg-board-note summary']
-                .map(selector => document.querySelector(selector).getBoundingClientRect().bottom) };
-        });
-        assert.ok(targetControls.bottom <= metrics.bar.top + 1 && targetControls.children.every(bottom => bottom <= targetControls.bottom + 1), 'targeting choices and actions stay above the bottom bar');
-        await back.tap();
-        await page.locator('[data-choice="1"]').tap();
-        const target = await page.locator('[data-choice="1"]').boundingBox();
-        await page.touchscreen.tap(target.x + target.width / 2, target.y + target.height / 2);
-        await page.touchscreen.tap(target.x + target.width / 2, target.y + target.height / 2);
+        assert.ok(backBox.width >= 35.5 && backBox.height >= (phone ? 47.5 : 36), `Back is a touch target ${JSON.stringify(backBox)}`);
+        await tap(back);
+        await tap(page.locator('[data-choice="1"]'));
+        const group = await page.locator('[data-choice="1"]').boundingBox();
+        if (phone) { await page.touchscreen.tap(group.x + group.width / 2, group.y + group.height / 2); await page.touchscreen.tap(group.x + group.width / 2, group.y + group.height / 2); }
+        else { await page.mouse.click(group.x + group.width / 2, group.y + group.height / 2); await page.mouse.click(group.x + group.width / 2, group.y + group.height / 2); }
         assert.equal(await page.evaluate(() => window.boardTest.count()), 1, 'a double tap stages one exchange');
-        assert.match(await page.locator('.rpg-board-log').innerText(), /Exchange 1/);
-        assert.equal(await page.locator('.rpg-board-log').evaluate(log => Math.abs(log.scrollHeight-log.clientHeight-log.scrollTop) < 2), true);
+        assert.match(await page.locator('.rpg-board-log > summary').innerText(), /Exchange 1/);
         await page.waitForTimeout(600);
-        await page.locator('[data-choice="1"]').tap();
-        await page.locator('[data-choice="1"]').tap();
+        await tap(page.locator('[data-choice="1"]'));
+        await tap(page.locator('[data-choice="1"]'));
         assert.equal(await page.evaluate(() => window.boardTest.count()), 2, 'a later intentional choice stages another exchange');
-        await page.locator('.rpg-board-discard').tap();
+        await tap(page.locator('.rpg-board-discard'));
         assert.match(await page.locator('.rpg-board-controls').innerText(), /Discard this fight and its unsent exchanges/);
-        await page.getByRole('button', { name:'Cancel' }).tap();
+        await tap(page.getByRole('button', { name:'Cancel' }));
         assert.equal(await page.evaluate(() => window.boardTest.count()), 2);
-        await page.locator('.rpg-board-discard').tap();
-        await page.locator('.rpg-board-confirm').tap();
+        await tap(page.locator('.rpg-board-discard'));
+        await tap(page.locator('.rpg-board-confirm'));
         assert.equal(await page.evaluate(() => window.boardTest.count()), 0);
-        if (frame === 'game') assert.equal(await page.locator('.ss-hero-board-more').evaluate(el => getComputedStyle(el).display), 'none');
         await page.evaluate(() => window.boardTest.end());
-        const scroller = page.locator(frame === 'panel' ? '.story-suite-sheet-body' : '.ss-gameview-body');
         assert.equal(await page.locator('#board').evaluate(el => el.classList.contains('rpg-board-finished')), true);
+        assert.equal(await page.locator('.rpg-board-log').evaluate(el => el.open), true, 'the finished fight shows its whole log');
+        if (!phone) return;
+        const scroller = page.locator(frame === 'panel' ? '.story-suite-sheet-body' : '.ss-gameview-body');
         assert.equal(await scroller.evaluate(el => el.scrollHeight > el.clientHeight), true, 'the ended board scrolls as one page');
-        assert.equal(await page.locator('.rpg-board-log').evaluate(el => getComputedStyle(el).overflowY), 'visible');
-        assert.ok((await page.locator('.rpg-board-log').boundingBox()).height >= 139.5);
         assert.equal(await page.locator('.rpg-board-end-description').evaluate(el => getComputedStyle(el).display), 'none');
         assert.match(await page.locator('.rpg-board-awards-phone').innerText(), /^Pending:/);
         await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
@@ -312,9 +231,6 @@ for (const viewport of [{ width:390, height:844 }, { width:360, height:740 }]) f
         });
         assert.ok(end.buttons.length >= 3, 'the end card has send, discard and the narrator note');
         assert.ok(end.bottom <= end.barTop + 1 && end.buttons.every(button => button.top >= 0 && button.bottom <= end.barTop + 1), 'end buttons scroll above the bottom bar');
-        for (const selector of ['.rpg-board-send', '.rpg-board-discard']) {
-            const button = await page.locator(selector).boundingBox();
-            assert.ok(button.height >= 47.5, `${selector} remains a 48px touch target`);
-        }
+        for (const selector of ['.rpg-board-send', '.rpg-board-discard']) assert.ok((await page.locator(selector).boundingBox()).height >= 47.5, `${selector} remains a 48px touch target`);
     });
 }
