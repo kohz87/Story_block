@@ -435,3 +435,44 @@ test('Settings → Features: the switch is there while a module\'s screen declar
     assert.equal(hudRow(doc).hidden, true);
     host.close();
 });
+
+test('the page: a widget\'s hold keeps the screen\'s `committed` redraw back until it is released, then runs it once', async () => {
+    const seen = [], got = {};
+    const probe = { render: (el, props, api) => { got.off?.(); got.off = api.on('committed', () => seen.push('redraw')); got.hold = api.hold; } };
+    const bag = { id: 'loot/probe', title: 'Probe', mounts: ['tab'], template: '<p><ss-widget name="loot.probe"></ss-widget></p>' };
+    const { doc, host, ui } = await page({ modules: [{ ...loot(), screens: [bag], widgets: { 'loot.probe': probe } }] });
+    ui.openPanel();
+    doc.querySelectorAll('.story-suite-tab').find(node => node.dataset.tabId === 'loot/probe').click();
+    assert.equal(typeof got.hold, 'function', 'the widget is given hold');
+    const release = got.hold(), again = got.hold();
+    host.events.emit('committed', {});
+    host.events.emit('committed', {});
+    assert.deepEqual(seen, [], 'held');
+    release();
+    release();
+    assert.deepEqual(seen, [], 'still held by the second hold');
+    again();
+    assert.deepEqual(seen, ['redraw'], 'one redraw after the last release');
+    host.events.emit('committed', {});
+    assert.deepEqual(seen, ['redraw', 'redraw'], 'not held any more');
+    host.close();
+});
+
+test('the page: the game view\'s screen redraw from `committed` waits for a widget\'s hold too, then runs once', async () => {
+    const draws = [], got = {};
+    const probe = { render: (el, props, api) => { draws.push('draw'); got.hold = api.hold; } };
+    const bag = { id: 'loot/field', title: 'Field', mounts: ['screen'], template: '<p><ss-widget name="loot.probe"></ss-widget></p>' };
+    const { host, ui } = await page({ modules: [{ ...loot(), screens: [bag], widgets: { 'loot.probe': probe } }] });
+    assert.equal(ui.mounts.screen.open('loot/field'), true);
+    const release = got.hold();
+    const before = draws.length;
+    host.events.emit('committed', {});
+    host.events.emit('committed', {});
+    assert.equal(draws.length, before, 'the game view is not redrawn while held');
+    release();
+    assert.equal(draws.length, before + 1, "it redraws once after the release");
+    const after = draws.length;
+    host.events.emit('committed', {});
+    assert.ok(draws.length > after, 'and not held any more');
+    host.close();
+});

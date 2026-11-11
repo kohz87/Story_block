@@ -38,7 +38,7 @@ function crew({ gear = true, long = null, rope = 0 } = {}) {
 
 function draw({ module, state, h }, calls = []) {
     return show(inventoryScreen, {
-        state: h.state, query: h.query,
+        state: h.state, query: h.query, draft: { wornOpen: '1' },
         command: (type, payload) => { calls.push([type, payload]); return h.run(type, payload, { cause: 'ui', extra: { feature: featureOn } }); },
     });
 }
@@ -91,6 +91,18 @@ test('phone: the rarity word is hidden at phone width (a CSS rule), and shown on
     // Outside the media rule nothing hides it.
     const outside = css.replace(/@media[^\n]*\n/g, '');
     assert.doesNotMatch(outside, /\.rarity[^{]*\{[^}]*display: none/);
+});
+
+test('phone: under 480px the row buttons sit on their own line under the item (one column, actions in row 4, a fold in row 5); the Equip payload names no slot', () => {
+    const css = inventoryScreen.css;
+    const block = css.match(/@media \(max-width: 480px\) \{\n([\s\S]*?)\n\}\n/g)?.find(rule => /\.actions \{ grid-column: 1; grid-row: 4;/.test(rule));
+    assert.ok(block, 'a 480px media rule moves .actions to their own row');
+    assert.match(block, /grid-template-columns: minmax\(0, 1fr\)/);
+    assert.match(block, /> \.fold \{ grid-row: 5; \}/);
+    // Equip leaves the slot out (item.equip then picks the first free accessory place).
+    const equip = inventoryScreen.template.match(/data-command="item\.equip" data-payload='([^']*)'/g) ?? [];
+    assert.ok(equip.length > 0);
+    for (const one of equip) assert.doesNotMatch(one, /"slot"/);
 });
 
 test('a bound row: the lock chip "Bound · Ren" in place of "Equipped", the reason as its title, and no Drop; other rows keep their Drop', () => {
@@ -256,4 +268,19 @@ test('rendered at phone width, gear on: an open Edit form hides the fixed lines 
     assert.ok(box && box.width > 40 && box.height > 10, 'the input is visible with a size');
     assert.equal(await page.locator('.g-l2').evaluate(node => getComputedStyle(node).display), 'none');
     assert.equal(await page.locator('.g-l3').evaluate(node => getComputedStyle(node).display), 'none');
+});
+
+test('Worn list: a bound signature piece shows "Signature" with its lock in place of Unequip, under its wearer; an ordinary worn piece has Unequip', () => {
+    const { el, problems } = draw(crew());
+    assert.deepEqual(problems, []);
+    const dagger = daggerRow(el);
+    assert.match(text(dagger.querySelector('.chip.sig')), /Signature$/);
+    assert.ok(dagger.querySelector('.chip.sig .bound-lock'), 'the lock');
+    assert.deepEqual(dagger.querySelectorAll('button').map(node => text(node)).filter(label => /Unequip|Equip/.test(label)), []);
+    assert.ok(dagger.querySelector('.ss-w-editable-pencil'), 'Edit (its note) stays');
+    const sword = swordRow(el);
+    assert.deepEqual(sword.querySelectorAll('button').map(node => text(node)).filter(label => /Unequip/.test(label)), ['Unequip']);
+    assert.equal(sword.querySelector('.chip.sig'), null);
+    const groups = el.querySelectorAll('.worn-who').map(group => [text(group.querySelector('h4')), group.querySelectorAll('li.item .name').map(node => node.textContent)]);
+    assert.deepEqual(groups, [['Astra', ['Iron Sword']], ['Ren', ['Dagger']]]);
 });

@@ -59,7 +59,11 @@ export const SCREEN_STRINGS = {
             equippedBy: 'Equipped \u00b7 {name}', equippedByTitle: 'Worn by {name}', slotTitle: 'The slot it is worn in',
             words: { good: 'Good', worn: 'Worn', torn: 'Torn', broken: 'Broken' }, noBonus: 'no bonus', brokenNoBonus: '\u2014 no bonus',
             condTitle: 'Condition: Good, Worn, Torn or Broken. A broken piece gives no bonus.',
-            editSlot: 'Slot', editBy: 'Equipped by', none: 'None',
+            editSlot: 'Slot', editBy: 'Equipped by', none: 'None', left: 'Left the party',
+            // The bag list and the folded Worn row: pieces nobody wears are listed; worn ones are under "Worn (N)", by wearer.
+            bagTitle: 'Equipment \u00b7 in the bag', equip: 'Equip', equipWho: 'Who wears it?', equipWhoTitle: 'Put {name} on {who}',
+            wornFold: 'Worn ({n})', wornFoldTitle: 'Show or hide the pieces being worn', signature: 'Signature', signatureTitle: '{name}\'s signature piece: it stays on them',
+            unequipTitle: 'Take {name} off: back to the bag',
             // The hand-set gear form (view/gear-form.js): "+ Add item" and the Edit of a piece the reader added.
             form: {
                 groupItem: 'Item', groupGear: 'Gear', name: 'Name', count: 'Count', note: 'Note', kind: 'Kind', slot: 'Slot', rarity: 'Rarity', bonus: 'Bonus',

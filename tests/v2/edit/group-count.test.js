@@ -28,8 +28,10 @@ test('group count cannot remove equipped pieces', () => {
     inv.stacks.it_sword001.equipped = 'hand';
     inv.stacks.it_sword002 = stack('it_sword002', 'pack.fantasy/iron-sword', 1);
     const h = createHarness(module, { state });
-    assert.equal(h.run('inventory.edit', { stack: 'it_sword002', group: true, qty: 1 }).ok, true);
-    assert.ok(h.state.domains.inventory.stacks.it_sword001);
+    const kept = h.run('inventory.edit', { stack: 'it_sword002', group: true, qty: 1 });
+    assert.deepEqual([kept.ok, kept.code], [false, 'REFUSED'], 'the selected piece is the only one that could go');
+    assert.match(kept.message, /piece you are editing/);
+    assert.ok(h.state.domains.inventory.stacks.it_sword001 && h.state.domains.inventory.stacks.it_sword002);
     assert.equal(h.run('inventory.edit', { stack: 'it_sword001', group: true, qty: 2 }).ok, true);
     const next = structuredClone(h.state);
     const loose = Object.values(next.domains.inventory.stacks).find(item => item.def === 'pack.fantasy/iron-sword' && item.equipped === null);
