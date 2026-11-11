@@ -179,7 +179,7 @@ export function createInventoryViewWidget({ storage = undefined, fallback = 'gri
                     group.setAttribute('role', 'group');
                     group.setAttribute('aria-label', S.viewLabel);
                     for (const value of ['list', 'grid']) {
-                        const button = h(doc, 'button', '', value === 'list' ? S.viewList : S.viewGrid);
+                        const button = h(doc, 'button', 'ss-tap-pill', value === 'list' ? S.viewList : S.viewGrid);   // about 30px drawn, a 44px tap area (size.css)
                         button.setAttribute('type', 'button');
                         button.setAttribute('aria-pressed', String(view === value));
                         listen(button, 'click', () => { keep(value); api?.draft?.set?.('view', value); });

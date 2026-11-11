@@ -289,8 +289,9 @@ export const GRID_CSS = `
 .fold-sec.cat > .fold-head .fold-chev { color: var(--sb-em); }
 .fold-sec.cat > .fold-head::after { content: ""; flex: 1 1 0; min-width: 12px; height: 1px; background: var(--sb-border); }
 .fold-sec.cat > .fold-head .fold-count { order: 2; margin-left: 0; letter-spacing: 0; text-transform: none; font-weight: 700; }
-.inv-view { display: inline-flex; border: 1px solid var(--sb-border); border-radius: 10px; overflow: hidden; }
-.inv-view button { min-height: 36px; padding: 0 12px; border: 0; background: transparent; color: var(--sb-em); font: inherit; cursor: pointer; }
+.inv-view { display: inline-flex; border: 1px solid var(--sb-border); border-radius: 9px; }   /* the mockup's slim toggle; the buttons' 44px tap areas reach outside it */
+.inv-view button { min-height: 0; padding: 4px 9px; border: 0; background: transparent; color: var(--sb-em); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.inv-view button:first-child { border-radius: 8px 0 0 8px; } .inv-view button:last-child { border-radius: 0 8px 8px 0; }
 .inv-view button[aria-pressed="true"] { background: color-mix(in srgb, var(--sb-accent) 24%, transparent); color: var(--sb-fg); }
 .inv-view button:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: -2px; }
 .inv-grid-body { display: grid; gap: var(--sb-gap); }

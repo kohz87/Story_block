@@ -187,12 +187,13 @@ const TEMPLATE = `
     <div class="filter" role="search" aria-label="${html(S.filterLabel)}" data-if="len(q.items) > 0">
       <input type="search" class="find" data-draft="find" placeholder="${html(S.find)}" title="${html(S.findTitle)}"
              aria-label="${html(S.findTitle)}" autocomplete="off">
-      <label>${html(S.show)}
-        <select data-draft="kind">
+      <label><span class="ss-visually-hidden">${html(S.show)}</span>
+        <select data-draft="kind" aria-label="${html(S.show)}">
           <option value="">${html(S.everything)}</option>
 ${KIND_ORDER.map(kind => `          <option value="${kind}">${html(KIND_TITLES[kind])}</option>`).join('\n')}
         </select>
       </label>
+      <span class="filter-more">
       <label>${html(S.rarity)}
         <select data-draft="rarity">
           <option value="">${html(S.any)}</option>
@@ -200,6 +201,7 @@ ${RARITIES.map(rarity => `          <option value="${rarity}">${html(S.rarities[
         </select>
       </label>
       <label class="check"><input type="checkbox" data-draft="equippedOnly"> ${html(S.equippedOnly)}</label>
+      </span>
     </div>
   </header>${CARRY}
   <section class="loot" data-if="len(q.loot) > 0">
@@ -249,6 +251,8 @@ ${GRID_CSS}
 }
 .filter { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 6px 12px; align-items: center; min-width: 0; font-size: 0.85em; }
 .filter label { display: inline-flex; gap: 4px; align-items: center; }
+/* the mockup's one slim row is the name box and the kind; Rarity and Equipped only follow as a group, on the same row where there is room, under it where not */
+.filter-more { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; min-width: 0; }
 .filter select, .filter .find { font: inherit; color: var(--sb-fg); background: var(--sb-surface); border: 1px solid var(--sb-border);
                  border-radius: 6px; padding: 1px 4px; margin: 0; box-shadow: none; transition: border-color 0.15s ease; }
 .filter .find { flex: 1 1 9em; min-width: 7em; max-width: 100%; width: auto; height: auto; padding: 2px 8px; box-sizing: border-box; }
