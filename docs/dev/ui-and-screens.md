@@ -418,22 +418,7 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   options are one per row, each a full-width glass button (`.story-suite-choice`); a click still only fills the message box, never
   sends. A new reply's strip starts folded; a refresh of the same reply keeps the reader's choice. The Chatter strip the brief names
   is not drawn under replies in this checkout (inner chatter reads on World and on the Scene screen), so nothing changed for it.
-- **The game view's navigation and the Story panel's tabs: the screen bar** (`view/screen-bar.js`, `mounts.css` `.ss-gameview-nav`,
-  `host.css` `.story-suite-sheet-bar`, `glass.css` `.ss-screenbar*`). One component: a phone (under 760px) gets a floating glass pill
-  at the foot with five slots (the first four screens that are in the bar, in the reader's order, then More); More opens a glass
-  sheet over the bar (a scrim, the hint, a four-column grid of the rest). From 760px the game view draws the screens that are in
-  the bar in one row (`row: true`) and More after them, while any screen is under it (its sheet opens centred over the window's foot).
-  The Story panel's tabs use the same bar at its foot: the pill's four slots, and on the side sheet (from 760px) as many as its width holds at about 60px a slot (five at 398px and up, six at most; `screen-bar.js` `slotsForWidth`, `host-ui.js` `createTabHost({ slots })`, laid out again on a window resize). **What is in the bar** (`view/tab-order.js` `isInBar`,
-  `screens.js` `inDefaultBar`): the screens and tabs that say `bar: true` on their own registration (Story Block's Home and Inventory;
-  another module declares its own, `screens.declaredBar(id)` and the registered tabs are read in `ui-host.js` `barDeclared`); with the RPG on Party,
-  and Fight while a fight is on (it is a tab only then); every other screen is under More. When more are in the bar than there are slots,
-  the reader's order decides who gets them and the rest go under More. The reader's
-  choice per screen (Settings → Tabs & Packs → Tabs, "In the bar" / "Under More") is kept in `extension_settings.storySuite.tabs` as
-  `inBar` / `underMore` beside `order`, `hidden` and `shown`; Home is always in the bar. An item that is not in the bar has
-  `moreOnly: true` for the bar; the game view reads `deps.inBar(screenId)` and the Story panel `createTabHost({ inBar })`. The current item is the accent icon and label with a dot;
-  icons are `iconFor` from `view/icons` (the solid weight for the current one). Keys: each slot is a button in Tab order; Tab stays
-  in the open sheet, Escape closes it first (the game view's own Escape waits while More is open), and the focus goes back to More.
-  The panel's names (`story-suite-tab`, `data-tab-id`) and the game view's `data-ss-target` are kept on each slot and tile.
+- **The game view's navigation and the Story panel's tabs: the screen bar** (`view/screen-bar.js`, `mounts.css`, `host.css`, `glass.css`). Both use one row of screen buttons. On narrow screens it scrolls sideways with fading edges; tabs marked for the bar come first, then the rest, preserving the reader's order in each group. The current tab scrolls into view. Arrow keys, Home and End move focus, and an offscreen alert shows at the appropriate edge. Settings keep order and visibility; the panel's buttons retain `story-suite-tab` and `data-tab-id`.
 - **The HUD strip and the dialog mount** (`mounts.css` `.ss-hud`, `.ss-dialog`, `mounts/dialog.js`). Glass under Glass only (the
   `--ss-sheet-*` tokens; the shape tokens are set under Glass too). The dialog's backdrop keeps its dim and light blur, so the page
   behind the translucent panel is already blurred. The dialog's own buttons (Back, Random, Next, Done, Accept) keep their classes
@@ -545,7 +530,7 @@ their states, the plates, the class-level exceptions and their specificity), `te
 ## Layers, the modal stack and the game view window (fix 8a)
 
 - `view/modal-stack.js` is the one stack of modal layers per document: the game view (`mounts/screen.js`), the dialogs
-  (`mounts/dialog.js`, `widgets/dialog.js`), the More sheet (`screen-bar.js`) and the settings window (`settings/window.js`).
+  (`mounts/dialog.js`, `widgets/dialog.js`) and the settings window (`settings/window.js`).
   A layer is `{ name, root, onEscape(event) → boolean, reveal?(node) }`. Only the topmost takes Escape (bubble phase: a field
   that clears its own text stops the key first) and holds Tab; a closed layer hands the focus back to its `opener`. New
   modals push a layer; they do not add their own document listeners.

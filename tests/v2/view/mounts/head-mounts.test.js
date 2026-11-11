@@ -233,7 +233,7 @@ test('screen: a screen opened by name moves the current slot in the one strip (n
     const view = createScreenMount(deps);
     view.open('m/s1');
     const root = doc.body.querySelector('.ss-gameview');
-    assert.equal(root.querySelector('.ss-screenbar-more').hidden, true, 'no More');
+    assert.equal(root.querySelector('.ss-screenbar-more'), null, 'no More');
     const slot = id => root.querySelector(`.ss-screenbar-item[data-id="${id}"]`);
     assert.equal(slot('m/s6') !== null, true, 'the sixth screen is a slot, not a tile');
     const scrolled = [];

@@ -25,6 +25,7 @@ export function checkPack(input, { withCapabilities = [] } = {}) {
     const notes = withCapabilities.filter(name => !SUITE_CAPABILITIES.includes(name))
         .map(name => `--with-capability: "${name}" is taken as provided by an installed module.`);
     const result = validatePack(value, { capabilities });
+    for (const warning of result.warnings ?? []) notes.push(`Ignored ${warning.path || 'section'}: ${warning.message}`);
     if (result.ok) return { ok: true, errors: [], notes, hashes: result.packHash ? { packHash: result.packHash } : {} };
     return { ok: false, errors: result.errors ?? [], notes, capped: (result.errors?.length ?? 0) >= 20 };
 }

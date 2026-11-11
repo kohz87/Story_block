@@ -315,6 +315,7 @@ test('home: with Story Director, its quest panel appears', { skip }, () => {
     assert.equal(el.querySelector('.more'), null, 'no "and more" line: the toggle does that');
     assert.equal(el.querySelectorAll('.sb-cap').length, 1, 'the quests list is the capped part');
     assert.deepEqual(drawn['story-block.show-more'], [{ target: '.sb-cap', key: 'story-block/home:quests', more: 'Show all', less: 'Show less' }], 'the quests card has its toggle');
+    assert.deepEqual(drawn['story-block.quests-link'], [{}], 'and the link to the Quests screen');
 });
 
 test('home and scene: the story time through the host\'s fmt.time (the calendar), not "Day N"', { skip }, async () => {
