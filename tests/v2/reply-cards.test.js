@@ -27,8 +27,8 @@ test('normalizeCard: a card with a title; tones, icons and the lists cleaned; no
     assert.equal(card.icon, 'ph-star', 'an icon that is not a ph- or fa- name is replaced');
     assert.equal(card.rows.length, CARD_ROWS_MAX);
     assert.deepEqual(card.rows[1], { icon: 'ph-star', text: 'Talents', tag: 'new', tagTone: 'good' });
-    assert.equal(card.actions.length, CARD_ACTIONS_MAX, 'at most three buttons');
-    assert.deepEqual(card.actions.map(action => action.label), ['Create character', 'Open the party', 'Extra one']);
+    assert.equal(card.actions.length, CARD_ACTIONS_MAX, 'at most four buttons');
+    assert.deepEqual(card.actions.map(action => action.label), ['Create character', 'Open the party', 'Extra one', 'Last']);
     assert.equal(card.actions[0].primary, true);
     assert.deepEqual(card.actions[0].payload, { mode: 'quick' });
     assert.equal(card.actions[1].open, 'rpg-battle/party');

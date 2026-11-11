@@ -496,19 +496,19 @@ test('no room for two more blocks: the Review says so and Create stays off', asy
     dialog.close();
 });
 
-test('a full party (8 active): the Review refuses another character with the join line\'s sentence; someone who left makes room', async t => {
+test('a full party (4 active): the Review refuses another character with the join line\'s sentence; someone who left makes room', async t => {
     const ctx = await page(t, { persona: 'Wessel' });
     await begin(ctx.host);
-    for (const who of ['Ren', 'Tamsin', 'Mira', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou']) await makeBlocks(ctx.host, { who });
+    for (const who of ['Ren', 'Tamsin', 'Mira', 'Ilse']) await makeBlocks(ctx.host, { who });
     await ctx.host.send('Go.', 'The quay.');
     const dialog = await openFrom(ctx);
     click(wizardOf(dialog), 'A companion');
     type(wizardOf(dialog).querySelector('[data-wiz="name"]'), 'Olwen');
     const review = await goTo(dialog, 'review');
-    assert.match(review.textContent, /the party is full \(8 active\); someone must leave first/);
+    assert.match(review.textContent, /the party is full \(4 active\); someone must leave first/);
     assert.ok(review.querySelector('.rpg-wiz-create').disabled, 'Create stays off');
     dialog.close();
-    assert.deepEqual(problemsOf(newDraft(), { full: true }).filter(line => /party is full/.test(line)), ['the party is full (8 active); someone must leave first']);
+    assert.deepEqual(problemsOf(newDraft(), { full: true }).filter(line => /party is full/.test(line)), ['the party is full (4 active); someone must leave first']);
     assert.equal(problemsOf(newDraft(), { full: false }).some(line => /party is full/.test(line)), false);
 });
 

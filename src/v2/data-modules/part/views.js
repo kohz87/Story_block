@@ -12,6 +12,7 @@ import { blockTabScreen } from '../block-screen.js';
 import { boardGrammar, boardXpGuide } from '../board-static.js';
 import { isMarkedCharacter, restLine } from '../recovery.js';
 import { rpgLib } from '../../rpg-lazy.js';
+import { PARTY_ACTIVE, PARTY_MAX } from '../../lean-rpg/names.js';
 import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget, partyRoomOf } from './shared.js';
 
 export function validateDomain(domain) {
@@ -108,13 +109,16 @@ export function grammarFor(state, quiet = null, { rolled = false, board = false 
 
 // Witnesses contain only relevant local paths. A guard never interprets effects or asks live
 // services: it verifies the recorded decision against the prefix and allows the host's saved ops.
-export function replayInputs(state, { module, subject = 'chat', reads = [], imports = [], actor = false, adapters = null, subjects = [], available = [], clock = false, party = false } = {}) {
+export function replayInputs(state, { module, subject = 'chat', reads = [], imports = [], actor = false, adapters = null, subjects = [], available = [], clock = false, party = false, bench = '' } = {}) {
     const domain = state?.domains?.dataModules, active = domain?.active?.[module];
     const definition = activeDefinition(state, module), instance = instanceOf(state, module, subject);
     return { active: active ? { hash: active.hash, generation: active.generation, attached: active.subjects.includes(subject) } : null,
         ...(clock ? { clock: state?.domains?.director?.time?.minutes ?? null } : {}),
         // (a marked join, creation or return: only whether the party had room, fewer than 8 active; unmarked replies record none)
-        ...(party ? { party: { room: partyRoomOf(state) } } : {}),
+        // (the limit is the one the selector recorded: 4 under the `partyFour` mark, else 8)
+        ...(party ? { party: { room: partyRoomOf(state, party === PARTY_ACTIVE ? PARTY_ACTIVE : PARTY_MAX) } } : {}),
+        // (a bench choice: the member who steps out is still in the party and has not left yet)
+        ...(bench ? { bench: { active: Boolean(domain?.active?.[bench]), left: instanceOf(state, bench)?.fields?.left === true } } : {}),
         reads: reads.map(path => ({ path, value: copy(atPath(instance, path)) })),
         imports: Object.fromEntries(imports.map(alias => [alias, (adapters ?? definition?.imports)?.[alias] ? projectImport(state, (adapters ?? definition.imports)[alias]) : null])),
         actor: actor ? actorsOf(state)[subject] ?? null : null,
@@ -142,7 +146,7 @@ export function dataModuleGuard(view, info) {
             if (domain?.active?.[predicate.module] || recorded.pin.interpreter !== 1 || recorded.pin.definition.id !== predicate.module
                 || hashOf(recorded.pin.definition) !== predicate.hash) return { ok: false, reason: 'Pin selection or checked definition changed.' };
             // (a join recorded without the party witness was made under the old room, 8 own blocks and 16 pins: the guard keeps that, as Re-read does)
-            const room = join && recorded.selector?.party !== true ? DM_OLD_ROOM : L;
+            const room = join && !recorded.selector?.party ? DM_OLD_ROOM : L;
             if (activeCount(domain) + more.length >= room.pins) return { ok: false, reason: 'Data module limit changed.' };
             // A Skills block made with its Character (the wizard) goes with it: with the Character gone from this prefix, it is skipped too.
             const after = recorded.decision?.after;

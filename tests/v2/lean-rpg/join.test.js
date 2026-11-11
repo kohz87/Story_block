@@ -8,10 +8,10 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { STANDARD } from '../../../src/v2/lean-rpg/rules.js';
 import { levelOfClass } from '../../../src/v2/lean-rpg/formula.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
-import { PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
+import { PARTY_ACTIVE, PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { definition as filler, pack as dmPack } from '../data-modules/helpers.js';
 import { DM_OLD_ROOM } from '../../../src/v2/data-modules/schema.js';
-import { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
+import { JOIN_ADD, JOIN_BENCH, JOIN_NO, benchable, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
 import { STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { rpgLib, setRpgLib } from '../../../src/v2/rpg-lazy.js';
 import * as leanRpg from '../../../src/v2/lean-rpg/index.js';
@@ -24,8 +24,10 @@ const MARA = '+ party Mara | about: a hedge-witch from Kvildal | class: IV | bes
 const reply = (...lines) => `The tide turns.\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 
 // A host with the RPG on and Wessel (Soul Class III) already in the party, made from the real templates.
-async function world({ mode = 'auto', feature = true, wessel = true } = {}) {
+// `eight`: every reply is captured with the `partyRoom` mark only (the party limit of 8), as replies written before `partyFour` were.
+async function world({ mode = 'auto', feature = true, wessel = true, eight = false } = {}) {
     const host = await createHost({ settings: { modules: { 'story-block': { rpgJoin: mode } } } });
+    if (eight) { const marks = host.store.setRuleMarks; host.store.setRuleMarks = (index, names) => { names.splice(names.indexOf('partyFour'), 1); return marks(index, names); }; }
     if (feature) host.features.set(CORE_FEATURE.leanRpg, true);
     await host.send('Begin.', 'Opening.');
     if (wessel) await make(host, 'Wessel', 3);
@@ -182,7 +184,7 @@ test('refused plainly, one Problems line each and nothing made: the name is take
     assert.match(problems(host).at(-1), /Party: the story has no room for two more blocks \(at most 8\); remove one from Blocks first; nothing applied\./);
 
     // The reply's own actions are used up: the line is refused with the block engine's plain sentence.
-    const fresh = await world();
+    const fresh = await world({ eight: true });
     t.after(() => fresh.close());
     await fresh.send('Crowd.', reply(...Array.from({ length: 12 }, (_, n) => `+ party P${n}`)));
     assert.equal(partyOf(fresh.head()).length < 12, true, 'some were refused');
@@ -192,7 +194,7 @@ test('refused plainly, one Problems line each and nothing made: the name is take
 });
 
 test('partyRoom: a marked reply has room for the 3rd to 7th companion, within the bytes; the party stops at 8 active and someone must leave for another', { skip }, async t => {
-    const host = await world();
+    const host = await world({ eight: true });
     t.after(() => host.close());
     for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou']) await host.send(`${who} comes.`, reply(`+ party ${who}`));
     assert.equal(partyOf(host.head()).length, 8, 'Wessel and seven companions');
@@ -237,10 +239,11 @@ test('partyRoom: the block cap is 20 of the story\'s own blocks; a reply from be
 
 // Eight active (Wessel and seven companions) with the replies that follow: each marked join and return records the party it relied on.
 const active = host => partyOf(host.head()).filter(person => !person.left).length;
-async function packed() {
-    const host = await world();
-    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou']) await host.send(`${who} comes.`, reply(`+ party ${who}`));
-    assert.equal(active(host), 8);
+// (`size` 4: the reader's own actions keep the limit of 4, so their tests use a full party of four; 8: replies captured with only the `partyRoom` mark)
+async function packed(size = 8) {
+    const host = await world({ eight: size === 8 });
+    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou'].slice(0, size - 1)) await host.send(`${who} comes.`, reply(`+ party ${who}`));
+    assert.equal(active(host), size);
     return host;
 }
 const lastAt = host => host.ctx.chat.length - 1;
@@ -299,11 +302,11 @@ test('a marked return records the party it relied on: deleting the earlier leave
     await settled(host, 'after the Re-read');
 });
 
-// Eight active with Ask on: the companions are made as the wizard and template make them (dm.define), the reader's Add to party is dm.join.
-async function packedAsk() {
-    const host = await world({ mode: 'ask' });
-    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou']) await make(host, who);
-    assert.equal(active(host), 8);
+// Four active (the reader's own limit) with Ask on: the companions are made as the wizard and template make them (dm.define), the reader's Add to party is dm.join.
+async function packedAsk(size = 4) {
+    const host = await world({ mode: 'ask', eight: size === 8 });
+    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou'].slice(0, size - 1)) await make(host, who);
+    assert.equal(active(host), size);
     return host;
 }
 const templateCharacter = () => {
@@ -318,7 +321,7 @@ test('every way in records the party: Add to party, the wizard (New character, E
         t.after(() => host.close());
         await host.send('Ren goes.', reply('- party Ren'));
         const leave = lastAt(host);
-        assert.equal(active(host), 7);
+        assert.equal(active(host), 3);
         if (route === 'add') {
             await host.send('Ann walks in.', reply('+ party Ann | about: a tinker | class: I | best: int'));
             const added = await host.sdk.command(JOIN_ADD, host.sdk.query('rpg.joins', {})[0]);
@@ -330,10 +333,10 @@ test('every way in records the party: Add to party, the wizard (New character, E
             await host.send('Quiet.', 'Quiet.');
             assert.equal((await host.sdk.command('dm.define', { definition: templateCharacter() })).ok, true);
         }
-        assert.equal(active(host), 8, `${route}: took the place Ren left`);
+        assert.equal(active(host), 4, `${route}: took the place Ren left`);
         await host.st.deleteMessage(leave);
         await settled(host, `${route}: after deleting the leave`);
-        assert.equal(active(host), 8, `${route}: Ren is active again and the new member is skipped, not a ninth`);
+        assert.equal(active(host), 4, `${route}: Ren is active again and the new member is skipped, not a ninth`);
         assert.equal(partyOf(host.head()).find(person => person.name === 'Ren').left, false);
         assert.equal(partyOf(host.head()).some(person => person.name === 'Ann' || person.module === 'pack.chat/template-hero'), false, `${route}: not made`);
         assert.equal((await host.turn.reread(lastAt(host))).ok, true);
@@ -341,18 +344,32 @@ test('every way in records the party: Add to party, the wizard (New character, E
     }
 });
 
-test('a Character made by the template or the wizard with 8 active is refused with the party-full sentence; the same at 7 is made', { skip }, async t => {
+test('a Character made by the template or the wizard with 4 active is refused with the party-full sentence; the same at 3 is made', { skip }, async t => {
     const host = await packedAsk();
     t.after(() => host.close());
     for (const definition of [templateCharacter(), (() => { const d = templateCharacter(); d.slug = 'ann'; d.name = 'Ann'; d.state.who.default = 'Ann'; return d; })()]) {
         const refused = await host.sdk.command('dm.define', { definition });
         assert.equal(refused.ok, false);
-        assert.match(refused.message, /the party is full \(8 active\); someone must leave first/);
+        assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
     }
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     await host.send('Ren goes.', reply('- party Ren'));
     assert.equal((await host.sdk.command('dm.define', { definition: templateCharacter() })).ok, true);
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
+});
+
+test('the reader\'s Add to party keeps the limit of 4 even on an offer from a reply with only the partyRoom mark: refused with the party-full sentence', { skip }, async t => {
+    const host = await world({ mode: 'ask', eight: true });
+    t.after(() => host.close());
+    for (const who of ['Mara', 'Ren', 'Ilse']) await make(host, who);
+    assert.equal(active(host), 4);
+    await host.send('Ann walks in.', reply('+ party Ann | about: a tinker | class: I | best: int'));
+    const offer = host.sdk.query('rpg.joins', {})[0];
+    assert.equal(offer.four, undefined, 'an eight-limit reply: the ordinary Ask card');
+    const refused = await host.sdk.command(JOIN_ADD, offer);
+    assert.equal(refused.ok, false);
+    assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
+    assert.equal(partyOf(host.head()).some(person => person.name === 'Ann'), false);
 });
 
 test('a join captured before the mark replays with the old room (8 own blocks): the removal it relied on going makes it skipped, as Re-read refuses it', { skip }, async t => {
@@ -480,10 +497,10 @@ test('Ask: the line makes nothing; the reply\'s card offers Add to party, Edit f
     await host.send('Mara walks in.', reply(MARA));
     assert.deepEqual(blocks(host), ['pack.chat/wessel', 'pack.chat/wessel-skills'], 'nothing is made by the line');
     const receipt = lastReceipts(host).find(entry => entry.type === 'capture.party');
-    assert.deepEqual(receipt.data.join, { op: 'offer', name: 'Mara', about: 'a hedge-witch from Kvildal', soul: 4, best: 'int' });
+    assert.deepEqual(receipt.data.join, { op: 'offer', name: 'Mara', about: 'a hedge-witch from Kvildal', soul: 4, best: 'int', four: true }, 'a reply under the partyFour mark says so');
     assert.equal(receipt.guarded, undefined, 'no block: nothing to replay');
     const offers = host.sdk.query('rpg.joins', {});
-    assert.deepEqual(offers, [{ name: 'Mara', about: 'a hedge-witch from Kvildal', soul: 4, best: 'int' }]);
+    assert.deepEqual(offers, [{ name: 'Mara', about: 'a hedge-witch from Kvildal', soul: 4, best: 'int', four: true }]);
     const card = host.registry.cardEntries().find(entry => entry.id === 'story-block/rpg-join').fn(host.head(), null, { index: host.ctx.chat.length - 1, head: true, query: (name, args) => host.sdk.query(name, args) });
     assert.equal(card.title, 'Mara joins the party');
     assert.equal(card.text, 'a hedge-witch from Kvildal');
@@ -738,7 +755,7 @@ test('wizard characters replay with the RPG off: two made without a roll, join o
     assert.deepEqual(blocks(host), both, 'the same with the RPG on');
 });
 
-test('a standard Character pinned from a pack keeps the 8-active limit and records the party: refused at eight, and with the earlier leave deleted it is skipped, not a ninth', { skip }, async t => {
+test('a standard Character pinned from a pack keeps the 4-active limit and records the party: refused at four, and with the earlier leave deleted it is skipped, not a fifth', { skip }, async t => {
     const hero = templateCharacter();
     delete hero.slug; hero.slug = 'pinned-hero'; hero.name = 'Pinned hero';
     const host = await packedAsk();
@@ -749,21 +766,21 @@ test('a standard Character pinned from a pack keeps the 8-active limit and recor
     const pinIt = () => host.sdk.command('dm.pin', { module: offer().module, hash: offer().hash, packHash: offer().packHash, subjects: [] });
     const refused = await pinIt();
     assert.equal(refused.ok, false);
-    assert.match(refused.message, /the party is full \(8 active\); someone must leave first/);
+    assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
     await host.send('Ren goes.', reply('- party Ren'));
     const leave = lastAt(host);
     const pinned = await pinIt();
     assert.equal(pinned.ok, true, pinned.message);
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     await host.st.deleteMessage(leave);
     await settled(host, 'after deleting the leave');
-    assert.equal(active(host), 8, 'Ren is active again and the pin is skipped, not a ninth');
+    assert.equal(active(host), 4, 'Ren is active again and the pin is skipped, not a fifth');
 });
 
 // ---- the witness is only "was there room" (fewer than 8 active before) --------------------------------------------------------------------
 
 test('deleting an unrelated earlier member below the cap keeps the later members (rebuild, reload, Re-read); at the cap the later join is still skipped', { skip }, async t => {
-    const host = await world();
+    const host = await world({ eight: true });
     t.after(() => host.close());
     const at = {};
     for (const who of ['Ann', 'Bob', 'Cy']) { await host.send(`${who} arrives.`, 'Quiet.'); await make(host, who); at[who] = lastAt(host); }
@@ -792,7 +809,7 @@ test('a wizard Character skipped on replay takes its Skills block with it, and t
     await host.send('Ren goes.', reply('- party Ren'));
     const leave = lastAt(host);
     await make(host, 'Ann');
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     await host.st.deleteMessage(leave);
     await settled(host, 'after deleting the leave');
     assert.equal(blocks(host).some(id => id.includes('ann')), false, 'neither the Character nor an orphan Skills block');
@@ -800,37 +817,37 @@ test('a wizard Character skipped on replay takes its Skills block with it, and t
     assert.equal(refused.ok, false, 'a Skills block can only follow a Character of this chat');
     await host.send('Ren goes again.', reply('- party Ren'));
     await make(host, 'Ann');
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     assert.equal(blocks(host).filter(id => id.includes('ann')).length, 2);
     assert.equal(fields(host, 'ann-skills')?.who, 'Ann');
     await settled(host, 'after making Ann again');
     assert.equal(blocks(host).filter(id => id.includes('ann')).length, 2);
 });
 
-test('setting a Character\'s Left to false by hand is a return: refused at eight active, and witnessed: with an earlier leave deleted it is skipped, not a ninth', { skip }, async t => {
-    const host = await packed();
+test('setting a Character\'s Left to false by hand is a return: refused at four active, and witnessed: with an earlier leave deleted it is skipped, not a fifth', { skip }, async t => {
+    const host = await packed(4);
     t.after(() => host.close());
     const moduleOf = who => partyOf(host.head()).find(person => person.name === who).module;
     const back = who => host.sdk.command('dm.set', { module: moduleOf(who), field: 'left', value: false });
     await host.send('Ren goes.', reply('- party Ren'));
     await host.send('Ann comes.', reply('+ party Ann'));
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     const refused = await back('Ren');
     assert.equal(refused.ok, false);
-    assert.match(refused.message, /the party is full \(8 active\); someone must leave first/);
-    await host.send('Kit goes.', reply('- party Kit'));
-    await host.send('Dov goes.', reply('- party Dov'));
-    const dov = lastAt(host);
+    assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
+    await host.send('Mara goes.', reply('- party Mara'));
+    await host.send('Ilse goes.', reply('- party Ilse'));
+    const ilse = lastAt(host);
     await host.send('Quiet.', 'Quiet.');   // (the hand returns go in a reply of their own, after the leave)
-    assert.equal(active(host), 6);
+    assert.equal(active(host), 2);
     assert.equal((await back('Ren')).ok, true);
-    assert.equal((await back('Kit')).ok, true, 'a second hand return, with room');
-    assert.equal(active(host), 8);
+    assert.equal((await back('Mara')).ok, true, 'a second hand return, with room');
+    assert.equal(active(host), 4);
     await settled(host, 'live');
-    await host.st.deleteMessage(dov);
+    await host.st.deleteMessage(ilse);
     await settled(host, 'after deleting an earlier leave');
-    assert.equal(active(host), 8, 'Dov never left, so Kit\'s hand return would be a ninth: skipped');
-    assert.equal(partyOf(host.head()).find(person => person.name === 'Kit').left, true);
+    assert.equal(active(host), 4, 'Ilse never left, so Mara\'s hand return would be a fifth: skipped');
+    assert.equal(partyOf(host.head()).find(person => person.name === 'Mara').left, true);
     assert.equal(partyOf(host.head()).find(person => person.name === 'Ren').left, false, 'Ren\'s return still had room');
 });
 
@@ -854,4 +871,150 @@ test('an old reply (before the mark) at 16 pins: it replays, a rebuild and a rel
     assert.equal((await host.turn.reread(join)).ok, true);
     assert.equal(blocks(host).length, 16, 'a Re-read keeps the old room');
     await settled(host, 'old 16 after a Re-read');
+});
+
+// ---- a full party asks who to bench (partyFour: 4 active, the reader's character included) -------------------------------------------------
+
+const TORKA = '+ party Torka Bloodsong | about: an orc with an axe | class: II | best: str';
+// Wessel (the reader's, the first block) and three companions: four active under the `partyFour` mark.
+async function four({ mode = 'auto' } = {}) {
+    const host = await world({ mode });
+    for (const who of ['Mara', 'Ren', 'Ilse']) await host.send(`${who} comes.`, reply(`+ party ${who}`));
+    assert.equal(active(host), 4);
+    return host;
+}
+const joinCardOf = host => host.registry.cardEntries().find(entry => entry.id === 'story-block/rpg-join').fn(host.head(), null, { index: host.ctx.chat.length - 1, head: true, query: (name, args) => host.sdk.query(name, args) });
+const names = host => partyOf(host.head()).filter(person => !person.left).map(person => person.name);
+
+test('partyFour: the active limit is 4 on a reply with the new mark, 8 on a reply with only partyRoom, and checkJoin says a full party is `full`', () => {
+    const character = (slug, who, fields = {}) => ({ definition: { ...characterDefinition(slug, who), role: 'character', state: { left: { type: 'bool' } } }, fields: { who, ...fields } });
+    const request = name => ({ op: '+', name, about: '', soul: 1, best: '' });
+    const members = n => fakeState(Array.from({ length: n }, (_, at) => character(`m${at}`, `M${at}`)));
+    assert.equal(PARTY_ACTIVE, 4);
+    assert.deepEqual(checkJoin(members(4), request('New'), undefined, PARTY_ACTIVE), { ok: false, full: true, why: 'the party is full (4 active); someone must leave first' });
+    assert.equal(checkJoin(members(3), request('New'), undefined, PARTY_ACTIVE).ok, true);
+    assert.equal(checkJoin(members(4), request('New')).ok, true, 'the limit of 8 stays the default (a reply with only partyRoom)');
+    assert.equal(checkJoin(members(8), request('New')).full, true);
+    const gone = fakeState([...Array.from({ length: 4 }, (_, at) => character(`m${at}`, `M${at}`)), character('ren', 'Ren', { left: true })]);
+    assert.deepEqual(checkJoin(gone, request('Ren'), undefined, PARTY_ACTIVE), { ok: false, full: true, back: true, why: 'the party is full (4 active); someone must leave first' }, 'a return meets the limit too');
+    // the reader's character is never offered: the one named like the persona, else the first block
+    assert.deepEqual(benchable(members(4), name => name === 'M2').map(entry => entry.name), ['M0', 'M1', 'M3']);
+    assert.deepEqual(benchable(members(4)).map(entry => entry.name), ['M1', 'M2', 'M3'], 'nobody named: the first block is the reader\'s');
+});
+
+test('A long name in the bench card keeps its level', () => {
+    const character = (slug, who) => ({ definition: { ...characterDefinition(slug, who), role: 'character', state: { left: { type: 'bool' } } }, fields: { who } });
+    const long = 'Sir Bartholomew Featherstonehaugh-Wetherby the Third of Ersveil';
+    assert.equal([...long].length >= 60, true);
+    const state = fakeState([character('m0', 'M0'), character('m1', long), character('m2', 'Kel'), character('m3', 'M3')]);
+    const card = joinCard([{ name: 'New', about: '', soul: 1, best: '', full: true }], state);
+    const labels = card.actions.map(action => action.label);
+    assert.match(labels[0], /^Sir Bartholomew.*… · Lv \d+$/);
+    assert.equal([...labels[0]].length <= 32, true);
+    assert.match(labels[1], /^Kel · Lv \d+$/, 'a short name is unchanged');
+    // 5 active: the card keeps room for Not now
+    const five = fakeState(['m0', 'm1', 'm2', 'm3', 'm4'].map(slug => character(slug, slug.toUpperCase())));
+    const many = joinCard([{ name: 'New', about: '', soul: 1, best: '', full: true }], five).actions;
+    assert.equal(many.length, 4);
+    assert.equal(many.at(-1).command, JOIN_NO);
+});
+
+test('partyFour: a new reply is marked partyFour and partyRoom, and the 5th member of a story is not made but offered; a reply with only partyRoom still takes the 5th', { skip }, async t => {
+    const host = await four();
+    t.after(() => host.close());
+    assert.deepEqual(host.ctx.chat.at(-1).extra.storySuite.rules.filter(name => name.startsWith('party')), ['partyFour', 'partyRoom']);
+    await host.send('Torka walks in.', reply(TORKA));
+    assert.deepEqual(names(host), ['Wessel', 'Mara', 'Ren', 'Ilse'], 'not made');
+    assert.deepEqual(problems(host), [], 'and not refused silently: no Problems line');
+    const receipt = lastReceipts(host).find(entry => entry.type === 'capture.party');
+    assert.deepEqual(receipt.data.join, { op: 'offer', name: 'Torka Bloodsong', about: 'an orc with an axe', soul: 2, best: 'str', full: true, four: true }, 'the reply\'s own receipt keeps the request');
+    const old = await world({ eight: true });
+    t.after(() => old.close());
+    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov']) await old.send(`${who} comes.`, reply(`+ party ${who}`));
+    assert.equal(active(old), 5, 'under partyRoom only the limit is 8');
+    await rebuilt(host, 'a full party offer');
+});
+
+test('a full party shows the bench card: one button per active companion with their level, never the reader, and Not now', { skip }, async t => {
+    const host = await four();
+    t.after(() => host.close());
+    await host.send('Torka walks in.', reply(TORKA));
+    const card = joinCardOf(host);
+    assert.equal(card.title, 'The party is full (4 active)');
+    assert.equal(card.text, 'Bench one to let Torka Bloodsong in. They keep their level, XP, skills and gear, and can come back.');
+    const levels = Object.fromEntries(partyOf(host.head()).map(person => [person.name, person.level]));
+    assert.deepEqual(card.actions.map(action => action.label), [`Mara · Lv ${levels.Mara}`, `Ren · Lv ${levels.Ren}`, `Ilse · Lv ${levels.Ilse}`, 'Not now'], 'Wessel is the reader\'s: never offered');
+    assert.deepEqual(card.actions.map(action => action.command), [JOIN_BENCH, JOIN_BENCH, JOIN_BENCH, JOIN_NO]);
+    assert.equal(card.actions[0].payload.bench, 'Mara');
+    assert.equal(card.actions[0].payload.name, 'Torka Bloodsong');
+    assert.deepEqual(host.sdk.query('rpg.joins', {}).map(offer => [offer.name, offer.full]), [['Torka Bloodsong', true]]);
+    const refused = await host.sdk.command(JOIN_BENCH, { ...card.actions[0].payload, bench: 'Wessel' });
+    assert.equal(refused.ok, false, 'the reader\'s own character cannot be benched');
+    assert.deepEqual(names(host), ['Wessel', 'Mara', 'Ren', 'Ilse']);
+});
+
+test('tapping a name benches that member (marked left, kept) and joins the newcomer in one action; the card then says so; a rebuild and a reload agree', { skip }, async t => {
+    const host = await four();
+    t.after(() => host.close());
+    await host.send('Torka walks in.', reply(TORKA));
+    const done = await host.sdk.command(JOIN_BENCH, joinCardOf(host).actions[1].payload);
+    assert.equal(done.ok, true, done.message);
+    assert.deepEqual(names(host), ['Wessel', 'Mara', 'Ilse', 'Torka Bloodsong']);
+    assert.equal(partyOf(host.head()).find(person => person.name === 'Ren').left, true, 'Ren is kept, marked left');
+    assert.equal(active(host), 4);
+    assert.equal(joinCardOf(host).text, 'Ren left the party (benched) · Torka Bloodsong joined.');
+    assert.deepEqual(joinCardOf(host).actions, []);
+    await settled(host, 'after the bench choice');
+});
+
+test('Not now keeps the card: the newcomer is not joined and the bench buttons are still there later', { skip }, async t => {
+    const host = await four();
+    t.after(() => host.close());
+    await host.send('Torka walks in.', reply(TORKA));
+    assert.equal((await host.sdk.command(JOIN_NO, { name: 'Torka Bloodsong' })).ok, true);
+    assert.deepEqual(names(host), ['Wessel', 'Mara', 'Ren', 'Ilse']);
+    const card = joinCardOf(host);
+    assert.equal(card.text, 'Torka Bloodsong did not join. You can still bench someone here later.');
+    assert.deepEqual(card.actions.map(action => action.command), [JOIN_BENCH, JOIN_BENCH, JOIN_BENCH]);
+    const done = await host.sdk.command(JOIN_BENCH, card.actions[2].payload);
+    assert.equal(done.ok, true, done.message);
+    assert.deepEqual(names(host), ['Wessel', 'Mara', 'Ren', 'Torka Bloodsong']);
+    await settled(host, 'bench after Not now');
+});
+
+test('a return to a full party asks too: benching a member brings the one who left back', { skip }, async t => {
+    const host = await four();
+    t.after(() => host.close());
+    await host.send('Ren goes.', reply('- party Ren'));
+    await host.send('Kit joins.', reply('+ party Kit'));
+    assert.equal(active(host), 4);
+    await host.send('Ren is back.', reply('+ party Ren'));
+    assert.deepEqual(host.sdk.query('rpg.joins', {}).map(entry => [entry.name, entry.full, entry.back]), [['Ren', true, true]]);
+    assert.equal(partyOf(host.head()).find(person => person.name === 'Ren').left, true, 'still away');
+    const done = await host.sdk.command(JOIN_BENCH, joinCardOf(host).actions[0].payload);
+    assert.equal(done.ok, true, done.message);
+    assert.match(joinCardOf(host).text, /^\S+ left the party \(benched\) · Ren joined\.$/);
+    assert.equal(partyOf(host.head()).find(person => person.name === 'Ren').left, false, 'Ren is back');
+    assert.equal(active(host), 4);
+    await settled(host, 'a return by bench');
+});
+
+test('the bench action replays like other reader actions: a rebuild and a reload agree, and deleting the earlier reply that filled the party skips it, leaving the newcomer\'s offer to be added', { skip }, async t => {
+    const host = await four();
+    t.after(() => host.close());
+    const joined = host.ctx.chat.length - 1;   // Ilse's reply (the party's 4th)
+    await host.send('Torka walks in.', reply(TORKA));
+    const done = await host.sdk.command(JOIN_BENCH, joinCardOf(host).actions[0].payload);
+    assert.equal(done.ok, true, done.message);
+    await settled(host, 'the bench action');
+    await host.st.deleteMessage(joined);
+    await settled(host, 'after deleting the reply that filled the party');
+    assert.equal(names(host).includes('Torka Bloodsong'), false, 'the bench action relied on a full party: it is skipped, not applied to a party with room');
+    assert.equal(partyOf(host.head()).find(person => person.name === 'Mara')?.left, false, 'Mara was not benched');
+    const card = joinCardOf(host);
+    assert.equal(card.title, 'Torka Bloodsong joins the party', 'with room again the offer is an ordinary Ask card');
+    assert.equal(card.actions[0].command, JOIN_ADD);
+    const stale = await host.sdk.command(JOIN_BENCH, { name: 'Torka Bloodsong', bench: 'Mara' });
+    assert.equal(stale.ok, false, 'a stale bench button: there is room now, nobody steps out');
+    assert.match(stale.message, /room now/);
 });

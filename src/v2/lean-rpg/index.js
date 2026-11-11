@@ -18,6 +18,7 @@ import { checkStep, checksHook, practiceHook, practiceStep } from './practice.js
 import { diceRecord } from './checks/dice.js';
 export { parseCheckLine } from './checks/line.js';
 import { JOIN_NO, joinCard, joinOffers, partyOf } from './join.js';
+import { fold } from './read.js';
 import { createPrecall } from './precall.js';
 import { leanRpgGuard, resolve, rollsOf } from './resolve.js';
 import { skipOf } from './start.js';
@@ -35,7 +36,7 @@ export { FIGHT_XP_HELD, fightOf, memberXp, standingSlots } from './fight.js';
 export { PRACTICE_HELD, practiceStep, usesOf } from './practice.js';
 export { NO_ROLLS_LINE, OPEN_FIGHT_LINE, OUTCOME_WORD, cueOfResult, cueText, fitCue, lineText, receiptCue } from './cue.js';
 export { QUIET_GRAMMAR, fightIsOpen, isQuiet } from './quiet.js';
-export { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, joinScale, partyCap, partyOf, readJoin, soulNaming, soulOf } from './join.js';
+export { JOIN_ADD, JOIN_BENCH, JOIN_NO, benchable, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, joinScale, partyCap, partyOf, readJoin, soulNaming, soulOf } from './join.js';
 // What the data modules' companion steps (data-modules/part.js) reach through the loaded library (rpg-lazy.js).
 export { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from './view/wizard-data.js';
 export { RPG_STRINGS } from './strings.js';
@@ -71,6 +72,8 @@ export const ROLLS_QUERY = 'rpg.rolls';
 export function createLeanRpgPart({ chat = stChat, metadata = () => null, moduleId = 'story-block', persona = () => '', rosterOn, callModel, onPlanning, timeoutMs, timer } = {}) {
     const precall = createPrecall({ chat, metadata, moduleId, skip: skipOf(metadata), callModel, onPlanning, timeoutMs, timer });
     const board = createBoardPart();
+    // (the reader's own character is the one named like the persona: a full party's card never offers to bench them)
+    const isMe = name => { let who = ''; try { who = String(persona() ?? '').replace(/\s+/g, ' ').trim(); } catch { who = ''; } return Boolean(who) && fold(name) === fold(who); };
     return {
         // A prelude: previewed before the reply and stored on it before its story lines (turn.js). Not tied to the
         // feature, so a Re-read of a reply that has rolls keeps them whatever the feature says now.
@@ -96,7 +99,7 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
             }, { feature: LEAN_RPG_FEATURE }),
         },
         // The card under the head reply for a companion who may join (join.js): read from the reply's own receipts, so it goes with the reply.
-        cards: { 'rpg-join': { feature: LEAN_RPG_FEATURE, for: (state, _message, ctx) => joinCard(ctx?.query?.(JOINS_QUERY, Number.isInteger(ctx?.index) ? { index: ctx.index } : {}) ?? [], state) } },
+        cards: { 'rpg-join': { feature: LEAN_RPG_FEATURE, for: (state, _message, ctx) => joinCard(ctx?.query?.(JOINS_QUERY, Number.isInteger(ctx?.index) ? { index: ctx.index } : {}) ?? [], state, isMe) } },
         queries: {
             [JOINS_QUERY]: Object.assign((state, args, tools) => joinOffers(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index, partyOf(state)), { feature: LEAN_RPG_FEATURE }),
             // The rank a level falls in, by the story's pack (levels.js): { level } → { name } | null.

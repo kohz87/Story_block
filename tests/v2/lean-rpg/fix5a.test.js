@@ -23,6 +23,8 @@ async function heroes(host, count) {
         const definition = template('Character');
         definition.slug = `hero-${n}`; definition.name = `Hero ${n}`; definition.state.who.default = `Hero${n}`;
         success(await host.sdk.command('dm.define', { definition }));
+        // (the reader's own limit is 4 active: the fifth and later stay as sheets of members who left, so the blocks are all there)
+        if (n >= 3) success(await host.sdk.command('dm.set', { module: `pack.chat/hero-${n}`, field: 'left', value: true }));
     }
 }
 
