@@ -223,7 +223,7 @@ test('a change to a skill an earlier reply made plans the check again, so its ca
     success(await host.turn.reread(learn));
     const [now] = checksOf(host.ctx.chat[later].extra.storySuite.receipts);
     assert.equal(now.stat, 'str');
-    assert.equal(now.bonus, statPart('check', host.head().domains.dataModules.instances['pack.chat/character'].chat.fields, { skillStat: 'str' }).value + Math.floor(20 / 5) + now.rank);
+    assert.equal(now.bonus, was.bonus, 'the bonus is the one the note showed (its table is recorded with the reply), whatever the skill rests on now');
 });
 
 test('a line refused for a skill the sheet lacked is planned again when an earlier reply adds that skill', { skip }, async t => {
@@ -279,4 +279,20 @@ test('a reply made with Story checks off keeps its receipts after a Re-read, and
     assert.equal(JSON.stringify(host.head()), live, 'a rebuild');
     await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
     assert.equal(JSON.stringify(host.head()), live, 'a reload');
+});
+
+test('a skill learned in the reply that checks it rolls with no bonus; a Re-read keeps it, and an old step without a table keeps the sheet\'s bonus', { skip }, async t => {
+    const host = await world(t);
+    await host.send('I try.', after(host, ([a]) => `Story.\n<Changes>\n~ dm skills — learned | kind: learn-1 | name: Fresh | about: New. | stat: dex | uses: mana | type: utility\n? roll Astra | Fresh | normal | ${a}\n</Changes>`));
+    const index = host.ctx.chat.length - 1;
+    const step = () => records(host).receipts.find(receipt => receipt.type === 'rpg.check');
+    const before = checksOf(records(host).receipts);
+    assert.equal(before.length, 1);
+    assert.equal(before[0].bonus, 0);
+    assert.equal(before[0].unlisted, 'skill');
+    const first = JSON.stringify([step().data.v2.checks, step().replan.payload]);
+    success(await host.turn.reread(index));
+    assert.equal(JSON.stringify(checksOf(records(host).receipts)), JSON.stringify(before), 'Re-read: the same result');
+    assert.equal(JSON.stringify([step().data.v2.checks, step().replan.payload]), first, 'Re-read: the step and its record are byte-identical');
+    assert.ok(Array.isArray(step().replan.payload.table));
 });

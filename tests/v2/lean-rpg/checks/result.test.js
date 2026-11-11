@@ -81,3 +81,30 @@ test('workChecks uses the rules, difficulty numbers and practice recorded with t
     assert.equal(workChecks(party, lines, null).results.length, 0, 'no dice recorded: none used');
     assert.ok(workChecks(party, lines, null).notes.every(note => note.includes('no dice were offered')));
 });
+
+test('with the note\'s table a check is worked at the bonuses the note showed, not the sheet\'s newer ones', () => {
+    const shown = bonusTable(party, STANDARD);
+    const raised = { ...member, stats: { ...member.stats, cha: 20 }, skills: [...member.skills, { name: 'Fresh', stat: 'dex', rank: 2, type: 'utility' }] };
+    const dice = { list: [10, 10, 10], rules: STANDARD, dc: { easy: 8, normal: 12, hard: 16, extreme: 20 }, perUse: 3 };
+    const line = what => `? roll Astra | ${what} | normal | 10`;
+    const stat = workChecks([raised], [line('CHA')], dice, shown).results[0];
+    assert.equal(stat.bonus, shown[0].stats[6], 'the table\'s CHA, not the raised one');
+    assert.equal(stat.total, 10 + shown[0].stats[6]);
+    assert.equal(stat.unlisted, undefined);
+    const skill = workChecks([raised], [line('Obscure')], dice, shown).results[0];
+    assert.equal(skill.bonus, shown[0].skills[0][1]);
+    const live = workChecks([raised], [line('CHA')], dice).results[0];
+    assert.notEqual(live.bonus, stat.bonus, 'no table: the sheet\'s bonus, as before');
+});
+
+test('a member or skill the table did not show rolls with no bonus, and the notes say why', () => {
+    const shown = bonusTable(party, STANDARD);
+    const raised = { ...member, skills: [...member.skills, { name: 'Fresh', stat: 'dex', rank: 2, type: 'utility' }] };
+    const joined = { name: 'Newcomer', aliases: [], stats: member.stats, level: 10, skills: [] };
+    const dice = { list: [10, 10, 10], rules: STANDARD, dc: { easy: 8, normal: 12, hard: 16, extreme: 20 }, perUse: 3 };
+    const out = workChecks([raised, joined], ['? roll Newcomer | CHA | normal | 10', '? roll Astra | Fresh | normal | 10'], dice, shown);
+    assert.deepEqual(out.results.map(r => [r.who, r.bonus, r.total, r.unlisted]), [['Newcomer', 0, 10, 'member'], ['Astra', 0, 10, 'skill']]);
+    assert.equal(out.notes.length, 2);
+    assert.match(out.notes[0], /Newcomer rolled CHA with no bonus: they were not in the table the note showed/u);
+    assert.match(out.notes[1], /Fresh with no bonus: it was not in the table/u);
+});
