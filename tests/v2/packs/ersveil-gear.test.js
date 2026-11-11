@@ -80,5 +80,5 @@ test('each cast member lists their signature gear by slug, every piece is an ite
     const byName = Object.fromEntries(p.content.items.map(item => [item.name, item]));
     assert.deepEqual([byName['Rune-Marked Dwarven War-Hammer'].slot, byName['Rune-Marked Dwarven War-Hammer'].rarity, byName['Rune-Marked Dwarven War-Hammer'].stats], ['weapon', 'rare', { STR: 1, VIT: 1 }]);
     assert.deepEqual([byName['Huge Spiked Iron Maul'].slot, byName['Huge Spiked Iron Maul'].rarity, byName['Huge Spiked Iron Maul'].stats], ['weapon', 'uncommon', { STR: 1 }]);
-    assert.equal(p.version, '2.9.2');
+    assert.equal(p.version, '2.9.3');
 });

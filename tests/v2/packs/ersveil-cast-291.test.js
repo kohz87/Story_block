@@ -16,7 +16,7 @@ test('Ersveil 2.9.1: every look names its height in cm, in the owner\'s numbers,
         assert.equal([...look.matchAll(/about (\d+) cm/g)].map(m => m[1]).join(), String(cm), id);
         assert.ok([...look].length <= CAST_LIMITS.look, `${id}: ${[...look].length}`);
     }
-    assert.equal(pack.version, '2.9.2');
+    assert.equal(pack.version, '2.9.3');
 });
 
 test('Ersveil 2.9.1: first-meeting stances for Temiwa, Ysmeth, Nysseth and Harrak; Nysseth\'s last milestone leads with the choice', () => {
