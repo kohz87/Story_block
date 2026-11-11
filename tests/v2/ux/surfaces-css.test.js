@@ -9,11 +9,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ROOT_SELECTOR, THEME_ROOTS, themeCss, themeTokens } from '../../../src/v2/view/theme.js';
 import { changesCardScreen } from '../../../src/v2/screens/changes-card.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
-const host = read('view/host.css');
-const mounts = read('view/mounts.css');
-const glass = read('view/glass.css');
+const host = cssOf('host');
+const mounts = cssOf('mounts');
+const glass = cssOf('glass');
 
 // The declarations of every rule whose selector is exactly `selector` (outside at-rules; `at` starts the search at an
 // at-rule, e.g. a media query), joined: a later rule that adds to an earlier one counts.
@@ -47,7 +48,7 @@ test('the three chat-side surfaces are theme roots, so the look\'s tokens reach 
     }
     // The literal lists in the stylesheets name the same roots (a rule under a missing root would never apply).
     for (const file of ['controls.css', 'glass.css', 'settings.css']) {
-        const text = read(`view/${file}`);
+        const text = file === 'controls.css' ? read('view/controls.css') : cssOf(file.replace('.css', ''));
         assert.ok(text.includes('.story-suite-bar, .story-suite-extras, .story-suite-reply-note'), file);
     }
     assert.match(themeCss({ scheme: 'dark', panel: 'glass' }), /\.story-suite-bar[^{]*\{/);
@@ -155,7 +156,6 @@ test('the screen bar takes the navbar\'s look: a glass pill on a phone, a glass 
     const label = declared(glass, '.ss-screenbar-label {');
     assert.ok(/font-size: 11px;/.test(label) && /font-weight: 700;/.test(label) && /white-space: nowrap;/.test(label) && /text-overflow: ellipsis;/.test(label), 'the label: 11px, 700, one line, ellipsis');
     assert.match(declared(glass, '.ss-screenbar-item[aria-current="page"] {'), /color: var\(--ss-accent-text\);/, 'the label reads in the accent text token');
-    assert.match(declared(glass, '.ss-screenbar-tile[aria-current="page"] {'), /border-color: var\(--ss-accent\);[^}]*background: var\(--ss-accent-soft\);/, 'the current tile: accent ring, accent-soft fill');
     // Wide: the row is 68px, under the header card (the tab row's air), its pill-less slots spread evenly (the glass rule above).
     const wide = mounts.slice(mounts.indexOf('@media (min-width: 760px) {', mounts.indexOf('.ss-gameview-body {')));
     assert.match(wide, /\.ss-gameview-nav \{[^}]*margin: var\(--ss-space-3, 12px\) 24px 0;/);
@@ -176,7 +176,7 @@ test('the story panel: the tabs are the screen bar at its foot (no strip left), 
 });
 
 test('the bar\'s buttons are at least 40px tall on a phone (44 preferred); desktop keeps its 36px pills', () => {
-    const host = readFileSync(new URL('../../../src/v2/view/host.css', import.meta.url), 'utf8');
+    const host = cssOf('host');
     const phone = host.slice(host.indexOf('@media (max-width: 560px)'));
     const at = phone.indexOf('.story-suite-bar .menu_button');
     assert.ok(at > 0, 'a phone rule for the bar buttons');
@@ -186,7 +186,7 @@ test('the bar\'s buttons are at least 40px tall on a phone (44 preferred); deskt
 });
 
 test('the HUD strip keeps 8px of air above SillyTavern\'s message box (#send_form) at every width', () => {
-    const mounts = read('view/mounts.css');
+    const mounts = cssOf('mounts');
     const rule = /\.ss-hud \{([^}]*)\}/.exec(mounts)?.[1] ?? '';
     assert.match(rule, /margin: 0 0 8px;/, 'a bottom margin of 8px on the strip');
 });

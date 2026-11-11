@@ -472,3 +472,70 @@ test('a scratch entry of another domain keyed by a deleted reply\'s record ID is
     t.after(() => loaded.close());
     assert.deepEqual(loaded.head(), live, 'a reload equals live');
 });
+
+test('a Re-read of an unchanged reply keeps the receipt that made each stack: stacks.<id>.from is equal', async t => {
+    const host = await fresh(t);
+    await host.send('Find things.', reply('You find things.', ['+ item Torch x2', '+ item Rope']));
+    const index = at(host, 'You find things.');
+    const froms = () => Object.fromEntries(Object.values(host.head().domains.inventory.stacks).map(stack => [stack.id, stack.from]));
+    const before = froms();
+    assert.ok(Object.keys(before).length >= 2 && Object.values(before).every(from => from !== ''), 'the stacks name their receipts');
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(froms(), before, 'the same stacks name the same receipts after a Re-read');
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(froms(), before, 'and after a second one');
+    await agrees(t, host, 'after the Re-reads');
+});
+
+// A Re-read keeps each line's receipt id (SPEC §4.1): the ids of the lines that still read the same, in every shape of reply.
+const receiptIds = (host, index) => host.ctx.chat[index].extra.storySuite.receipts.map(receipt => receipt.id);
+const fromsOf = host => Object.fromEntries(Object.values(host.head().domains.inventory.stacks).map(stack => [stack.id, stack.from]));
+
+test('a Re-read of an edited reply: the lines that read the same keep their receipt ids, a changed line gets a fresh one', async t => {
+    const host = await fresh(t);
+    await host.send('Find things.', reply('You find things.', ['+ item Torch x2', '+ item Rope']));
+    const index = at(host, 'You find things.');
+    const before = receiptIds(host, index);
+    assert.equal(before.length, 2);
+    await host.st.editMessage(index, reply('You find things.', ['+ item Torch x2', '+ item Lamp']));
+    assert.equal((await host.turn.reread(index)).ok, true);
+    const after = receiptIds(host, index);
+    assert.equal(after[0], before[0], 'the unchanged line keeps its id');
+    assert.notEqual(after[1], before[1], 'the changed line has a fresh id');
+    assert.equal(new Set(after).size, 2, 'no id twice');
+    const froms = fromsOf(host);
+    assert.ok(Object.values(froms).every(from => after.includes(from)), 'every stack names a receipt the record holds');
+    await agrees(t, host, 'after an edited Re-read');
+});
+
+test('a Continue, then a Re-read: the receipt ids of the first capture and of the Continue are kept, in order', async t => {
+    const host = await fresh(t);
+    await host.send('Find things.', reply('You find things.', ['+ item Torch x2']));
+    await host.cont(' You linger.\n<Changes>\n+ item Rope\n</Changes>');
+    const index = at(host, 'You find things.');
+    const before = receiptIds(host, index);
+    const froms = fromsOf(host);
+    assert.equal(before.length, 2);
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(receiptIds(host, index), before);
+    assert.deepEqual(fromsOf(host), froms);
+    await agrees(t, host, 'Continue then Re-read');
+});
+
+test('a swipe away and back, then a Re-read: the shown swipe keeps its own receipt ids', async t => {
+    const host = await fresh(t);
+    await host.send('Find things.', reply('You find things.', ['+ item Torch x2', '+ item Rope']));
+    const index = at(host, 'You find things.');
+    const first = receiptIds(host, index);
+    const froms = fromsOf(host);
+    await host.swipe(reply('Nothing here.', ['+ coin 1']));
+    const other = receiptIds(host, index);
+    await host.st.swipeTo(index, 0);
+    assert.deepEqual(receiptIds(host, index), first, 'back on the first swipe: its ids');
+    assert.equal((await host.turn.reread(index)).ok, true);
+    assert.deepEqual(receiptIds(host, index), first, 'a Re-read keeps them');
+    assert.deepEqual(fromsOf(host), froms);
+    await host.st.swipeTo(index, 1);
+    assert.deepEqual(receiptIds(host, index), other, 'the other swipe still has its own');
+    await agrees(t, host, 'swipe away and back, then Re-read');
+});

@@ -15,6 +15,7 @@ import { clockProps, gameHeroProps } from '../../../src/v2/view/game-header.js';
 import { hero } from '../../../src/v2/view/widgets/hero.js';
 import { setupDom } from './mounts/helpers.js';
 import { fakeApi, host as widgetHost, installDom } from './widgets/fake-dom.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const settle = async () => { for (let n = 0; n < 6; n += 1) await new Promise(resolve => setImmediate(resolve)); };
 const WHERE = { present: ['Fenna', 'Hooded courier'], places: [{ name: 'Bluewatch Village' }, { name: 'The Weir' }], weatherOn: true, place: 'Bluewatch Village', weatherText: 'heavy rain, rising river' };
@@ -410,7 +411,7 @@ test('the page: the header\'s one editor changes the scene through the real comm
 });
 
 test('the header\'s one Edit button is a pill in the corner (a phone: beside the name), the editor stacks its groups on a phone, and the lines it edits are hidden while it is open', () => {
-    const css = readFileSync(new URL('../../../src/v2/view/glass.css', import.meta.url), 'utf8');
+    const css = cssOf('glass');
     const widgetCss = readFileSync(new URL('../../../src/v2/view/widgets/styles.js', import.meta.url), 'utf8');
     const rule = selector => {
         const at = css.indexOf(`${selector} {`);

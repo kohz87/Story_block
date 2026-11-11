@@ -16,6 +16,7 @@ import { LABEL_MIN_PX, labelUnits } from '../../../src/v2/view/widgets/radar.js'
 import { homeScreen } from '../../../src/v2/screens/home.js';
 import { sourceOf } from '../../helpers/split-source.js';
 import { screen, screensWith, setupDom } from '../view/mounts/helpers.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
 
@@ -125,7 +126,7 @@ test('the game view\'s navigation is the screen bar: the screens in order, the o
     assert.equal(nav.querySelector('.ss-screenbar-item[aria-current="page"]').getAttribute('data-id'), 'x/fight');
     assert.equal(nav.getAttribute('data-ss-more'), null, 'five slots do not scroll, so no cue');
     view.close();
-    const css = read('view/mounts.css');
+    const css = cssOf('mounts');
     assert.match(css, /\.ss-tabs-list\[data-ss-axis="x"\]\[data-ss-more="end"\][^}]*mask-image/);
     assert.match(css, /\.ss-tabs-list\[data-ss-axis="y"\]\[data-ss-more="both"\][^}]*mask-image/);
 });
@@ -227,7 +228,7 @@ test('a dialog keeps Tab inside itself and pulls stray focus back; mounts.css di
     assert.equal(doc.activeElement, nodes[0]);
     handle.close();
     assert.equal(doc.listeners.length, 0, 'no listeners left behind');
-    const css = read('view/mounts.css');
+    const css = cssOf('mounts');
     assert.match(css, /\.ss-dialog-backdrop \{[^}]*background: rgba\(0, 0, 0, 0\.55\);[^}]*backdrop-filter: blur\(3px\)/);
 });
 
@@ -245,7 +246,7 @@ test('a dialog screen may ask for a wide window; the width is validated and moun
     b.close();
     assert.deepEqual(validateScreen({ ...wide, width: 'wide' }), []);
     assert.match(validateScreen({ ...wide, width: 'huge' }).join(' '), /width must be "wide"/);
-    const css = read('view/mounts.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const css = cssOf('mounts').replace(/\/\*[\s\S]*?\*\//g, '');
     assert.match(css, /@media \(min-width: 768px\) \{[^@]*\.ss-dialog\.ss-dialog-wide \{\s*width: min\(960px, 94vw\);/);
 });
 
@@ -270,11 +271,11 @@ test('Home shows Story Director\'s own status line for each quest (an offer says
 });
 
 test('CSS: hud items cannot collapse, the game view is opaque unless Glass, the side sheet floats over the chat', () => {
-    const mounts = read('view/mounts.css');
+    const mounts = cssOf('mounts');
     assert.match(mounts, /\.ss-hud > \.ss-hud-item \{\s*container-type: normal;\s*min-width: 0;/);
     // Opaque unless the theme sets the glass tokens (Panel style Glass): then the page shows through.
     assert.match(mounts, /@supports \(color: rgb\(from red r g b\)\) \{\s*\.ss-gameview \{\s*background-color: var\(--ss-sheet-bg, rgb\(from var\(--ss-surface\) r g b \/ 1\)\);/);
-    const host = read('view/host.css');
+    const host = cssOf('host');
     // The sheet floats: nothing moves or resizes SillyTavern's chat column (#sheld) when it opens.
     assert.doesNotMatch(host, /#sheld/);
     assert.match(host, /width: var\(--story-suite-sheet-width\);/);

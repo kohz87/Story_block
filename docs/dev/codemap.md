@@ -110,9 +110,25 @@ Last checked: 2026-11-07.
 ## src/v2/view/
 - `src/v2/view/clock.js`: formats story minutes as calendar dates and times using the best available calendar.
 - `src/v2/view/download.js`: saves text files through a temporary browser download link.
-- `src/v2/view/inv-sheet.css`: styles the Inventory Grid's item sheet dialog contents (`.ss-dialog.inv-sheet`), split out of mounts.css.
+- `src/v2/view/glass-base.css`: the building blocks: variables, section label, icons, pill, progress bar, tones, tile and status badge. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-hero.css`: the hidden rule and the hero block (header, Edit button, editor). Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-scene-lists.css`: the hero's Wearing, Travel and compact lines, the scene on a phone, tiers and list cards. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-screenbar.css`: the screen bar, tabs and navbar, and the Story panel's tab strip. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-modal.css`: the modal of ss.dialog and the UI sample helpers. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-forms.css`: the form engine: grouped section, field rows, text, number, select, switch and slider. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-forms-features.css`: the form engine's chips, segmented, lines and search, and the Features form with its presets. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-pages.css`: the settings pages: select ellipsis, Money, Assist, shared buttons, Tabs & Packs and Prompt. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/glass-pages-modules.css`: the Modules and Diagnostics pages, Versions, finger-sized folds and the UI sample. Part of the split of glass.css, loaded by host.css in the original order.
+- `src/v2/view/host-furniture.css`: the host furniture: tokens, bar, card offer, Story panel, tab host, settings folds and rows. Part of the split of host.css, loaded by host.css in the original order.
+- `src/v2/view/host-notes-blocks.css`: notes and Choices under a reply, motion, the Data modules card, block records and the block editor. Part of the split of host.css, loaded by host.css in the original order.
+- `src/v2/view/inv-sheet.css`: styles the Inventory Grid's item sheet dialog contents (`.ss-dialog.inv-sheet`), split out of the mounts sheets.
+- `src/v2/view/mounts-game.css`: the game view: bottom bar, header, window. Part of the split of mounts.css, loaded by host.css in the original order.
+- `src/v2/view/mounts-cards-hud.css`: inline cards under replies and the HUD strip. Part of the split of mounts.css, loaded by host.css in the original order.
+- `src/v2/view/mounts-dialogs.css`: dialogs, cards under replies, tags, tab alerts and the Story panel floor. Part of the split of mounts.css, loaded by host.css in the original order.
+- `src/v2/view/settings-window.css`: the settings window: shell, side, rail, page and form sections. Part of the split of settings.css, loaded by host.css in the original order.
+- `src/v2/view/settings-folds.css`: the settings window's old folds and rows, switch, footer bar and desktop window. Part of the split of settings.css, loaded by host.css in the original order.
 - `src/v2/view/scroll-cue.js`: marks which edge of a scroller has overflow and brings items into view.
-- `src/v2/view/screenbar-strip.css`: the screen bar as one scrolling strip (edge fades, snapping slots, a centred full row from 1000px), loaded after mounts.css and glass.css.
+- `src/v2/view/screenbar-strip.css`: the screen bar as one scrolling strip (edge fades, snapping slots, a centred full row from 1000px), loaded after the mounts and glass sheets.
 - `src/v2/view/tab-merge.js`: merges screens that share a tab id into one tab with ordered sections.
 
 ## src/v2/view/mounts/

@@ -4,8 +4,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { cssOf } from '../helpers/css-parts.js';
 
-const glass = readFileSync(new URL('../../../src/v2/view/glass.css', import.meta.url), 'utf8');
+const glass = cssOf('glass');
 const block = selector => {
     const at = glass.indexOf(selector);
     assert.ok(at >= 0, `${selector} is in glass.css`);

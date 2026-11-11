@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createDialogMount } from '../../../../src/v2/view/mounts/dialog.js';
 import { fakeApi, fakeChat, fakeQuery, fakeRenderer, screensWith, setupDom } from './helpers.js';
+import { cssOf } from '../../helpers/css-parts.js';
 
 const wizard = {
     id: 'game/new-hero',
@@ -201,7 +202,7 @@ test('Esc closes only the topmost dialog', () => {
 test('the step row keeps its full height: flex none, so the scrolling body cannot slide under it', () => {
     const controls = readFileSync(new URL('../../../../src/v2/view/controls.css', import.meta.url), 'utf8');
     assert.match(controls, /:where\([^)]*\.ss-dialog[,) ][^)]*\) \.ss-dialog-steps\s*\{\s*flex:\s*none;\s*\}/u);
-    const mounts = readFileSync(new URL('../../../../src/v2/view/mounts.css', import.meta.url), 'utf8');
+    const mounts = cssOf('mounts');
     const rule = mounts.slice(mounts.indexOf('.ss-dialog-steps {'), mounts.indexOf('}', mounts.indexOf('.ss-dialog-steps {')));
     assert.match(rule, /overflow-x:\s*auto/u, 'an overflow container in a flex column would shrink to 0 without flex: none');
 });

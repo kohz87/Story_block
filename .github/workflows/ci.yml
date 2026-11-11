@@ -48,6 +48,8 @@ jobs:
           echo "scope=$scope" >> "$GITHUB_OUTPUT"
       - name: Pack tests (pack-only change)
         if: steps.scope.outputs.scope == 'packs'
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           # Tests outside tests/v2/packs also read the example packs and the pack test helpers.
           others="$(grep -rliE 'examples/packs|packs/helpers|ersveil' tests --include='*.test.js' | grep -v '^tests/v2/packs/' | sort)"

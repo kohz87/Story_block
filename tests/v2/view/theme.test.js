@@ -11,6 +11,7 @@ import {
 } from '../../../src/v2/view/theme.js';
 import { HOST_SETTINGS_DEFAULTS, HOST_SETTINGS_SCHEMA, createSettings } from '../../../src/v2/sdk.js';
 import { installDom } from './widgets/fake-dom.js';
+import { cssOf } from '../helpers/css-parts.js';
 
 const REQUIRED = [
     '--ss-glass', '--ss-glass-strong', '--ss-tile', '--ss-border', '--ss-shadow', '--ss-text', '--ss-muted', '--ss-track',
@@ -390,7 +391,7 @@ test('the settings window\'s help tone reads (>= 4.5:1) on each scheme\'s surfac
     for (const panel of ['glass', 'solid', 'sillytavern']) {
         for (const scheme of ['dark', 'light']) assert.ok(Object.fromEntries(themeTokens({ scheme, panel }))['--ss-help'], `${panel} ${scheme} --ss-help`);
     }
-    const sheet = readFileSync(new URL('../../../src/v2/view/settings.css', import.meta.url), 'utf8');
+    const sheet = cssOf('settings');
     assert.match(sheet, /\.ss-settings :is\(\.ss-card-help, \.ss-field-help, \.ss-feature-help\) \{ color: var\(--ss-help, var\(--ss-muted\)\); opacity: 1; \}/);
 });
 

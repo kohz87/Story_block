@@ -4,8 +4,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { cssOf } from '../helpers/css-parts.js';
 
-const glass = readFileSync(new URL('../../../src/v2/view/glass.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const glass = cssOf('glass').replace(/\/\*[\s\S]*?\*\//g, '');
 const rules = [...glass.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => m[1]).filter(s => /\.ss-(button|iconbutton)\b/.test(s));
 
 test('every .ss-button / .ss-iconbutton selector in glass.css lists the fight offer and pause roots', () => {

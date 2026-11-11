@@ -13,6 +13,7 @@ import { packsFor } from '../../src/v2/runtime.js';
 import { estimateTokens } from '../../src/v2/prompt.js';
 import { STRINGS } from '../../src/v2/strings.js';
 import { sourceOf } from '../helpers/split-source.js';
+import { cssOf } from './helpers/css-parts.js';
 
 const doc = installFakeDom();
 
@@ -252,8 +253,8 @@ test('folds: the top folds are the root\'s own children, each a summary and a bo
 });
 
 test('folds: host.css gives them a summary row with a chevron, no fixed heights; the window scrolls its page', () => {
-    const css = readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8');
-    const windowCss = readFileSync(new URL('../../src/v2/view/settings.css', import.meta.url), 'utf8');
+    const css = cssOf('host');
+    const windowCss = cssOf('settings');
     const rule = (source, selector) => {
         const at = source.indexOf(`${selector} {`);
         assert.ok(at >= 0, `${selector} has a rule`);
@@ -679,7 +680,7 @@ const report = { report: () => 'REPORT' };
 
 test('the legacy story-suite-slider is gone: no code or rule draws it (the form engine has the slider)', () => {
     const hostUi = sourceOf('src/v2/host-ui.js');
-    const css = readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8');
+    const css = cssOf('host');
     assert.doesNotMatch(hostUi, /story-suite-slider|sliderControl/);
     assert.doesNotMatch(css, /story-suite-slider/);
 });

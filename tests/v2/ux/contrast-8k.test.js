@@ -7,8 +7,9 @@ import { readFileSync } from 'node:fs';
 import { PALETTES } from '../../../src/v2/view/theme.js';
 import { changesCardScreen } from '../../../src/v2/screens/index.js';
 import { inventoryScreen } from '../../../src/v2/screens/inventory.js';
+import { cssOf } from '../helpers/css-parts.js';
 
-const mountsCss = readFileSync(new URL('../../../src/v2/view/mounts.css', import.meta.url), 'utf8');
+const mountsCss = cssOf('mounts');
 const luminance = hex => {
     const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;

@@ -421,3 +421,39 @@ test('the extractor runs only while its feature is on', async () => {
     assert.equal(calls.length, 1);
     host.close();
 });
+
+// ---------------------------------------------------------------------------------------------------
+// A module's header toggle (MODULES F131)
+
+const pillModule = (extra = {}) => ({
+    id: 'quiet', name: 'Quiet', version: '0.0.1',
+    features: [{ id: 'quiet.switch', label: 'Quiet switch', describe: 'A toggle.' }],
+    headerControls: [{ id: 'scene', label: 'Quiet scene', icon: '🌙', query: 'quiet.on', command: 'quiet.set', feature: 'quiet.switch', ...extra }],
+});
+
+test('header controls: one toggle per module, checked, listed with its module and left out while its feature is off', () => {
+    assert.deepEqual(definitionProblems(pillModule()), []);
+    assert.deepEqual(definitionWarnings(pillModule()), []);
+    const registry = createRegistry();
+    registry.register(pillModule());
+    assert.deepEqual(registry.headerControls(), [{ moduleId: 'quiet', key: 'quiet/scene', id: 'scene', label: 'Quiet scene', icon: '🌙', query: 'quiet.on', command: 'quiet.set', args: {}, payload: {} }]);
+    const off = createRegistry({ featureValue: id => (id === 'quiet.switch' ? false : undefined) });
+    off.register(pillModule());
+    assert.deepEqual(off.headerControls(), [], 'a feature that is off draws no pill');
+    const cases = [
+        [{ headerControls: {} }, /headerControls is not a list/],
+        [{ headerControls: [pillModule().headerControls[0], { ...pillModule().headerControls[0], id: 'two' }] }, /one header control, not several/],
+        [{ headerControls: ['x'] }, /header control is not an object/],
+        [{ headerControls: [{ ...pillModule().headerControls[0], id: 'Bad Id' }] }, /no usable id/],
+        [{ headerControls: [{ ...pillModule().headerControls[0], label: '' }] }, /no label/],
+        [{ headerControls: [{ ...pillModule().headerControls[0], icon: undefined }] }, /no icon/],
+        [{ headerControls: [{ ...pillModule().headerControls[0], query: '' }] }, /no query/],
+        [{ headerControls: [{ ...pillModule().headerControls[0], command: 3 }] }, /no command/],
+        [{ headerControls: [{ ...pillModule().headerControls[0], payload: [] }] }, /payload is not an object/],
+        [{ headerControls: [{ ...pillModule().headerControls[0], feature: 'quiet.nope' }] }, /quiet\.nope/],
+    ];
+    for (const [patch, pattern] of cases) {
+        const problems = definitionProblems({ ...pillModule(), ...patch });
+        assert.ok(problems.some(problem => pattern.test(problem)), `${JSON.stringify(patch).slice(0, 60)}: ${problems.join(' | ')}`);
+    }
+});

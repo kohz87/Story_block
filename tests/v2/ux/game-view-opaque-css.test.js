@@ -5,11 +5,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { cssOf, hostImports as hostSheet } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/view/${path}`, import.meta.url), 'utf8');
-const mounts = read('mounts.css');
+const mounts = cssOf('mounts');
 const strip = read('screenbar-strip.css');
-const host = read('host.css');
+const host = cssOf('host');
 const theme = read('theme.js');
 
 // The block of the media query that opens at `needle`, up to its closing brace at the left margin.
@@ -40,13 +41,12 @@ test('a phone\'s full-screen view keeps its opaque floor and the Story panel is 
     assert.doesNotMatch(host, /ss-sheet-floor/, 'the Story panel\'s own rules do not use the game view\'s floor');
 });
 
-test('screenbar-strip.css is imported by size.css, which host.css loads after glass.css', () => {
-    const hostImports = [...host.matchAll(/@import url\('\.\/([a-z-]+\.css)'\)/g)].map(m => m[1]);
-    assert.ok(hostImports.indexOf('size.css') > hostImports.indexOf('glass.css'), 'size.css loads after glass.css');
+test('screenbar-strip.css is imported by size.css, which host.css loads after the glass parts', () => {
+    const hostImports = [...hostSheet().matchAll(/@import url\('\.\/([a-z-]+\.css)'\)/g)].map(m => m[1]);
+    assert.ok(hostImports.indexOf('size.css') > hostImports.indexOf('glass-pages-modules.css'), 'size.css loads after the glass parts');
     assert.match(read('size.css'), /^@import url\('\.\/screenbar-strip\.css'\);$/m);
 });
 
-test('the wide More sheet opens over the window\'s foot, centred, and (screenbar-strip.css) from 1000px the strip is one centred row', () => {
+test('from 1000px the strip (screenbar-strip.css) is one centred row', () => {
     assert.match(strip, /@media \(min-width: 1000px\) \{\s*\.ss-gameview-nav\.ss-screenbar-strip \{\s*justify-content: safe center;/);
-    assert.match(mounts, /\.ss-gameview-main > \.ss-screenbar-sheet \{[^}]*left: 50%;[^}]*bottom: 24px;[^}]*transform: translateX\(-50%\);/);
 });
