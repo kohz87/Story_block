@@ -285,8 +285,9 @@ test('harder foes: a foe has 12 + level/30 Health blocks on a new Foes block and
 test('harder foes: a fight opens with foesHard only when every foe is on a new Foes block', () => {
     const rulesOf = { ...rules };
     const open = blocks => openBoard({}, stateOf(blocks), { sid: '5-abcdef', rules: rulesOf }).session.setup;
-    assert.equal(open(hardBlocks([['Ogre', 1, 1, 12]])).foesHard, 1);
-    assert.equal(open(hardBlocks([['Ogre', 1, 1, 4]], 1, OLD_HURT)).foesHard, undefined);
+    const scaled = blocks => ({ ...blocks, ...Object.fromEntries(Object.entries(blocks).filter(([, block]) => block.role === 'character').map(([who, block]) => [who, { ...block, definition: structuredClone(STANDARD_TEMPLATES[0].definition) }])) });
+    assert.equal(open(scaled(hardBlocks([['Ogre', 1, 1, 12]]))).foesHard, 1);
+    assert.equal(open(scaled(hardBlocks([['Ogre', 1, 1, 4]], 1, OLD_HURT))).foesHard, undefined);
     assert.equal(open(sixBlocks([['Ogre', 1, 1, 4]])).foesHard, undefined, 'a block with no definition of its own is an older one');
 });
 
@@ -387,4 +388,16 @@ test('harder foes: the foe side of a new roll records its divisor (4); an old ro
     const played = playBoard(stateOf(hardBlocks([['Ogre', 1, 20, 12]])), { seed: 2, offset: 0, rules, members: 1, foesSix: 1, foesHard: 1 }, [{ actions: everyone(1) }]);
     const lines = played.result.rounds.flatMap(round => round.lines).filter(line => line.foe);
     assert.ok(lines.length > 0 && lines.every(line => line.foe.divisor === 4), 'every recorded foe side of the fight tells ÷ 4');
+});
+
+test('harder foes: the flag is set only with the doubled bars too (every character scale 2): a stock Foes block added to an old-pin party plays the old rules', () => {
+    const open = blocks => openBoard({}, stateOf(blocks), { sid: '5-abcdef', rules }).session.setup;
+    const scaled = blocks => ({ ...blocks, ...Object.fromEntries(Object.entries(blocks).filter(([, block]) => block.role === 'character').map(([who, block]) => [who, { ...block, definition: structuredClone(STANDARD_TEMPLATES[0].definition) }])) });
+    const both = open(scaled(hardBlocks([['Ogre', 1, 1, 12]], 2)));
+    assert.deepEqual([both.bars, both.foesHard], [2, 1], 'new Characters and a new Foes block: both marks');
+    const old = open(hardBlocks([['Ogre', 1, 1, 12]], 2));
+    assert.deepEqual([old.bars, old.foesHard], [undefined, undefined], 'old-pin Characters with a new Foes block: neither mark, the old rules');
+    const mixed = hardBlocks([['Ogre', 1, 1, 12]], 2);
+    mixed.Astra = { ...mixed.Astra, definition: structuredClone(STANDARD_TEMPLATES[0].definition) };
+    assert.equal(open(mixed).foesHard, undefined, 'one old-pin Character among new ones: no marks');
 });
