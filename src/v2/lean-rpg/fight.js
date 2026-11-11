@@ -4,7 +4,7 @@
 // foes' bars under the Standard formula, or by the narrator's own foe lines), the party is paid once, for that fight: every party member who has not Left
 // (a Down member too; a dead one is not paid) gets XP of their own, from their level against each group's (names.js FIGHT_XP: count × max(1, ceil(foe level / 10)) × 2,
 // times 100% plus 10% for each level the foe is above the member (and minus 10% for each level below), held between 0% and 200%; summed and rounded down, held to 1..60, and
-// nothing at 0, with no receipt line; a board fight captured from 11 Nov (`xp: 2` in its step) pays 15 for every foe instead, the same gap per cent, at most 100; level 5 against six level 5 foes gives 12, level 25 against them gives 0). The groups of the fight are the ones that were standing when the reply began and are still on the Foes
+// nothing at 0, with no receipt line; a board fight captured from 11 Nov (`xp: 2` in its step) pays 15 for every foe instead, the same gap per cent, at most 100: level 5 against six level 5 foes gives 90; a Re-read keeps the formula the fight was paid with, REPLAY.md); level 5 against six level 5 foes gives 12 on the old one, level 25 against them gives 0. The groups of the fight are the ones that were standing when the reply began and are still on the Foes
 // block; a group the narrator cleared is not Down, it is gone (fled, yielded), and a fight with none of its groups left is not won. A later reply that fills
 // the slots again and wins is a new fight, since the groups it starts from are the standing ones. A group that arrives in the reply itself (the pre-call's
 // opened foes, or the narrator's own set-slot line) is part of that reply's fight, so a fight opened and won in one reply is paid.
@@ -111,7 +111,7 @@ function flatXp(groups, level) {
     return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.flatMax, xp)) : 0;
 }
 
-/** The XP of a marked fight (see memberXp): 0, or 1..60. */
+/** The XP of a marked fight with no `xp` in its step (see memberXp): 0, or 1..60. */
 function markedXp(groups, level) {
     const percent = groups.reduce((total, group) => {
         const scale = Math.max(0, Math.min(FIGHT_XP.maxPercent, 100 + FIGHT_XP.gapPercent * (group.level - level)));
@@ -185,7 +185,15 @@ export function fightHook(view, info) {
     // The XP rate in force, recorded with the step (a payload without `rate` is 100): a later change of the setting never moves a reply that has it.
     let rate = XP_RATE.default;
     try { rate = xpRateFrom(typeof view.settings === 'function' ? view.settings('story-block') : null); } catch { rate = XP_RATE.default; }
-    return { commands: [{ type: FIGHT, payload: { was, ...(groups ? { groups } : {}), ...(board?.bars ? { bars: 2, xp: 2 } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) } }] };
+    // A Re-read keeps what the fight was paid with: the reply's earlier `rpg.fight` step decides the flat mark and the rate (one without them stays without);
+    // a fight with no earlier step (first captured now) takes the formula and the setting in force.
+    const old = info?.type === 'reread' ? (info.previous ?? []).filter(receipt => receipt?.type === FIGHT).map(receipt => receipt.replan?.payload).find(isObject) : undefined;
+    let flat = true;
+    if (old) {
+        flat = old.xp === 2;
+        rate = old.rate === undefined ? XP_RATE.default : (xpRateOf(old.rate) ?? rate);
+    }
+    return { commands: [{ type: FIGHT, payload: { was, ...(groups ? { groups } : {}), ...(board?.bars ? { bars: 2, ...(flat ? { xp: 2 } : {}) } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) } }] };
 }
 
 /**
