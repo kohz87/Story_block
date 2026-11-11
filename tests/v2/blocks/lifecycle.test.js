@@ -143,3 +143,28 @@ test('block field and purpose limits are enforced by the block commands', async 
     assert.deepEqual(host.head(), before);
     await reload(host);
 });
+
+test('removing a chat block drops its pin; a removal saved before keeps the pin it left and replays as it was', async t => {
+    const host = await createHost(); t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    success(await host.sdk.command('dm.define', { definition: block('keep') }));
+    success(await host.sdk.command('dm.define', { definition: block('gone') }));
+    const pins = () => Object.keys(host.head().domains.dataModules.pins).length;
+    assert.equal(pins(), 2);
+    await host.send('Remove.', 'A reply.');
+    success(await host.sdk.command('dm.remove', { module: 'pack.chat/gone' }));
+    assert.equal(pins(), 1, 'the removed block\'s pin went with it');
+    await reload(host);
+    assert.equal(pins(), 1);
+    // The same removal as an earlier version saved it: no op for the pin. It replays unchanged and leaves the pin in.
+    const stored = JSON.parse(JSON.stringify(host.ctx.chat));
+    const record = stored.map(message => message.extra?.storySuite).filter(Boolean).at(-1);
+    const before = record.ops.length;
+    record.ops = record.ops.filter(op => !String(op.path).startsWith('/domains/dataModules/pins/'));
+    assert.equal(record.ops.length, before - 1);
+    record.spans.find(span => span.guard?.predicate?.kind === 'dm.remove').n -= 1;
+    await host.st.loadChat(stored);
+    host.store.rebuild();
+    assert.equal(pins(), 2, 'an earlier removal keeps the pin it left');
+    assert.deepEqual(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), []);
+});
