@@ -37,7 +37,7 @@ test('the story panel\'s tabs are the screen bar: aria-current on the chosen tab
     assert.deepEqual(tabs().map(node => node.getAttribute('tabindex')), [null, null, null], 'each tab is a Tab stop of its own (no roving row)');
     assert.deepEqual(tabs().map(node => node.querySelector('.ss-screenbar-label').textContent), ['Alpha', 'Beta', 'Gamma']);
     assert.equal(root.querySelector('.story-suite-pane').textContent, 'Alpha pane');
-    assert.equal(root.querySelector('.ss-screenbar-more').getAttribute('aria-expanded'), 'false', 'More is after them, closed');
+    assert.equal(root.querySelector('.ss-screenbar-more'), null, 'the strip has no More');
 
     // A click chooses: the pane shows the tab, aria-current moves, and the focus stays on that tab after the redraw.
     tabs()[1].focus();
