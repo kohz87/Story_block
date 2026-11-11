@@ -52,9 +52,9 @@ export function createFields(deps) {
             entry.value = value;
             entry.before = atPath(instance.fields, entry.path);
         }
-        // Setting a chat Character's Left to false by hand is a return: the 8-active limit is checked now and the party's room is witnessed like any join.
+        // Setting a chat Character's Left to false by hand is a return: the 4-active limit is checked now and the party's room is witnessed like any join.
         const returns = !story && definition.role === 'character' && definition.scope === 'chat' && entries.some(entry => entry.name === 'left' && entry.value === false && entry.before === true);
-        if (returns) partyFull(ctx, prefix);
+        if (returns && !bench) partyFull(ctx, prefix);
         const inputs = inputsOf(prefix, definition);
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
         const fieldsBefore = copy(instance.fields);

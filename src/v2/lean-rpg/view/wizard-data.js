@@ -15,7 +15,7 @@ import { DM_LIMITS } from '../../data-modules/schema.js';
 import { activeDefinition } from '../../data-modules/adapters.js';
 import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
-import { LEVEL, CREATION, PARTY_MAX, RANK_NAMES, STATS, USES } from '../names.js';
+import { LEVEL, CREATION, PARTY_ACTIVE, RANK_NAMES, STATS, USES } from '../names.js';
 import { SKILL_FIELDS_MAX, SKILL_SLOTS_MAX, UTILITY_SLOTS, skillSlots } from '../../skill-slots.js';
 import { STANDARD_FORMULA, isStandard } from '../rules.js';
 import { classOfLevel, levelOfClass } from '../formula.js';
@@ -256,7 +256,7 @@ export function problemsOf(draft, { persona = '', names = [], room = true, hasYo
         if (!skill.about) out.push(fill(W.needAbout, { name: skill.name }));
         if (!skill.stat) out.push(fill(W.needStat, { name: skill.name }));
     }
-    if (full) out.push(fill(RPG_STRINGS.join.fullActive, { max: PARTY_MAX }));   // (the same sentence a `+ party` line is refused with)
+    if (full) out.push(fill(RPG_STRINGS.join.fullActive, { max: PARTY_ACTIVE }));   // (the same sentence a `+ party` line is refused with)
     if (!room) out.push(fill(W.noRoom, { max: DM_LIMITS.definitions }));
     else if (free < CREATE_ACTIONS) out.push(fill(W.noActions, { used: DM_LIMITS.replyRoots - free, max: DM_LIMITS.replyRoots, need: CREATE_ACTIONS }));
     return [...new Set(out)];

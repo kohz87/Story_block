@@ -12,7 +12,7 @@ import { castSkillsOf } from '../../packs/cast-skills.js';
 import { gearOn } from '../../domains/inventory.js';
 import { actorIdOf } from '../../lean-rpg/roster.js';
 import { placeOf } from '../../domains/gear.js';
-import { CLASS_NAMES, PARTY_ACTIVE, PARTY_MAX } from '../../lean-rpg/names.js';
+import { CLASS_NAMES, PARTY_ACTIVE } from '../../lean-rpg/names.js';
 import { packLevelsOf } from '../../lean-rpg/levels.js';
 import { E, B, J, rpg, partyWitness, partyLimit, stateOf, draftOf, instancePath, blockCount, activeCount, hashOf, newInstance } from './shared.js';
 import { skillCapacity, skillRow } from './skills.js';
@@ -300,8 +300,8 @@ export function createParty(deps) {
         const request = rpg().readJoin({ op: '+', name: payload?.name, labels: { about: payload?.about, class: Number.isSafeInteger(soul) ? CLASS_NAMES[soul - 1] ?? 'X' : 'X', best: payload?.best ?? '' } }, rpg().soulNaming(stateOf(ctx)));
         call.label = 'Party';
         if (request.error) refuse('DM_LABEL', '', request.error);
-        // (an offer made on a reply with the `partyFour` mark says so, and keeps that reply's limit of 4; any other card keeps 8)
-        const four = payload?.four === true, check = rpg().checkJoin(stateOf(ctx), request, undefined, four ? PARTY_ACTIVE : PARTY_MAX);
+        // (the reader's own action keeps the limit of 4; an offer made on a reply with the `partyFour` mark meets a full party as a bench card, any other card is refused)
+        const four = payload?.four === true, check = rpg().checkJoin(stateOf(ctx), request, undefined, PARTY_ACTIVE);
         // The accepted card meets a full party: not refused, the request is kept as an offer in this receipt and the card asks who to bench.
         if (!check.ok && check.full && four) return fullOffer(request, check);
         if (!check.ok) refuse('REFUSED', '', check.why);

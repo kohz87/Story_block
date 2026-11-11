@@ -239,10 +239,11 @@ test('partyRoom: the block cap is 20 of the story\'s own blocks; a reply from be
 
 // Eight active (Wessel and seven companions) with the replies that follow: each marked join and return records the party it relied on.
 const active = host => partyOf(host.head()).filter(person => !person.left).length;
-async function packed() {
-    const host = await world({ eight: true });
-    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou']) await host.send(`${who} comes.`, reply(`+ party ${who}`));
-    assert.equal(active(host), 8);
+// (`size` 4: the reader's own actions keep the limit of 4, so their tests use a full party of four; 8: replies captured with only the `partyRoom` mark)
+async function packed(size = 8) {
+    const host = await world({ eight: size === 8 });
+    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou'].slice(0, size - 1)) await host.send(`${who} comes.`, reply(`+ party ${who}`));
+    assert.equal(active(host), size);
     return host;
 }
 const lastAt = host => host.ctx.chat.length - 1;
@@ -301,11 +302,11 @@ test('a marked return records the party it relied on: deleting the earlier leave
     await settled(host, 'after the Re-read');
 });
 
-// Eight active with Ask on: the companions are made as the wizard and template make them (dm.define), the reader's Add to party is dm.join.
-async function packedAsk() {
-    const host = await world({ mode: 'ask', eight: true });
-    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou']) await make(host, who);
-    assert.equal(active(host), 8);
+// Four active (the reader's own limit) with Ask on: the companions are made as the wizard and template make them (dm.define), the reader's Add to party is dm.join.
+async function packedAsk(size = 4) {
+    const host = await world({ mode: 'ask', eight: size === 8 });
+    for (const who of ['Mara', 'Ren', 'Ilse', 'Dov', 'Pip', 'Kit', 'Lou'].slice(0, size - 1)) await make(host, who);
+    assert.equal(active(host), size);
     return host;
 }
 const templateCharacter = () => {
@@ -320,7 +321,7 @@ test('every way in records the party: Add to party, the wizard (New character, E
         t.after(() => host.close());
         await host.send('Ren goes.', reply('- party Ren'));
         const leave = lastAt(host);
-        assert.equal(active(host), 7);
+        assert.equal(active(host), 3);
         if (route === 'add') {
             await host.send('Ann walks in.', reply('+ party Ann | about: a tinker | class: I | best: int'));
             const added = await host.sdk.command(JOIN_ADD, host.sdk.query('rpg.joins', {})[0]);
@@ -332,10 +333,10 @@ test('every way in records the party: Add to party, the wizard (New character, E
             await host.send('Quiet.', 'Quiet.');
             assert.equal((await host.sdk.command('dm.define', { definition: templateCharacter() })).ok, true);
         }
-        assert.equal(active(host), 8, `${route}: took the place Ren left`);
+        assert.equal(active(host), 4, `${route}: took the place Ren left`);
         await host.st.deleteMessage(leave);
         await settled(host, `${route}: after deleting the leave`);
-        assert.equal(active(host), 8, `${route}: Ren is active again and the new member is skipped, not a ninth`);
+        assert.equal(active(host), 4, `${route}: Ren is active again and the new member is skipped, not a ninth`);
         assert.equal(partyOf(host.head()).find(person => person.name === 'Ren').left, false);
         assert.equal(partyOf(host.head()).some(person => person.name === 'Ann' || person.module === 'pack.chat/template-hero'), false, `${route}: not made`);
         assert.equal((await host.turn.reread(lastAt(host))).ok, true);
@@ -343,18 +344,32 @@ test('every way in records the party: Add to party, the wizard (New character, E
     }
 });
 
-test('a Character made by the template or the wizard with 8 active is refused with the party-full sentence; the same at 7 is made', { skip }, async t => {
+test('a Character made by the template or the wizard with 4 active is refused with the party-full sentence; the same at 3 is made', { skip }, async t => {
     const host = await packedAsk();
     t.after(() => host.close());
     for (const definition of [templateCharacter(), (() => { const d = templateCharacter(); d.slug = 'ann'; d.name = 'Ann'; d.state.who.default = 'Ann'; return d; })()]) {
         const refused = await host.sdk.command('dm.define', { definition });
         assert.equal(refused.ok, false);
-        assert.match(refused.message, /the party is full \(8 active\); someone must leave first/);
+        assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
     }
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     await host.send('Ren goes.', reply('- party Ren'));
     assert.equal((await host.sdk.command('dm.define', { definition: templateCharacter() })).ok, true);
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
+});
+
+test('the reader\'s Add to party keeps the limit of 4 even on an offer from a reply with only the partyRoom mark: refused with the party-full sentence', { skip }, async t => {
+    const host = await world({ mode: 'ask', eight: true });
+    t.after(() => host.close());
+    for (const who of ['Mara', 'Ren', 'Ilse']) await make(host, who);
+    assert.equal(active(host), 4);
+    await host.send('Ann walks in.', reply('+ party Ann | about: a tinker | class: I | best: int'));
+    const offer = host.sdk.query('rpg.joins', {})[0];
+    assert.equal(offer.four, undefined, 'an eight-limit reply: the ordinary Ask card');
+    const refused = await host.sdk.command(JOIN_ADD, offer);
+    assert.equal(refused.ok, false);
+    assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
+    assert.equal(partyOf(host.head()).some(person => person.name === 'Ann'), false);
 });
 
 test('a join captured before the mark replays with the old room (8 own blocks): the removal it relied on going makes it skipped, as Re-read refuses it', { skip }, async t => {
@@ -740,7 +755,7 @@ test('wizard characters replay with the RPG off: two made without a roll, join o
     assert.deepEqual(blocks(host), both, 'the same with the RPG on');
 });
 
-test('a standard Character pinned from a pack keeps the 8-active limit and records the party: refused at eight, and with the earlier leave deleted it is skipped, not a ninth', { skip }, async t => {
+test('a standard Character pinned from a pack keeps the 4-active limit and records the party: refused at four, and with the earlier leave deleted it is skipped, not a fifth', { skip }, async t => {
     const hero = templateCharacter();
     delete hero.slug; hero.slug = 'pinned-hero'; hero.name = 'Pinned hero';
     const host = await packedAsk();
@@ -751,15 +766,15 @@ test('a standard Character pinned from a pack keeps the 8-active limit and recor
     const pinIt = () => host.sdk.command('dm.pin', { module: offer().module, hash: offer().hash, packHash: offer().packHash, subjects: [] });
     const refused = await pinIt();
     assert.equal(refused.ok, false);
-    assert.match(refused.message, /the party is full \(8 active\); someone must leave first/);
+    assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
     await host.send('Ren goes.', reply('- party Ren'));
     const leave = lastAt(host);
     const pinned = await pinIt();
     assert.equal(pinned.ok, true, pinned.message);
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     await host.st.deleteMessage(leave);
     await settled(host, 'after deleting the leave');
-    assert.equal(active(host), 8, 'Ren is active again and the pin is skipped, not a ninth');
+    assert.equal(active(host), 4, 'Ren is active again and the pin is skipped, not a fifth');
 });
 
 // ---- the witness is only "was there room" (fewer than 8 active before) --------------------------------------------------------------------
@@ -794,7 +809,7 @@ test('a wizard Character skipped on replay takes its Skills block with it, and t
     await host.send('Ren goes.', reply('- party Ren'));
     const leave = lastAt(host);
     await make(host, 'Ann');
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     await host.st.deleteMessage(leave);
     await settled(host, 'after deleting the leave');
     assert.equal(blocks(host).some(id => id.includes('ann')), false, 'neither the Character nor an orphan Skills block');
@@ -802,37 +817,37 @@ test('a wizard Character skipped on replay takes its Skills block with it, and t
     assert.equal(refused.ok, false, 'a Skills block can only follow a Character of this chat');
     await host.send('Ren goes again.', reply('- party Ren'));
     await make(host, 'Ann');
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     assert.equal(blocks(host).filter(id => id.includes('ann')).length, 2);
     assert.equal(fields(host, 'ann-skills')?.who, 'Ann');
     await settled(host, 'after making Ann again');
     assert.equal(blocks(host).filter(id => id.includes('ann')).length, 2);
 });
 
-test('setting a Character\'s Left to false by hand is a return: refused at eight active, and witnessed: with an earlier leave deleted it is skipped, not a ninth', { skip }, async t => {
-    const host = await packed();
+test('setting a Character\'s Left to false by hand is a return: refused at four active, and witnessed: with an earlier leave deleted it is skipped, not a fifth', { skip }, async t => {
+    const host = await packed(4);
     t.after(() => host.close());
     const moduleOf = who => partyOf(host.head()).find(person => person.name === who).module;
     const back = who => host.sdk.command('dm.set', { module: moduleOf(who), field: 'left', value: false });
     await host.send('Ren goes.', reply('- party Ren'));
     await host.send('Ann comes.', reply('+ party Ann'));
-    assert.equal(active(host), 8);
+    assert.equal(active(host), 4);
     const refused = await back('Ren');
     assert.equal(refused.ok, false);
-    assert.match(refused.message, /the party is full \(8 active\); someone must leave first/);
-    await host.send('Kit goes.', reply('- party Kit'));
-    await host.send('Dov goes.', reply('- party Dov'));
-    const dov = lastAt(host);
+    assert.match(refused.message, /the party is full \(4 active\); someone must leave first/);
+    await host.send('Mara goes.', reply('- party Mara'));
+    await host.send('Ilse goes.', reply('- party Ilse'));
+    const ilse = lastAt(host);
     await host.send('Quiet.', 'Quiet.');   // (the hand returns go in a reply of their own, after the leave)
-    assert.equal(active(host), 6);
+    assert.equal(active(host), 2);
     assert.equal((await back('Ren')).ok, true);
-    assert.equal((await back('Kit')).ok, true, 'a second hand return, with room');
-    assert.equal(active(host), 8);
+    assert.equal((await back('Mara')).ok, true, 'a second hand return, with room');
+    assert.equal(active(host), 4);
     await settled(host, 'live');
-    await host.st.deleteMessage(dov);
+    await host.st.deleteMessage(ilse);
     await settled(host, 'after deleting an earlier leave');
-    assert.equal(active(host), 8, 'Dov never left, so Kit\'s hand return would be a ninth: skipped');
-    assert.equal(partyOf(host.head()).find(person => person.name === 'Kit').left, true);
+    assert.equal(active(host), 4, 'Ilse never left, so Mara\'s hand return would be a fifth: skipped');
+    assert.equal(partyOf(host.head()).find(person => person.name === 'Mara').left, true);
     assert.equal(partyOf(host.head()).find(person => person.name === 'Ren').left, false, 'Ren\'s return still had room');
 });
 

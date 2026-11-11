@@ -40,8 +40,8 @@ const blockCount = domain => Object.values(domain?.active ?? {})
 // Every way a Character joins or comes back (a story `+ party` / `- party` line, the reader's Add to party, the wizard's and the template's Character) records the
 // party it relied on and keeps the active limit (4, or 8 on a reply with only the `partyRoom` mark): `partyWitness` says a guard records it (a story reply from before the `partyRoom` mark does not), `partyFull` refuses live.
 // The value is what the guard records as `selector.party`: PARTY_ACTIVE (a story reply with the `partyFour` mark) when the 4-active limit is in force,
-// `true` for a reply with only the `partyRoom` mark and for the reader's own actions (8 active; the Ask card's Add and the bench choice name 4 themselves), false for an older reply.
-const partyWitness = ctx => (ctx.cause === 'ui' ? true : ctx.carrier?.rules?.includes('partyFour') ? PARTY_ACTIVE : ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM);
+// `true` for a reply with only the `partyRoom` mark (8 active), PARTY_ACTIVE for the reader's own actions (they follow the current rule), false for an older reply.
+const partyWitness = ctx => (ctx.cause === 'ui' ? PARTY_ACTIVE : ctx.carrier?.rules?.includes('partyFour') ? PARTY_ACTIVE : ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM);
 // The active limit that witness stands for (a story reply from before `partyRoom` has none: the old count in checkJoin).
 const partyLimit = witness => (witness === PARTY_ACTIVE ? PARTY_ACTIVE : PARTY_MAX);
 // (the party is read from this domain's own blocks, never from the lazy RPG library: a chat with the RPG off must replay the same witness; it is lean-rpg/join.js partyOf's
@@ -61,7 +61,7 @@ const partyPairs = state => {
 // so removing an unrelated earlier member below the cap leaves later members as they were.
 const partyRoomOf = (state, limit = PARTY_MAX) => partyPairs(state).filter(pair => !pair[1]).length < limit;
 const partyFull = (ctx, prefix) => {
-    if (ctx.cause === 'ui' && !partyRoomOf(prefix)) refuse('REFUSED', '', fill(B.partyFull, { max: PARTY_MAX }));
+    if (ctx.cause === 'ui' && !partyRoomOf(prefix, PARTY_ACTIVE)) refuse('REFUSED', '', fill(B.partyFull, { max: PARTY_ACTIVE }));
 };
 const instancePath = (id, subject) => ['instances', id, ...(subject === 'chat' ? ['chat'] : ['characters', subject])];
 const rawDefinition = definition => Object.fromEntries(Object.entries(definition).filter(([key]) => !['id', 'pack'].includes(key)));

@@ -665,7 +665,7 @@
 }
 
 /* ---- Cards under replies (fix 8e; view/reply-cards-ui.js, Cards.dc.html): a glass card in the reply strip, a 1px ring in its
-   tone, a 34px tone icon tile, the rows, and a button row of 44px buttons (the primary in the accent, at most four; Later after
+   tone, a 34px tone icon tile, the rows, and a button row of 44px buttons (the primary in the accent, at most three; Later after
    them). Folded by Later it is one 44px line. Tokens only: the text is the theme's, the tones are its tones. */
 .ss-rc {
     --ring: var(--ss-info);
@@ -708,7 +708,6 @@
                 background: none; color: var(--ss-text); font: inherit; font-weight: 600; cursor: pointer;
                 display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .ss-rc-action:disabled { opacity: 0.55; cursor: default; }
-.ss-rc-action[data-action="no"] { color: var(--ss-muted); }   /* (the quiet answer: No, Not now) */
 .ss-rc-primary { border-color: var(--ss-accent); background: var(--ss-accent-soft); font-weight: 700; }
 .ss-rc-later { flex: 0 0 auto; }
 .ss-rc-action:focus-visible, .ss-rc-line:focus-visible { outline: 2px solid var(--ss-text); outline-offset: 2px; }
