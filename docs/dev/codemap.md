@@ -154,6 +154,7 @@ Last checked: 2026-11-07.
 
 ## Split files (7 Nov: files over 450 lines split into small parts; each original keeps its path and public exports)
 - `src/v2/store/chains.js`: cached hashes of record bodies, replay chains and checkpoint windows.
+- `src/v2/store/prefix-memo.js`: the incremental prefix memo, a bounded LRU of store states by replayed prefix that steps one new record instead of replaying a window.
 - `src/v2/ui-host/shared.js`: shared DOM helpers, reader choices and public UI checks.
 - `src/v2/ui-host/setup.js`: widgets, renderer and screen-registry setup for the page host.
 - `src/v2/ui-host/screens.js`: synchronization of module, pack and pinned-block screens.
@@ -225,6 +226,8 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/view/battle-log.js` → `battle-log/draw.js`: the panel, its line nodes and the no-rolls note.
 - `src/v2/lean-rpg/view/battle-log.js` → `battle-log/marker.js`: marker finding and hiding, panel release and marker placement.
 - `src/v2/lean-rpg/view/battle-log.js` → `battle-log/follow.js`: the fold store and the live chat controller.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/receipt.js`: the folded Receipt row, with the exact cue text the narrator was told and the rule numbers in force.
+- `src/v2/lean-rpg/view/battle-log.js` → `battle-log/stop.js`: the why-it-ended words for a recorded stop, and the pace and exchange-cap hint.
 - `src/v2/lean-rpg/view/check-card.js`: the Check card under a reply (who, skill or stat, difficulty, the numbers, the outcome pill, practice gained), drawn from `rpg.check` results; `battle-log/follow.js` places it where the log would stand.
 - `src/v2/lean-rpg/view/check-card.css`: the Check card's styling, scoped to `.rpg-check`, theme tokens only.
 - `src/v2/lean-rpg/view/settings.js` → `settings/constants.js`: shared words, ids, card search words and Custom fields.
@@ -276,6 +279,13 @@ Last checked: 2026-11-07.
 - `testkit/matrix/run/basics.js`: the matrix basic row, action, replay, prompt and dormancy cases.
 - `testkit/matrix/run/cases.js`: the matrix missing-query, malformed, feature, clock, disabled, late and duplicate cases.
 - `testkit/matrix/run/revisions.js`: the matrix swipe, re-read and delete cases.
+
+## testkit/ and examples/
+- `examples/fishing/style.css`: styles the Fishing example's water strip, bobber phases, actions, catch log and released or empty rows, using SillyTavern theme variables.
+- `testkit/fake-st.js`: the fake SillyTavern context for unit tests (`createFakeContext`), its event source, chat helpers and prompt constants.
+- `testkit/fakes.js`: small store and command-bus stand-ins for Story Block's own unit tests of the turn and sdk.
+- `testkit/matrix/rows.js`: the supported Story Suite combinations and the matrix case columns in report order.
+- `testkit/matrix/report.js`: the matrix report: the rows-by-cases Markdown table, details, summary line and testkit description.
 
 ## tests/v2/ (combat replay corpus)
 - `tests/v2/qa/combat-corpus.test.js`: replays the D0 combat chats and pins state, Problems, Re-read, cues and battle-log models.
