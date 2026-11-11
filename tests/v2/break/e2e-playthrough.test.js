@@ -28,14 +28,14 @@ const same = (a, b, label) => { const found = paths(a, b); assert.equal(found.le
 const DM = (mod, reason, kind, labels = '') => `+ dm ${mod} — ${reason} | kind: ${kind}${labels ? ` | ${labels}` : ''}`;
 
 // Problems the script means to cause (code → step numbers it may show on). Any other Problem fails the step.
-// (None so far: the names check and the backfire raise no Problem; Story Director's names check is not on its main yet.)
-const EXPECTED = {};
+// (The names check, feature story-director.names, is on for this playthrough.)
+const EXPECTED = { LIMITED: [17, 18] };   // the names check refuses Elara (overused) at 17 and Temiwa Voss (first name taken) at 18
 
 // One reply each: [player text, story, change lines]. Steps are numbered from 1.
 const STEPS = [
     ['We look around the guild office.', 'Dust hangs in the lamplight of the Guild office. A bell rings over the door.', ['~ you rank: unregistered | wearing: oilskin coat, boots | condition: rested', '+ item Bedroll | qty: 1', '+ item Knife | qty: 1', '+ present Sister Temiwa']],
     ['I sign the ledger.', 'Temiwa watches as Astra signs the Guild ledger in a careful hand.', [DM('guild-membership', 'signed the ledger', 'register'), '~ npc Temiwa | trust: +3 | via: help']],
-    ['I ask what she needs.', 'The clerk wants the cellar cleared of rats.', ['+ quest Granary Rats — the granary cellar is overrun | goal: clear the cellar | giver: Guild | reward: 5 silver | step: take the key']],
+    ['I ask what she needs.', 'The clerk wants the cellar cleared of rats.', ['+ quest Granary Rats — the granary cellar is overrun | goal: clear the cellar | giver: Sir Lothar | reward: 5 silver | step: take the key']],
     ['We take the key.', 'The key is cold and heavy.', ['~ quest Granary Rats | step: go down to the cellar', '- item Knife | qty: 1', '+ item Rusty Knife | qty: 1', '~ place Bluewatch Village | kind: settlement']],
     ['I plan the road.', 'Astra counts the days to Auvoth on the frontier road.', ['~ trip Auvoth | by: foot', '! time +3h']],
     ['We walk.', 'The road is dry and the wind steady. By dusk the walls of Auvoth rise ahead.', ['~ place Auvoth | kind: settlement | region: River Confederacy', '~ weather clear, cold wind']],
@@ -49,8 +49,8 @@ const STEPS = [
     ['I help her carry water.', 'Temiwa stumbles and Astra catches her.', ['~ npc Temiwa | trust: +4 | via: praise', '~ npc Temiwa | affection: +3 | via: help']],
     ['I praise her again.', 'She blushes harder, though the warmth is thin now.', ['~ npc Temiwa | trust: +4 | via: praise']],
     ['I praise her once more.', 'It sounds rehearsed and Temiwa frowns.', ['~ npc Temiwa | trust: +4 | via: praise', '~ npc Temiwa | desire: +2 | via: flirt']],
-    ['A stranger arrives.', 'A tall stranger walks in, calling himself Elara.', ['+ present Elara']],
-    ['Another Temiwa arrives.', 'A second woman gives her name as Temiwa Voss and sits.', ['+ present Temiwa Voss']],
+    ['A stranger arrives.', 'A tall stranger walks in, calling himself Elara.', ['+ present Elara', '+ person Elara | look: tall | flaw: proud | voice: dry | temper: cold']],
+    ['Another Temiwa arrives.', 'A second woman gives her name as Temiwa Voss and sits.', ['+ present Temiwa Voss', '+ person Temiwa Voss | look: pale | flaw: vain | voice: soft | temper: calm']],
     ['I leave the market.', 'The market empties as the lamps are lit.', ['- present Elara', '- present Temiwa Voss', '! time +10h']],
     ['I rest at the inn.', 'The night passes and a new day begins in Auvoth.', ['~ place Auvoth Inn | kind: indoors', '! time +9h']],
     ['I ask about the guild.', 'The examiner says the Guild owes Astra a letter.', [DM('guild-membership', 'passed the exam', 'promote', 'letter: E').replace('+', '~'), '~ time Goldwane 14, 8:00 am']],
@@ -109,8 +109,8 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
     t.mock.method(console, 'error', (...args) => { errors.push(args.map(String).join(' ')); });
     const host = await suiteHost(loaded, { seed: 7 });
     t.after(() => host.close());
-    for (const id of ['story-block.rpg', 'story-block.gear']) host.features.set(id, true);
-    const seen = [], known = new Set(), meters = {};
+    for (const id of ['story-block.rpg', 'story-block.gear', 'story-director.names', 'story-director.pulse']) host.features.set(id, true);
+    const seen = [], known = new Set(), meters = {}, track = {};
     // Every failed check is kept and the run goes on, so one run lists everything that is wrong; the test fails at the end if any.
     const failures = [];
     const soft = async (label, fn) => { try { await fn(); } catch (error) { failures.push(`${label}: ${String(error.message).split('\n').slice(0, 5).join(' | ').slice(0, 700)}`); } };
@@ -137,6 +137,8 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         const list = problemsOf(host).filter(text => !known.has(text));   // the chat's Problems stay listed: only new ones count
         list.forEach(text => known.add(text));
         seen.push([n, list]);
+        if (n === 21 || n === 22 || n === 30) track[n] = { sway: host.q('ripples.sway'), day: host.q('chronicle.day', { day: host.q('chronicle.days')?.[0]?.day }), pulse: JSON.stringify(host.head()?.domains?.director?.pulse ?? null) };
+        if (n === 17 || n === 18) track[n] = { problems: list };
         if (n >= 12 && n <= 16 || n === 25) meters[n] = host.q('npc.meters', { name: 'Temiwa' });
         await soft(label, () => assert.deepEqual(unexpected(list, n), [], 'unexpected Problems'));
         await soft(label, () => assert.deepEqual(errors.splice(0), [], 'something was thrown or logged as an error'));
@@ -159,6 +161,35 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
     });
     // The whole run's Problems, by reply, for the report (printed when the run is asked to: E2E_PRINT=1).
     if (process.env.E2E_PRINT) console.log(JSON.stringify(seen.filter(([, list]) => list.length), null, 1), JSON.stringify(meters).slice(0, 3000));
+    // Names: the check refused the overused Elara at reply 17 and the taken first name at reply 18, each with a Problem; no other reply got one.
+    await soft('names', () => {
+        assert.match(track[17].problems.join('\n'), /Elara: it is on the banned list/, 'Elara is refused as overused');
+        assert.match(track[18].problems.join('\n'), /Temiwa Voss: its first name is already used/, 'Temiwa Voss is a collision');
+        assert.deepEqual(seen.filter(([n, list]) => list.length && n !== 17 && n !== 18), [], 'no other reply has a Problem');
+    });
+    // Ripples: the finished quest (giver Sir Lothar, reply 22) moved Wendhild's hidden sway up by its small tier and nothing else moved it.
+    await soft('ripples', () => {
+        const sway = (n, id) => track[n].sway.find(row => row.id === id);
+        assert.equal(sway(21, 'wendhild').sway, 40, 'Wendhild starts at her base');
+        assert.ok(sway(22, 'wendhild').sway > 40 && sway(22, 'wendhild').reasons.some(r => r.kind === 'quest'), 'finishing the Granary Rats lifted Wendhild');
+        assert.equal(sway(30, 'wendhild').sway, sway(22, 'wendhild').sway, 'later replies leave the sway as it was');
+        assert.deepEqual([sway(30, 'corvin').sway, sway(30, 'hasse').sway], [35, 25], 'the other powers did not move');
+    });
+    // Pulse: replies were rolled (a d20 and a table entry), and the skips were named: a jump of hours, the fight.
+    await soft('pulse', () => {
+        const results = [].concat(JSON.parse(track[30].pulse) ?? []).flatMap(slot => slot?.results ?? []);
+        assert.ok(results.some(entry => Number.isInteger(entry.d20) && entry.kind), `a rolled pulse result is kept (${track[30].pulse?.slice(0, 200)})`);
+        assert.ok(results.some(entry => entry.kind === 'SKIP' && entry.skipped === 'fight'), 'the fight reply skipped its pulse');
+    });
+    // Earlier days: the day passed in Auvoth keeps its witnesses (who stood in the scene at each line) and the names check's lines.
+    await soft('earlier days', () => {
+        const day = track[22].day;
+        assert.ok(day && day.line, 'a past day is in the Journal');
+        const who = [].concat(...(day.who ?? []));
+        for (const name of ['Rika', 'Elara', 'Temiwa Voss']) assert.ok(who.includes(name), `${name} is a witness of the day`);
+        assert.ok(day.who.length === day.happened.length, 'one witness list per line');
+        assert.deepEqual(track[30].day.who, day.who, 'the past day does not change later');
+    });
     // At the end: Re-read of every reply, one by one, each leaving the state as it was.
     const live = JSON.stringify(host.head());
     for (const index of replyAt) {
@@ -175,7 +206,7 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         const afterSwipe = JSON.stringify(host.head());
         host.store.rebuild();
         assert.equal(JSON.stringify(host.head()), afterSwipe, 'after a swipe of the last reply, a rebuild equals live');
-        assert.deepEqual(unexpected(problemsOf(host), 30), [], 'a swipe of the last reply: unexpected Problems');
+        assert.deepEqual(unexpected(problemsOf(host).filter(text => !known.has(text)), 30), [], 'a swipe of the last reply: unexpected Problems');
     });
     // A delete of a middle reply (the 15th and its player message): live equals a rebuild and a cold reload of what is left.
     await soft('delete', async () => {
