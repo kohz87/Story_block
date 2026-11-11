@@ -235,6 +235,7 @@ test('AOE: the live host stores aoe: 1, rolls the reduced line, and Re-read keep
         const sid = host.store.carrierSid(host.store.headIndex());
         const opened = openBoard(host.ctx.chatMetadata, host.head(), { sid, rules });
         assert.equal(opened.error, undefined, opened.error);
+        delete opened.session.setup.areaAll;   // an old record: it has no `areaAll` mark and keeps the main-group rule
         const staged = stageExchange(host.ctx.chatMetadata, host.head(), SWEEP(1));
         assert.equal(staged.error, undefined);
         const sent = await host.send('Go.', 'One.');
@@ -258,5 +259,57 @@ test('AOE: the live host stores aoe: 1, rolls the reduced line, and Re-read keep
         host.ctx.chatMetadata = meta;
         assert.equal(JSON.stringify(host.head()), live, 'reload keeps the live state');
         assert.deepEqual(rollReceipt(host, 2).data.v2.result.rounds, first.rounds);
+    } finally { host.close(); restore(); }
+});
+
+// The newer area rule (setup `areaAll: 1`): no main group, every standing group takes the full effect.
+function direct2(table, group) {
+    const base = readSheet(stateOf([['Mother', 1, 1, 4], ['Rats', 12, 1, 4], ['Bat', 1, 1, 4]]));
+    const sheet = { ...base, foes: splitFoes(base.foes, { carried: { values: { 21: 8 }, counts: { 2: 12 } } }) };
+    const built = exchangePlan(sheet, SWEEP(group), {}, 1, { members: true, aoe: true, areaAll: true });
+    assert.equal(built.error, undefined, built.error);
+    const hooks = memberRolls(built.plan), prepared = prepareStandard(built.plan, sheet, rules, { lv: true, fix: true, then: true, memberRolls: hooks });
+    const rolled = rollStandard(built.plan, prepared, dice(table), rules, { flow: 2, fix: true, then: true, board: true, memberRolls: hooks });
+    return { built, lines: rolled.rounds[0].lines.filter(line => line.kind === 'act') };
+}
+
+test('areaAll: plan.js accepts an area action with no group and the engine hits every standing group fully', () => {
+    const { built, lines } = direct2({ init0: [20], act0: [20, 1] }, undefined);
+    assert.equal(built.plan.acts[0].group, undefined, 'no group is asked for');
+    assert.equal(built.plan.acts[0].areaAll, true);
+    assert.equal(lines.length, 3, 'one line for each group');
+    assert.equal(lines.some(line => line.reduced === true), false, 'no group takes less');
+    assert.equal(lines.some(line => line.aoeNoTarget), false);
+    assert.equal(new Set(lines.map(line => `${line.pc.die}/${line.foe.die}/${line.outcome}`)).size, 1, 'one roll');
+    // The same blocks as a main-group hit: the pack takes the full area blocks, a lone group a plain decisive hit.
+    assert.deepEqual(lines.map(line => line.damage.blocks), [2, 4, 2]);
+    // A group passed anyway is ignored (an old Auto pick or a stale tap).
+    assert.deepEqual(direct2({ init0: [20], act0: [20, 1] }, 3).lines.map(line => line.damage.blocks), [2, 4, 2]);
+});
+
+test('areaAll: without the mark the plan still asks for a group and keeps the reduced rule', () => {
+    const base = readSheet(stateOf([['Mother', 1, 1, 4], ['Bat', 1, 1, 4]]));
+    const sheet = { ...base, foes: splitFoes(base.foes) };
+    assert.match(exchangePlan(sheet, SWEEP(undefined), {}, 1, { members: true, aoe: true }).error, /Choose a group/u);
+    assert.equal(exchangePlan(sheet, SWEEP(undefined), {}, 1, { members: true, aoe: true, areaAll: true }).error, undefined);
+});
+
+test('areaAll: a new fight is marked, the live host rolls every group alike and Re-read keeps the bytes', async () => {
+    const restore = seedCrypto(77);
+    const { host } = await setup({ blocks: blocks([['Mother', 1, 1, 4], ['Bat', 1, 1, 4]]), board: true });
+    try {
+        const sid = host.store.carrierSid(host.store.headIndex());
+        assert.equal(openBoard(host.ctx.chatMetadata, host.head(), { sid, rules }).error, undefined);
+        assert.equal(boardSession(host.ctx.chatMetadata).setup.areaAll, 1);
+        const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }]);
+        assert.equal(staged.error, undefined, staged.error);
+        await host.send('Go.', 'One.');
+        const first = rollReceipt(host, 2).data.v2.result, cue = rollReceipt(host, 2).summary;
+        assert.deepEqual(first.rounds, staged.preview.result.rounds);
+        assert.doesNotMatch(cue, /reduced/u);
+        assert.equal(first.rounds[0].lines.filter(line => line.kind === 'act').some(line => line.reduced), false);
+        assert.equal((await host.sdk.reread(2)).ok, true);
+        assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), JSON.stringify(first), 'Re-read: the same bytes');
+        assert.equal(rollReceipt(host, 2).summary, cue);
     } finally { host.close(); restore(); }
 });

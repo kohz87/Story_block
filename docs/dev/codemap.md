@@ -50,6 +50,7 @@ Last checked: 2026-11-07.
 - `src/v2/lean-rpg/board/auto-run.js`: plays Auto exchanges on the staged board fight until the cap, a won or lost fight or a badly hurt hero, and words why it stopped.
 - `src/v2/lean-rpg/board/precheck.js`: pure foe pre-check prompt, tolerant JSON reader, group vetting and typed-attack test for opening a fight from a message.
 - `src/v2/lean-rpg/board/view-bars.js`: the board's Health strip text ("Hurt · 5/10") and meter props.
+- `src/v2/lean-rpg/board/view-chips.js`: the board's status chips (foe group "×N", party), the 4-segment Health mini-bar, the choosing member's Mana/Stamina strip and the skill button with cost and "not enough".
 - `src/v2/lean-rpg/board/precheck-run.js`: the pre-check's one Assist call (20 s limit) and the opening it records for a typed attack on new foes.
 - `src/v2/lean-rpg/board/precheck-known.js`: the pre-check prompt's read-only extras: the pack's rank scale line and short dossier lines for named people.
 - `src/v2/lean-rpg/board/stated-level.js`: a foe's Level field on an NSD dossier, matched by exact name or alias only (number, Lv, rank or two ranks): the parse and the dossier lookup the pre-check reads before it records the opening; passes the party + 20 cap.

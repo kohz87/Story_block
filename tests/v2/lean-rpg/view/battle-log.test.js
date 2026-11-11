@@ -466,3 +466,14 @@ test('the panel draws the stop line after the rounds and the Receipt row last, a
     const body = node.children.at(-1);
     assert.equal(body.children.at(-1).className, 'rpg-bl-receipt');
 });
+
+test('an areaAll skill tells its one contest on the first group only; the other groups\' lines do not repeat "vs"', () => {
+    const area = (name, slot, group, extra = {}) => ({ kind: 'act', type: 'magic', outcome: 'success', skill: 'Flash', area: true, aoe: true, aoeGroup: group, aoeAgainst: 'Sluice Rat A',
+        pc: pc('Wessel', 'int', { total: 21 }), foe: foe(name, { slot, total: 12 }), ...extra });
+    const raw = { ...result(), rounds: [{ n: 1, decisive: false, lines: [area('Sluice Rat A', 1, 1), area('Sluice Rat B', 2, 2, { aoeFollowup: true })] }] };
+    const node = buildPanel(setupDom(), panelModel({ resolve: readResolve(raw), state: after, before, roleOf }));
+    const lines = node.querySelectorAll('.rpg-act-text').map(row => row.textContent).filter(text => /Flash/u.test(text));
+    assert.equal(lines.length, 2, JSON.stringify(lines));
+    assert.match(lines[0], /\(21 vs 12\)/u);
+    assert.doesNotMatch(lines[1], /vs/u);
+});
