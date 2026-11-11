@@ -150,7 +150,7 @@ const combat = {
 };
 
 // ---- The Standard formula's blocks (stat formula, 1 Nov) ---------------------------------------------------------------------------------
-// A bar is a row of blocks. The stored value counts the blocks left (Health 0..8, Stamina 0..7, Mana 0..7; a foe group's Health 0..8); the
+// A bar is a row of blocks. The stored value counts the blocks left (Health 0..8, Stamina 0..7, Mana 0..7; a foe group's Health 0..8 on a block made before the harder-foes rule, 0..15 on a new one: 12 + level/30); the
 // bar's size comes from the stats (blocks.js, formula.js `blocksFor`) and is told in each field's `blocks` mark. There are no `names` on those
 // fields: the stage words are spread over the bar's size by the reader (blocks.js). The story still writes a word: each kind's `to` label has the
 // six (or five) words and its effect turns the word into blocks for the bar's size (the same rounding as blocks.js `wordToBlocks`).

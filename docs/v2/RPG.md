@@ -276,9 +276,9 @@ A fight opened on a Foes block of the new template carries `setup.foesHard: 1` (
 
 - a foe group's Health is `12 + floor(level/30)` blocks (12 at levels 1 to 29, up to 15 at 90 to 99), and a new Foes block starts a group at 12;
 - a foe's clean hit takes 2 Health blocks, a decisive hit 4 (a party member's hits are unchanged);
-- a foe adds `floor(level / 4)` to its d20 (the party keeps `floor(level / 5)`, and the turn order is unchanged), whatever divisor the numbers set;
+- a foe adds `floor(level / 4)` to its d20 (the party keeps `floor(level / 5)`, and the turn order is unchanged), whatever divisor the numbers set (the flee contest and the odds the skills view shows use it too);
 - a foe that is the only one standing in its group (a single foe, or each of three single foes; not a group of several, and not a swarm) attacks `ceil(standing party / 2)` times each exchange;
-- the foes' attacks in all are at most 2 x the standing party. Over the cap, each group keeps a share in proportion to what it made, at least one for every standing group; with as many groups as the cap, that many groups attack once, and which ones turns with the exchange number (`board/members.js capAttackers`, `board/plan.js`).
+- the foes' attacks in all are at most 2 x the standing party. The cap counts each foe (a member or a pack), not each group: over the cap, each foe keeps a share in proportion to what it made, at least one for every standing foe; with as many foes as the cap, that many foes attack once, and which ones turns with the exchange number (so with more foes than the cap, a whole group can sit out an exchange) (`board/members.js capAttackers`, `board/plan.js`).
 
 Simulated (Auto, an even general hero, no gear, 200 fights per cell): one hero against one foe of the same level wins 65 / 65 / 71 % at levels 5 / 15 / 30; two to four heroes against one foe win every time; four heroes against three single foes win 64 / 76 / 90 %.
 
@@ -380,7 +380,7 @@ Settings page, only changes the rolls made after it.
 
 The page shows only while the RPG is on.
 
-- **Stat formula.** The roll table of the Standard formula (see [The stat formulas](#the-stat-formulas)) and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks).
+- **Stat formula.** The roll table of the Standard formula (see [The stat formulas](#the-stat-formulas)) and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks). On a Foes block of the harder-foes rule the foe adds `floor(level ÷ 4)` whatever the divisor says, and its Health is `12 + floor(level ÷ 30)` blocks, 12 to 15 (see [Harder foes](#harder-foes-new-chats)).
   Rolls already made keep the numbers they were made with.
 - **Fight board.** Turn the board on or off here; this is the same switch as the one on Features. Under it, **Auto-fight cap** (`rpgAutoCap`, a slider from 1 to 8 or **Until the end**, default 3): the most exchanges **Auto** plays in one press.
 - **Rolls.** **Automatic** or **Off**, as above.
@@ -521,7 +521,7 @@ with the pencils on the block.
 |---|---|
 | **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (1 more every third level), level, cap, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. This row is the old pin; the new Character (`scale: 2`) has no narrator XP and gains the story's rest, full-rest and heal (no buttons), see [Recovery and XP on a new Character](#recovery-and-xp-on-a-new-character). The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a level-up gives points as above; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
 | **Skills** | Up to five skills (a new chat's typed block: eleven slots, each combat or utility, see [Skill slots](#skill-slots)), each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
-| **Foes** | Up to four foe groups, one slot each (`level1` to `level4` for the level, which replaces `class1` to `class4`): the name, how many are left (0 means the slot is empty), the level and the group's health (Standard: 0 to 8 blocks, `4 + floor(level/30)` when the group arrives). |
+| **Foes** | Up to four foe groups, one slot each (`level1` to `level4` for the level, which replaces `class1` to `class4`): the name, how many are left (0 means the slot is empty), the level and the group's health (Standard: 0 to 8 blocks, `4 + floor(level/30)` when the group arrives; a Foes block of the harder-foes rule: 0 to 15 blocks, `12 + floor(level/30)`, see [Harder foes](#harder-foes-new-chats)). |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
 A new chat gets a Combat rules block and a Foes block when you make its first character (see [A new chat](#a-new-chat)),
