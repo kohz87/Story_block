@@ -514,7 +514,8 @@ test('E5: a newly opened board shows the seeded member order before the first ch
     await settle();
     const order = doc.querySelector('[data-ss-screen="story-block/fight"] .rpg-board-order');
     assert.ok(order, 'the order line is present before any choice');
-    assert.match(order.textContent, /^Order: .*Bristle-boars \(1, 2, 3\).*3 attacks on you each exchange$/u);
+    // (the world's Foes block is a new one, so the harder-foes cap shows: three boars make 3 attacks, the party of one takes at most 2)
+    assert.match(order.textContent, /^Order: .*Bristle-boars \(1, 2, 3\).*2 attacks on you each exchange$/u);
 });
 
 test('a pack is one chip with about how many are left, and stays a single target', async t => {

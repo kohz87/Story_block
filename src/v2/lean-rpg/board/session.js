@@ -2,6 +2,7 @@
 // The reply's resolver records the setup and choices; after capture only a fresh segment remains here.
 // The opening carrier and attempt fix the seed, so a narrated swipe keeps the dice.
 
+import { hardFightFor } from '../foes.js';
 import { readSheet } from '../read.js';
 import { fightSeed } from './dice.js';
 import { boardWitness, equipmentForBoard, playBoard } from './engine.js';
@@ -18,7 +19,7 @@ const START = 'rpgFightStart';
 const OPENING_KEYS = ['opening', 'approach', 'drop', 'opened'];
 // The harder-foes rule (setup.foesHard = 1) starts a fight only when every foe on the sheet is of a new Foes block (read.js `hard`) and the fight also has the doubled bars (every character scale 2: the rule's hits are tuned for that Health); otherwise the fight keeps the old numbers.
 const doubled = sheet => sheet.characters.length > 0 && sheet.characters.every(actor => actor.scale === 2);
-const hardFoes = sheet => doubled(sheet) && sheet.foes.filter(foe => foe.filled).length > 0 && sheet.foes.filter(foe => foe.filled).every(foe => foe.hard === 1);
+const hardFoes = sheet => sheet.foes.some(foe => foe.filled) && hardFightFor(sheet);
 const object = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const openingContext = setup => Object.fromEntries(OPENING_KEYS.filter(key => Object.hasOwn(setup ?? {}, key))
     .map(key => [key, structuredClone(setup[key])]));

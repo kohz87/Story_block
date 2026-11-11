@@ -4,13 +4,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { STANDARD_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
-import { FOE_LEVEL, foeBlocksByLevel, hardBlocksByLevel } from '../../../../src/v2/lean-rpg/foes.js';
+import { FOE_LEVEL, foeBlocksByLevel, hardBlocksByLevel, hardFightFor } from '../../../../src/v2/lean-rpg/foes.js';
 import { DM_LIMITS } from '../../../../src/v2/data-modules/schema.js';
 import { openBoard } from '../../../../src/v2/lean-rpg/board/session.js';
 import { playBoard } from '../../../../src/v2/lean-rpg/board/engine.js';
 import { capAttackers, carriedFrom, collapseFoes, packAreaBlocks, splitFoes } from '../../../../src/v2/lean-rpg/board/members.js';
 import { memberRolls } from '../../../../src/v2/lean-rpg/board/member-rolls.js';
 import { exchangePlan } from '../../../../src/v2/lean-rpg/board/plan.js';
+import { fleeRoll } from '../../../../src/v2/lean-rpg/board/flee.js';
+import { oddsFor, subjectOdds } from '../../../../src/v2/lean-rpg/rules.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { hashJson } from '../../../../src/v2/replay.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
@@ -400,4 +402,28 @@ test('harder foes: the flag is set only with the doubled bars too (every charact
     const mixed = hardBlocks([['Ogre', 1, 1, 12]], 2);
     mixed.Astra = { ...mixed.Astra, definition: structuredClone(STANDARD_TEMPLATES[0].definition) };
     assert.equal(open(mixed).foesHard, undefined, 'one old-pin Character among new ones: no marks');
+});
+
+test('harder foes: the flee contest and the odds the skills view shows use the foe\'s level / 4 too; without the flag they keep the numbers\' divisor, byte for byte', () => {
+    const sheet = readSheet(stateOf(hardBlocks([['Ogre', 1, 20, 12]])));
+    const flee = hard => fleeRoll(sheet.characters[0], sheet.foes, rules, () => 10, { hard });
+    assert.equal(flee(true).foe.classBonus, 5);
+    assert.equal(flee(true).foe.divisor, 4, 'the line tells its divisor (the battle log reads ÷ 4)');
+    assert.equal(flee(false).foe.classBonus, 4);
+    assert.equal(Object.hasOwn(flee(false).foe, 'divisor'), false);
+    assert.deepEqual(fleeRoll(sheet.characters[0], sheet.foes, rules, () => 10), flee(false), 'a call with no option is the old roll');
+    const subject = { stat: 'str', statValue: 10, stats: { str: 10, dex: 10 }, level: 20, soul: 5, rank: 1, foeLevel: 20, foeClass: 5 };
+    const old = subjectOdds(rules, subject), hard = subjectOdds(rules, { ...subject, hard: true });
+    assert.deepEqual(oddsFor(rules, { bonus: 9, foeClass: 20 }), oddsFor(rules, { bonus: 9, foeClass: 20, hard: false }));
+    assert.ok(hard.success < old.success, 'a level 20 foe adding 5 instead of 4 lowers the hero\'s chance');
+    assert.equal(hard.bonus, old.bonus, 'the hero\'s own roll keeps its divisor');
+});
+
+test('harder foes: hardFightFor is one predicate for the board and the odds (doubled bars + every foe on a new block; empty slots decide when none is filled)', () => {
+    const scaled = blocks => Object.fromEntries(Object.entries(blocks).map(([key, block]) => [key, block.role === 'character' ? { ...block, definition: structuredClone(STANDARD_TEMPLATES[0].definition) } : block]));
+    const read = blocks => readSheet(stateOf(blocks));
+    assert.equal(hardFightFor(read(scaled(hardBlocks([['Ogre', 1, 5, 12]])))), true);
+    assert.equal(hardFightFor(read(hardBlocks([['Ogre', 1, 5, 12]]))), false, 'old-pin hero');
+    assert.equal(hardFightFor(read(scaled(hardBlocks([['Ogre', 1, 5, 4]], 1, OLD_HURT)))), false, 'old Foes block');
+    assert.equal(hardFightFor(read(scaled(hardBlocks([])))), true, 'no foe filled: the new block\'s slots decide');
 });

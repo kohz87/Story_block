@@ -140,7 +140,7 @@ export function playBoard(state, setup, exchanges) {
         if (built.error) return { error: built.error };
         const standingGroups = real => (boardFoeList ?? []).some(foe => (Number.isInteger(foe.group) ? foe.group : foe.slot) === real.slot && values.get(foe.slot) > 0);
         const fleeFoes = members ? realFoes.filter(standingGroups) : sheet.foes;
-        const source = boardDice(setup.seed, number), flee = built.flee ? fleeRoll(built.flee, fleeFoes, rules, source('flee', 0)) : null;
+        const source = boardDice(setup.seed, number), flee = built.flee ? fleeRoll(built.flee, fleeFoes, rules, source('flee', 0), { hard }) : null;
         if (flee && flee.outcome !== 'fail') {
             rounds.push({ n: number, decisive: false, lines: [flee] });
             stop = 'fled';
