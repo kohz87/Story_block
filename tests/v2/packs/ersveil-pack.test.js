@@ -1,4 +1,4 @@
-// The example pack (examples/packs/ersveil, Ersveil 2.9.3, the open world) and its lorebook (ersveil-lore.json): the pack
+// The example pack (examples/packs/ersveil, Ersveil 2.9.4, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
 // docs/v2/ERSVEIL.md describes; the lorebook has 227 entries with unique uids.
 import test from 'node:test';
@@ -48,17 +48,17 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(noDirector.ok, false);
 });
 
-test('the pack is Ersveil 2.9.3, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.9.4, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.9.3');
+    assert.equal(value.version, '2.9.4');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
-    assert.equal(value.requires.storyBlock, '^2.28.0', 'pack cast skills with a type 2.28.0; content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, portraits up to 150 KB 2.16.0, rpg.ranks and rpg.levelCap 2.17.0, and item gear fields and cast gear 2.18.0; the Reputation tab layouts and migrations 2.22.0');
+    assert.equal(value.requires.storyBlock, '^2.30.0', 'the guild screen\'s tiles prop 2.30.0; pack cast skills with a type 2.28.0; content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, portraits up to 150 KB 2.16.0, rpg.ranks and rpg.levelCap 2.17.0, and item gear fields and cast gear 2.18.0; the Reputation tab layouts and migrations 2.22.0');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
     // (`you` is the Rank the pack gives Your look: one object, not a list, so it has no length.)
-    assert.deepEqual(counts, { you: undefined, items: 16, places: 320, routes: 350, events: 136, dataModules: 4, rpg: undefined, cast: 12 });
+    assert.deepEqual(counts, { you: undefined, items: 16, places: 320, routes: 350, events: 106, dataModules: 3, rpg: undefined, cast: 12 });
     assert.equal(value.economy, undefined, 'no money scale: prices are the story\'s');
     assert.ok(value.content.places.every(place => place.market === undefined), 'no market types: there are no market records to name');
     assert.equal(value.weather.tables.length, 84);
@@ -66,7 +66,7 @@ test('the pack is Ersveil 2.9.3, the open world: the map, the calendar, the weat
     assert.equal(value.start.scene.place.name, 'Bluewatch Village / Guild Office');
     assert.deepEqual(value.start.inventory, { money: 40 }, 'four silver and no pack items');
     assert.deepEqual(value.calendar.start, { year: 611, month: 'Goldwane', day: 12, hour: 6, minute: 40 });
-    assert.deepEqual(value.content.dataModules.map(module => module.slug), ['standing', 'fame', 'guild-membership', 'succession']);
+    assert.deepEqual(value.content.dataModules.map(module => module.slug), ['standing', 'fame', 'guild-membership']);
     assert.deepEqual(value.content.rpg.skillSets.map(set => set.name), ['Sealwarden recruit']);
 
 });
@@ -79,7 +79,7 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     const result = await installed.install(packText, { source: 'file', origin: 'pack.json' });
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.name, 'Ersveil (open world)');
-    assert.equal(addsLine(installed.list()[0]), '16 items, 136 events, 320 places, 350 routes, 1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables');
+    assert.equal(addsLine(installed.list()[0]), '16 items, 106 events, 320 places, 350 routes, 1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables');
 });
 
 test('ersveil-lore.json is a SillyTavern World Info book of 227 entries with unique uids', () => {

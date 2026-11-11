@@ -233,16 +233,21 @@ export function renderDataModules(root, api = {}) {
         const match = own ? (row.actors ?? []).find(actor => String(actor.name).toLowerCase() === String(own).toLowerCase()) : null;
         return match ? [match.id] : [];
     };
+    // A character block with nobody to attach says so (the box and its note), never silently.
+    const unattached = (row, subjects) => row.definition.scope === 'character' && !subjects.length;
     async function enableAll(rows) {
         enabling = true;
-        for (const row of enableable(rows)) {
-            const subjects = chosen.get(row.module)?.size ? [...chosen.get(row.module)] : readerSubjects(row);
-            const result = await run('dm.pin', { module: row.module, hash: row.hash, packHash: row.packHash, subjects });
-            notes[row.module] = result?.ok ? result.receipt?.summary || 'Done.' : `${result?.code ?? 'REFUSED'}: ${result?.message ?? 'Not applied.'}`;
-            if (result?.ok) refused.delete(row.module); else refused.add(row.module);
-            chosen.delete(row.module);
-        }
-        confirmingAll = false; enabling = false;
+        try {
+            for (const row of enableable(rows)) {
+                const subjects = chosen.get(row.module)?.size ? [...chosen.get(row.module)] : readerSubjects(row);
+                let result;
+                try { result = await run('dm.pin', { module: row.module, hash: row.hash, packHash: row.packHash, subjects }); }
+                catch (error) { result = { ok: false, code: 'ERROR', message: error?.message || 'The command failed.' }; }
+                notes[row.module] = result?.ok ? `${result.receipt?.summary || 'Done.'}${unattached(row, subjects) ? ' No character of yours was found to attach: attach them afterwards.' : ''}` : `${result?.code ?? 'REFUSED'}: ${result?.message ?? 'Not applied.'}`;
+                if (result?.ok) refused.delete(row.module); else refused.add(row.module);
+                chosen.delete(row.module);
+            }
+        } finally { confirmingAll = false; enabling = false; }
         draw(true);
     }
     function enableAllBox(rows) {
@@ -253,7 +258,7 @@ export function renderDataModules(root, api = {}) {
             box.setAttribute('role', 'group');
             make('p', 'ss-rm-confirm-title', `Enable ${todo.length} block${todo.length === 1 ? '' : 's'} for this chat?`, box);
             const names = make('ul', 'ss-rm-confirm-names', '', box);
-            for (const row of todo) make('li', '', row.definition.name, names);
+            for (const row of todo) make('li', '', unattached(row, chosen.get(row.module)?.size ? [...chosen.get(row.module)] : readerSubjects(row)) ? `${row.definition.name} (no character of yours found)` : row.definition.name, names);
             const actions = make('div', 'ss-rm-confirm-actions', '', box);
             const apply = button('ss-rm-btn ss-rm-btn-pri', { text: 'Enable all' });
             const cancel = button('ss-rm-btn', { text: 'Cancel' });

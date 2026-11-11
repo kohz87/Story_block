@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Example pack Ersveil 2.9.3: no Court favour block.** Highmark's throne follows one fixed road for now (a later release lets your deeds decide it); a chat already on another throne branch keeps it, and a chat that enabled Court favour keeps the block.
+
 ## 2.29.0
 
 - **Story checks are back.** Outside a fight, each reply offers the narrator three dice, with the difficulty table and your party's exact bonuses. When you or a party member attempt something that can fail (persuade, lie, sneak, climb, a lock, a utility skill), the narrator uses the next die, follows the result, and reports it as `? roll Name | skill or stat | difficulty | die`. Code works the result again and shows a Check card under the reply: the roll, the target, and success, success at a cost, or fail.

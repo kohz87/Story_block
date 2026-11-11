@@ -160,3 +160,56 @@ test('a refusal for one block is shown on that block and the others still enable
     assert.equal(root.querySelectorAll('.ss-rm-refusal').length, 1, 'only on that block');
     assert.ok(named(root, 'Enable all 1 for this chat'), 'the refused block is still available');
 });
+
+// A sdk over the real host whose setup rows say the plain block is character-scoped, with the roster and actors given.
+const asCharacterScope = (host, { roster, actors, calls, fail = false }) => ({ command: async (type, payload) => { calls.push([type, payload]); if (fail) throw new Error('chat save failed'); return { ok: true, receipt: { summary: 'Enabled.' } }; },
+    query: (name, args) => {
+        if (name === 'party.actors') return roster;
+        const value = host.sdk.query(name, args);
+        return name === 'dataModules.setup' ? value.map(row => row.module === 'pack.dm-test/plain' ? { ...row, definition: { ...row.definition, scope: 'character' }, actors } : row) : value;
+    } });
+
+test('Enable all attaches a character block to the reader\'s own character, matched by name', async t => {
+    const doc = setupDom(), root = doc.createElement('div'), host = await world(t, pack(threeBlocks()));
+    await host.send('Begin.', 'Opening.');
+    const calls = [];
+    renderDataModules(root, { sdk: asCharacterScope(host, { roster: [{ id: 'p1', name: 'Wessel', pc: false }, { id: 'p2', name: 'wessel marr', pc: true }], actors: [{ id: 'ca_1', name: 'Rika' }, { id: 'ca_2', name: 'Wessel Marr' }], calls }) });
+    named(root, 'Enable all 3 for this chat').click();
+    named(root, 'Enable all').click();
+    for (let i = 0; i < 20 && calls.length < 3; i++) await settle();
+    const plain = calls.find(call => call[1].module === 'pack.dm-test/plain')[1];
+    assert.deepEqual(plain.subjects, ['ca_2']);
+    assert.deepEqual(Object.keys(plain).sort(), ['hash', 'module', 'packHash', 'subjects'], 'the single button\'s payload shape');
+    assert.deepEqual(calls.find(call => call[1].module === 'pack.dm-test/source')[1].subjects, [], 'a chat block has no subjects');
+});
+
+test('Enable all says so when no character of the reader\'s is found: in the box and on the block', async t => {
+    const doc = setupDom(), root = doc.createElement('div'), host = await world(t, pack(threeBlocks()));
+    await host.send('Begin.', 'Opening.');
+    const calls = [];
+    renderDataModules(root, { sdk: asCharacterScope(host, { roster: null, actors: [{ id: 'ca_1', name: 'Rika' }], calls }) });
+    named(root, 'Enable all 3 for this chat').click();
+    assert.ok(root.querySelectorAll('.ss-rm-confirm-names li').some(node => /Plain \(no character of yours found\)/.test(node.textContent)));
+    named(root, 'Enable all').click();
+    for (let i = 0; i < 20 && calls.length < 3; i++) await settle();
+    await settle(); await settle();
+    assert.deepEqual(calls.find(call => call[1].module === 'pack.dm-test/plain')[1].subjects, []);
+    const row = root.querySelectorAll('.ss-dm-row').find(node => node.dataset.module === 'pack.dm-test/plain');
+    assert.match(row.querySelector('.ss-dm-result').textContent, /No character of yours was found to attach/);
+});
+
+test('an exception from the command never freezes the Enable all box: the error is shown and the others go on', async t => {
+    const doc = setupDom(), root = doc.createElement('div'), host = await world(t, pack(threeBlocks()));
+    await host.send('Begin.', 'Opening.');
+    const calls = [];
+    renderDataModules(root, { sdk: asCharacterScope(host, { roster: null, actors: [], calls, fail: true }) });
+    named(root, 'Enable all 3 for this chat').click();
+    named(root, 'Enable all').click();
+    for (let i = 0; i < 20 && calls.length < 3; i++) await settle();
+    await settle(); await settle();
+    assert.equal(calls.length, 3, 'each block was tried');
+    assert.equal(root.querySelectorAll('.ss-rm-confirm').length, 0, 'the box closed');
+    assert.match(root.querySelector('.ss-rm-refusal').textContent, /^ERROR: chat save failed$/);
+    assert.ok(named(root, 'Enable all 3 for this chat'), 'the button is back and live');
+    assert.equal(named(root, 'Enable all 3 for this chat').disabled === true, false);
+});

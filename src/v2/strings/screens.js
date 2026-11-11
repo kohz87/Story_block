@@ -40,6 +40,10 @@ export const SCREEN_STRINGS = {
         empty: 'Nothing carried yet.',
         noMatch: 'Nothing matches the filter.',
         wornBy: 'Worn by {name}',
+        wornWho: '{name} \u00b7 {n} pieces', wornWhoOne: '{name} \u00b7 1 piece',
+        // The Grid view: the List | Grid switch, the tile list, the item sheet.
+        viewLabel: 'View', viewList: 'List', viewGrid: 'Grid', tilesLabel: 'Items',
+        sheetLabel: 'Item details', sheetClose: 'Close', weight: 'Weight', editLabel: 'Edit',
         wornByParty: 'Worn by the party',
         equipOn: 'Equip on…',
         equipOnTitle: 'Choose who puts on {name}',

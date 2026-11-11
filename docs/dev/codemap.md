@@ -87,7 +87,8 @@ Last checked: 2026-11-07.
 - `src/v2/screens/block-maps.css`: the number-list rows, centre-line bars, fold, Edit-reveal pencils, guild tiles and the Enable all box; overrides host.css's `.ss-b-*` rules.
 - `src/v2/screens/blocks-editor.js`: provides the in-chat form for authoring a block from fields, starters, layout and preview.
 - `src/v2/screens/rebuild-banner.js`: Home's dossier banner: blocked branch, start-from-chat dialog, catching-up progress with Skip, and the done or stopped notes.
-- `src/v2/screens/inventory-add.js`: places the inline form for adding an item to the reader's own inventory, and the folded "Worn (N)" row of the Inventory tab.
+- `src/v2/screens/inventory-add.js`: places the inline form for adding an item to the reader's own inventory, the folded "Worn (N)" row of the Inventory tab, and the Grid view's two widgets (the List | Grid switch, the tiles with folds and the item sheet).
+- `src/v2/screens/inventory-grid.js`: pure DOM helpers for the Inventory Grid view: square item tiles, foldable category and per-wearer Worn sections (with their remembered open state), and the bottom sheet for one item calling the same actions as the list rows.
 
 ## src/v2/timeline/
 - `src/v2/timeline/boundary.js`: hashes and checks logical clock markers against transactions and captured proofs.
@@ -108,7 +109,9 @@ Last checked: 2026-11-07.
 ## src/v2/view/
 - `src/v2/view/clock.js`: formats story minutes as calendar dates and times using the best available calendar.
 - `src/v2/view/download.js`: saves text files through a temporary browser download link.
+- `src/v2/view/inv-sheet.css`: styles the Inventory Grid's item sheet dialog contents (`.ss-dialog.inv-sheet`), split out of mounts.css.
 - `src/v2/view/scroll-cue.js`: marks which edge of a scroller has overflow and brings items into view.
+- `src/v2/view/screenbar-strip.css`: the screen bar as one scrolling strip (edge fades, snapping slots, a centred full row from 1000px), loaded after mounts.css and glass.css.
 - `src/v2/view/tab-merge.js`: merges screens that share a tab id into one tab with ordered sections.
 
 ## src/v2/view/mounts/
