@@ -181,7 +181,7 @@ test('a name-only pack is counted by culture, with warnings visible but enabled'
     assert.ok(packs.packs().find(item => item.id === 'warn').content.items.length);
 });
 
-test('packs.content { kind: "names" } answers each enabled pack\'s name object (a fresh copy); a pack without names adds nothing', async () => {
+test('packs.content { kind: "names" } answers each enabled pack\'s name object (frozen); a pack without names adds nothing', async () => {
     const { part, packs } = createPacksPart({ settings: fakeSettings() });
     const ctx = fakeCtx({ queries: part.queries });
     assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), []);
@@ -192,7 +192,7 @@ test('packs.content { kind: "names" } answers each enabled pack\'s name object (
     assert.equal(added.ok, true, JSON.stringify(added.errors));
     const answer = ctx.query('packs.content', { kind: 'names' });
     assert.deepEqual(answer, [names]);
-    answer[0].river.given.pop();
+    assert.throws(() => answer[0].river.given.pop(), TypeError);
     assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), [names], 'the caller cannot change the pack');
     const bad = await packs.install(JSON.stringify(pack({ id: 'bad-names', content: { names: { river: 'x' } } })));
     assert.equal(bad.ok, true, 'other content installs');

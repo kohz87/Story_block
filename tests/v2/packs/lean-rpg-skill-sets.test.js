@@ -64,8 +64,8 @@ test('the shipped test fixture pack is valid and its set comes out of the query 
         ['Sealwarden recruit', 'ersveil-sets', [['Spear', 'str', 'stamina'], ['Ward-reading', 'int', 'mana'], ['Gatecraft', 'vit', 'stamina']]]);
     assert.deepEqual(contentOf([made, ok(withSets([set()]))], 'rpg').map(entry => entry.pack), ['ersveil-sets', 'mini'], 'pack order, then file order');
     assert.deepEqual(contentOf([made], 'rpg', { pack: 'other' }), []);
-    found[0].name = 'changed';
-    assert.equal(contentOf([made], 'rpg')[0].name, 'Sealwarden recruit', 'the query gives copies');
+    assert.throws(() => { found[0].name = 'changed'; }, TypeError, 'the records are the pack\'s own and frozen');
+    assert.equal(contentOf([made], 'rpg')[0].name, 'Sealwarden recruit', 'nothing a caller does changes the pack');
 });
 
 test('the panel counts them as skill sets', () => {
