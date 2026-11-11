@@ -45,7 +45,7 @@ Anything that is not a plain path is an expression in the **events condition lan
 * numbers, `'words'`, `true`, `false`, `null`;
 * `!  ==  !=  <  <=  >  >=  &&  ||` and parentheses;
 * calls: the helpers, and the language's own (`query('party.pc').level`, `quest('Granary Rats').status`,
-  `has('Rope', 2)`, `count(list)`).
+  `has('Rope', 2)`, `count(list)`, `region('Shornmarch', 'Valegard')`).
 
 The language has **no truthiness**: `&&`, `||` and `!` take `true`/`false`. Write `q.pc != null`, not
 `q.pc && …`; write `settings.compact == true`, not `!settings.compact`, when the setting may be unset. It has

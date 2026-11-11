@@ -1,16 +1,16 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.9.5, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.9.6, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
 
 The pack holds the world's structure: the map (320 places, 350 routes), the calendar, 84 weather tables,
-136 world events (a hidden history from CY 611 onward), the coins, the start, three data modules, signature gear and an RPG skill set. It has **no shops, prices, foes,
+135 world events (a hidden history from CY 611 onward), the coins, the start, three data modules, signature gear and an RPG skill set. It has **no shops, prices, foes,
 jobs, classes or rules**: the narrator makes those up in the story from the lore, and Story Block keeps
 what the story hands out (the bag, the purse, the place). The lorebook holds what only the narrator uses.
 
-The pack needs Story Block 2.31.0 or newer and Story Director with the `chronicle-lasting` capability. NPC State Delta is optional. The names suggestions require a Director release that includes its names part.
+The pack needs Story Block 2.31.1 or newer and Story Director with the `chronicle-lasting` capability. NPC State Delta is optional. The names suggestions require a Director release that includes its names part.
 
 ## 1. Extensions
 
@@ -28,14 +28,14 @@ SillyTavern profile.
 
 1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil.zip`. This is the one-step way:
    it holds `pack.json` and the twelve portraits ("12 portraits saved"). Picking `pack.json` alone imports no pictures.
-   The message says "Installed Ersveil (open world)." and the list shows "16 items, 136 events, 320 places, 350 routes,
+   The message says "Installed Ersveil (open world)." and the list shows "16 items, 135 events, 320 places, 350 routes,
    1 skill set, 12 cast members, 14 name lists, start state, 4 coins, a calendar, 84 weather tables". The 3 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
    `chronicle-lasting` capability.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
-2.9.5 (content only, with the throne following your deeds) adds `content.names`: given names (30 to 45) and family names (20 to 27) for fourteen peoples and regions (Highmark, the River Confederacy and Shornmarch, the Flame Lands, the Border and Valegard, the Frostbound, the dwarves, the Chieftainates, Ardelia, the Emerald Coast, the Tidebound, Atlantis, the Verdantleaf elves, the Fairy Court and Ashkar), written in the sound of Names: Human Cultures and Names: Other Peoples and sharing no name with the cast or the lorebook's examples, and a short banned list of overused fantasy names. A Story Director release with its names part can offer them for new people met in a matching region. The pack requires Story Block 2.31.0 or newer, so an older host refuses the whole pack on its version check.
+2.9.6 (needs Story Block 2.31.1) merges the split flood news into one event with the `region(...)` condition, so the bulletin is told once however the player moves between the regions that hear it; a chat that already heard it keeps that. 2.9.5 (content only, with the throne following your deeds) adds `content.names`: given names (30 to 45) and family names (20 to 27) for fourteen peoples and regions (Highmark, the River Confederacy and Shornmarch, the Flame Lands, the Border and Valegard, the Frostbound, the dwarves, the Chieftainates, Ardelia, the Emerald Coast, the Tidebound, Atlantis, the Verdantleaf elves, the Fairy Court and Ashkar), written in the sound of Names: Human Cultures and Names: Other Peoples and sharing no name with the cast or the lorebook's examples, and a short banned list of overused fantasy names. A Story Director release with its names part can offer them for new people met in a matching region. The pack requires Story Block 2.31.0 or newer, so an older host refuses the whole pack on its version check.
 2.9.5 restores the throne branches. Director's Ripples can score matching completed quests and victories against the named groups; Ersveil has no directed world events or claimant standing, and NPC trust is not scored. When Ripples is absent or cannot safely identify Ersveil's table, Hasse is broken and Wendhild is crowned over Corvin. A chat already crowned keeps its reign. A decision is kept as it was while the story before it is unchanged, even when the scoring later changes (a Director update, a swipe or delete of a later reply, a Re-read after the crown); only changing an earlier deed or reply reselects it at that point in the story. Version 2.9.3 removed Court favour; chats that enabled it keep the block and its values.
 2.9.4 shows the Adventurer Guild card as tiles (Rank, Standing, Dues); a chat that pinned the old guild screen offers Migrate.
 2.9.3 removed the Court favour data module; a chat that had enabled it keeps its block.
@@ -50,7 +50,7 @@ SillyTavern profile.
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
 
-Importing 2.9.5 replaces an installed pack with the same id. Start a new chat to use its starting state.
+Importing 2.9.6 replaces an installed pack with the same id. Start a new chat to use its starting state.
 
 ## 3. Import the lorebook
 
