@@ -75,6 +75,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     const api = Object.freeze({
         command: (type, payload, options) => sdk.command(type, payload, options),
         preview: (type, payload) => sdk.preview(type, payload),
+        // Where the reader is (chat id and the first message of its line of history) and a page notice: a form that outlives its redraw checks the one and uses the other.
+        where: () => ({ chat: String(ctx.getCurrentChatId?.() ?? ctx.chatId ?? ''), first: (liveCtx() ?? ctx).chat?.[0] ?? null }),
+        notify: text => globalThis.toastr?.warning?.(text, 'Story Block'),
         commit: token => sdk.commit(token),
         query: (name, args) => sdk.query(name, args),
         on: (name, fn) => sdk.on(name, fn),

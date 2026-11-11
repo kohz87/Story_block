@@ -59,7 +59,7 @@ export const SCREEN_STRINGS = {
             equippedBy: 'Equipped \u00b7 {name}', equippedByTitle: 'Worn by {name}', slotTitle: 'The slot it is worn in',
             words: { good: 'Good', worn: 'Worn', torn: 'Torn', broken: 'Broken' }, noBonus: 'no bonus', brokenNoBonus: '\u2014 no bonus',
             condTitle: 'Condition: Good, Worn, Torn or Broken. A broken piece gives no bonus.',
-            editSlot: 'Slot', editBy: 'Equipped by', none: 'None',
+            editSlot: 'Slot', editBy: 'Equipped by', none: 'None', left: 'Left the party',
             // The hand-set gear form (view/gear-form.js): "+ Add item" and the Edit of a piece the reader added.
             form: {
                 groupItem: 'Item', groupGear: 'Gear', name: 'Name', count: 'Count', note: 'Note', kind: 'Kind', slot: 'Slot', rarity: 'Rarity', bonus: 'Bonus',

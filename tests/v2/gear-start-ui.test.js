@@ -83,6 +83,30 @@ test('editFields / editPlan: the item\'s own words, then who wears it', () => {
     assert.equal(later.find(f => f.key === 'later').text, 'Rarity and bonuses come from the story after the first message.');
 });
 
+test('editFields / editPlan: a wearer who left is listed and stays unless the reader picks None or another', () => {
+    const p = { value: 'Cap', itemCount: 1, itemNote: '', gear: { kind: 'equipment', rarity: 'common', stack: 'it_1', owner: 'ac_gone0001', by: 'ac_gone0001', place: 'head', def: 'story/cap', kit: false, owners: OWNERS, row: { hand: true, defSlot: 'head', stats: {} } } };
+    const by = editFields(p).find(f => f.key === 'by');
+    assert.deepEqual([by.value, by.options.map(o => o.label)], ['ac_gone0001', ['None', 'Astra (you)', 'Harrak', 'Left the party']]);
+    const all = { name: 'Cap', count: 1, note: '', kind: 'equipment', slot: 'head', rarity: 'common', by: 'ac_gone0001' };
+    assert.match(editPlan(p)({}, all).error, /^Nothing to change/);
+    assert.deepEqual(editPlan(p)({ by: '' }, { ...all, by: '' }).steps.map(step => step.command), ['inventory.unequip']);
+});
+
+test('Edit of a hand-added piece: a note and a wearer in one Save finish both steps', { skip }, async t => {
+    const host = await world(t);
+    await host.sdk.command('inventory.add', { name: 'Wolfskin Cap', qty: 1, kind: 'equipment', slot: 'head' });
+    const { el, calls } = draw(host);
+    const row = rowOf(el, 'Wolfskin Cap');
+    row.querySelector('.ss-w-editable-pencil').click();
+    change(labelled(row, 'Note'), 'warm');
+    change(labelled(row, 'Equipped by'), 'ac_harrak01');
+    row.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls.map(([type]) => type), ['inventory.edit', 'item.equip']);
+    const cap = host.sdk.query('inventory.items').find(item => item.name === 'Wolfskin Cap');
+    assert.deepEqual([cap.equipped, cap.note], ['head', 'warm']);
+});
+
 test('"+ Add item", starting kit: opens the grouped form with the hint; the Gear group shows only for Equipment; the points line is live and turns over-budget', { skip }, async t => {
     const host = await world(t);
     const { el } = draw(host);

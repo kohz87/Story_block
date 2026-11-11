@@ -156,7 +156,9 @@ function render(el, input, api) {
                     rows[2].classList.add('ss-w-editable-item-wide');
                     rows.push(pair);
                     slotSelect = choice(G.editSlot, Object.entries(G.slots), String(p.gear.slot ?? ''));
-                    bySelect = choice(G.editBy, (Array.isArray(p.gear.owners) ? p.gear.owners : []).map(entry => [String(entry?.value ?? ''), String(entry?.label ?? '')]), String(p.gear.by ?? ''));
+                    const owners = (Array.isArray(p.gear.owners) ? p.gear.owners : []).map(entry => [String(entry?.value ?? ''), String(entry?.label ?? '')]), by = String(p.gear.by ?? '');
+                    // A wearer who left the party is still listed (chosen), so None is a choice the reader can make and Save leaves the piece with them otherwise.
+                    bySelect = choice(G.editBy, by && !owners.some(entry => entry[0] === by) ? [...owners, [by, G.left]] : owners, by);
                     // A cast member's signature piece (`gear.bound`: their name): everything but the note is read-only, with one line saying why.
                     if (typeof p.gear.bound === 'string' && p.gear.bound) {
                         for (const control of [field, itemCount, slotSelect, bySelect]) { control.disabled = true; control.setAttribute('title', fill(G.boundTitle, { name: p.gear.bound })); }
@@ -263,6 +265,9 @@ function render(el, input, api) {
         }
         // The form's `plan`: the steps run one after the other; a refusal stops the rest and leaves the form open with its sentence. A step that
         // went through is not sent again by the next Save: its boxes now count as what the form opened with.
+        // Later steps run on after a step's redraw destroys the widget, but only in the chat (and line of history) the plan started in; a refusal is told in the form, or as a notice once it is gone.
+        const chatGuard = () => { const was = api.where?.(); return () => { const now = api.where?.(); return now?.chat === was?.chat && now?.first === was?.first; }; };
+        const tell = text => { if (alive) error.textContent = text; else api.notify?.(text); };
         async function runPlan({ changed, all }) {
             if (!Object.keys(changed).length && !p.always) {
                 if (p.kind === 'item' && p.gear?.kind === 'equipment') { error.textContent = p.gear.place ? STRINGS.editMessages.nothingChanged : STRINGS.editMessages.nothingWorn; return; }
@@ -275,15 +280,16 @@ function render(el, input, api) {
             if (!steps.length) { close(); return; }
             busy = true;
             save.disabled = true;
-            for (const step of steps) {
+            const same = chatGuard();
+            for (const [at, step] of steps.entries()) {
+                if (at && !same()) { busy = false; return; }
                 let result;
                 try { result = await api.command(String(step.command), step.payload && typeof step.payload === 'object' ? step.payload : {}); }
                 catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
-                // (a step's commit redraws the screen and destroys this widget: the rest of the plan still runs to its end)
                 if (!result?.ok) {
                     busy = false;
                     save.disabled = false;
-                    error.textContent = refusalText(result, E.failed);
+                    tell(refusalText(result, E.failed));
                     return;
                 }
                 for (const entry of fields.inputs) if (Array.isArray(step.keys) && step.keys.includes(String(entry.spec.key))) entry.spec = { ...entry.spec, value: all[String(entry.spec.key)] ?? '' };
@@ -298,10 +304,7 @@ function render(el, input, api) {
             if (!slotSelect || !bySelect || slotSelect.disabled) return []; // (a bound piece: the choices are locked)
             const stack = p.payload?.stack;
             const placed = String(p.gear.place ?? ''), wearer = String(p.gear.by ?? '');
-            let by = bySelect.value;
-            const slot = slotSelect.value;
-            // A wearer who is no longer in the list (a member who left) stays the wearer unless the reader picks another.
-            if (by === '' && wearer && !Array.from(bySelect.querySelectorAll('option')).some(option => option.value === wearer)) by = wearer;
+            const by = bySelect.value, slot = slotSelect.value;
             if (by === '' || slot === '') return placed ? [{ command: 'inventory.unequip', payload: { stack } }] : [];
             if (placed === slot && wearer === by) return [];
             // (one command, so a refusal of the slot leaves the item with its owner: all or nothing)
@@ -312,15 +315,16 @@ function render(el, input, api) {
         async function runSteps(steps) {
             busy = true;
             save.disabled = true;
-            for (const step of steps) {
+            const same = chatGuard();
+            for (const [at, step] of steps.entries()) {
+                if (at && !same()) { busy = false; return; }
                 let result;
                 try { result = await api.command(step.command, step.payload); }
                 catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
-                // (the first step's commit redraws the screen and destroys this widget: the rest still runs, then no close)
                 if (!result?.ok) {
                     busy = false;
                     save.disabled = false;
-                    error.textContent = refusalText(result, E.failed);
+                    tell(refusalText(result, E.failed));
                     return;
                 }
             }

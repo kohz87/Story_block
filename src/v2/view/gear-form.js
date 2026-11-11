@@ -26,7 +26,7 @@ const rarityOptions = () => Object.keys(GEAR.budget).map(value => ({ value, labe
 const slotOptions = () => [{ value: '', label: G.none }, ...Object.entries(G.slots).map(([value, label]) => ({ value, label }))];
 const statOptions = () => [{ value: '', label: F.noStat }, ...GEAR.stats.map(value => ({ value, label: value }))];
 // (the first owner is the main character: "Astra (you)")
-const wearerOptions = owners => [{ value: '', label: G.none }, ...(Array.isArray(owners) ? owners : []).map((entry, at) => ({ value: String(entry?.value ?? ''), label: `${String(entry?.label ?? '')}${at === 0 && entry?.label && !/\(you\)/.test(String(entry.label)) ? ` ${F.you}` : ''}` }))];
+const wearerOptions = (owners, by = '') => [{ value: '', label: G.none }, ...(Array.isArray(owners) ? owners : []).map((entry, at) => ({ value: String(entry?.value ?? ''), label: `${String(entry?.label ?? '')}${at === 0 && entry?.label && !/\(you\)/.test(String(entry.label)) ? ` ${F.you}` : ''}` })), ...(by && !(Array.isArray(owners) ? owners : []).some(entry => String(entry?.value) === by) ? [{ value: by, label: G.left }] : [])];
 const SHOWN = Object.freeze({ key: 'kind', in: Object.freeze(['equipment']) });
 
 // The Bonus lines (two), their stat and points boxes, and (when they can be changed) the live points line after them.
@@ -120,7 +120,7 @@ export function editFields(p) {
         { key: 'rarity', label: F.rarity, tone: true, type: 'choice', options: rarityOptions(), value: equipment || kit ? String(gear.rarity ?? 'common') : 'common', group: F.groupGear, row: 'sr', showWhen: SHOWN,
             ...(kit ? {} : { disabled: true, title: F.laterTitle }) },
         ...bonusFields(equipment ? row.stats : {}, !kit),
-        { key: 'by', label: F.equippedBy, type: 'choice', options: wearerOptions(gear.owners), value: String(gear.by ?? ''), group: F.groupGear, showWhen: SHOWN },
+        { key: 'by', label: F.equippedBy, type: 'choice', options: wearerOptions(gear.owners, String(gear.by ?? '')), value: String(gear.by ?? ''), group: F.groupGear, showWhen: SHOWN },
         ...(kit ? [] : [{ key: 'later', type: 'note', text: F.laterHint, group: F.groupGear, showWhen: SHOWN }]),
     ];
     return fields;
@@ -162,11 +162,8 @@ export function editPlan(p) {
         // Who wears it: only for equipment; leaving Equipment takes it off inside the edit itself.
         if (all.kind === 'equipment') {
             const placed = String(gear.place ?? ''), wearer = String(gear.by ?? '');
-            let by = String(all.by ?? '');
+            const by = String(all.by ?? '');
             const slot = String(all.slot ?? '');
-            // A wearer who is no longer in the list (a member who left) stays the wearer unless the reader picks another.
-            const left = by === '' && wearer !== '' && !wearerOptions(gear.owners).some(option => option.value === wearer);
-            if (left) { by = wearer; delete changed.by; }
             if (!by || !slot) {
                 if (by === '' && placed && changed.by !== undefined) steps.push({ command: 'inventory.unequip', payload: { stack }, keys: ['by'] });
             } else if (!(placed === slot && wearer === by) && (changed.by !== undefined || changed.slot !== undefined || changed.kind !== undefined)) {

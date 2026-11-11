@@ -185,12 +185,11 @@ export function createInventoryCommands(env) {
                 const editPiece = payload.name !== undefined || payload.note !== undefined;
                 const pieces = Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner);
                 guardReaderEdit(ctx, 'inventory.edit', editStack(stack), editPieces(inv, stack), decision);
-                // If this edit also changes the selected piece, keep that piece when reducing the group.
-                // The selected piece goes last of all: the equip that follows a count change in the same Save still names it.
-                const spare = pieces.filter(item => item.equipped === null && !boundId(ctx, item) && (!editPiece || item.id !== stack.id)).reverse();
-                const loose = [...spare.filter(item => item.id !== stack.id), ...spare.filter(item => item.id === stack.id)];
+                // The selected piece is never the one removed (the equip that follows in the same Save names it): other loose pieces go, the last added first.
+                const spare = pieces.filter(item => item.equipped === null && !boundId(ctx, item));
+                const loose = spare.filter(item => item.id !== stack.id).reverse();
                 const remove = pieces.length - qty;
-                if (remove > loose.length) ctx.fail('REFUSED', E.itemGroupEquipped);
+                if (remove > loose.length) ctx.fail('REFUSED', spare.length > loose.length ? E.itemGroupSelected : E.itemGroupEquipped);
                 if (remove > 0) for (const item of loose.slice(0, remove)) delete inv.stacks[item.id];
                 if (remove < 0) {
                     readerCarry(ctx, [{ defId: original.id, qty: -remove }], stack.owner);
