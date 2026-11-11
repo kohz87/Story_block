@@ -100,6 +100,15 @@ export function weatherOf(packs) {
 }
 
 /**
+ * The ripples table of the first enabled pack (in list order) that has one, as `{ pack, powers, tiers?, caps?, worldDirections?, standingModule? }`,
+ * or null. Read by Story Director's ripples part (a hidden sway per power from the player's deeds); tables are not mixed across packs.
+ */
+export function ripplesOf(packs) {
+    const pack = packs.find(entry => entry.ripples);
+    return pack ? copy({ pack: pack.id, ...pack.ripples }) : null;
+}
+
+/**
  * The money scale of the first enabled pack (in list order) that sets one, as `{ pack, scale, note }`, or
  * null (MODULES §F104). Scales are not mixed across packs. Story Block's `inventory.economy` reads it.
  */

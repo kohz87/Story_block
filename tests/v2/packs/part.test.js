@@ -17,7 +17,7 @@ test('the part has the MODULES §A shape and no domain, command or prompt text o
     assert.deepEqual(part.commands, {});
     assert.deepEqual(part.kinds, {});
     assert.deepEqual(part.tabs, []);
-    assert.deepEqual(Object.keys(part.queries), ['packs.list', 'packs.content', 'packs.item', 'packs.itemDefs', 'packs.start', 'packs.calendar', 'packs.weather', 'packs.youRank', 'packs.crafts', 'packs.economy', 'packs.markets', 'packs.portrait', 'packs.castGear']);
+    assert.deepEqual(Object.keys(part.queries), ['packs.list', 'packs.content', 'packs.item', 'packs.itemDefs', 'packs.start', 'packs.calendar', 'packs.weather', 'packs.ripples', 'packs.youRank', 'packs.crafts', 'packs.economy', 'packs.markets', 'packs.portrait', 'packs.castGear']);
     assert.deepEqual(Object.keys(part.hooks), ['item.resolve', 'start']);
     assert.equal(part.context.static(), '', 'the static prompt stays byte-identical whatever is installed');
     assert.deepEqual(part.context.tail({}), { lines: [], optional: [] });
@@ -119,4 +119,23 @@ test('the live part checks capabilities against the running sdk', async () => {
         delete globalThis.StoryBlock;
         st.uninstall();
     }
+});
+
+test('packs.ripples answers the first enabled pack\'s table with its pack id (a fresh copy), or null', async () => {
+    const { part, packs } = createPacksPart({ settings: fakeSettings() });
+    const ctx = fakeCtx({ queries: part.queries });
+    assert.equal(ctx.query('packs.ripples'), null, 'no pack, no table');
+    await packs.install(sampleText);
+    assert.equal(ctx.query('packs.ripples'), null, 'a pack without the section');
+    const table = { powers: [{ id: 'red', name: 'Red Queen', base: 60 }, { id: 'blue', name: 'Blue King', base: 40 }], tiers: { small: 3 } };
+    const first = await packs.install(JSON.stringify(pack({ id: 'rivals', ripples: table })));
+    assert.equal(first.ok, true, JSON.stringify(first.errors));
+    const answer = ctx.query('packs.ripples');
+    assert.equal(answer.pack, 'rivals');
+    assert.deepEqual(answer.powers.map(power => [power.id, power.base]), [['red', 60], ['blue', 40]]);
+    assert.deepEqual(answer.tiers, { small: 3 });
+    answer.powers.pop();
+    assert.equal(ctx.query('packs.ripples').powers.length, 2, 'the caller cannot change the pack');
+    await packs.setEnabled('rivals', false);
+    assert.equal(ctx.query('packs.ripples'), null, 'a disabled pack gives nothing');
 });

@@ -32,7 +32,7 @@ export const YOU_RANK_LABEL_MAX = 30;
 export const HOST_CAPABILITIES = Object.freeze(['data-modules-v1']);
 
 // Top-level fields of pack.json; anything else is refused so a typo is not silently ignored.
-export const PACK_FIELDS = Object.freeze(['id', 'version', 'name', 'author', 'description', 'requires', 'currency', 'economy', 'calendar', 'weather', 'content', 'start', 'layouts', 'screens', 'theme']);
+export const PACK_FIELDS = Object.freeze(['id', 'version', 'name', 'author', 'description', 'requires', 'currency', 'economy', 'calendar', 'weather', 'ripples', 'content', 'start', 'layouts', 'screens', 'theme']);
 // A pack's money scale (MODULES §F104): `{ scale?: 0.001–1000 (default 1), note? }`. `scale` multiplies the
 // built-in money defaults (a module's default loot and prices) when
 // this pack's currency is in use; numbers the pack writes itself (ranks, item values, prices) stay as written.
@@ -198,6 +198,13 @@ export const WEATHER_FIELDS = Object.freeze(['seasons', 'tables']);
 export const WEATHER_SEASON_FIELDS = Object.freeze(['name', 'months']);
 export const WEATHER_TABLE_FIELDS = Object.freeze(['season', 'region', 'weather']);
 export const WEATHER_LIMITS = Object.freeze({ seasons: 12, months: 60, season: 24, region: 80, tables: 120, kinds: 24, text: 60 });
+// A pack's ripples table (read by Story Director's `ripples` part): the powers rival claimants can win over, scoring tiers and caps, and
+// the pack's own world directions. Story Block checks its shape; Story Director scores it.
+export const RIPPLES_FIELDS = Object.freeze(['powers', 'tiers', 'caps', 'worldDirections', 'standingModule']);
+export const RIPPLES_POWER_FIELDS = Object.freeze(['id', 'name', 'aliases', 'factions', 'givers', 'npcs', 'base', 'standing', 'standingBase']);
+export const RIPPLES_TIERS = Object.freeze(['small', 'great', 'failed', 'abandoned', 'fight']);
+export const RIPPLES_CAPS = Object.freeze(['quest', 'event', 'standing', 'fight', 'power']);
+export const RIPPLES_LIMITS = Object.freeze({ powers: 12, list: 20, name: 80, tier: 50, cap: 100, directions: 20 });
 export const START_FIELDS = Object.freeze(['scene', 'inventory']);
 // Screens (SPEC §13.1) a pack adds or overrides by id.
 // `tab` puts a screen in a shared tab (the same `tab` on several screens draws them as sections of one tab, in `order`; `tabTitle` names it, the first one

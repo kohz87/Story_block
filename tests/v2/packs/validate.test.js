@@ -369,3 +369,39 @@ test('events: a condition the runtime cannot parse is refused at check time, nam
     assert.equal(validatePack(event('has("Smith\'s key")')).ok, true, 'the same name in double quotes reads');
     assert.equal(validatePack(event("query('party.pc').level < 30 && true")).ok, true);
 });
+
+// A pack's ripples table (read by Story Director's ripples part): a good one normalizes; a bad one is a pack Problem (BAD_RIPPLES) and is not kept.
+const ripples = extra => ({ powers: [{ id: 'red', name: 'Red Queen', base: 60 }, { id: 'blue', name: 'Blue King', base: 40 }], ...extra });
+test('ripples: a good table is kept in order with its lists, tiers and directions; no section leaves no key', () => {
+    const table = ripples({
+        powers: [{ id: 'red', name: ' Red  Queen ', aliases: ['Queen'], factions: ['Red Court'], givers: ['Sir Rook'], npcs: [{ name: 'Sir Rook', weight: 2 }, { name: 'Page' }], base: 60 }, { id: 'blue', name: 'Blue King', base: 40 }],
+        tiers: { small: 3 }, caps: { power: 15 }, worldDirections: [{ event: 'The Siege', favours: 'blue', unless: ['lost'] }], standingModule: 'pack.mini/standing',
+    });
+    const result = validatePack(pack({ ripples: table }));
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    assert.deepEqual(result.pack.ripples.powers.map(power => [power.id, power.name, power.base]), [['red', 'Red Queen', 60], ['blue', 'Blue King', 40]]);
+    assert.deepEqual(result.pack.ripples.powers[0].npcs, [{ name: 'Sir Rook', weight: 2 }, { name: 'Page', weight: 1 }]);
+    assert.deepEqual([result.pack.ripples.tiers, result.pack.ripples.caps, result.pack.ripples.worldDirections], [{ small: 3 }, { power: 15 }, [{ event: 'The Siege', favours: 'blue', unless: ['lost'] }]]);
+    assert.equal('ripples' in validatePack(pack()).pack, false, 'a pack without the section keeps its old bytes');
+});
+
+test('ripples: a bad section is refused with BAD_RIPPLES (or UNKNOWN_FIELD) naming the path', () => {
+    const bad = [
+        ['not an object', [], 'ripples'], ['no powers', {}, 'ripples.powers'], ['empty powers', { powers: [] }, 'ripples.powers'],
+        ['a bad id', ripples({ powers: [{ id: 'Red Queen', name: 'x', base: 1 }] }), 'ripples.powers[0].id'],
+        ['a repeated id', ripples({ powers: [{ id: 'a', name: 'A', base: 1 }, { id: 'a', name: 'B', base: 2 }] }), 'ripples.powers[1].id'],
+        ['no name', ripples({ powers: [{ id: 'a', base: 1 }] }), 'ripples.powers[0].name'],
+        ['a base over 100', ripples({ powers: [{ id: 'a', name: 'A', base: 101 }] }), 'ripples.powers[0].base'],
+        ['a fractional base', ripples({ powers: [{ id: 'a', name: 'A', base: 1.5 }] }), 'ripples.powers[0].base'],
+        ['an npc weight of 4', ripples({ powers: [{ id: 'a', name: 'A', base: 1, npcs: [{ name: 'N', weight: 4 }] }] }), 'ripples.powers[0].npcs'],
+        ['a names list that is text', ripples({ powers: [{ id: 'a', name: 'A', base: 1, givers: 'Rook' }] }), 'ripples.powers[0].givers'],
+        ['a tier that is negative', ripples({ tiers: { small: -1 } }), 'ripples.tiers'], ['an unknown cap', ripples({ caps: { luck: 1 } }), 'ripples.caps'],
+        ['a direction for nobody', ripples({ worldDirections: [{ event: 'E', favours: 'green' }] }), 'ripples.worldDirections[0].favours'],
+    ];
+    for (const [label, section, path] of bad) {
+        const result = refused(pack({ ripples: section }), 'BAD_RIPPLES');
+        assert.ok(result.errors.some(error => error.code === 'BAD_RIPPLES' && error.path === path), `${label}: ${JSON.stringify(result.errors)}`);
+    }
+    refused(pack({ ripples: ripples({ extra: 1 }) }), 'UNKNOWN_FIELD');
+    refused(pack({ ripples: ripples({ powers: [{ id: 'a', name: 'A', base: 1, favour: 2 }] }) }), 'UNKNOWN_FIELD');
+});

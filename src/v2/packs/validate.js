@@ -25,7 +25,7 @@ import { STRINGS } from '../strings.js';
 import { checkCast } from './cast.js';
 import { HOST_VERSION, fail, isObject, records, openRecord } from './validate/core.js';
 import {
-    checkCurrency, checkEconomy, checkWeather, checkEvent, checkChoice, linkEvents, checkSkill, choiceRefs,
+    checkCurrency, checkEconomy, checkWeather, checkRipples, checkEvent, checkChoice, linkEvents, checkSkill, choiceRefs,
     checkPreset, checkStart,
 } from './validate/events-economy.js';
 import { checkCalendar, checkPlace, placeRefs, checkRoute, routeSlug, checkTerms, termsSlug, checkRanks, checkMarkets } from './validate/world.js';
@@ -86,6 +86,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
     const calendar = raw.calendar === undefined ? null : checkCalendar(raw.calendar, add);
     const economy = raw.economy === undefined ? null : checkEconomy(raw.economy, add);
     const weather = raw.weather === undefined ? null : checkWeather(raw.weather, add);
+    const ripples = raw.ripples === undefined ? null : checkRipples(raw.ripples, add);
 
     const content = {};
     if (raw.content !== undefined && !isObject(raw.content)) add('BAD_CONTENT', 'content', 'content must be an object of lists: { "items": [ … ], "events": [ … ] }.');
@@ -164,6 +165,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
         calendar,
         // Kept only when given, so older packs normalize as they always did.
         ...(weather ? { weather } : {}),
+        ...(ripples ? { ripples } : {}),
         content,
         start,
         layouts,
