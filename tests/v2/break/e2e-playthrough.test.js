@@ -14,6 +14,7 @@ import { loadSuite, suiteHost } from './helpers/suite.js';
 
 const loaded = await loadSuite();
 const skip = loaded.skip ?? false;
+const helpers = loaded.skip ? null : await loaded.at('tests/v2/data-modules/helpers.js');
 const settle = () => new Promise(resolve => setImmediate(resolve));
 // The first few paths where two states differ, so a failure names what moved instead of printing two walls of JSON.
 function paths(a, b, at = '', out = []) {
@@ -23,8 +24,17 @@ function paths(a, b, at = '', out = []) {
     } else out.push(`${at}: ${JSON.stringify(a)?.slice(0, 120)} -> ${JSON.stringify(b)?.slice(0, 120)}`);
     return out;
 }
-// A Re-read runs the reply's commands again, so the receipt ids it writes are new; everything else must be as it was.
-const noIds = value => JSON.parse(JSON.stringify(value).replace(/"rc_[a-z0-9]+"/g, '"rc"'));
+// After a Re-read only the inventory stacks' `from` (the receipt that made the stack) may differ, and every stack that differs is
+// counted and listed in the report (a stack pointing at a new receipt after an unchanged Re-read is a finding, not noise).
+const REPOINTED = [];
+const noIds = (now, live, label) => {
+    const [a, b] = [JSON.parse(JSON.stringify(now)), JSON.parse(JSON.stringify(live))];
+    for (const [id, stack] of Object.entries(a.domains?.inventory?.stacks ?? {})) {
+        const was = b.domains?.inventory?.stacks?.[id];
+        if (was && stack.from !== was.from) { REPOINTED.push(`${label}: ${id} ${was.from} -> ${stack.from}`); stack.from = was.from; }
+    }
+    return [a, b];
+};
 const same = (a, b, label) => { const found = paths(a, b); assert.equal(found.length, 0, `${label}\n${found.join('\n')}`); };
 const DM = (mod, reason, kind, labels = '') => `+ dm ${mod} — ${reason} | kind: ${kind}${labels ? ` | ${labels}` : ''}`;
 
@@ -93,14 +103,11 @@ async function stageBoard(host, hero) {
 const COUNTS = { reads: 0, problems: [] };
 async function agree(host, label, index) {
     const live = JSON.stringify(host.head());
-    host.store.rebuild();
-    same(JSON.parse(JSON.stringify(host.head())), JSON.parse(live), `${label}: a rebuild equals live`);
-    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
-    await settle();
-    same(JSON.parse(JSON.stringify(host.head())), JSON.parse(live), `${label}: a cold reload equals live`);
+    // The data-module helpers' reload(): live == a reload of the chat == a cold rebuild (they assert it themselves).
+    try { await helpers.reload(host); } catch (error) { throw new Error(`${label}: reload / rebuild: ${String(error.message).split('\n')[0]}`); }
     const result = await host.turn.reread(index);
     assert.equal(result?.ok ?? true, true, `${label}: Re-read of ${index} answers ok (${result?.message ?? ''})`);
-    same(noIds(host.head()), noIds(JSON.parse(live)), `${label}: a Re-read of reply ${index} equals live`);
+    same(...noIds(host.head(), JSON.parse(live), label), `${label}: a Re-read of reply ${index} equals live`);
     COUNTS.reads += 1;
 }
 const problemsOf = host => host.turn.problems().map(problem => `${problem.code}: ${String(problem.message ?? '').slice(0, 400)}`);
@@ -120,7 +127,9 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
     const soft = async (label, fn) => { try { await fn(); } catch (error) { failures.push(`${label}: ${String(error.message).split('\n').slice(0, 5).join(' | ').slice(0, 700)}`); } };
     const first = await host.send('Hello.', host.reply('The story begins at Bluewatch.', []));
     assert.ok(first, 'the opening reply');
-    for (const offer of host.sdk.query('dataModules.offers')) {
+    const startMinutes = host.q('director.time')?.minutes ?? host.q('director.time');
+    const offers = host.sdk.query('dataModules.offers');
+    for (const offer of offers) {
         const done = await host.sdk.command('dm.pin', { module: offer.module, hash: offer.hash, packHash: offer.packHash, subjects: [] });
         assert.equal(done.ok, true, `pin ${offer.module}: ${done.message}`);
     }
@@ -130,6 +139,7 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         if (n === 26) await playFight(host, 'Astra');
         if (n === 27) (await loaded.at('src/v2/lean-rpg/board/session.js')).discardBoard(host.ctx.chatMetadata);   // the reader leaves the fight
         const result = await host.send(player, host.reply(story, lines.filter(line => line !== '! encounter')));
+        if (n === 26) await soft(label, () => assert.ok(host.ctx.chat[result.index]?.extra?.storySuite?.receipts?.some(r => r.type === 'rpg.resolve' && r.replan?.payload?.board), 'the fight reply carries a board resolve receipt'));
         if (!(result.index >= 0)) {
             failures.push(`${label}: no reply was written (index ${result.index}); notices: ${JSON.stringify(host.st.notices.slice(-2))}; ${Object.keys(result).join(',')}`);
             continue;
@@ -143,6 +153,16 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         await soft(label, () => assert.deepEqual(errors.splice(0), [], 'something was thrown or logged as an error'));
         await soft(label, () => agree(host, label, result.index));
     }
+    // What the script meant to do, seen in the state: days passed, standing, fame and the guild letter moved, the fight was fought.
+    await soft('effects', () => {
+        const minutes = host.q('director.time')?.minutes ?? host.q('director.time');
+        assert.ok(minutes - startMinutes >= 3 * 1440, `the story clock moved at least three days (${startMinutes} -> ${minutes})`);
+        const view = module => JSON.stringify(host.sdk.query('dataModules.view', { module: offers.find(offer => offer.module.endsWith(module)).module }));
+        assert.match(view('/standing'), /"guild":(?!0\b)[1-9]/, 'standing with the Guild rose');
+        assert.match(view('/standing'), /"highmark":-[1-9]/, 'standing with Highmark fell');
+        assert.match(view('/fame'), /"auvoth":[1-9]/, 'fame in Auvoth rose');
+        assert.match(view('/guild-membership'), /"letter":"E"/, 'the Guild letter is E');
+    });
     // The same praise to Temiwa in replies 13, 14 and 15 must give less each time (NPC State Delta's anti-lever gate).
     await soft('via backfire', () => {
         const gain = (a, b) => meters[b].meters.trust - meters[a].meters.trust;
@@ -156,7 +176,7 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         await soft(`end Re-read ${index}`, async () => {
             const done = await host.turn.reread(index);
             assert.equal(done?.ok ?? true, true, `Re-read ${index}: ${done?.message ?? ''}`);
-            same(noIds(host.head()), noIds(JSON.parse(live)), `Re-read of reply ${index} leaves the state as live`);
+            same(...noIds(host.head(), JSON.parse(live), `end ${index}`), `Re-read of reply ${index} leaves the state as live`);
         });
     }
     // A swipe of the last reply with the same text: the chat, rebuilt cold, gives the head the swipe left.
@@ -181,6 +201,7 @@ test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, 
         assert.equal(JSON.stringify(host.head()), afterDelete, 'after a delete in the middle, a cold reload equals live');
     });
     await soft('end', () => assert.deepEqual(errors, [], 'nothing was thrown or logged as an error'));
+    if (process.env.E2E_PRINT) console.log('Re-read re-pointed stack receipts:', REPOINTED.length, REPOINTED.slice(0, 5));
     assert.deepEqual(failures, [], `${failures.length} check(s) failed`);
     assert.ok(COUNTS.reads >= 30);
 });

@@ -26,42 +26,33 @@ export async function loadSuite() {
     return { roots: r, createHost: kit.createHost, SD, NSD, at: rel => at(r.sb, rel), packText: readFileSync(path.join(r.sb, 'examples/packs/ersveil/pack.json'), 'utf8') };
 }
 
-function source(seed) {
-    let x = seed | 0;
-    const next = () => {
-        x = (x + 0x9E3779B9) | 0;
-        let z = x;
-        z = Math.imul(z ^ (z >>> 16), 0x85EBCA6B);
-        z = Math.imul(z ^ (z >>> 13), 0xC2B2AE35);
-        return (z ^ (z >>> 16)) >>> 0;
-    };
-    return {
-        getRandomValues(array) { for (let i = 0; i < array.length; i += 1) { const v = next(); array[i] = array instanceof Uint8Array ? v & 0xFF : v; } return array; },
-        randomUUID: () => `00000000-0000-4000-8000-${String(next()).padStart(12, '0').slice(0, 12)}`,
-    };
-}
-
 /** A host with the two modules and the Ersveil pack installed before the chat starts. crypto is seeded while it lives. */
 export async function suiteHost(loaded, { seed = 1, settings = null, nsdNpcs = [] } = {}) {
-    const savedCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
-    Object.defineProperty(globalThis, 'crypto', { value: source(seed), configurable: true, writable: true });
+    // Receipt ids, seeds and reply ids follow the seed (the QA helper; its ids differ from the first character, unlike a counter's).
+    const restoreCrypto = (await loaded.at('tests/v2/qa/helpers/seeded.js')).seedCrypto(seed);
     let sdk = null;
     const sd = loaded.SD.createModule({ host: { settings: id => sdk?.settings(id) ?? null, substitute: text => sdk?.substitute(text) } });
-    const nsd = loaded.NSD.createStorySuiteV2Adapter({ suiteApi: { npcs: () => nsdNpcs }, delta: () => ({ isEnabled: () => true, getNpc: () => null }), doc: null, timers: {}, logger: { warn() {} } }).definition;
+    // NPC State Delta connects the way the page does (adapter.start(): it registers itself with the host and learns the sdk it
+    // reads Story Director's clock through); handing its bare definition to the host would leave its story day unknown.
+    const adapter = loaded.NSD.createStorySuiteV2Adapter({ suiteApi: { npcs: () => nsdNpcs }, delta: () => ({ isEnabled: () => true, getNpc: () => null }), host: () => globalThis.StoryBlock, doc: null, timers: {}, logger: { warn() {} } });
     const probe = await loaded.createHost({ settings: settings ?? {} });
     const done = await probe.packs.packs.install(loaded.packText, { origin: 'pack.json' });
     if (!done.ok) throw new Error('pack install failed: ' + JSON.stringify(done.errors));
     const storySuite = structuredClone(probe.ctx.extensionSettings.storySuite);
     probe.close();
-    const host = await loaded.createHost({ settings: storySuite, modules: [sd, nsd] });
+    const host = await loaded.createHost({ settings: storySuite, modules: [sd] });
     sdk = host.sdk;
     const savedSB = globalThis.StoryBlock;
     globalThis.StoryBlock = { apiVersion: 2, ready: Promise.resolve(sdk), sdk };
+    adapter.start();
+    const hosted = await adapter.settled();
+    if (!hosted) throw new Error('NPC State Delta did not register with the host');
     const close = host.close;
     host.close = () => {
+        adapter.stop?.();
         close();
         if (savedSB === undefined) delete globalThis.StoryBlock; else globalThis.StoryBlock = savedSB;
-        if (savedCrypto) Object.defineProperty(globalThis, 'crypto', savedCrypto);
+        restoreCrypto();
     };
     host.q = (name, args) => sdk.query(name, args);
     host.cmd = (type, payload = {}, opts) => sdk.command(type, payload, opts);
