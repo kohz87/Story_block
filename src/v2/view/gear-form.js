@@ -169,6 +169,7 @@ export function editPlan(p) {
                 steps.push({ command: 'item.equip', payload: { stack, owner: by, slot, ...(by !== gear.owner ? { transfer: true } : {}) }, keys: ['by'] });
             }
         }
+        if (!steps.length && all.kind === 'equipment' && (changed.by !== undefined || changed.slot !== undefined || !Object.keys(changed).length)) return { error: gear.place ? E.nothingChanged : E.nothingWorn };
         return { steps };
     };
 }

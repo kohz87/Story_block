@@ -264,7 +264,10 @@ function render(el, input, api) {
         // The form's `plan`: the steps run one after the other; a refusal stops the rest and leaves the form open with its sentence. A step that
         // went through is not sent again by the next Save: its boxes now count as what the form opened with.
         async function runPlan({ changed, all }) {
-            if (!Object.keys(changed).length && !p.always) { close(); return; }
+            if (!Object.keys(changed).length && !p.always) {
+                if (p.kind === 'item' && p.gear?.kind === 'equipment') { error.textContent = p.gear.place ? STRINGS.editMessages.nothingChanged : STRINGS.editMessages.nothingWorn; return; }
+                close(); return;
+            }
             let outcome;
             try { outcome = formPlan(changed, all); } catch (failure) { outcome = { error: String(failure?.message ?? failure) }; }
             if (outcome?.error) { error.textContent = String(outcome.error); return; }
@@ -344,7 +347,11 @@ function render(el, input, api) {
                     if (!/^\d+$/.test(raw) || !Number.isSafeInteger(carry) || carry > 500) { error.textContent = E.carryRange.replace('{max}', '500'); return; }
                     if (carry !== was) steps.push({ command: 'inventory.carry', payload: { stack: p.payload?.stack, carry } });
                 }
-                if (!edited && !worn.length && !steps.length) { close(); return; }
+                if (!edited && !worn.length && !steps.length) {
+                    // (an equipment piece's Save that changes nothing says so, in the form's own line, instead of closing as if it had done something)
+                    if (p.gear?.kind === 'equipment') { error.textContent = p.gear.place ? STRINGS.editMessages.nothingChanged : STRINGS.editMessages.nothingWorn; return; }
+                    close(); return;
+                }
                 if (worn.length || steps.length) { await runSteps([...(edited ? [{ command: p.command, payload }] : []), ...worn, ...steps]); return; }
             } else if (formFields) {
                 const read = fields.readFields(p);

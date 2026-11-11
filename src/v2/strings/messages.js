@@ -1,6 +1,7 @@
 // Story Block's messages for inline edits and command refusals.
 export const MESSAGE_STRINGS = {
     editMessages: {
+        nothingWorn: 'Nothing to change: no one wears it.', nothingChanged: 'Nothing to change.',
         onlyReader: 'Only the reader can make this edit.', itemName: 'Give the item a name.',
         itemNameLength: 'An item needs a name of 1 to 60 characters.',
         // Hand-set gear (the starting kit, docs/v2/GEAR.md "Your own gear"): the refusals of a reader's add or edit.

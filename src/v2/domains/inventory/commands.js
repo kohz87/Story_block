@@ -297,7 +297,7 @@ export function createInventoryCommands(env) {
             // The reader's hand-over (Give on the Inventory screen): only the taker's own load is checked.
             if (ctx.cause === 'ui') readerCarry(ctx, [{ defId: def.id, qty }], to, true);
             const cond = condOf(stack, inv);
-            const target = def.stack && stack.key !== true ? looseMatch(inv, def.id, to, stack.note, null, cond) : null;
+            const target = def.stack && stack.key !== true && def.kind !== 'equipment' ? looseMatch(inv, def.id, to, stack.note, null, cond) : null;
             const note = stack.note;
             let moved;
             if (qty === stack.qty && !target) {

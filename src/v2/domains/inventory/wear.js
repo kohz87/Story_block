@@ -100,7 +100,7 @@ export function itemEquip(ctx, payload) {
     // `transfer: true` (the item Edit): hand it to `owner` first. It is one command, so a refusal below leaves it where it was (all or nothing).
     let handed = false;
     if (payload.owner !== undefined && payload.owner !== stack.owner && payload.transfer === true) {
-        const moved = ctx.call('inventory.transfer', { stack: stack.id, to: payload.owner });
+        const moved = ctx.call('inventory.transfer', { stack: stack.id, to: payload.owner, ...(stack.qty > 1 ? { qty: 1 } : {}) });
         inv = ctx.draft('inventory');
         stack = stackIn(ctx, inv, moved?.data?.stack ?? stack.id);
         handed = true;

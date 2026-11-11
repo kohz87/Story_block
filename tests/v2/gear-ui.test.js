@@ -208,6 +208,53 @@ test('Edit, gear on: Equipped by a member hands the piece over and puts it on in
     assert.deepEqual([held.owner, held.equipped], ['ac_ren00001', 'weapon']);
 });
 
+const gearRun = h => (type, payload) => h.run(type, payload, { cause: 'ui', extra: { feature: id => id === 'story-block.gear' || id === 'story-block.rpg' } });
+
+test('Edit, gear on: two pieces with one name; equipping the second for a member (who carries the first) equips exactly the second, never merged into the first', async () => {
+    const { module, state } = crewState();
+    const inv = state.domains.inventory;
+    const first = inv.stacks.it_sword001;
+    // Ren carries a same-named, same-wear piece; the party's own is the one the reader edits.
+    inv.stacks.it_sword009 = { ...first, id: 'it_sword009', owner: 'ac_ren00001', equipped: null };
+    const h = createHarness([module], { state });
+    const done = await gearRun(h)('item.equip', { stack: 'it_sword001', owner: 'ac_ren00001', slot: 'weapon', transfer: true });
+    assert.equal(done.ok, true, done.message);
+    const stacks = h.state.domains.inventory.stacks;
+    assert.deepEqual([stacks.it_sword001.owner, stacks.it_sword001.equipped], ['ac_ren00001', 'weapon'], 'the edited piece is the one worn');
+    assert.deepEqual([stacks.it_sword009.owner, stacks.it_sword009.equipped], ['ac_ren00001', null], 'the other piece is untouched');
+    assert.equal(done.result.data.place, 'weapon');
+});
+
+test('Edit, gear on: a transfer of equipment never merges into a same-named piece; the moved stack keeps its own id', async () => {
+    const { module, state } = crewState();
+    const inv = state.domains.inventory;
+    inv.stacks.it_sword009 = { ...inv.stacks.it_sword001, id: 'it_sword009', owner: 'ac_ren00001', equipped: null };
+    const h = createHarness([module], { state });
+    const moved = await gearRun(h)('inventory.transfer', { stack: 'it_sword001', to: 'ac_ren00001' });
+    assert.equal(moved.ok, true, moved.message);
+    assert.equal(moved.result.data.stack, 'it_sword001');
+    assert.equal(h.state.domains.inventory.stacks.it_sword009.qty, inv.stacks.it_sword009.qty, 'the other piece keeps its count');
+    assert.equal(h.state.domains.inventory.stacks.it_sword001.owner, 'ac_ren00001');
+});
+
+test('Edit, gear on: Save with nothing to change says so in the form instead of closing', async () => {
+    const { module, state } = crewState();
+    const h = createHarness([module], { state });
+    const calls = [];
+    const { el } = show(inventoryScreen, { state: h.state, query: h.query, command: (type, payload) => { calls.push(type); return gearRun(h)(type, payload); } });
+    const sword = rowOf(el, 'Iron Sword');
+    sword.querySelector('.ss-w-editable-pencil').click();
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls, []);
+    assert.match(text(sword.querySelector('.ss-w-editable-error')), /^Nothing to change: no one wears it\.$/);
+    const [slot] = sword.querySelectorAll('select');
+    slot.value = 'weapon';
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.match(text(sword.querySelector('.ss-w-editable-error')), /Nothing to change/, 'a Slot with nobody to wear it changes nothing');
+});
+
 test('Settings, RPG: the Gear in fights card sits after the Stat formula, with On and Off buttons like Rolls, and its words', async t => {
     const ctx = await page(t, { feature: true });
     const win = ctx.ui.openSettings();
