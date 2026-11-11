@@ -159,7 +159,9 @@ export function createReplace(s, deps) {
                 let blockOps;
                 let kept = receipt;
                 let again = null;      // the block as planned again, when it was
-                const asks = typeof rerun === 'function' && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
+                // (a decision whose guard still holds on the state before it is kept as it was, never asked again)
+                const decided = isMetaSpan(was) && was.guard?.predicate?.kind === 'events.decision' && (() => { try { guardHolds(state, was, message); return true; } catch { return false; } })();
+                const asks = typeof rerun === 'function' && !decided && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
                 if (asks) {
                     let out = null;
                     try { out = rerunBlock(rerun, state, receipt, index, was, nextParts, keptAlloc); } catch { out = null; }

@@ -218,6 +218,11 @@ export function createReplayBlocks(s, deps) {
     function replanned(state, record, index, span, receipt, blockOps, out, rerun) {
         const broken = intactReason(record, blockOps, span, receipt);
         if (broken) return { kept: true, why: broken };
+        // A decision whose guard still holds (the story before it is as it was) stays as it was: what the owner would pick
+        // now may differ (scoring inputs changed), and a story that did not change must not rewrite a throne already told.
+        if (span.guard?.predicate?.kind === 'events.decision') {
+            try { guardHolds(state, span, arr0(index)); return { kept: true, why: 'its decision still holds' }; } catch { /* the story before it changed: plan it again */ }
+        }
         let planned = null;
         let failure = '';
         try {

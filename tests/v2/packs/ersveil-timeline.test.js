@@ -269,6 +269,7 @@ test('no double reign: the sway changing after a branch is fixed never starts a 
 
 // A small Director on the real host: quests change Hasse's sway, world entries behave like lasting
 // chronicle entries, and fights are read from receipts, so the replay tests exercise the actual bus and store.
+let swayShift = [0, 0, 0];     // what the scoring now adds to each power (a Director update): the test sets it after the decisions
 function directorForDecisions() {
     return {
         id: 'test-director', name: 'Test director', version: '1.0.0',
@@ -293,7 +294,7 @@ function directorForDecisions() {
             },
             'ripples.sway': (state, _args, tools) => {
                 const helped = state.domains.director.deed === 'hasse' || tools.receipts().some(entry => entry.receipt.type === 'test.fight');
-                return rowsOf(helped ? [40, 35, 55] : [40, 35, 25]);
+                return rowsOf((helped ? [40, 35, 55] : [40, 35, 25]).map((value, at) => value + swayShift[at]));
             },
         },
         capture: { kinds: { deed: { grammar: '! deed Name' } }, apply(ctx, line) {
@@ -383,4 +384,32 @@ test('an existing 2.9.3 reign blocks every alternative crown even when sway chan
         const result = evaluateCondition(crown.when, view({ minutes: 318400000, chronicle, sway: [25, 35, 40] }));
         assert.equal(result.met, false, `${crown.id}: ${reign}`);
     }
+});
+
+test('a decision whose story did not change is kept when the scoring changes: swipe, delete, Re-read of a later reply', async t => {
+    swayShift = [0, 0, 0];
+    t.after(() => { swayShift = [0, 0, 0]; });
+    const { host, earlier, story } = await decisionHost(t);
+    await host.send('Later on.', 'Months pass.');
+    const crowned = ['Reign of Empress Wendhild'];
+    assert.deepEqual(chosen(host).reigns, crowned);
+    swayShift = [-30, 0, 0];       // now Corvin would be picked
+    await host.swipe('Months pass, again.');
+    assert.deepEqual(chosen(host).reigns, crowned, 'swipe of the last reply');
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    assert.deepEqual(chosen(host).reigns, crowned, 'delete of the last reply');
+    assert.deepEqual(chosen(host).wars, ["Highmark's war: Wendhild against Corvin"]);
+    await host.send('One more.', 'Winter.');
+    const done = await host.turn.reread(host.ctx.chat.length - 1);
+    assert.equal(done.ok, true, done.message);
+    assert.deepEqual(chosen(host).reigns, crowned, 'Re-read of a reply after the crown');
+    const before = JSON.stringify(host.head());
+    await host.st.loadChat(structuredClone(host.ctx.chat));
+    assert.equal(JSON.stringify(host.head()), before);
+    // the earlier deed changed: the war and the crown are picked again
+    host.ctx.chat[earlier].mes = story('hasse');
+    host.ctx.chat[earlier].swipes[0] = story('hasse');
+    const again = await host.turn.reread(earlier);
+    assert.equal(again.ok, true, again.message);
+    assert.deepEqual(chosen(host).reigns, ['Reign of Emperor Hasse']);
 });
