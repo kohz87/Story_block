@@ -902,6 +902,23 @@ test('partyFour: the active limit is 4 on a reply with the new mark, 8 on a repl
     assert.deepEqual(benchable(members(4)).map(entry => entry.name), ['M1', 'M2', 'M3'], 'nobody named: the first block is the reader\'s');
 });
 
+test('A long name in the bench card keeps its level', () => {
+    const character = (slug, who) => ({ definition: { ...characterDefinition(slug, who), role: 'character', state: { left: { type: 'bool' } } }, fields: { who } });
+    const long = 'Sir Bartholomew Featherstonehaugh-Wetherby the Third of Ersveil';
+    assert.equal([...long].length >= 60, true);
+    const state = fakeState([character('m0', 'M0'), character('m1', long), character('m2', 'Kel'), character('m3', 'M3')]);
+    const card = joinCard([{ name: 'New', about: '', soul: 1, best: '', full: true }], state);
+    const labels = card.actions.map(action => action.label);
+    assert.match(labels[0], /^Sir Bartholomew.*… · Lv \d+$/);
+    assert.equal([...labels[0]].length <= 32, true);
+    assert.match(labels[1], /^Kel · Lv \d+$/, 'a short name is unchanged');
+    // 5 active: the card keeps room for Not now
+    const five = fakeState(['m0', 'm1', 'm2', 'm3', 'm4'].map(slug => character(slug, slug.toUpperCase())));
+    const many = joinCard([{ name: 'New', about: '', soul: 1, best: '', full: true }], five).actions;
+    assert.equal(many.length, 4);
+    assert.equal(many.at(-1).command, JOIN_NO);
+});
+
 test('partyFour: a new reply is marked partyFour and partyRoom, and the 5th member of a story is not made but offered; a reply with only partyRoom still takes the 5th', { skip }, async t => {
     const host = await four();
     t.after(() => host.close());

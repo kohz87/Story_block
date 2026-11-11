@@ -213,6 +213,14 @@ export function joinOffers(entries, index, party = []) {
     return [...shown, ...done];
 }
 
+/** A bench button's label: the name is cut with an ellipsis so " · Lv N" always stays inside the card's 32-character action label. */
+function benchLabel({ name, level }) {
+    const tail = fill(J.benchOne, { name: '', level });
+    const room = Math.max(1, 32 - [...tail].length);
+    const chars = [...oneLine(name, 1000)];
+    return fill(J.benchOne, { name: chars.length > room ? `${chars.slice(0, room - 1).join('').trimEnd()}…` : chars.join(''), level });
+}
+
 /** The card under the reply for the first offer, in reply-cards.js's shape, or null. */
 export function joinCard(offers, state = null, isMe = () => false) {
     const offer = offers.find(entry => !entry.done) ?? offers[0];
@@ -221,7 +229,8 @@ export function joinCard(offers, state = null, isMe = () => false) {
     // (a full party, 4 active: one button per member who may step out, and Not now; the offer's request stays in the reply's receipt)
     if (offer.full) {
         const payload = { name: offer.name, about: offer.about, soul: offer.soul, best: offer.best, ...(offer.skills ? { skills: offer.skills } : {}) };
-        const actions = benchable(state, isMe).map(member => ({ id: `bench-${member.module}`.slice(0, 40), label: fill(J.benchOne, { name: member.name, level: member.level }), icon: 'fa-person-walking-arrow-right', command: JOIN_BENCH, payload: { ...payload, bench: member.name } }));
+        // (room for Not now: a card keeps 4 buttons, so a chat with more than 4 active shows 3 members until Not now is used)
+        const actions = benchable(state, isMe).slice(0, offer.declined ? 4 : 3).map(member => ({ id: `bench-${member.module}`.slice(0, 40), label: benchLabel(member), icon: 'fa-person-walking-arrow-right', command: JOIN_BENCH, payload: { ...payload, bench: member.name } }));
         if (!offer.declined) actions.push({ id: 'no', label: J.benchNot, icon: 'fa-xmark', command: JOIN_NO, payload: { name: offer.name } });
         return { tone: 'accent', icon: 'fa-flag', title: fill(J.benchTitle, { max: PARTY_ACTIVE }), rows: [],
             text: fill(offer.declined ? J.benchDeclined : J.benchWho, { name: offer.name }), actions };
