@@ -85,7 +85,7 @@ test('F3: the battle log calls a turn-order lead initiative, and leaves it to th
 });
 
 // A fight narrated with no foes line gets one short tail cue on the next reply (turn/fight-start.js fightCue).
-const FIGHT = 'He struck the first cutpurse dead, slashed the second, and blood ran from the wounded third.';
+const FIGHT = 'He struck down the first cutpurse, slashed the second, and the wounded third ran.';
 const dice = '? roll Astra | AGI | normal | 12';
 const mes = (story, ...lines) => ({ mes: `${story}\n<Changes>\n${lines.join('\n')}\n</Changes>` });
 
@@ -99,6 +99,7 @@ test('fightCue: a fight in the prose with a roll and no foes line is told; each 
     assert.equal(fightCue(mes('He struck the table and sat down.', dice)), null, 'too few fight words');
     assert.equal(fightCue({ mes: FIGHT }), null, 'no block, no roll');
     assert.equal(fightCue(null), null);
+    assert.equal(fightCue(mes('A dead tree leaned by the road, a sword hung over the hearth, and a bolt of lightning split the sky; blood-red dusk, an axe in the shed, arrows on the wall.', '? roll Astra | Stealth | normal | 12')), null, 'scene words and nouns with a Stealth roll are no fight');
 });
 
 test('the cue reaches the next reply\'s tail only with the RPG on and no foe set; the static prompt is unchanged', async t => {

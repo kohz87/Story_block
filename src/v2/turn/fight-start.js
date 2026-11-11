@@ -52,7 +52,8 @@ export function fightsInMessage(text, sheet) {
 // RPG being on; a tail line only, the static prompt is unchanged. Re-derived from the stored reply each time, so replay == live.
 export const FIGHT_CUE = 'A fight seems under way in the last reply but no foes line was written: write + dm foes so it is fought on the board.';
 export const FIGHT_WORDS_MIN = 3;
-const FIGHT_WORD = /(?<![\p{L}\p{N}])(kill(?:ed|s)?|slain|slay(?:s)?|slew|stab(?:bed|s)?|slash(?:ed|es)?|wound(?:ed|s)?|bleed(?:ing|s)?|blood(?:y)?|corpses?|dies|died|dead|struck|strikes?|swung|swings?|arrows?|blades?|sword|axe|cleaves?|cleft|parried|lunged|crossbow|bolt|fell\s+dead)(?![\p{L}\p{N}])/giu;
+// Action words only (something done to someone): a noun or scene word (blood, dead, sword, bolt, axe) never counts, so a dead tree or a sword on the wall is no fight.
+const FIGHT_WORD = /(?<![\p{L}\p{N}])(kill(?:ed|s)?|slain|slay(?:s)?|slew|stab(?:bed|s)?|slash(?:ed|es)?|wound(?:ed|s)?|bleed(?:ing|s)?|struck\s+down|strikes?\s+down|swung\s+at|swings?\s+at|cleaves?|cleft|parried|lunged|fell\s+dead)(?![\p{L}\p{N}])/giu;
 export function fightCue(reply, { foesNow = false, heads = null } = {}) {
     const mes = String(reply?.mes ?? '');
     if (foesNow || !mes) return null;
