@@ -197,3 +197,62 @@ test('pack collapse writes its left count and per-member hurt, and a setup witho
     assert.equal(hashJson({ state: replay.state, result: replay.result }), '24a43d13a6ba8eee80469e363958399921f2edbb19b668332fb9e21213726a23');
     assert.deepEqual(playBoard(state, setup, [{ actions }]), replay);
 });
+
+// ---- the six-group rule: setup `foesSix: 1` ----
+
+const sixBlocks = (foes, size = 6) => ({
+    hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, vit: 20, health: 8 }) },
+    foes: { role: 'foes', fields: levelFoeBlock(foes, size) },
+});
+const SIX_GROUPS = [['Boars', 2, 1, 4], ['Rats', 3, 1, 4], ['Wolves', 1, 1, 4], ['Crows', 6, 1, 4], ['Gulls', 2, 1, 4], ['Bats', 4, 1, 4]];
+
+test('six groups on one Foes block are read and fought: every group has its own bars and chips', () => {
+    const state = stateOf(sixBlocks(SIX_GROUPS)), sheet = readSheet(state);
+    assert.deepEqual(sheet.foes.map(foe => [foe.slot, foe.local, foe.name]), SIX_GROUPS.map(([name], at) => [at + 1, at + 1, name]));
+    const setup = { seed: 31, offset: 0, rules, members: 1, foesSix: 1 }, first = playBoard(state, setup, []);
+    assert.equal(first.error, undefined);
+    assert.equal(first.result.foesSix, 1);
+    const groups = [...new Set(first.result.members.map(member => member.group))];
+    assert.deepEqual(groups, [1, 2, 3, 4, 5, 6]);
+    assert.equal(first.result.members.length, 2 + 3 + 1 + 6 + 2 + 4, 'a group of six has six member bars');
+    assert.equal(new Set(first.result.members.map(member => member.slot)).size, first.result.members.length);
+    const played = playBoard(state, setup, [{ actions: [{ who: 'Astra', kind: 'attack', target: 51 }] }]);
+    assert.equal(played.error, undefined);
+    assert.deepEqual(playBoard(state, setup, [{ actions: [{ who: 'Astra', kind: 'attack', target: 51 }] }]), played, 'replay is the same bytes');
+});
+
+test('six groups: a group of six is six bars, a group of seven is one pack, and a 12-foe swarm attacks six times at a full bar and thins with it', () => {
+    const state = stateOf(sixBlocks([['Gulls', 6, 1, 4], ['Swarm', 12, 1, 4]]));
+    const base = readSheet(state), bars = splitFoes(base.foes, { six: true });
+    assert.equal(bars.filter(bar => bar.group === 1 && bar.member).length, 6);
+    const swarm = bars.find(bar => bar.group === 2);
+    assert.equal(swarm.pack, true);
+    const attack = [{ who: 'Astra', kind: 'attack', target: 21 }];
+    for (const [value, attacks] of [[swarm.size, 6], [Math.ceil(swarm.size / 2), 3], [1, 1]]) {
+        const built = exchangePlan({ ...base, foes: [{ ...swarm, hurt: value }] }, attack, {}, 1, { members: true });
+        assert.equal(built.error, undefined);
+        assert.equal(built.plan.foes.length, attacks, `bar ${value} of ${swarm.size}`);
+    }
+});
+
+test('six groups: an old fight (no foesSix) keeps cap 5 and the three-attack rule, and its bytes do not change', () => {
+    const six = stateOf(sixBlocks([['Gulls', 6, 1, 4], ['Swarm', 12, 1, 4]], 4));
+    const old = { seed: 31, offset: 0, rules, members: 1 }, fresh = { ...old, foesSix: 1 };
+    const before = playBoard(six, old, [{ actions: [{ who: 'Astra', kind: 'attack', target: 11 }] }]);
+    assert.equal(before.error, undefined);
+    assert.equal(before.result.foesSix, undefined);
+    assert.equal(before.result.members.filter(member => member.group === 1).length, 1, 'six foes are one pack without the mark');
+    assert.equal(before.result.members.find(member => member.group === 2).attacks, 3);
+    assert.deepEqual(playBoard(six, old, [{ actions: [{ who: 'Astra', kind: 'attack', target: 11 }] }]), before);
+    const marked = playBoard(six, fresh, []);
+    assert.equal(marked.result.members.filter(member => member.group === 1).length, 6);
+    assert.equal(marked.result.members.find(member => member.group === 2).attacks, 6);
+});
+
+test('six groups: a four-slot Foes block loads unchanged (slots 5 and 6 are absent, not empty slots)', () => {
+    const sheet = readSheet(stateOf(sixBlocks([['Boars', 2, 1, 4]], 4)));
+    assert.equal(sheet.foes.length, 4);
+    assert.ok(sheet.foes.every(foe => !('local' in foe)), 'an older block reads with the keys it always had');
+    const two = readSheet(stateOf({ a: sixBlocks([['Boars', 2, 1, 4]], 4).foes, b: sixBlocks([['Rats', 2, 1, 4]], 4).foes }));
+    assert.deepEqual(two.foes.map(foe => [foe.slot, foe.local]), [[1, undefined], [2, undefined], [3, undefined], [4, undefined], [5, undefined], [6, undefined], [7, undefined], [8, undefined]], 'a second block still numbers 5…8');
+});

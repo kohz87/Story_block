@@ -39,7 +39,7 @@ async function world(t, { oneFoe = false } = {}) {
     character.slug = 'wessel'; character.name = 'Wessel'; character.state.who.default = 'Wessel';
     success(await host.sdk.command('dm.define', { definition: character }));
     const foes = structuredClone(STANDARD_TEMPLATES.find(entry => entry.name === 'Foes').definition);
-    if (oneFoe) for (const n of [2, 3, 4]) delete foes.kinds[`set-slot-${n}`];
+    if (oneFoe) for (const n of [2, 3, 4, 5, 6]) delete foes.kinds[`set-slot-${n}`];
     success(await host.sdk.command('dm.define', { definition: foes }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/wessel', fields: { level: 15 } }));
     return host;

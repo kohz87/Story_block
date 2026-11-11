@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    MEMBER_CAP, PACK_MAX_ATTACKS, PACK_MAX_SIZE, boardFoes, carriedFrom, collapseFoes, memberSize,
+    MEMBER_CAP, MEMBER_CAP_SIX, PACK_MAX_ATTACKS, PACK_MAX_ATTACKS_SIX, PACK_MAX_SIZE, boardFoes, carriedFrom, collapseFoes, memberSize,
     packAreaBlocks, packAttacks, packCounts, packFullAttacks, packLeft, packSize, splitFoes, virtualSlot,
 } from '../../../../src/v2/lean-rpg/board/members.js';
 
@@ -172,4 +172,57 @@ test('boardFoes builds member cards and each pack card with its own count, left 
         [11, 1, 1, 'Bristle-boar 1', 2, 4, true], [12, 1, 2, 'Bristle-boar 2', 2, 4, true],
         [2, 2, 1, 'Spiders', 4, 4, true],
     ], 'a lone real foe shares the list with split members');
+});
+
+// ---- the six-group rule (fight setup `foesSix: 1`, passed here as `six`) ----
+
+test('six rule: a group of six is six member bars, seven or more is a pack, and the old cap stays five without it', () => {
+    assert.equal(MEMBER_CAP_SIX, 6);
+    assert.equal(PACK_MAX_ATTACKS_SIX, 6);
+    const six = splitFoes([realFoe({ count: 6 })], { six: true });
+    assert.equal(six.length, 6);
+    assert.ok(six.every(foe => foe.member === true && foe.count === 1));
+    assert.deepEqual(six.map(foe => foe.slot), [11, 12, 13, 14, 15, 16]);
+    const seven = splitFoes([realFoe({ count: 7 })], { six: true });
+    assert.equal(seven.length, 1);
+    assert.equal(seven[0].pack, true);
+    assert.equal(seven[0].count, 7);
+    // without the mark (a fight staged earlier): six is one pack, as before
+    const old = splitFoes([realFoe({ count: 6 })]);
+    assert.equal(old.length, 1);
+    assert.equal(old[0].pack, true);
+    assert.equal(splitFoes([realFoe({ count: 5 })]).length, 5);
+});
+
+test('six rule: a full pack attacks 1 + floor(count / 2) times, at most six; without the mark 1 + floor(count / 6), at most three', () => {
+    assert.deepEqual([7, 8, 9, 10, 11, 12].map(count => packFullAttacks(count, true)), [4, 5, 5, 6, 6, 6]);
+    assert.equal(packFullAttacks(12, true), 6);
+    assert.equal(packFullAttacks(40, true), 6);
+    assert.deepEqual([6, 7, 11, 12, 40].map(count => packFullAttacks(count)), [2, 2, 2, 3, 3], 'the old rule is untouched');
+    // a twelve-foe swarm at a full bar attacks six times, then thins with the bar and never reaches zero while it stands
+    assert.equal(packAttacks(12, 8, 8, 6), 6);
+    assert.equal(packAttacks(12, 4, 8, 6), 3);
+    assert.equal(packAttacks(12, 1, 8, 6), 1);
+    assert.equal(packAttacks(12, 0, 8, 6), 0);
+    const swarm = splitFoes([realFoe({ count: 12 })], { six: true })[0];
+    assert.equal(swarm.full, 6);
+    assert.equal(boardFoes([realFoe({ count: 12 })], new Map(), { six: true })[0].attacks, 6);
+    assert.equal(boardFoes([realFoe({ count: 12 })], new Map())[0].attacks, 3);
+    assert.equal(packAreaBlocks(8, false), 3, 'the area hit against a pack is still a third of its bar');
+});
+
+test('six rule: groups five and six get their own virtual slots, collapse and carry like the first four', () => {
+    const real = [realFoe({ slot: 5, local: 5, count: 6, name: 'Gulls' }), realFoe({ slot: 6, local: 6, count: 2, name: 'Crows' })];
+    const bars = splitFoes(real, { six: true });
+    assert.deepEqual(bars.map(foe => foe.slot), [51, 52, 53, 54, 55, 56, 61, 62]);
+    assert.equal(new Set(bars.map(foe => foe.slot)).size, bars.length, 'every virtual slot is unique');
+    assert.deepEqual(bars.map(foe => foe.group), [5, 5, 5, 5, 5, 5, 6, 6]);
+    const values = map(bars.map(foe => [foe.slot, foe.slot === 51 ? 0 : foe.hurt]));
+    const collapsed = collapseFoes(real, values, { six: true });
+    assert.deepEqual(collapsed.map(change => [change.slot, change.count.to]), [[5, 5], [6, 2]]);
+    assert.deepEqual(carriedFrom(boardFoes(real, values, { six: true })).counts, { 5: 6, 6: 2 });
+    // the field a group writes is its block's own number: slot 5 of a first Foes block is hurt5, a second block's slot 5 (numbered 5 after a four-slot block) is hurt1
+    assert.equal(memberSize(realFoe({ slot: 5, local: 5 }), (module, field) => { assert.equal(field, 'hurt5'); return 9; }), 4);
+    assert.equal(memberSize(realFoe({ slot: 5, local: 1 }), (module, field) => { assert.equal(field, 'hurt1'); return 9; }), 4);
+    assert.equal(memberSize(realFoe({ slot: 6 }), (module, field) => { assert.equal(field, 'hurt2'); return 9; }), 4, 'no `local`: the earlier numbering');
 });

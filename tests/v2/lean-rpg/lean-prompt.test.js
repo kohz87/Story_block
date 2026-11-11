@@ -47,9 +47,9 @@ test('a numbered family is one template line with N, and a closing line says wha
         assert.doesNotMatch(skills, /learn-(?:[1-9]|1[01])|practice-(?:[1-9]|1[01])/u, `${label}: no kind written eleven times`);
         const foes = moduleGrammar(definitionOf(templates, 'foes'), 'foes');
         for (const kind of ['set-slot-N', 'hurt-N', 'clear-N']) assert.equal(foes.split('\n').filter(line => line.includes(`kind: ${kind}`)).length, 1, `${label} ${kind}`);
-        assert.ok(foes.includes('N = 1..4 for set-slot-N, hurt-N and clear-N.'), label);
+        assert.ok(foes.includes('N = 1..6 for set-slot-N, hurt-N and clear-N.'), label);
         // The kinds themselves are as they were: the template is the text the narrator reads, never the definition.
-        assert.deepEqual(Object.keys(definitionOf(templates, 'foes').kinds), [1, 2, 3, 4].flatMap(n => [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]));
+        assert.deepEqual(Object.keys(definitionOf(templates, 'foes').kinds), [1, 2, 3, 4, 5, 6].flatMap(n => [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]));
         assert.equal(Object.keys(definitionOf(templates, 'skills').kinds).length, 22); // (11 learn + 11 practice: eight combat slots and three utility ones)
     }
 });
@@ -111,7 +111,7 @@ test('a quiet reply leaves out the combat text, the Foes description, hurt and c
     assert.doesNotMatch(text, /kind: hurt-N|kind: clear-N|foe groups in the fight/u);
     assert.match(text, /^\+ party /mu, 'the party line stays on every reply: companions join in calm scenes');
     assert.match(text, /\+ dm foes — reason \| kind: set-slot-N \| name: text \| count: 1\.\.99 \| level: 1\.\.99/u);
-    assert.match(text, /N = 1\.\.4 for set-slot-N\./u);
+    assert.match(text, /N = 1\.\.6 for set-slot-N\./u);
     // What the narrator needs on every reply stays.
     assert.match(text, /kind: set-health/u);
     assert.match(text, /kind: learn-N/u);

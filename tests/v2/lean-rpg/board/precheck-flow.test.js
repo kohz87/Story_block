@@ -258,3 +258,37 @@ test('the pause box: the wait line has no choice; found foes offer three', () =>
     assert.deepEqual(calls, ['board', 'auto', 'send']);
     view.destroy();
 });
+
+test('a pre-check opening five groups keeps the reply\'s changes: live, rebuild, Re-read and reload agree', async () => {
+    const names = ['ants', 'bees', 'cats', 'dogs', 'eels'];
+    const six = { ...foeBlock([], 'class', 6), count1: 0, count2: 0, count3: 0, count4: 0, count5: 0, count6: 0 };
+    const restore = seedCrypto(704), { host } = await setup({
+        blocks: { ...blocks(), foes: { role: 'foes', fields: six } }, board: true, planner: false, precheck: true,
+        answers: [JSON.stringify({ groups: names.map(name => ({ name, count: 2 })) })],
+    });
+    try {
+        assert.equal((await host.send('I attack the ants, bees, cats, dogs and eels.', 'Not sent.')).aborted, true);
+        const meta = host.ctx.chatMetadata, pending = pendingStart(meta, host.ctx.chat), opening = host.turn.fightStartPreview();
+        const { openBoard } = await import('../../../../src/v2/lean-rpg/board/session.js');
+        const { STANDARD_FORMULA } = await import('../../../../src/v2/lean-rpg/rules.js');
+        const { dropOf } = await import('../../../../src/v2/lean-rpg/ambush.js');
+        const open = openBoard(meta, opening.state, { sid: host.store.carrierSid(host.store.headIndex()), rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        assert.equal(open.error, undefined, open.error);
+        Object.assign(open.session.setup, { opening: structuredClone(pending.opening), approach: structuredClone(opening.result.checks ?? []), drop: dropOf(opening.result) });
+        pending.choice = 'board';
+        assert.equal(stageExchange(meta, opening.state, [{ who: 'Astra', kind: 'attack', target: 11 }]).error, undefined);
+        assert.equal(markSend(meta, pending, boardSession(meta)), true);
+        const sent = await host.st.generate('regenerate', { reply: 'They break.' });
+        const reply = host.ctx.chat[sent.index];
+        assert.ok(!/could not be kept/.test(JSON.stringify(host.ctx.chat)), 'the reply\'s changes are kept');
+        const receipts = reply.extra.storySuite.receipts.filter(receipt => receipt.type === 'rpg.resolve');
+        assert.equal(receipts[0].replan.payload.plan.open.length, 5);
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live, 'rebuild');
+        await host.turn.reread(sent.index);
+        assert.equal(JSON.stringify(host.head()), live, 'Re-read');
+        await host.st.loadChat(structuredClone(host.ctx.chat), 'five-groups');
+        assert.equal(JSON.stringify(host.head()), live, 'reload');
+    } finally { host.close(); restore(); }
+});

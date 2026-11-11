@@ -3,13 +3,15 @@
 // [Happened] cue and is never cut. Opening names come from the recorded setup for both preview and receipt.
 
 import { BATTLE_MARKER, STAGES, stageWord } from '../names.js';
-import { MEMBER_CAP, packLeft } from './members.js';
+import { MEMBER_CAP, MEMBER_CAP_SIX, packLeft } from './members.js';
 
 const clean = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
 
 function packSuffix(damage, foe) {
     const count = Number(foe?.count ?? damage?.count ?? damage?.packCount);
-    if (!(foe?.pack === true || damage?.pack === true || count > MEMBER_CAP) || !Number.isInteger(count) || count <= MEMBER_CAP) return '';
+    // (a split pack always holds more than five foes before the six-group rule and more than six after, so its flag alone says it is one)
+    const flagged = foe?.pack === true || damage?.pack === true;
+    if (!(flagged || count > MEMBER_CAP) || !Number.isInteger(count) || count <= (flagged ? 1 : MEMBER_CAP)) return '';
     const left = Number.isFinite(damage?.left) ? damage.left : packLeft(count, damage?.to, damage?.size);
     return ` (about ${left} of ${count} left)`;
 }
@@ -40,7 +42,7 @@ function lineNote(line, members = null) {
 function newFoesNote(result, setup) {
     if (!Array.isArray(result.members) || !Array.isArray(setup?.opened) || !setup.opened.length) return '';
     const foes = setup.opened.filter(entry => entry && clean(entry.name) && Number.isInteger(entry.count) && entry.count > 0).map(entry => {
-        const list = entry.count >= 2 && entry.count <= MEMBER_CAP ? ', each fought on its own' : entry.count > MEMBER_CAP ? ', fought as a pack' : '';
+        const cap = setup?.foesSix === 1 ? MEMBER_CAP_SIX : MEMBER_CAP, list = entry.count >= 2 && entry.count <= cap ? ', each fought on its own' : entry.count > cap ? ', fought as a pack' : '';
         return `${clean(entry.name)} ×${entry.count}${Number.isInteger(entry.level) ? ` (Lv ${entry.level})` : ''}${list}`;
     });
     return foes.length ? `New foes: ${foes.join(', ')}.` : '';
