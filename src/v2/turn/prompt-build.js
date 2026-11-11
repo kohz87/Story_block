@@ -5,7 +5,7 @@
 
 import { extractBlock, hasHidden, hasLegacy, stripBlock } from '../capture.js';
 import { HOST_MODULE } from '../registry.js';
-import { assemble, contextNotice, estimateTokens } from '../prompt.js';
+import { assemble, contextNotice, estimateTokens, KEPT_TAIL_TOKENS } from '../prompt.js';
 import { ensureModules, makeView } from '../sdk.js';
 import { cutAt } from '../../text.js';
 import { CORE_FEATURE } from '../features.js';
@@ -21,7 +21,7 @@ import { TIMED_OUT, defuseMacros, firstLine, mapContent, stripBattleMarker, subs
 export const KEPT_LINES_MAX = 4;
 export const KEPT_CHARS_MAX = 4000;
 // A prelude cue a module marks kept (receipt `data.keep === true`) is pinned too, up to this many tokens in all per reply; the rest are plain cues.
-export const KEPT_PRELUDE_TOKENS = 120;
+export const KEPT_PRELUDE_TOKENS = KEPT_TAIL_TOKENS;
 
 export function createPromptBuild(s, deps) {
     const { ctx, metadata, store, bus, registry, settings, events, timeline, onBlocked, notify, initial, prepare, hostSettings, viewReader, view, contextNow, hasCarrier, lastCarrier, isPrelude, markBusy, markIdle, setPrompts, clearPrompts, problem, trySave, held, claimQuiet, FOREGROUND, HOOK_TIMEOUT_MS, ASSIST_WAIT_MS, RPG_LOAD_WAIT_MS, OWN_PROMPT_PARTS, OWN_PROMPT_CHARS, STRIP_CACHE, HAS_BLOCK, HAS_LEGACY, hookTimeout, normalizeType } = deps;
@@ -159,7 +159,7 @@ export function createPromptBuild(s, deps) {
             store.deferSave?.();
             s.deferred = true;
         }
-        return { cues, prechecks, previewState, boardStop };
+        return { cues, prechecks, previewState, boardStop, keptPrelude };
     }
 
     // What modules send with the reply on their own, under their own prompt keys (SPEC §5: NPC State
@@ -190,13 +190,13 @@ export function createPromptBuild(s, deps) {
         return out;
     }
 
-    function build(cues = {}, state = null, boardStop = null) {
+    function build(cues = {}, state = null, boardStop = null, keptTokens = 0) {
         const untold = store.untold();
         // (`state`: the state the reply's prelude rolls leave, when it has one; the tail's lines are made from it)
         const current = state ? makeView({ store, registry, settings, chat: ctx?.chat, active: viewReader, state, boardStop }) : view();
         const own = sentByModules(current);
         const ownTokens = own.reduce((sum, part) => sum + part.tokens, 0);
-        const result = assemble({ registry, view: current, untold, settings: hostSettings(), cues, substitute: text => substituteNames(text, ctx), context: contextNow(), ownTokens, rolled: state !== null });
+        const result = assemble({ registry, view: current, untold, settings: hostSettings(), cues, substitute: text => substituteNames(text, ctx), context: contextNow(), ownTokens, rolled: state !== null, keptTokens });
         for (const message of result.problems) problem({ code: 'FAILED', message });
         return { ...result, own, untold };
     }
@@ -369,9 +369,9 @@ export function createPromptBuild(s, deps) {
                 block(blocked, abort);
                 return;
             }
-            const { cues, prechecks, previewState, boardStop, blocked: cueBlocked } = await runCues(kind);
+            const { cues, prechecks, previewState, boardStop, keptPrelude, blocked: cueBlocked } = await runCues(kind);
             if (cueBlocked) { block(cueBlocked, abort); return; }
-            const built = build(cues, previewState, boardStop);
+            const built = build(cues, previewState, boardStop, keptPrelude);
             tellTooSmall(built.fit);
             const chat = ctx.chat;
             const last = chat.length - 1;

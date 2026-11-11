@@ -59,3 +59,73 @@ test('a module keeps at most KEPT_LINES_MAX lines and KEPT_CHARS_MAX characters;
         host.close();
     }
 });
+
+// A module's own context.tail().lines may hold { text, keep: true } too (Story Director's Initiative line): kept under a tight budget,
+// at most KEPT_TAIL_LINES per module and KEPT_TAIL_TOKENS in all per reply, shared with the kept prelude cues.
+const tailModule = (id, lines, extra = {}) => ({
+    id, name: id, version: '1.0.0', domains: {}, commands: {}, queries: {},
+    context: { static: () => '', tail: () => ({ lines, optional: [] }), budget: 1000 },
+    ...extra,
+});
+const tailWith = async (modules, tailBudget) => {
+    const host = await createHost({ modules, settings: { host: { tailBudget } } });
+    try {
+        await host.send('Hello.', 'Hi.');
+        assert.deepEqual(host.store.problems(), []);
+        return tailText(host);
+    } finally {
+        host.close();
+    }
+};
+const INIT = '[Director] Initiative: the Warden speaks first this reply.';
+const FILL = `[Director] Note ${'padding '.repeat(12)}`.trim();
+
+for (const tailBudget of [1500, 8]) {
+    test(`a tail line { text, keep: true } stays at tailBudget ${tailBudget}; a plain one goes when the budget is small`, async () => {
+        const tail = await tailWith([tailModule('tl-a', [FILL, { text: INIT, keep: true }, { text: 'object no keep', keep: false }, { nope: 1 }, null])], tailBudget);
+        assert.ok(tail.includes(INIT), 'the kept line is told');
+        assert.equal(tail.split(INIT).length - 1, 1, 'once');
+        if (tailBudget === 8) assert.ok(!tail.includes('padding'), 'the plain line is dropped');
+        else assert.ok(tail.includes('padding') && tail.includes('object no keep'), 'with room, every line is told');
+    });
+}
+
+test('a kept tail line with trailing whitespace keeps its pin', async () => {
+    assert.ok((await tailWith([tailModule('tl-a', [FILL, { text: `${INIT} \n`, keep: true }])], 8)).includes(INIT));
+});
+
+test('a module keeps at most KEPT_TAIL_LINES tail lines; the rest are ordinary lines the budget drops', async () => {
+    const { KEPT_TAIL_LINES } = await import('../../src/v2/prompt.js');
+    const lines = Array.from({ length: KEPT_TAIL_LINES + 2 }, (_, i) => ({ text: `[K] kept ${i}`, keep: true }));
+    const tail = await tailWith([tailModule('tl-a', lines)], 1);
+    const told = lines.filter(line => tail.includes(line.text));
+    assert.equal(told.length, KEPT_TAIL_LINES);
+    assert.deepEqual(told, lines.slice(0, KEPT_TAIL_LINES), 'the first ones, in order');
+});
+
+test('kept tail lines share KEPT_TAIL_TOKENS in all, across modules, in tail order', async () => {
+    const { KEPT_TAIL_TOKENS, estimateTokens } = await import('../../src/v2/prompt.js');
+    const lines = Array.from({ length: 4 }, (_, i) => `[K${i}] ${'word '.repeat(60)}`.trim());
+    const tail = await tailWith(lines.map((text, i) => tailModule(`tl-${i}`, [{ text, keep: true }])), 1);
+    const told = lines.filter(text => tail.includes(text));
+    assert.ok(told.length >= 1 && told.length < lines.length, 'some are kept, not all');
+    assert.ok(told.reduce((sum, text) => sum + estimateTokens(text), 0) <= KEPT_TAIL_TOKENS, 'within the cap');
+});
+
+test('kept prelude cues and kept tail lines draw on one cap', async () => {
+    const { KEPT_TAIL_TOKENS, estimateTokens } = await import('../../src/v2/prompt.js');
+    const cue = `World: ${'a calm morning '.repeat(5)}`.trim();
+    const used = estimateTokens(`[Happened]\n${cue}`);
+    const line = `[Director] ${'word '.repeat(Math.ceil((KEPT_TAIL_TOKENS - used) * 4 / 5) + 2)}`.trim();
+    assert.ok(used + estimateTokens(line) > KEPT_TAIL_TOKENS, 'together they are over the cap');
+    const pre = {
+        id: 'tl-pre', name: 'tl-pre', version: '0.0.0',
+        domains: { 'tl-pre': { initial: () => ({ n: 0 }), validate: () => [], counters: ['n'] } },
+        commands: { 'tl-pre.tick': Object.assign(ctx => { ctx.draft('tl-pre').n += 1; return { summary: cue, narrate: true, data: { keep: true } }; }, { prelude: true }) },
+        context: { static: () => '', tail: () => ({ lines: [], optional: [] }), budget: 1000 },
+        hooks: { beforeGenerate: () => ({ commands: [{ type: 'tl-pre.tick', payload: {} }] }) },
+    };
+    const tail = await tailWith([pre, tailModule('tl-z', [{ text: line, keep: true }])], 1);
+    assert.ok(tail.includes(cue), 'the prelude cue is kept first');
+    assert.ok(!tail.includes(line), 'the tail line no longer fits the shared cap, so it is an ordinary line and goes');
+});
