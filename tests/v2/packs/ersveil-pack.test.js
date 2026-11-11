@@ -37,7 +37,7 @@ test('examples/packs/ersveil/pack.json passes the authoring-kit checker, in code
 test('Story Block\'s own validator accepts the pack without RPG Battle (scene, inventory, data modules, Story Director\'s lasting changes), and refuses it on a host older than 2.18', () => {
     const good = validatePack(pack(), { capabilities: OPEN });
     assert.equal(good.ok, true, JSON.stringify(good.errors));
-    const old = validatePack(pack(), { capabilities: OPEN, hostVersion: '2.17.0' });
+    const old = validatePack(pack(), { capabilities: OPEN, hostVersion: '2.30.0' });
     assert.equal(old.ok, false);
     assert.ok(old.errors.some(error => error.code === 'HOST_VERSION'));
     // Without the data-modules capability it is refused for that alone.
@@ -54,7 +54,7 @@ test('the pack is Ersveil 2.9.5, the open world: the map, the calendar, the weat
     assert.equal(value.version, '2.9.5');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
-    assert.equal(value.requires.storyBlock, '^2.30.0', 'the guild screen\'s tiles prop 2.30.0; pack cast skills with a type 2.28.0; content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, portraits up to 150 KB 2.16.0, rpg.ranks and rpg.levelCap 2.17.0, and item gear fields and cast gear 2.18.0; the Reputation tab layouts and migrations 2.22.0');
+    assert.equal(value.requires.storyBlock, '^2.31.0', 'names, ripples and replay-safe decisions need the newer host');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
     // (`you` is the Rank the pack gives Your look and `names` the name lists: one object each, not a list, so no length.)
@@ -79,7 +79,7 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     const result = await installed.install(packText, { source: 'file', origin: 'pack.json' });
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.name, 'Ersveil (open world)');
-    assert.equal(addsLine(installed.list()[0]), '16 items, 136 events, 320 places, 350 routes, 1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables');
+    assert.equal(addsLine(installed.list()[0]), '16 items, 136 events, 320 places, 350 routes, 1 skill set, 12 cast members, 14 name lists, start state, 4 coins, a calendar, 84 weather tables');
 });
 
 test('ersveil-lore.json is a SillyTavern World Info book of 227 entries with unique uids', () => {

@@ -385,7 +385,7 @@ test('ripples: a good table is kept in order with its lists, tiers and direction
     assert.equal('ripples' in validatePack(pack()).pack, false, 'a pack without the section keeps its old bytes');
 });
 
-test('ripples: a bad section is refused with BAD_RIPPLES (or UNKNOWN_FIELD) naming the path', () => {
+test('ripples: a bad section is ignored with a warning naming the path', () => {
     const bad = [
         ['not an object', [], 'ripples'], ['no powers', {}, 'ripples.powers'], ['empty powers', { powers: [] }, 'ripples.powers'],
         ['a bad id', ripples({ powers: [{ id: 'Red Queen', name: 'x', base: 1 }] }), 'ripples.powers[0].id'],
@@ -399,11 +399,13 @@ test('ripples: a bad section is refused with BAD_RIPPLES (or UNKNOWN_FIELD) nami
         ['a direction for nobody', ripples({ worldDirections: [{ event: 'E', favours: 'green' }] }), 'ripples.worldDirections[0].favours'],
     ];
     for (const [label, section, path] of bad) {
-        const result = refused(pack({ ripples: section }), 'BAD_RIPPLES');
-        assert.ok(result.errors.some(error => error.code === 'BAD_RIPPLES' && error.path === path), `${label}: ${JSON.stringify(result.errors)}`);
+        const result = validatePack(pack({ ripples: section }));
+        assert.equal(result.ok, true, label);
+        assert.equal(result.pack.ripples, undefined);
+        assert.ok(result.warnings.some(error => error.code === 'BAD_RIPPLES' && error.path === path), `${label}: ${JSON.stringify(result.warnings)}`);
     }
-    refused(pack({ ripples: ripples({ extra: 1 }) }), 'UNKNOWN_FIELD');
-    refused(pack({ ripples: ripples({ powers: [{ id: 'a', name: 'A', base: 1, favour: 2 }] }) }), 'UNKNOWN_FIELD');
+    assert.equal(validatePack(pack({ ripples: ripples({ extra: 1 }) })).warnings[0].code, 'UNKNOWN_FIELD');
+    assert.equal(validatePack(pack({ ripples: ripples({ powers: [{ id: 'a', name: 'A', base: 1, favour: 2 }] }) })).warnings[0].code, 'UNKNOWN_FIELD');
 });
 
 // A pack's name lists (`content.names`, read by Story Director's names part through packs.content { kind: 'names' }): ONE object; a bad section is a Problem and is left out.
@@ -431,9 +433,27 @@ test('names: a bad section is a pack Problem naming the path and is not kept', (
         ['21 cultures', Object.fromEntries(many(21).map(id => [id.toLowerCase(), { regions: ['R'], given: ['W'] }])), 'content.names'],
     ];
     for (const [label, section, path] of bad) {
-        const result = refused(pack({ content: { names: section } }), 'BAD_CONTENT');
-        assert.ok(result.errors.some(error => error.path === path), `${label}: ${JSON.stringify(result.errors)}`);
+        const result = validatePack(pack({ content: { names: section } }));
+        assert.equal(result.ok, true, label);
+        assert.equal(result.pack.content.names, undefined);
+        assert.ok(result.warnings.some(error => error.path === path), `${label}: ${JSON.stringify(result.warnings)}`);
     }
-    const unknown = refused(pack({ content: { names: culture({ bynames: ['Long-Oar'] }) } }), 'UNKNOWN_FIELD');
-    assert.equal(unknown.errors[0].path, 'content.names.river.bynames');
+    const unknown = validatePack(pack({ content: { names: culture({ bynames: ['Long-Oar'] }) } }));
+    assert.equal(unknown.warnings[0].path, 'content.names.river.bynames');
+});
+
+test('optional section warnings do not conceal fatal errors; power ids stop at 40 and names is reserved', () => {
+    const power = id => ({ powers: [{ id, name: 'Rival', base: 1 }] });
+    assert.equal(validatePack(pack({ ripples: power('a'.repeat(40)) })).pack.ripples.powers[0].id.length, 40);
+    const tooLong = validatePack(pack({ ripples: power('a'.repeat(41)) }));
+    assert.equal(tooLong.ok, true);
+    assert.equal(tooLong.pack.ripples, undefined);
+    assert.equal(tooLong.warnings[0].path, 'ripples.powers[0].id');
+    const reserved = validatePack(pack({ content: { names: { names: { regions: ['River'], given: ['Wenna'] } } } }));
+    assert.equal(reserved.ok, true);
+    assert.equal(reserved.pack.content.names, undefined);
+    assert.equal(reserved.warnings[0].path, 'content.names.names');
+    const mixed = validatePack(pack({ ripples: [], content: { items: [{ name: 'Broken', kind: 'not-a-kind' }] } }));
+    assert.equal(mixed.ok, false);
+    assert.ok(mixed.errors.length && mixed.warnings.some(error => error.path === 'ripples'));
 });

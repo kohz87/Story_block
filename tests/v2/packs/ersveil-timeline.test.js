@@ -7,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { evaluateCondition, parse } from '../../../src/v2/events/condition.js';
+import { rippleChoice } from '../../../src/v2/packs/content.js';
 
 const pack = JSON.parse(readFileSync(new URL('../../../examples/packs/ersveil/pack.json', import.meta.url), 'utf8'));
 const OWN = ['bluewatch-guild-board', 'bluewatch-signal-braziers', 'the-turning-611', 'the-turning-612', 'the-turning-613', 'ghost-fleet-waters', 'wailing-battlefield-nights'];
@@ -35,6 +36,7 @@ function view({ minutes, place, chronicle = new Map(), sway = null }) {
             if (name === 'scene.place') return place;
             if (name === 'ripples.sway') return rowsOf(sway);
             if (name === 'ripples.leader') return leaderOf(sway, args);
+            if (name === 'packs.rippleChoice') return rippleChoice([pack], args, { hasQuery: query => query === 'ripples.sway', query: () => rowsOf(sway) });
             if (name === 'chronicle.passed') return chronicle.has(args.name) && minutes >= chronicle.get(args.name).since + args.minutes;
             return null;
         },
@@ -85,7 +87,7 @@ test('the pack has no Court favour module; the throne branches read the ripples 
     assert.equal(pack.content.dataModules.some(definition => definition.slug === 'succession'), false);
     assert.equal(JSON.stringify(pack.content).includes('pack.ersveil/succession'), false);
     assert.equal(JSON.stringify(pack.content).includes('dataModules.view'), false, 'no event reads a data module');
-    const reading = events.filter(event => /ripples\.(leader|sway)/.test(event.when)).map(event => event.id).sort();
+    const reading = events.filter(event => /packs\.rippleChoice/.test(event.when)).map(event => event.id).sort();
     assert.deepEqual(reading, ['crown-corvin-over-hasse', 'crown-corvin-over-wendhild', 'crown-hasse-over-corvin', 'crown-hasse-over-wendhild', 'crown-wendhild-over-corvin',
         'crown-wendhild-over-hasse', 'marrowbridge-corvin', 'marrowbridge-hasse', 'marrowbridge-wendhild']);
 });
@@ -263,4 +265,122 @@ test('no double reign: the sway changing after a branch is fixed never starts a 
     const chronicle = new Map([["Highmark's war: Corvin against Hasse", { since: 0, state: 'ongoing', touched: 0 }]]);
     const fires = (id, sway) => evaluateCondition(events.find(event => event.id === id).when, view({ minutes: 318200000, place: { name: 'x', region: 'y' }, chronicle, sway })).met;
     for (const sway of [[40, 35, 25], [25, 40, 35], [35, 25, 40]]) for (const id of ['marrowbridge-hasse', 'marrowbridge-corvin']) assert.equal(fires(id, sway), false, `${id} ${sway}`);
+});
+
+// A small Director on the real host: quests change Hasse's sway, world entries behave like lasting
+// chronicle entries, and fights are read from receipts, so the replay tests exercise the actual bus and store.
+function directorForDecisions() {
+    return {
+        id: 'test-director', name: 'Test director', version: '1.0.0',
+        domains: {
+            director: { initial: () => ({ time: { minutes: 0 }, deed: 'none' }), validate: () => [] },
+            chronicle: { initial: () => ({ entries: {} }), validate: () => [] },
+        },
+        commands: {
+            'test.time'(ctx, { minutes }) { ctx.draft('director').time.minutes = minutes; return { summary: 'Time.' }; },
+            'test.fight'() { return { summary: 'A fight was won.' }; },
+            'chronicle.lasting'(ctx, payload) {
+                const entries = ctx.draft('chronicle').entries;
+                entries[payload.name] = { ...payload, since: entries[payload.name]?.since ?? ctx.read('director').time.minutes };
+                return { summary: payload.name };
+            },
+            'test.reign'(ctx, { name }) { ctx.draft('chronicle').entries[name] = { name, since: 0 }; return { summary: name }; },
+        },
+        queries: {
+            'chronicle.passed': (state, { name, minutes }) => {
+                const entry = state.domains.chronicle.entries[name];
+                return !!entry && state.domains.director.time.minutes >= entry.since + minutes;
+            },
+            'ripples.sway': (state, _args, tools) => {
+                const helped = state.domains.director.deed === 'hasse' || tools.receipts().some(entry => entry.receipt.type === 'test.fight');
+                return rowsOf(helped ? [40, 35, 55] : [40, 35, 25]);
+            },
+        },
+        capture: { kinds: { deed: { grammar: '! deed Name' } }, apply(ctx, line) {
+            ctx.draft('director').deed = line.name;
+            return { summary: `Helped ${line.name}.` };
+        } },
+    };
+}
+
+async function decisionHost(t, { deed = 'none', swipes = false, fightAfterWar = false } = {}) {
+    const { createHost } = await import('../../../testkit/index.js');
+    const host = await createHost({ modules: [directorForDecisions()] });
+    t.after(() => host.close());
+    const alternatives = events.filter(event => event.decision).map(({ after, ...event }) => event);
+    const mini = { id: 'ersveil', version: '1.0.0', requires: { storyBlock: '^2.31.0' }, ripples: pack.ripples, content: { events: alternatives } };
+    const installed = await host.packs.packs.install(mini);
+    assert.equal(installed.ok, true, JSON.stringify(installed.errors));
+    const story = name => `A deed.\n\n<Changes>\n! deed ${name}\n</Changes>`;
+    await host.send('Begin.', story(deed));
+    const earlier = host.ctx.chat.length - 1;
+    if (swipes) await host.swipe(story('none'));
+    await host.send('Later.', 'At Marrowbridge.');
+    const warCarrier = host.ctx.chat.length - 1;
+    assert.equal((await host.bus.command('test.time', { minutes: 318100000 }, { cause: 'ui' })).ok, true);
+    const war = await host.bus.command('events.fire', { id: 'pack.ersveil/marrowbridge-hasse' }, { cause: 'system' });
+    assert.equal(war.ok, true, war.message);
+    if (fightAfterWar) assert.equal((await host.bus.command('test.fight', {}, { cause: 'system' })).ok, true);
+    await host.send('Later still.', 'The Diet meets.');
+    assert.equal((await host.bus.command('test.time', { minutes: 318400000 }, { cause: 'ui' })).ok, true);
+    const crown = await host.bus.command('events.fire', { id: 'pack.ersveil/crown-wendhild-over-corvin' }, { cause: 'system' });
+    assert.equal(crown.ok, true, crown.message);
+    return { host, earlier, warCarrier, story };
+}
+
+function chosen(host) {
+    const entries = host.head().domains.chronicle.entries;
+    return {
+        wars: Object.keys(entries).filter(name => name.startsWith("Highmark's war: ")),
+        reigns: Object.keys(entries).filter(name => name.startsWith('Reign of ')),
+        decisions: host.store.receipts().filter(entry => entry.receipt.type === 'events.fire').map(entry => entry.receipt.data.event),
+    };
+}
+
+test('a Re-read replaces both later decisions from the changed deed and reloads identically', async t => {
+    const { host, earlier, story } = await decisionHost(t);
+    assert.deepEqual(chosen(host).reigns, ['Reign of Empress Wendhild']);
+    host.ctx.chat[earlier].mes = story('hasse');
+    host.ctx.chat[earlier].swipes[0] = story('hasse');
+    const done = await host.turn.reread(earlier);
+    assert.equal(done.ok, true, done.message);
+    assert.deepEqual(chosen(host).wars, ["Highmark's war: Wendhild against Hasse"]);
+    assert.deepEqual(chosen(host).reigns, ['Reign of Emperor Hasse']);
+    assert.deepEqual(chosen(host).decisions, ['pack.ersveil/marrowbridge-corvin', 'pack.ersveil/crown-hasse-over-wendhild']);
+    const before = JSON.stringify(host.head());
+    await host.st.loadChat(structuredClone(host.ctx.chat));
+    assert.equal(JSON.stringify(host.head()), before);
+});
+
+test('deleting or swiping an earlier deed reselects the surviving war and crown', async t => {
+    const removed = await decisionHost(t, { deed: 'hasse' });
+    assert.deepEqual(chosen(removed.host).reigns, ['Reign of Emperor Hasse']);
+    await removed.host.st.deleteMessage(removed.earlier);
+    assert.deepEqual(chosen(removed.host).reigns, ['Reign of Empress Wendhild']);
+    assert.deepEqual(chosen(removed.host).wars, ["Highmark's war: Wendhild against Corvin"]);
+
+    const swiped = await decisionHost(t, { deed: 'hasse', swipes: true });
+    assert.deepEqual(chosen(swiped.host).reigns, ['Reign of Empress Wendhild']);
+    await swiped.host.st.swipeTo(swiped.earlier, 0);
+    assert.deepEqual(chosen(swiped.host).reigns, ['Reign of Emperor Hasse']);
+    assert.deepEqual(chosen(swiped.host).wars, ["Highmark's war: Wendhild against Hasse"]);
+});
+
+test('a fight after a decision on the same carrier cannot influence that earlier decision on Re-read', async t => {
+    const { host, earlier, story } = await decisionHost(t, { fightAfterWar: true });
+    assert.deepEqual(chosen(host).wars, ["Highmark's war: Wendhild against Corvin"]);
+    host.ctx.chat[earlier].mes = story('none');
+    host.ctx.chat[earlier].swipes[0] = story('none');
+    const done = await host.turn.reread(earlier);
+    assert.equal(done.ok, true, done.message);
+    assert.deepEqual(chosen(host).wars, ["Highmark's war: Wendhild against Corvin"]);
+});
+
+test('an existing 2.9.3 reign blocks every alternative crown even when sway changes', () => {
+    const allCrowns = events.filter(event => event.decision === 'highmark-crown');
+    for (const crown of allCrowns) for (const reign of ['Reign of Empress Wendhild', 'Reign of Emperor Corvin', 'Reign of Emperor Hasse']) {
+        const chronicle = new Map([[reign, { since: 0 }], ["Highmark's war: Wendhild against Corvin", { since: 0 }], ["Highmark's war: Wendhild against Hasse", { since: 0 }], ["Highmark's war: Corvin against Hasse", { since: 0 }]]);
+        const result = evaluateCondition(crown.when, view({ minutes: 318400000, chronicle, sway: [25, 35, 40] }));
+        assert.equal(result.met, false, `${crown.id}: ${reign}`);
+    }
 });

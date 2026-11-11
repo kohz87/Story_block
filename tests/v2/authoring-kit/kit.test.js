@@ -21,6 +21,12 @@ test('the tiny world example is a valid ordinary pack', () => {
     assert.equal(result.ok, true, report('tiny-world', result));
 });
 
+test('the checker reports ignored optional sections without refusing the pack', () => {
+    const result = checkPack({ id: 'warnings', version: '1.0.0', requires: { storyBlock: '^2' }, ripples: [] });
+    assert.equal(result.ok, true);
+    assert.match(report('pack.json', result), /Ignored ripples:/);
+});
+
 test('the command-line checker reports a valid pack and an invalid one', () => {
     const output = execFileSync(process.execPath, ['authoring-kit/check.mjs', 'authoring-kit/reference/data-modules/faction-standing.pack.json'], { cwd: root, encoding: 'utf8' });
     assert.match(output, /^OK authoring-kit\/reference\/data-modules\/faction-standing\.pack\.json/);

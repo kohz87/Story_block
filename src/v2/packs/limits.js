@@ -48,7 +48,7 @@ export const ITEM_FIELDS = Object.freeze(['name', 'slug', 'aliases', 'kind', 'ra
 export const ITEM_CARRY = Object.freeze({ min: 1, max: 1000 });
 // `bonus`: the gear bonus an item gives while worn (0–6), instead of the one its rarity gives (`story-block.gear`). A pack sets it; the story never does.
 export const ITEM_BONUS = Object.freeze({ min: 0, max: 6 });
-export const EVENT_FIELDS = Object.freeze(['id', 'when', 'cue', 'once', 'after', 'then']);
+export const EVENT_FIELDS = Object.freeze(['id', 'when', 'cue', 'once', 'after', 'then', 'decision']);
 // The events part's own limits (src/v2/events), so a pack that passes here also runs there.
 export const EVENT_LIMITS = Object.freeze({ when: 500, cue: 500, then: 8 });
 export const CHOICE_FIELDS = Object.freeze(['id', 'name', 'note', 'stats', 'tags']);
@@ -209,7 +209,7 @@ export const RIPPLES_FIELDS = Object.freeze(['powers', 'tiers', 'caps', 'worldDi
 export const RIPPLES_POWER_FIELDS = Object.freeze(['id', 'name', 'aliases', 'factions', 'givers', 'npcs', 'base', 'standing', 'standingBase']);
 export const RIPPLES_TIERS = Object.freeze(['small', 'great', 'failed', 'abandoned', 'fight']);
 export const RIPPLES_CAPS = Object.freeze(['quest', 'event', 'standing', 'fight', 'power']);
-export const RIPPLES_LIMITS = Object.freeze({ powers: 12, list: 20, name: 80, tier: 50, cap: 100, directions: 20 });
+export const RIPPLES_LIMITS = Object.freeze({ powers: 12, id: 40, list: 20, name: 80, tier: 50, cap: 100, directions: 20 });
 export const START_FIELDS = Object.freeze(['scene', 'inventory']);
 // Screens (SPEC §13.1) a pack adds or overrides by id.
 // `tab` puts a screen in a shared tab (the same `tab` on several screens draws them as sections of one tab, in `order`; `tabTitle` names it, the first one

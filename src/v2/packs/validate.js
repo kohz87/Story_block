@@ -56,11 +56,12 @@ export function validatePack(input, { hostVersion = HOST_VERSION, capabilities =
     const raw = JSON.parse(JSON.stringify(value));
     if (byteLength(JSON.stringify(raw)) > limits.packBytes) return fail('TOO_LARGE', '', `The pack is larger than ${Math.round(limits.packBytes / 1024)} KB.`);
 
-    const errors = [];
+    const errors = [], warnings = [];
     const add = (code, path, message) => { if (errors.length < limits.errors) errors.push({ code, path, message }); };
-    const pack = normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefinitions, readableConditions });
-    if (errors.length) return { ok: false, errors };
-    const result = { ok: true, pack, raw };
+    const warn = (code, path, message) => { if (warnings.length < limits.errors) warnings.push({ code, path, message }); };
+    const pack = normalize(raw, { add, warn, hostVersion, capabilities, limits, dataModuleDefinitions, readableConditions });
+    if (errors.length) return { ok: false, errors, ...(warnings.length ? { warnings } : {}) };
+    const result = { ok: true, pack, raw, ...(warnings.length ? { warnings } : {}) };
     if (pack.content.dataModules !== undefined) {
         // Hash the checked snapshot, before a consumer can edit its detached result.
         Object.defineProperty(result, 'packHash', { value: dataModulesPackHash(pack), enumerable: false, configurable: true });
@@ -68,7 +69,7 @@ export function validatePack(input, { hostVersion = HOST_VERSION, capabilities =
     return result;
 }
 
-function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefinitions, readableConditions }) {
+function normalize(raw, { add, warn, hostVersion, capabilities, limits, dataModuleDefinitions, readableConditions }) {
     for (const key of Object.keys(raw)) if (!PACK_FIELDS.includes(key)) add('UNKNOWN_FIELD', key, `"${key}" is not a pack field (expected ${PACK_FIELDS.join(', ')}).`);
 
     const id = raw.id;
@@ -86,7 +87,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
     const calendar = raw.calendar === undefined ? null : checkCalendar(raw.calendar, add);
     const economy = raw.economy === undefined ? null : checkEconomy(raw.economy, add);
     const weather = raw.weather === undefined ? null : checkWeather(raw.weather, add);
-    const ripples = raw.ripples === undefined ? null : checkRipples(raw.ripples, add);
+    const ripples = raw.ripples === undefined ? null : checkRipples(raw.ripples, warn);
 
     const content = {};
     if (raw.content !== undefined && !isObject(raw.content)) add('BAD_CONTENT', 'content', 'content must be an object of lists: { "items": [ … ], "events": [ … ] }.');
@@ -140,7 +141,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
     if (given.cast !== undefined) content.cast = checkCast(given.cast, packId, add, items);
     // The name lists: one object (not a list), kept only when given and when every part checks.
     if (given.names !== undefined) {
-        const names = checkNames(given.names, add);
+        const names = checkNames(given.names, warn);
         if (names) content.names = names;
     }
     // Not a list: kept only when given (so older packs' bytes and hashes stay), and only when it checks.

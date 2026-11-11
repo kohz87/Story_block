@@ -333,7 +333,7 @@ export function checkNames(names, add) {
     for (const id of ids) {
         const path = `content.names.${id}`;
         const culture = names[id];
-        if (!SLUG.test(id)) say('BAD_CONTENT', path, `"${id}" is not a culture id (a lowercase slug like "river"; "banned" is the list of overused names).`);
+        if (!SLUG.test(id) || id === 'names') say('BAD_CONTENT', path, `"${id}" is not a culture id (use a lowercase slug like "river"; "names" is reserved and "banned" is the list of overused names).`);
         if (!isObject(culture)) { say('BAD_CONTENT', path, `${path} must be an object: { "regions": [ … ], "given": [ … ] }.`); continue; }
         for (const key of Object.keys(culture)) if (!NAMES_FIELDS.includes(key)) say('UNKNOWN_FIELD', `${path}.${key}`, `"${key}" is not a names field (expected ${NAMES_FIELDS.join(', ')}).`);
         const regions = list(culture.regions, `${path}.regions`, NAMES_LIMITS.regions, NAMES_LIMITS.region, 'region names', 1);

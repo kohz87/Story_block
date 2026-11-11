@@ -29,6 +29,7 @@ export function checkEvent(record, path, add, readableConditions = true) {
     if (typeof record.cue !== 'string' || !record.cue.trim() || record.cue.trim().length > EVENT_LIMITS.cue) say('cue', `cue must be text of 1 to ${EVENT_LIMITS.cue} characters.`);
     if (record.once !== undefined && typeof record.once !== 'boolean') say('once', 'once must be true or false.');
     if (record.after !== undefined && (typeof record.after !== 'string' || !SLUG.test(record.after))) say('after', 'after must be the id of another event in this pack.');
+    if (record.decision !== undefined && (typeof record.decision !== 'string' || !SLUG.test(record.decision) || record.once === false)) say('decision', 'decision must be a slug on a once event.');
     const then = record.then ?? [];
     if (!Array.isArray(then) || then.length > EVENT_LIMITS.then) say('then', `then must be a list of at most ${EVENT_LIMITS.then} { "command": …, "payload": { … } }.`);
     else then.forEach((step, index) => {
@@ -43,6 +44,7 @@ export function checkEvent(record, path, add, readableConditions = true) {
         cue: record.cue.trim(),
         once: record.once ?? true,
         after: record.after ?? null,
+        ...(record.decision === undefined ? {} : { decision: record.decision }),
         then: then.map(step => ({ command: step.command, payload: { ...(step.payload ?? {}) } })),
     };
 }
@@ -195,7 +197,7 @@ export function checkRipples(ripples, add) {
         const at = `ripples.powers[${index}]`;
         if (!isObject(power)) return say(at, `${at} must be an object.`);
         for (const key of Object.keys(power)) if (!RIPPLES_POWER_FIELDS.includes(key)) say(`${at}.${key}`, `"${key}" is not a power field (expected ${RIPPLES_POWER_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
-        if (typeof power.id !== 'string' || !SLUG.test(power.id)) return say(`${at}.id`, 'id must be a lowercase slug (like "wendhild").');
+        if (typeof power.id !== 'string' || !SLUG.test(power.id) || power.id.length > L.id) return say(`${at}.id`, `id must be a lowercase slug of at most ${L.id} characters (like "wendhild").`);
         if (powers.some(other => other.id === power.id)) return say(`${at}.id`, `id "${power.id}" is used twice.`);
         const name = text(power.name);
         if (!name) return say(`${at}.name`, `name must be text of at most ${L.name} characters.`);

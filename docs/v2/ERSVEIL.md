@@ -1,16 +1,16 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.9.3, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.9.5, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
 
 The pack holds the world's structure: the map (320 places, 350 routes), the calendar, 84 weather tables,
-136 world events (a hidden history from CY 611 onward), the coins, the start, four data modules and an RPG skill set. It has **no items, shops, prices, foes,
+136 world events (a hidden history from CY 611 onward), the coins, the start, three data modules, signature gear and an RPG skill set. It has **no shops, prices, foes,
 jobs, classes or rules**: the narrator makes those up in the story from the lore, and Story Block keeps
 what the story hands out (the bag, the purse, the place). The lorebook holds what only the narrator uses.
 
-The pack works with Story Block 2.18.0 or newer (2.6.0 requires it: the signature gear; 2.5.0 needed 2.17.0 for the rank bands and levels) and Story Director (2.3.0 or newer: the world events record lasting changes in its chronicle). NPC State Delta is optional.
+The pack needs Story Block 2.31.0 or newer and Story Director with the `chronicle-lasting` capability. NPC State Delta is optional. The names suggestions require a Director release that includes its names part.
 
 ## 1. Extensions
 
@@ -29,14 +29,14 @@ SillyTavern profile.
 1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil.zip`. This is the one-step way:
    it holds `pack.json` and the twelve portraits ("12 portraits saved"). Picking `pack.json` alone imports no pictures.
    The message says "Installed Ersveil (open world)." and the list shows "16 items, 136 events, 320 places, 350 routes,
-   1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
+   1 skill set, 12 cast members, 14 name lists, start state, 4 coins, a calendar, 84 weather tables". The 3 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
    `chronicle-lasting` capability.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
-2.9.5 (content only, with the throne following your deeds) adds `content.names`: given names (30 to 45) and family names (20 to 27) for fourteen peoples and regions (Highmark, the River Confederacy and Shornmarch, the Flame Lands, the Border and Valegard, the Frostbound, the dwarves, the Chieftainates, Ardelia, the Emerald Coast, the Tidebound, Atlantis, the Verdantleaf elves, the Fairy Court and Ashkar), written in the sound of Names: Human Cultures and Names: Other Peoples and sharing no name with the cast or the lorebook's examples, and a short banned list of overused fantasy names. Story Director's names part offers them for new people met in a matching region; a Story Block that predates the `names` kind refuses the section as an unknown kind.
-2.9.3 removes the Court favour block. The throne now follows one fixed road (Hasse is broken at Marrowbridge, Wendhild is crowned over Corvin) until a later release lets your deeds decide it again; a chat that already went down another throne branch keeps it. A chat that enabled Court favour keeps the block and its values.
+2.9.5 (content only, with the throne following your deeds) adds `content.names`: given names (30 to 45) and family names (20 to 27) for fourteen peoples and regions (Highmark, the River Confederacy and Shornmarch, the Flame Lands, the Border and Valegard, the Frostbound, the dwarves, the Chieftainates, Ardelia, the Emerald Coast, the Tidebound, Atlantis, the Verdantleaf elves, the Fairy Court and Ashkar), written in the sound of Names: Human Cultures and Names: Other Peoples and sharing no name with the cast or the lorebook's examples, and a short banned list of overused fantasy names. A Story Director release with its names part can offer them for new people met in a matching region; a Story Block that predates the `names` kind refuses the section as an unknown kind.
+2.9.5 restores the throne branches. Director's Ripples can score matching completed quests and victories against the named groups; Ersveil has no directed world events or claimant standing, and NPC trust is not scored. When Ripples is absent or cannot safely identify Ersveil's table, Hasse is broken and Wendhild is crowned over Corvin. A chat already crowned keeps its reign. Changing an earlier deed or reply reselects a later decision at that point in the story. Version 2.9.3 removed Court favour; chats that enabled it keep the block and its values.
 2.9.2 (content only) makes every cast look physical features only (the kind word and the height first; no age, no "looks about N", no impressions that are not physical), names no real-world breed or brand (Temiwa is a "Dogfolk woman"), puts the age in `fields.People` for all twelve ("Dogfolk woman, 21", "Dwelf, 58 (looks about 25)"), and cuts each personality to its core (at most 320 characters; what a behaviour lever or a mannerism says is not repeated). Temiwa's look, personality and Presentation lever were approved by the owner.
 2.9.1 (content only) turns four "with you" lines into first-meeting stances (Temiwa, Ysmeth, Nysseth, Harrak; Nysseth's last stage milestone starts "she has chosen you") and writes each cast member's height ("about N cm") into the look right after the kind and age.
 2.8.0 gave each of the twelve exactly two signature skills, makes Sister Temiwa a dogfolk healer (Lv 4, a shy dandere with waterfall black hair, soft and weary, no cruelty or possessiveness), makes Nerissa deredere and Nysseth yandere, and sets Rika to Lv 8 and Torka to Lv 6; 2.9.0 sets each skill's `type` (utility: Gentle Word, Silver Patter, Toast and Tell, Pilot's Hand, Flower-Speech, Quiet Step, Lockwork, Chain Cell Craft, Silver Rain Veil, Mother's Hand; every other skill combat, Mending Prayer the combat heal), gives the new Binding Rune the rank of Lockwork (expert), Flower-Speech that of Quiet Step (adept) and Dirty Trick that of Silver Patter (adept), adds Temiwa's stockings with garters and buckled belt, and gives her a new portrait (800×1200). It needs Story Block 2.28.0 (`requires.storyBlock` ^2.28.0), the release that carries pack skill types.
@@ -45,7 +45,7 @@ SillyTavern profile.
 2.6.0 adds sixteen signature items (each cast member's own gear, given and bound to them when they join the party while Gear in fights is on) and needs Story Block 2.18.0.
 2.5.0 adds the guild rank bands and the guild letter as the party's rank (§6, Ranks), turns the cast's Soul Class field into Level (each of the twelve set by role, 8 to 56), and needs Story Block 2.17.0.
 
-Importing 2.9.3 replaces an installed pack with the same id. Start a new chat to use its starting state.
+Importing 2.9.5 replaces an installed pack with the same id. Start a new chat to use its starting state.
 2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import `examples/packs/ersveil.zip` (`pack.json` and `portraits/`; rebuild it with `node scripts/build-example-zip.mjs`) or pick `pack.json` and the twelve `.webp` files together; `pack.json` alone leaves the portraits unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
@@ -68,7 +68,7 @@ and 56 notable people to the lorebook. Re-import the lorebook too.
 * **Persona:** your own character; their people, calling and level are what you write. The RPG starts you at level 1 unless you set a starting level.
 * **First message:** your own opening at Bluewatch Village, at the Guild office.
 
-## 5. The four data modules
+## 5. The three data modules
 
 None is on by default. Story Suite settings → **Tabs & Packs** → **Data modules**, find the module and
 press **Enable for this chat**.
@@ -99,7 +99,7 @@ Once a module is enabled the narrator is told its `dm …` lines; a refused line
 * **Events.** The world has a hidden history from CY 611 onward: floods out of the north, politics, war and the
   underworld, on their own dates whether or not you are there. When something happens where you are, the narrator
   gets the scene; elsewhere, word reaches you days or weeks later as news. Lasting changes go into Story Director's
-  chronicle (World → News and the Journal); the big ongoing ones (a new reign, Auvoth under the Tide, the Tide held at the Last Wall) are kept in mind on every reply. Highmark's throne follows one road for now,
+  chronicle (World → News and the Journal); the big ongoing ones (a new reign, Auvoth under the Tide, the Tide held at the Last Wall) are kept in mind on every reply. Highmark's throne follows the available claimant sway or the fallback,
   and the throne changes what follows. Nothing in this page or the
   lorebook spoils it. **Settings → Diagnostics → Events** lists every event, and does spoil it.
 * **RPG.** With the RPG on (Settings → RPG), the New character window offers the pack's **Sealwarden recruit** skill

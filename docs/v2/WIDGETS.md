@@ -469,36 +469,14 @@ A glass card of rows: a title, a quieter line under it, and on the right a value
 
 ### The screen bar (the game view and the Story panel)
 
-`view/screen-bar.js` (`createScreenBar(doc, host, { label, onSelect, className?, decorate? })`) is the navigation between screens for
-the phone game view and the Story panel. It is not a widget (no `ss.` name, no props): the host draws it, and it is listed here
-because a module's screen can rely on how it behaves.
+`createScreenBar(doc, host, { label, onSelect, className?, decorate? })` draws a single row of screen buttons. On a narrow view the row scrolls sideways, with fading edges and an alert dot at an edge when an alerting tab is out of view. The current button has `aria-current="page"`, the accent icon and label, and a dot. A long label is clipped visually but kept in the title.
 
-- **Five slots on a phone:** the first four screens in the reader's order (Settings → Tabs), then **More**. The bar is a floating
-  glass pill at the foot of the window (72px, 26px radius), a `<nav>` of real `<button>`s (44px tap targets). Each slot is an icon
-  (24px) over a label (11px, weight 700, one line, ellipsised). The current one is `aria-current="page"`: the accent icon and
-  label (`--ss-accent-text`), a soft glow on the icon, a 4px dot under it, and no pill or background. The others are muted.
-- **More** opens a glass sheet over the bar: the "More" label and a hairline, the hint "Pin your 4 in Settings → Tabs", and a
-  four-column grid of tiles for the rest (an accent ring and the soft accent on the current one). A tap on the scrim, Escape, or a
-  tile closes it; a tile opens its screen and closes the sheet. More has `aria-expanded` and `aria-controls`; the focus goes into
-  the sheet when it opens (the current tile first), Tab stays inside it, and the focus goes back to More when it closes. While a
-  screen under More is current, More shows that screen's icon and label (its name is "More, <screen>") and is current itself.
-  Escape closes More before it closes the game view.
-- **The wide row** (`row: true`, the game view from 760px): every screen in one row, spread evenly, each an icon with its label
-  under it; no More, no sheet. The host switches between the two with the 760px breakpoint.
-- **The Story panel** uses the same bar at the foot of the panel, at every width, with its tabs (`registry.tabs()`) in the same
-  order; each slot and tile carries `story-suite-tab` and `data-tab-id`.
-- **Icons:** a `ph-*` id from the Phosphor set (`iconFor` in view/icons gives it: the suite's own, the screen's, or the default for
-  its id). The current item draws the solid weight (`ph-x:fill`); More is `ph-dots-three-outline`. A Font Awesome class still draws.
-- **Placement** is the host's: `.ss-gameview-nav` (mounts.css) for the game view, `.story-suite-sheet-bar` (host.css) for the panel.
-  The look is in glass.css (`.ss-screenbar*`), on the tokens only.
-
-Props of the bar (`createScreenBar`'s `update`): `items` (`[{ id, label, icon }]`, the reader's order), `current` (the id on
-screen), `row` (every item in one row, no More). A long label is cut by CSS; the full name is the slot's `title`.
+`update({ items, current })` accepts items in the reader's order, each `{ id, label, icon, moreOnly?, alert?, alertText? }`. Items marked `moreOnly` follow the others in the same row. Arrow keys, Home and End move focus; Tab visits the buttons. The current screen scrolls into view when it changes. The Story panel decorates its buttons with `story-suite-tab` and `data-tab-id`; placement and styling belong to the host.
 
 ### `ss.tabs` and `ss.navbar`
 
 `ss.tabs`: a row of tabs (text, with an icon when the item has one), for a panel's or screen's sections. The story panel's tabs are no longer this block: they are the screen bar (below). The widget's 24-item cap is for module widgets; `renderTabStrip` (view/widgets/nav.js) is kept for a host that wants the row.
-`ss.navbar`: an icon over a label in a dense glass pill (the game view's own bar is the screen bar below, which has More). Both are a `<nav>` of
+`ss.navbar`: an icon over a label in a dense glass pill (the game view's own bar is the screen bar above). Both are a `<nav>` of
 buttons: the current item is `aria-current="page"`; one Tab stop (the current item), and the arrow keys, Home and
 End move the focus along the row (they do not choose; Enter or Space does, as any button; disabled items are
 skipped, the ends wrap). A choice runs `{ tabs: <id> }` / `{ navbar: <id> }` and shows at once. A row wider than its
@@ -587,28 +565,10 @@ card shows before the first reply. The card is one object:
 Drawing: under the message, after the changes card, in the same strip. `normalizeCard` and `scanReplyCards` are in
 `src/v2/reply-cards.js`; the view is `src/v2/view/reply-cards-ui.js` (`drawReplyCard`).
 
-### In the bar by default
+### Default order and active tabs
 
-A screen (in its `screens` entry) or a tab (in `tabs`) may declare `bar: true` (a boolean; anything else is refused like the other screen
-keys, and a host that does not know the key ignores it): it is in the bar of the game view and the Story panel until the reader moves it
-under More (Settings → Tabs & Packs → Tabs). Story Block's own Home and Inventory carry it; a Party or a Fight is in the bar by the last
-part of its id, as before; every other screen is under More unless it says so. Story Block names no other module's ids for this.
+A screen or tab may declare `bar: true` to place it before other screens in the scrolling row. Settings can change the reader's order and grouping; all visible screens remain in the row.
 
-### Tabs shown while active
+A screen or tab may declare `active(state, ctx) → { on, badge? }`. When off, it is absent from the bar but may still be opened by id. When on, a nonempty badge, positive count or `true` shows an alert dot; its text becomes part of the button's accessible name and tooltip. `activeNote` supplies the explanation shown in Settings. The host draws a dot at the edge when an alerting tab is offscreen.
 
-A screen (in its `screens` entry) or a tab (in `tabs`) may declare `active(state, ctx) → { on, badge? }`:
-
-- Off (`on` false, or the function throws), it is not on the game view's bar, the More sheet or the desktop row, nor on
-  the Story panel's tab bar. It still opens by id (`mounts.screen.open(id)`, or a card's `open`): the game view is titled
-  from the screen's definition and keeps it open, redraw after redraw, until the reader goes to another screen.
-- On, it shows. With an alert `badge` it takes the last pinned slot of a phone's bar (or the panel's) for as long as the badge is
-  set; the item that held that slot goes to More. A red **dot** sits at the icon's top-right: it is a dot, not a number. A badge
-  is an alert when it is text (`'your move'`), a count above 0 (`3`) or `true`; `0`, empty text, `false`, `null` and no badge
-  are none. The badge's words are the slot's accessible name and tooltip ("Fight, your move"; a count reads "Fight, 3"; `true`
-  "Fight, alert"). Only one tab is pinned: a second alerting tab sits under More, and More shows the dot (its name says which
-  tab, "More, Crafting: ready"), as does that tab's tile in the sheet.
-- `activeNote` (text) is what Settings → Tabs & Packs → Tabs shows for it in place of the switch ("Shown only while it is
-  active (during a battle, for example)." by default).
-
-Code: `activeNow` and `screensFor` (view/mounts/common.js), `pinAlerts` and the dot (view/screen-bar.js), the rows
-(ui-host.js `tabRows`, view/settings/tabs-list.js).
+Code: `activeNow` and `screensFor` in `view/mounts/common.js`, the strip and its edge alerts in `view/screen-bar.js`, and the settings rows in `view/settings/tabs-list.js`.

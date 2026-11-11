@@ -39,7 +39,7 @@
 import { createInstalled } from './installed.js';
 import { createPortraits } from './portraits.js';
 import { browserImageIo } from './portrait-fit.js';
-import { calendarOf, contentOf, craftsOf, economyOf, itemDefsIn, mergeStart, resolveItemIn, applyStart, weatherOf, ripplesOf, youRankOf } from './content.js';
+import { calendarOf, contentOf, craftsOf, economyOf, itemDefsIn, mergeStart, resolveItemIn, applyStart, weatherOf, ripplesOf, rippleChoice, youRankOf } from './content.js';
 import { renderPacksPanel } from './panel.js';
 import { HOST_VERSION, slugify } from './validate/core.js';
 import { readCharacterLorebook, stCapabilities, stHostVersion, stPortraitFiles, stSettings } from './st-adapter.js';
@@ -120,7 +120,8 @@ export function createPacksPart({ settings, readLorebook = async () => ({ charac
             'packs.calendar': () => calendarOf(packs.packs()),
             'packs.weather': () => weatherOf(packs.packs()),
             // The first enabled pack's ripples table `{ pack, powers, … }`, or null (Story Director's hidden sway per power).
-            'packs.ripples': () => ripplesOf(packs.packs()),
+            'packs.ripples': (_state, args) => ripplesOf(packs.packs(), args),
+            'packs.rippleChoice': (_state, args, tools) => rippleChoice(packs.packs(), args, tools),
             // The Rank the first enabled pack that declares one gives {{user}}'s look, `{ pack, label }`, or null (no Rank in this story).
             'packs.youRank': () => youRankOf(packs.packs()),
             'packs.crafts': () => craftsOf(packs.packs()),
