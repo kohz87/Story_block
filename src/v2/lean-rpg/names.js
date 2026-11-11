@@ -167,6 +167,8 @@ export const CREATION = Object.freeze({
 export const JOIN_SETTING = 'rpgJoin';
 export const JOINS = Object.freeze(['ask', 'auto', 'off']);
 export const PARTY_MAX = 8;
+/** The active limit of a reply captured under the `partyFour` mark: four, the reader's own character included. A full party asks who to bench (join.js benchCard). */
+export const PARTY_ACTIVE = 4;
 
 /** A roll's rules mark (`fix` in `rpg.resolve`; 2: stage 65, 3: `then:`); none replays as before. */
 export const FIX_VERSION = 3;

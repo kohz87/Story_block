@@ -8,7 +8,7 @@ import { hashJson } from '../../replay.js';
 import { STRINGS, fill } from '../../strings.js';
 import { rpgLib } from '../../rpg-lazy.js';
 import { DM_OLD_ROOM, dmRoom } from '../schema.js';
-import { PARTY_MAX } from '../../lean-rpg/names.js';
+import { PARTY_ACTIVE, PARTY_MAX } from '../../lean-rpg/names.js';
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
@@ -38,8 +38,12 @@ const activeCount = domain => Object.keys(domain?.active ?? {}).length;
 const blockCount = domain => Object.values(domain?.active ?? {})
     .filter(active => domain?.pins?.[active.hash]?.packId === 'chat').length;
 // Every way a Character joins or comes back (a story `+ party` / `- party` line, the reader's Add to party, the wizard's and the template's Character) records the
-// party it relied on and keeps the 8-active limit: `partyWitness` says a guard records it (a story reply from before the `partyRoom` mark does not), `partyFull` refuses live.
-const partyWitness = ctx => ctx.cause === 'ui' || (ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM);
+// party it relied on and keeps the active limit (4, or 8 on a reply with only the `partyRoom` mark): `partyWitness` says a guard records it (a story reply from before the `partyRoom` mark does not), `partyFull` refuses live.
+// The value is what the guard records as `selector.party`: PARTY_ACTIVE (a story reply with the `partyFour` mark) when the 4-active limit is in force,
+// `true` for a reply with only the `partyRoom` mark and for the reader's own actions (8 active; the Ask card's Add and the bench choice name 4 themselves), false for an older reply.
+const partyWitness = ctx => (ctx.cause === 'ui' ? true : ctx.carrier?.rules?.includes('partyFour') ? PARTY_ACTIVE : ctx.cause === 'story' && dmRoom(ctx) !== DM_OLD_ROOM);
+// The active limit that witness stands for (a story reply from before `partyRoom` has none: the old count in checkJoin).
+const partyLimit = witness => (witness === PARTY_ACTIVE ? PARTY_ACTIVE : PARTY_MAX);
 // (the party is read from this domain's own blocks, never from the lazy RPG library: a chat with the RPG off must replay the same witness; it is lean-rpg/join.js partyOf's
 // [module, left] pairs, a chat-scope Character with a name)
 const partyPairs = state => {
@@ -53,9 +57,9 @@ const partyPairs = state => {
     }
     return out;
 };
-// The only thing a join, creation or return relied on from the party: was there room (fewer than 8 active) before it. Replay witnesses just this boolean,
+// The only thing a join, creation or return relied on from the party: was there room (fewer than the limit in force active) before it. Replay witnesses just this boolean,
 // so removing an unrelated earlier member below the cap leaves later members as they were.
-const partyRoomOf = state => partyPairs(state).filter(pair => !pair[1]).length < PARTY_MAX;
+const partyRoomOf = (state, limit = PARTY_MAX) => partyPairs(state).filter(pair => !pair[1]).length < limit;
 const partyFull = (ctx, prefix) => {
     if (ctx.cause === 'ui' && !partyRoomOf(prefix)) refuse('REFUSED', '', fill(B.partyFull, { max: PARTY_MAX }));
 };
@@ -89,4 +93,4 @@ function newInstance(definition, inputs) {
 }
 
 export { E, B, rpg, J, SET_FIELDS, initial, kept, hashOf, sizeOf, draftOf, stateOf, pairKey, subjectsOf,
-    activeCount, blockCount, partyWitness, partyPairs, partyRoomOf, partyFull, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };
+    activeCount, blockCount, partyWitness, partyLimit, partyPairs, partyRoomOf, partyFull, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };

@@ -14,7 +14,7 @@ export function createFields(deps) {
     const { dependency, guard, finish, restore } = deps;
     // `dm.set` writes one field (`field`, `key?`, `value`) or, as ONE action, several non-map fields of one block (`fields`: { name: value }).
     // Either way each value is checked the same, the rules run once after all the sets, and nothing applies unless every one holds.
-    function setField(ctx, payload, call = {}, { story = false, party = false } = {}) {
+    function setField(ctx, payload, call = {}, { story = false, party = false, bench = '' } = {}) {
         // `story`: the party line that marks a companion as left (`- party Name`, below) is the one story line that sets a field.
         if (story ? ctx.cause !== 'story' || ctx.caller !== null : ctx.cause !== 'ui' || ctx.caller !== null) refuse('REFUSED', '', E.fieldReader);
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
@@ -62,7 +62,7 @@ export function createFields(deps) {
         evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.set', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: prefixImports(definition), actor: subject !== 'chat', party: party || (returns && partyWitness(ctx)),
+            reads: result.reads.map(read => read.path), imports: prefixImports(definition), actor: subject !== 'chat', party: party || (returns && partyWitness(ctx)), bench,
             decision: { inputs, conds: result.conds } });
         const labelOf = entry => (entry.map ? `${entry.schema.label ?? entry.name} (${entry.key})` : entry.schema.label ?? entry.name);
         const was = entry => (entry.map ? null : { fields: fieldsBefore, key: entry.name }), now = entry => (entry.map ? null : { fields: instance.fields, key: entry.name });

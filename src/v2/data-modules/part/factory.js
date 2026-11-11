@@ -38,7 +38,9 @@ export function createDataModulesPart(opts = {}) {
             'dm.attach': wrap(d.attach), 'dm.set': wrap(setField), 'dm.act': wrap((ctx, payload, call) => act(ctx, payload, null, call)), 'dm.capture': { internal: true, handler: wrap((ctx, line, call) => act(ctx, {}, line, call)) },
             'dm.tick': { internal: true, handler: wrap(tick) }, 'dm.settle': { internal: true, handler: wrap(settle) },
             // The Ask card's "Add to party" (rpg only: the feature gate leaves it out while the RPG is off).
-            'dm.join': Object.assign(wrap(d.addParty), { feature: LEAN_RPG_FEATURE }) },
+            'dm.join': Object.assign(wrap(d.addParty), { feature: LEAN_RPG_FEATURE }),
+            // A full party's card: the member the reader picked steps out and the newcomer joins (one reader action).
+            'dm.bench': Object.assign(wrap(d.benchParty), { feature: LEAN_RPG_FEATURE }) },
         // `+ party Name | about: … | class: I | best: int` and `- party Name`: under the RPG feature, out of the grammar while Companions who join is Off, and
         // until the story has a Character block (a party line means something only once there is a party).
         // `? roll Name | skill or stat | difficulty | die`: story checks (lean-rpg/checks; Story Director owns `check`). Here the line is only read and kept; the reply's step after its
