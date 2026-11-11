@@ -102,7 +102,7 @@ export function createReplace(s, deps) {
                         publish(span, index);     // the lines applied to the state before this point
                         storySpans.push(span);
                         nextParts.push({ ops: own, span, receipts: piece.receipt ? [piece.receipt] : [] });
-                    } else if (storySpans.length && storySpans.at(-1).story === story && !isMetaSpan(storySpans.at(-1))) {
+                    } else if (story && storySpans.length && storySpans.at(-1).story === story && !isMetaSpan(storySpans.at(-1))) {   // (a prelude keeps a span of its own, as the live append gave it, so the next Re-read pairs receipts and blocks)
                         storySpans.at(-1).n += piece.n;
                         nextParts.at(-1).ops = [...nextParts.at(-1).ops, ...own];
                         if (piece.receipt) nextParts.at(-1).receipts.push(piece.receipt);
@@ -174,7 +174,7 @@ export function createReplace(s, deps) {
                     } else {
                         again = out;
                         blockOps = asOps(out.ops);
-                        kept = { ...structuredClone(out.receipt), id: receipt.id, ...(receipt.beforeGenerate === true ? { beforeGenerate: true } : {}) };
+                        kept = { ...structuredClone(out.receipt), id: receipt.id, ...(receipt.afterCapture === true ? { afterCapture: true } : {}), ...(receipt.beforeGenerate === true ? { beforeGenerate: true } : {}) };
                         const own = [...blockOps].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value;
                         if (Number.isInteger(own)) rev = Math.max(rev, own);
                     }
