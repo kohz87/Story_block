@@ -289,9 +289,9 @@ export function rebuildAt(chat, upTo) {
             try {
                 if (span?.id && span.guard && !guardHolds(state, span.guard)) throw new Error('its guard does not hold');
                 state = strictApply(state, ops);
-            } catch {
+            } catch (error) {
                 const revs = ops.filter(op => op.path === '/meta/rev').map(op => op.value);
-                skipped.push({ index: i, block, revs });
+                skipped.push({ index: i, block, revs, why: error?.message });
                 if (revs.length && revs.at(-1) > state.meta.rev) state.meta.rev = revs.at(-1);
             }
         });
@@ -318,14 +318,20 @@ export function checkInvariants(host, label, { trace = [], dumpDir } = {}) {
     const chat = host.ctx.chat;
     const store = host.store;
     const indexes = carriers(chat);
+    // The chat exactly as the rebuild reads it: a store read must leave it alone, and a dump shows this text, never a chat
+    // a read has changed since (a dump taken after `store.at` once hid what the rebuild had seen).
+    const read = JSON.stringify(chat);
     for (const index of indexes) {
         const { state, skipped } = rebuildAt(chat, index);
         const live = plain(store.at(index));
         const rebuilt = plain(state);
+        const after = JSON.stringify(chat);
         try {
             assert.deepEqual(live, rebuilt);
+            if (after !== read) throw new assert.AssertionError({ message: 'the chat changed' });
         } catch (error) {
-            error.message = replayFailure({ label, index, live, rebuilt, chat: plain(chat), skipped, trace, dumpDir });
+            const wrote = after !== read ? `${label}: store.at(${index}) changed the chat it only reads (the rebuild saw the text before, the dump shows it)\n` : '';
+            error.message = wrote + replayFailure({ label, index, live, rebuilt, chat: JSON.parse(read), skipped, trace, dumpDir });
             throw error;
         }
     }
