@@ -2,7 +2,7 @@
 // The reply's resolver records the setup and choices; after capture only a fresh segment remains here.
 // The opening carrier and attempt fix the seed, so a narrated swipe keeps the dice.
 
-import { hardFightFor } from '../foes.js';
+import { hardFightFor } from './flags.js';
 import { readSheet } from '../read.js';
 import { fightSeed } from './dice.js';
 import { boardWitness, equipmentForBoard, playBoard } from './engine.js';

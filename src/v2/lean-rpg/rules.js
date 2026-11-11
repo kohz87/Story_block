@@ -176,7 +176,7 @@ const foeSide = (r, foeClass, hard = false) => (hasLevels(r) ? r.foeBase + level
  * The exact chances of one roll under `rules`: the party member's d20 + `bonus` against a foe's d20 + the foe's base + the
  * Soul Class weight × `foeClass`, the outcome rule of resolve.js (a natural 20 succeeds, a natural 1 fails, a total that
  * reaches the foe's succeeds, one within `costMargin` short is a success at a cost). Counts all 400 pairs of dice.
- * `hard`: the harder-foes rule, where the foe adds level / 4 (foes.js hardFightFor); only levelled numbers read it.
+ * `hard`: the harder-foes rule, where the foe adds level / 4 (board/flags.js hardFightFor); only levelled numbers read it.
  * → { success, cost, fail }, whole percentages each rounded on its own (they may add up to 99 or 101).
  */
 export function oddsFor(rules, { bonus, foeClass, hard = false }) {

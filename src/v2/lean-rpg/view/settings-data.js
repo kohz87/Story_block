@@ -3,7 +3,7 @@
 
 import { oneLine } from '../../../text.js';
 import { CLASS_NAMES, RANK_NAMES } from '../names.js';
-import { hardFightFor } from '../foes.js';
+import { hardFightFor } from '../board/flags.js';
 import { DIFFICULTIES, hasLevels, STANDARD_PRESETS, STANDARD_SETTING, normalizeStandard, oddsSubject, presetOf, rulesFromSettings, subjectOdds, difficultyOf } from '../rules.js';
 import { applyGear } from '../gear.js';
 import { fold, readSheet } from '../read.js';
