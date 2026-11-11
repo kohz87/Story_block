@@ -710,6 +710,30 @@ test('2.9.1: a - party line that names the player\'s own character is refused wi
     assert.equal(fields(host, 'wessel').left, true, 'no persona name: the line works as it did');
 });
 
+test('partyLeft: a Re-read keeps a leave its first run made after the persona is renamed to that companion; a reply saved without the mark is refused as before', { skip }, async t => {
+    const host = await world({ mode: 'ask' });
+    t.after(() => host.close());
+    await make(host, 'Mara', 2);
+    await make(host, 'Ilse', 2);
+    await host.send('They part.', reply('- party Mara'));
+    const marked = host.store.headIndex();
+    await host.send('Again.', reply('- party Ilse'));
+    const old = host.store.headIndex();
+    assert.equal(host.ctx.chat[marked].extra.storySuite.rules.includes('partyLeft'), true);
+    delete host.ctx.chat[old].extra.storySuite.rules; // as a reply saved before the rule was
+    host.store.rebuild();
+    assert.deepEqual([fields(host, 'mara').left, fields(host, 'ilse').left], [true, true]);
+    host.ctx.name1 = 'Mara';
+    assert.equal((await host.turn.reread(marked)).ok, true);
+    assert.equal(fields(host, 'mara').left, true, 'the marked reply still makes Mara leave');
+    host.ctx.name1 = 'Ilse';
+    assert.equal((await host.turn.reread(old)).ok, true);
+    assert.equal(fields(host, 'ilse').left, false, 'the unmarked reply is refused: Ilse is the persona now');
+    assert.ok(problems(host).some(message => /Ilse is you/.test(message)));
+    assert.equal(host.ctx.chat[old].extra.storySuite.rules, undefined);
+    await rebuilt(host, 'after the Re-reads');
+});
+
 test('2.9.1: the first character a story gets through Add to party also brings the Combat rules and Foes blocks it lacks, in the same action', { skip }, async t => {
     const host = await world({ mode: 'ask', wessel: false });
     t.after(() => host.close());
