@@ -87,7 +87,7 @@ function itemRow(kind, gear, test) {
     // Gear on: a bag piece has Equip (choose the wearer; a taken slot swaps, the old piece goes back to the bag); a worn piece has Unequip, or, a cast member's signature piece, its lock.
     const bagPiece = `it.kind == 'equipment' && ${row}.place == '' && ${row}.slotKey != '' && ${row}.bound == null`;
     const equipWho = `
-            <button class="ss-button pick-member" data-each="q.gx.owners as who" data-command="item.equip" data-payload='{"stack":"{{ it.stack }}","owner":"{{ who.value }}","slot":"{{ ${row}.slotKey }}","transfer":true}'
+            <button class="ss-button pick-member" data-each="q.gx.owners as who" data-command="item.equip" data-payload='{"stack":"{{ it.stack }}","owner":"{{ who.value }}","transfer":true}'
                     title="${html(G.equipWhoTitle, { name: '{{ it.name }}', who: '{{ who.label }}' })}">{{ who.label }}</button>`;
     const buttons = gear ? foldAction('equip', bagPiece, 'fa-hand-fist', html(G.equip), html(S.equipTitle, { name: '{{ it.name }}' })) : `
           <button class="ss-button" data-if="it.kind == 'equipment' && it.equipped == null" data-command="inventory.equip"
@@ -384,6 +384,13 @@ const CSS = `${BASE_CSS}
 .bound > .bound-lock .ss-w-badge { padding: 0; border: 0; background: none; min-height: 0; gap: 0; }
 .bound > .bound-lock .ss-w-badge-icon { color: inherit; display: inline-flex; }
 .bound > .bound-lock .ss-icon-svg { width: 9px; height: 9px; }
+/* On a phone the buttons leave the right-hand column and sit on their own line under the item, so the name, the pill and the condition line keep the full width. */
+@media (max-width: 480px) {
+  .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 20px 16px 16px auto; }
+  .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .actions { grid-column: 1; grid-row: 4; justify-self: start; }
+  .inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .fold { grid-row: 5; }
+  .inv.gear .g-l3 .cpart, .inv.gear .g-l3 .cword { flex: none; overflow: visible; }
+}
 /* The rarity word is for desktop widths: on a phone the name's colour already says it. */
 @media (max-width: 500px) { .inv.gear .g-l1 { gap: 4px; } .inv.gear .g-l1 .rarity { display: none; } .inv.gear .g-l1 .chip.slot { padding: 0 4px; } }
 `;

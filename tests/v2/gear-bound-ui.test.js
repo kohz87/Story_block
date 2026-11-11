@@ -93,6 +93,18 @@ test('phone: the rarity word is hidden at phone width (a CSS rule), and shown on
     assert.doesNotMatch(outside, /\.rarity[^{]*\{[^}]*display: none/);
 });
 
+test('phone: under 480px the row buttons sit on their own line under the item (one column, actions in row 4, a fold in row 5); the Equip payload names no slot', () => {
+    const css = inventoryScreen.css;
+    const block = css.match(/@media \(max-width: 480px\) \{\n([\s\S]*?)\n\}\n/g)?.find(rule => /\.actions \{ grid-column: 1; grid-row: 4;/.test(rule));
+    assert.ok(block, 'a 480px media rule moves .actions to their own row');
+    assert.match(block, /grid-template-columns: minmax\(0, 1fr\)/);
+    assert.match(block, /> \.fold \{ grid-row: 5; \}/);
+    // Equip leaves the slot out (item.equip then picks the first free accessory place).
+    const equip = inventoryScreen.template.match(/data-command="item\.equip" data-payload='([^']*)'/g) ?? [];
+    assert.ok(equip.length > 0);
+    for (const one of equip) assert.doesNotMatch(one, /"slot"/);
+});
+
 test('a bound row: the lock chip "Bound · Ren" in place of "Equipped", the reason as its title, and no Drop; other rows keep their Drop', () => {
     const { el } = draw(crew());
     const dagger = daggerRow(el);
