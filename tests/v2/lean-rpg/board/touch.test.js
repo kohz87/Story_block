@@ -40,7 +40,7 @@ for (const role of ['character', 'skills', 'foes']) {
     if (role === 'character') Object.assign(fields, { who:'Astra', vit:20, health:5 });
     if (role === 'skills') Object.assign(fields, { who:'Astra', skill1:'Cut', about1:'strike a foe', stat1:'str', uses1:'stamina',
         skill2:'Sweep', about2:'sweep every foe in reach', stat2:'agi', uses2:'stamina' });
-    if (role === 'foes') Object.assign(fields, { foe1:'Rats', count1:8, level1:1, hurt1:5, foe2:'Spiders', count2:8, level2:1, hurt2:5 });
+    if (role === 'foes') Object.assign(fields, { foe1:'Rats', count1:8, level1:1, hurt1:12, foe2:'Spiders', count2:8, level2:1, hurt2:12 });
     const id = 'pack.chat/' + role;
     domain.pins[id] = { definition, packId:'chat', interpreter:1 };
     domain.active[id] = { hash:id, generation:1, subjects:['chat'] };
@@ -74,7 +74,7 @@ function draw() { for (const handle of handles.splice(0)) handle.destroy?.(); vi
 draw();
 window.boardTest = { count:() => boardSession(meta)?.exchanges.length ?? 0, configure:({ skills = 2, rounds = 0, wrap = false, groups = 2 } = {}) => {
     const foe = domain.instances['pack.chat/foes'].chat.fields;
-    ['Rats', 'Spiders', 'Wolves', 'Crows', 'Gulls', 'Bats'].forEach((name, at) => Object.assign(foe, { ['foe' + (at + 1)]:at < groups ? name : '', ['count' + (at + 1)]:at < groups ? 8 : 0, ['level' + (at + 1)]:1, ['hurt' + (at + 1)]:5 }));
+    ['Rats', 'Spiders', 'Wolves', 'Crows', 'Gulls', 'Bats'].forEach((name, at) => Object.assign(foe, { ['foe' + (at + 1)]:at < groups ? name : '', ['count' + (at + 1)]:at < groups ? 8 : 0, ['level' + (at + 1)]:1, ['hurt' + (at + 1)]:12 }));
     const fields = domain.instances['pack.chat/skills'].chat.fields;
     for (let n = 1; n <= 5; n += 1) {
         fields['skill' + n] = n <= skills ? (wrap && n === 2 ? 'An exceptionally long skill name that must wrap over several lines on a phone' : 'Cut ' + n) : '';

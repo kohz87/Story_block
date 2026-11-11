@@ -44,8 +44,8 @@ test('the page start (index.js static imports) reaches none of the RPG\'s code, 
     const bytes = list => list.reduce((sum, file) => sum + statSync(resolve(ROOT, file)).size, 0);
     const lean = files.filter(file => file.startsWith('src/v2/lean-rpg/'));
     assert.ok(lean.every(file => SHARED.has(file.slice('src/v2/lean-rpg/'.length, -3))), `only the shared helpers: ${lean.join(', ')}`);
-    // (97700: the six foe groups' read.js lines; 97500: the bench card's words in strings/story.js; 97000: the story-check note and grammar words live in cue.js / names.js, shared helpers the page start reaches; party.levels is in read.js / roster.js)
-    assert.ok(bytes(lean) < 97700, `the shared helpers stay small (${bytes(lean)} bytes)`);
+    // (99000: the harder-foes rule's few lines in foes.js / blocks.js / read.js; 97700: the six foe groups' read.js lines; 97500: the bench card's words in strings/story.js; 97000: the story-check note and grammar words live in cue.js / names.js, shared helpers the page start reaches; party.levels is in read.js / roster.js)
+    assert.ok(bytes(lean) < 99000, `the shared helpers stay small (${bytes(lean)} bytes)`);
     // …and what a dynamic import brings in is the whole RPG (the part and its pieces), so the split is real.
     const whole = closure('src/v2/lean-rpg/index.js').filter(file => file.startsWith('src/v2/lean-rpg/'));
     assert.ok(bytes(whole) > 4 * bytes(lean), 'the part is most of the RPG\'s code');

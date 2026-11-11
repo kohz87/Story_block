@@ -276,6 +276,28 @@ async function boardSoak(seed) {
     } finally { host.close(); }
 }
 
+// A chat on today's Foes template (Health up to 15) with two lone foes: the fight is marked `foesHard: 1`, foes hit for 2 and 4 blocks and add level / 4 to their rolls.
+async function boardHard(seed) {
+    const hero = { role: 'character', definition: structuredClone(STANDARD_TEMPLATES[0].definition), fields: character('Astra', { str: 14, dex: 10, vit: 10, agi: 10, int: 5, health: 12, stamina: 12, mana: 10 }) };
+    const skills = { role: 'skills', fields: skillBlock('Astra', [['Cut', 3, 'str', 'stamina', 'cut one foe']]) };
+    const foes = { role: 'foes', definition: structuredClone(STANDARD_TEMPLATES.find(entry => entry.definition.role === 'foes').definition), fields: levelFoeBlock([['Cellar Brute', 1, 40, 13], ['Cellar Rat', 1, 8, 12]], 6) };
+    const options = opts({ hero, skills, foes }, true);
+    const { host } = await setup(options);
+    try {
+        openKnown(host);
+        const meta = host.ctx.chatMetadata;
+        assert.equal(boardSession(meta).setup.foesHard, 1);
+        for (let n = 0; n < 3; n += 1) {
+            const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 1 }]);
+            assert.equal(staged.error, undefined, staged.error);
+        }
+        await host.send('I hold the brute off.', 'The brute swings.');
+        const result = rollAt(host, 2).data.v2.result;
+        assert.equal(result.foesHard, 1);
+        return await take(host, 2, seed, options);
+    } finally { host.close(); }
+}
+
 const CASES = [
     ['board-fled', boardFled],
     ['board-members', boardMembers],
@@ -289,6 +311,7 @@ const CASES = [
     ['practice', practice],
     ['board-scaled', boardScaled],
     ['board-soak', boardSoak],
+    ['board-hard', boardHard],
 ];
 
 // (`ONLY=board-scaled node make.mjs`: builds just the named cases and merges them into the files, leaving every other chat and golden as it is)

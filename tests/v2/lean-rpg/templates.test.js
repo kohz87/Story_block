@@ -104,7 +104,7 @@ test('the Foes block has six slots of name, count, level (1 to 99) and health bl
         assert.deepEqual([state[`count${n}`].min, state[`count${n}`].max], [0, 99]);
         assert.deepEqual([state[`level${n}`].min, state[`level${n}`].max, state[`level${n}`].default], [1, 99, 1]);
         assert.equal(state[`class${n}`], undefined, 'no Soul Class on a foe');
-        assert.deepEqual([state[`hurt${n}`].min, state[`hurt${n}`].max, state[`hurt${n}`].blocks], [0, 8, 'foe']);
+        assert.deepEqual([state[`hurt${n}`].min, state[`hurt${n}`].max, state[`hurt${n}`].blocks], [0, 15, 'foe']);
         for (const kind of [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]) assert.ok(kinds[kind], kind);
     }
 });
