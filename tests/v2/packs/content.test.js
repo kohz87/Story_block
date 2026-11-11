@@ -57,8 +57,8 @@ test('content by kind, in pack order, with full IDs', () => {
     assert.deepEqual(contentOf(packs, 'theme'), [{ pack: 'riverside-starter', tokens: { '--ss-accent': '#3f7f8f' } }, { pack: 'extra', tokens: { '--ss-accent': '#000' } }]);
     assert.deepEqual(contentOf(packs, 'screens'), [{ id: 'rpg-battle/party', template: '<div>{{ q.pc.name }}</div>', theme: {}, pack: 'extra' }]);
     assert.deepEqual(contentOf(packs, 'spells'), []);
-    contentOf(packs, 'creatures')[0].name = 'Changed';
-    assert.equal(contentOf(packs, 'creatures')[0].name, 'Weir Rat', 'callers get copies');
+    assert.throws(() => { contentOf(packs, 'creatures')[0].name = 'Changed'; }, TypeError);
+    assert.equal(contentOf(packs, 'creatures')[0].name, 'Weir Rat', 'callers get the pack\'s frozen records');
 });
 
 test('start states merge in pack order', () => {

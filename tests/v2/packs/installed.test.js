@@ -209,3 +209,22 @@ test('installing or importing the same pack is still refused, with the plain mes
     assert.equal(lore.results[0].ok, false, 'a lorebook import of it is refused too');
     assert.match(lore.results[0].errors[0].message, /^Event "quoted": the condition can't be read/);
 });
+
+test('packs.content hands out the pack\'s own frozen records: same objects each call, nothing a caller can change, same JSON as a copy', async () => {
+    const { settings, installed } = setup();
+    await installed.install(sampleText, { source: 'file', origin: 'riverside.json' });
+    const first = contentOf(installed.packs(), 'items');
+    const again = contentOf(installed.packs(), 'items');
+    assert.ok(first.length > 0);
+    assert.ok(first.every((item, at) => item === again[at]), 'no copy per call');
+    assert.ok(Object.isFrozen(first) && first.every(item => Object.isFrozen(item) && Object.isFrozen(item.tags)), 'frozen all the way down');
+    assert.throws(() => { first[0].name = 'changed'; }, TypeError);
+    assert.throws(() => first.push({}), TypeError);
+    for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'races', 'talents', 'cast', 'currency', 'layouts', 'screens', 'theme', 'nothing']) {
+        const got = contentOf(installed.packs(), kind);
+        assert.equal(JSON.stringify(got), JSON.stringify(JSON.parse(JSON.stringify(got))), kind);
+    }
+    assert.deepEqual(installed.list()[0].counts.items, first.length);
+    assert.deepEqual(settings.root.packs[0].pack, sample(), 'the stored raw pack is untouched, and not frozen');
+    assert.equal(Object.isFrozen(settings.root.packs[0].pack), false);
+});

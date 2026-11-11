@@ -111,8 +111,8 @@ test('packs.content({ kind: "terms" }) gives every enabled pack\'s records, in p
     assert.deepEqual(query({ kind: 'terms' }).map(record => [record.pack, record.levelName]), [['ersveil', 'Soul Class'], ['other', 'Circle']]);
     assert.deepEqual(query({ kind: 'terms', pack: 'other' }).map(record => record.id), ['pack.other/terms']);
     assert.deepEqual(query({ kind: 'terms', pack: 'plain' }), []);
-    // Copies: a caller changing what it got does not change the pack.
-    query({ kind: 'terms' })[0].tiers.size = 1;
+    // Frozen: a caller cannot change what it got, so it cannot change the pack.
+    assert.throws(() => { query({ kind: 'terms' })[0].tiers.size = 1; }, TypeError);
     assert.equal(query({ kind: 'terms' })[0].tiers.size, 10);
     await packs.setEnabled('ersveil', false);
     assert.deepEqual(query({ kind: 'terms' }).map(record => record.pack), ['other']);

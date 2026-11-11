@@ -95,7 +95,7 @@ test('packs.content({ kind: "ranks" }) gives the ladders, each pack\'s in order,
     const query = args => part.queries['packs.content']({}, args);
     assert.deepEqual(query({ kind: 'ranks' }).map(rank => `${rank.pack}:${rank.id}`), ['guild:F', 'guild:E', 'guild:SS', 'wild:EG1', 'wild:EG2']);
     assert.deepEqual(query({ kind: 'ranks', pack: 'wild' }).map(rank => rank.id), ['EG1', 'EG2']);
-    query({ kind: 'ranks' })[0].levels[0] = 99;
-    assert.equal(query({ kind: 'ranks' })[0].levels[0], 1, 'copies');
+    assert.throws(() => { query({ kind: 'ranks' })[0].levels[0] = 99; }, TypeError);
+    assert.equal(query({ kind: 'ranks' })[0].levels[0], 1, 'frozen records');
     assert.deepEqual(packs.list().map(entry => entry.counts.ranks), [3, 2, undefined]);
 });
