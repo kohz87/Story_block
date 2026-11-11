@@ -195,7 +195,10 @@ export function moneyLine(currency = DEFAULT_CURRENCY, oneCoin = false) {
     const name = tidy(currency?.name, MAX_NAME) || DEFAULT_CURRENCY.name;
     const plural = tidy(currency?.plural, MAX_NAME) || pluralOf(name);
     // `oneCoin` (the chat is under the `oneCoin` rule mark): a coin list of one coin worth 1 is a single-unit currency, so it also says that no other coins exist.
-    const coins = oneCoin && coinList(currency).length === 1 && coinList(currency)[0].value === 1 ? [] : coinList(currency);
+    // Only when that coin IS the currency (its name or plural is the currency's): else coin lines accept the coin's own word and refuse the currency's, so the coin line still names it.
+    const only = coinList(currency)[0];
+    const isCurrency = only && [only.name, only.plural].some(word => [name, plural].some(own => own.toLowerCase() === String(word).toLowerCase()));
+    const coins = oneCoin && coinList(currency).length === 1 && only.value === 1 && isCurrency ? [] : coinList(currency);
     if (coins.length) {
         const known = coins.some(coin => [coin.name, coin.plural].some(word => word.toLowerCase() === name.toLowerCase() || word.toLowerCase() === plural.toLowerCase()));
         return `${known ? '' : `Money in this story is the ${name}${plural.toLowerCase() === name.toLowerCase() ? '' : ` (plural: ${plural})`}. `}${coinLine(currency)}`;

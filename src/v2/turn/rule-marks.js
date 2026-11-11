@@ -28,11 +28,11 @@ export const RULE_LINES = Object.freeze({
     factionTags: line => line?.kind === 'world',
     // A Re-read pays a story XP line at the rate its first run recorded (`xpRate` in its receipt's result), not today's setting (data-modules/part/act.js). Any block line counts.
     xpKept: line => line?.kind === 'dm',
-    // `- party Name`: a Re-read lets the line leave someone its first run made leave, even after the reader's persona was renamed to that name (data-modules/part/party.js). Any `- party` line counts.
     // The coin line of a one-coin currency worth 1 says what a currency without coins says, "no other coins exist" (domains/money.js moneyLine). Static text: it follows the chat's first reply (persist chatMarked).
     oneCoin: line => line?.kind === 'coin',
     // The `+ party` grammar line names the story's own class field (join.js joinGrammarOwn). Static text: it follows the chat's first reply (persist chatMarked). Same lines as `partyRoom`.
     partyFields: partyJoin,
+    // `- party Name`: a Re-read lets the line leave someone its first run made leave, even after the reader's persona was renamed to that name (data-modules/part/party.js). Any `- party` line counts.
     partyLeft: line => line?.kind === 'party' && line.op === '-',
 });
 

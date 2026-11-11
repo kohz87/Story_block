@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { coinLine, currencyOf, foreignCoin, moneyLine, parseAmount } from '../../../src/v2/domains/money.js';
+import { coinLine, coinValue, currencyOf, foreignCoin, moneyLine, parseAmount } from '../../../src/v2/domains/money.js';
 import { createHost } from '../../../testkit/index.js';
 
 const ERSVEIL = readFileSync(new URL('../../../examples/packs/ersveil/pack.json', import.meta.url), 'utf8');
@@ -91,6 +91,16 @@ test('(d) switching the setting updates the line, and it is byte-identical while
     host.settings.set('story-block', 'currency', '');
     await host.send('Back.', 'Quiet.');
     assert.deepEqual(moneyOf(staticPart(host)), ersveil, 'the setting cleared: the pack\'s coins again');
+});
+
+test('oneCoin: a one-coin list worth 1 named differently from the currency keeps the coin line (the coin word crown, never the refused marks)', () => {
+    const currency = currencyOf({ currency: 'mark', coins: [{ name: 'crown', value: 1 }] });
+    const line = moneyLine(currency, true);
+    assert.equal(line, moneyLine(currency), 'the mark changes nothing here');
+    assert.match(line, /crowns/);
+    assert.equal(coinValue('marks', currency), 0);
+    assert.equal(coinValue('crowns', currency), 1);
+    assert.doesNotMatch(line, /Name amounts in marks/);
 });
 
 test('oneCoin: a coin list of one coin worth 1 is told as a single-unit currency in a chat under the mark; a chat begun before keeps the coin line, byte for byte', async t => {
