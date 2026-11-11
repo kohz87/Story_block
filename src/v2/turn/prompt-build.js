@@ -20,6 +20,8 @@ import { TIMED_OUT, defuseMacros, firstLine, mapContent, stripBattleMarker, subs
 // The most a module's hook may keep whole in the tail (`{ text, keep: true }` lines): two meeting cues and a rumor fit; more is droppable.
 export const KEPT_LINES_MAX = 4;
 export const KEPT_CHARS_MAX = 4000;
+// A prelude cue a module marks kept (receipt `data.keep === true`) is pinned too, up to this many tokens in all per reply; the rest are plain cues.
+export const KEPT_PRELUDE_TOKENS = 120;
 
 export function createPromptBuild(s, deps) {
     const { ctx, metadata, store, bus, registry, settings, events, timeline, onBlocked, notify, initial, prepare, hostSettings, viewReader, view, contextNow, hasCarrier, lastCarrier, isPrelude, markBusy, markIdle, setPrompts, clearPrompts, problem, trySave, held, claimQuiet, FOREGROUND, HOOK_TIMEOUT_MS, ASSIST_WAIT_MS, RPG_LOAD_WAIT_MS, OWN_PROMPT_PARTS, OWN_PROMPT_CHARS, STRIP_CACHE, HAS_BLOCK, HAS_LEGACY, hookTimeout, normalizeType } = deps;
@@ -117,6 +119,7 @@ export function createPromptBuild(s, deps) {
         }
         // Other cues may settle a fight or change a modifier. Preview on the state they leave,
         // which is also the state the generated reply's prelude will start from.
+        let keptPrelude = 0;
         for (const { moduleId, type: preludeType, payload, seed } of requested) {
             if (preludeType === RPG_RESOLVE && payload?.board?.setup?.opening) {
                 const checked = boardStartState(bus, store.head(), payload.board);
@@ -135,7 +138,14 @@ export function createPromptBuild(s, deps) {
                 // A prelude that says it is not for the narrator (`narrate: false`, the RPG's no-rolls note) is stored with the reply and told to no one.
                 if (result.receipt.narrate === false) continue;
                 const told = `[Happened]\n${receiptCue(result.receipt)}`;
-                cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true, ...(payload?.board ? { board: true } : {}) } : told];
+                // A module may mark its prelude cue kept (`receipt.data.keep === true`): pinned like the RPG's, but only while the pinned
+                // prelude text of the reply stays within KEPT_PRELUDE_TOKENS in all, so pinning can never starve the rest of the tail.
+                let pin = false;
+                if (preludeType !== RPG_RESOLVE && result.receipt.data?.keep === true) {
+                    const size = estimateTokens(told);
+                    if (keptPrelude + size <= KEPT_PRELUDE_TOKENS) { keptPrelude += size; pin = true; }
+                }
+                cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true, ...(payload?.board ? { board: true } : {}) } : pin ? { text: told, keep: true } : told];
             } else if (preludeType === RPG_RESOLVE && payload?.board) {
                 const reason = boardFailure('The fight could not be prepared:', result?.message);
                 problem({ module: moduleId, code: result?.code ?? 'FAILED', message: reason });

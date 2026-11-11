@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A module can keep its prelude cue under a tight tail budget.** A prelude command whose receipt carries `data: { keep: true }` has its `[Happened]` cue pinned like the RPG's, up to 120 tokens in all per reply (the rest are ordinary cues), so a small tail budget no longer drops a module's per-reply line first. New replies only; the static part is unchanged and replies already written are unaffected.
 - **Event conditions: `region(name, ...)`** is true when the scene's place is in any of the named regions (1 to 16, exact names; false with no place), so one event can cover several regions. **Ersveil 2.9.6** (needs Story Block 2.31.1) merges its two flood-news events into one with it, so the bulletin is told once however you move between those regions. A chat that already heard it keeps its record; replies already written replay as before.
 - **Harder foes (new replies):** a foe has 12 + level/30 Health blocks (it had 4), a foe's hit takes 2 blocks and a decisive hit 4, foes add level/4 to their roll, a lone foe strikes ceil(party/2) times and the foes' attacks in all are capped at twice the living party. The flee roll and the odds in Settings use the foe's level/4 too, and the fight board counts the lone foe's extra attacks and the cap in its "attacks on you" line. It applies only to a fight with the doubled bars (every character a new one) and a new Foes block. Existing chats keep the old foes until their Foes block is renewed: start a new chat or re-add the Foes block to get the harder foes. Replies written before keep the old rules.
 
