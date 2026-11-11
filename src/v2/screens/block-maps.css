@@ -115,7 +115,8 @@
 }
 .ss-b-card.ss-rm-tiles .ss-rm-warn { color: var(--ss-warn, #e8a33c); }
 
-/* 6. Enable all: the button above the list, and one confirm box that lists only the block names. */
+/* 6. Enable all: the button above the list, and one confirm box that lists only the block names. The list under it has no bullet indent (the mockup's rows start at the card's edge). */
+.ss-dm-list-rows { list-style: none; margin: 0; padding: 0; }
 .ss-rm-enable-all {
     display: flex;
     align-items: center;
