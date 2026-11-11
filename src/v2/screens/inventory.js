@@ -226,7 +226,9 @@ const CSS = `${BASE_CSS}
 ${GRID_CSS}
 .inv { display: grid; gap: var(--sb-gap); position: relative; }
 .top { display: flex; flex-wrap: wrap; gap: var(--sb-gap); align-items: center; }
-.wallet-and-add { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.wallet-and-add { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+/* the mockup's header: purse, Add item, then List / Grid at the right of the same row; the filters are the row under it */
+.wallet-and-add > ss-widget { margin-left: auto; }
 .wallet { display: inline-flex; gap: 6px; align-items: center; font-size: 1.05em; }
 .wallet i { color: var(--sb-accent); }
 .inv-add-form { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -245,7 +247,7 @@ ${GRID_CSS}
   .inv.gear .item:has(.ss-w-editable-gear) > .ss-tile-box { display: none; }
   .inv.gear .item.grow:has(.ss-w-editable-gear) { grid-template-columns: minmax(0, 1fr); }
 }
-.filter { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-left: auto; font-size: 0.85em; }
+.filter { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 6px 12px; align-items: center; min-width: 0; font-size: 0.85em; }
 .filter label { display: inline-flex; gap: 4px; align-items: center; }
 .filter select, .filter .find { font: inherit; color: var(--sb-fg); background: var(--sb-surface); border: 1px solid var(--sb-border);
                  border-radius: 6px; padding: 1px 4px; margin: 0; box-shadow: none; transition: border-color 0.15s ease; }
