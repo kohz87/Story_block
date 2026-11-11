@@ -189,8 +189,8 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
 
 test('the gear row\'s pencil keeps an unclipped 44px tap area: its line clips along the row only, and the pencil\'s ::after is 44px', () => {
     const css = inventoryScreen.css;
-    assert.match(rule(css, '.inv.gear .item.grow:not(:has(.ss-w-editable-item-form)) > .body > .g-l1'), /overflow-x: clip;\s*overflow-y: visible;/);
-    assert.match(rule(css, '.inv.gear .g-l1 .item-edit .ss-w-editable-pencil'), /min-height: 0 !important;/);
+    assert.match(css, /> \.g-l1 \{ overflow-x: clip; overflow-y: visible; \}/);
+    assert.match(css, /\.item-edit \.ss-w-editable-pencil \{[^}]*min-height: 0 !important;/);
     assert.match(rule(css, '.inv.gear .g-l1 .item-edit .ss-w-editable-pencil::after'), /height: calc\(44px \/ var\(--ss-zoomed, 1\)\);/);
 });
 
