@@ -51,13 +51,15 @@
 .ss-b-map:not(.ss-rm-editing) .ss-b-row-plain { grid-template-columns: minmax(0, 1fr); }
 .ss-b-map.ss-rm-editing .ss-b-row-plain { grid-template-columns: minmax(0, 1fr) var(--ss-b-pen); }
 .ss-rm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
-/* The label takes its one-line width and the Edit button drops to its own line (right) when both cannot share one: the label never breaks in two. */
+/* The label takes its one-line width and the Edit button drops to its own line (right) only when both cannot share one: the label never breaks in two.
+   The hairline is off here (the mockup's heading with Edit has none), so it no longer counts in the label's width and Edit stays beside the text where they fit. */
 .ss-rm-head > .ss-section-label { flex: 1 1 max-content; max-width: 100%; min-width: 0; margin: 0; }
+.ss-rm-head > .ss-section-label::after { display: none; }
 .ss-rm-head > .ss-rm-edit-btn { margin-left: auto; }
 .ss-rm-edit-btn {
     flex: none;
-    min-height: 36px;
-    padding: 0 12px;
+    min-height: 0;
+    padding: 3px 10px;
     border: 1px solid var(--ss-border);
     border-radius: 9px;
     background: transparent;
