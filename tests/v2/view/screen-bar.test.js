@@ -427,6 +427,15 @@ test('the strip: an alerting tab scrolled out past an edge shows a dot on that e
     nav.dispatch('scroll');
     assert.deepEqual(dots(), ['start'], 'beyond the left edge');
     assert.equal(nav.getAttribute('data-alert'), 'start');
+    boxed(craft, 247, 323); // half visible: its centre (285) is inside the 28px fade (272..300)
+    nav.dispatch('scroll');
+    assert.deepEqual(dots(), ['end'], 'part-visible, centre in the end fade: counts as past the edge');
+    boxed(craft, -23, 53); // centre 15 is inside the start fade
+    nav.dispatch('scroll');
+    assert.deepEqual(dots(), ['start'], 'part-visible at the start edge');
+    boxed(craft, 230, 306); // centre 268, just clear of the fade
+    nav.dispatch('scroll');
+    assert.deepEqual(dots(), [], 'centre clear of the fade: not past the edge');
     boxed(craft, 100, 176);
     nav.dispatch('scroll');
     assert.deepEqual(dots(), [], 'in view: cleared');

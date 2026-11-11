@@ -357,15 +357,16 @@ export function createScreenBar(doc, host, options = {}) {
         else nav.removeAttribute('data-fade');
         edgeAlerts(edge !== '');
     }
-    // An alerting slot scrolled out past an edge: the dot shows on that edge (inside the fade); it clears when the slot is in view.
+    // An alerting slot past an edge (its centre in the fade or beyond): a chevron shows on that edge; it clears when the slot is in view.
     function edgeAlerts(fading) {
         let before = false, after = false;
         const box = fading && strip && nav.getBoundingClientRect?.();
         for (const item of box ? items : []) {
             const at = item.alert && slots.get(item.id)?.getBoundingClientRect?.();
             if (!at) continue;
-            if (at.right <= box.left + 1) before = true;
-            else if (at.left >= box.right - 1) after = true;
+            const mid = at.left + (at.width ?? at.right - at.left) / 2; // past an edge once its centre is inside the 28px fade
+            if (mid <= box.left + 28) before = true;
+            else if (mid >= box.right - 28) after = true;
         }
         startDot.hidden = !before;
         endDot.hidden = !after;
