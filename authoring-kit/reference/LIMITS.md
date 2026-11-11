@@ -36,8 +36,8 @@
 
 | What | Limit |
 |---|---|
-| Definitions in one pack | 8 |
-| Pins per chat, subjects per module | 16, 16 |
+| Definitions in one pack | 20 |
+| Pins per chat, subjects per module | 28, 16 |
 | One definition | 32,768 bytes of JSON |
 | One instance (all its fields and timers) | 16,384 bytes |
 | Fields, kinds, rules, timers, reward templates | 32, 16, 32, 8, 16 |

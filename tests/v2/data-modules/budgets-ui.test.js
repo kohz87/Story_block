@@ -41,10 +41,10 @@ test('generated patch budget counts the actual field writes before append', asyn
 });
 
 test('retained pins and canonical subjects are bounded without evicting existing state', async t => {
-    const host = await world(t, pack(Array.from({ length: 8 }, (_, i) => ({ ...definition(), slug: `m${i}` }))));
-    const second = pack(Array.from({ length: 8 }, (_, i) => ({ ...definition(), slug: `m${i}` }))); second.id = 'dm-next';
+    const host = await world(t, pack(Array.from({ length: 14 }, (_, i) => ({ ...definition(), slug: `m${i}` }))));
+    const second = pack(Array.from({ length: 14 }, (_, i) => ({ ...definition(), slug: `m${i}` }))); second.id = 'dm-next';
     success(await host.packs.packs.install(second));
-    for (let i = 0; i < 16; i++) { if (i) await host.send('More.', 'A reply.'); await pin(host, [], i); }
+    for (let i = 0; i < 28; i++) { if (i) await host.send('More.', 'A reply.'); await pin(host, [], i); }
     const third = pack(); third.id = 'dm-last'; success(await host.packs.packs.install(third));
     await host.send('More.', 'A reply.');
     const offer = host.sdk.query('dataModules.offers').at(-1), before = JSON.stringify(host.head());

@@ -269,9 +269,9 @@ function blockCounts(state) {
 }
 
 /** Whether two more blocks fit in the story (the chat holds at most `DM_LIMITS.definitions` of its own blocks). */
-export function hasRoom(state) {
+export function hasRoom(state, room = DM_LIMITS) {
     const { own, all } = blockCounts(state);
-    return own + 2 <= DM_LIMITS.definitions && all + 2 <= DM_LIMITS.pins;
+    return own + 2 <= room.definitions && all + 2 <= room.pins;
 }
 
 /** The chat blocks the RPG's fights need besides the characters, in the order Create adds them. */

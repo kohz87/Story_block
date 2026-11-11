@@ -54,7 +54,7 @@ export function createBlocks(deps) {
         const old = domain?.active?.[module], previous = activeDefinition(prefix, module);
         if (action === 'define') {
             if (old) refuse('DM_SCHEMA', 'slug', B.exists);
-            if (blockCount(domain) >= L.definitions) refuse('DM_BUDGET', '', B.blockLimit);
+            if (blockCount(domain) >= L.definitions) refuse('DM_BUDGET', '', fill(B.blockLimit, { max: L.definitions }));
             if (activeCount(domain) >= L.pins) refuse('DM_BUDGET', '', B.limit);
         } else if (!previous || previous.pack !== 'chat' || domain.pins[old.hash]?.packId !== 'chat') refuse('REFUSED', 'module', B.chatOnly);
         call.label = previous?.name ?? payload.definition?.name ?? module;

@@ -1,6 +1,6 @@
 // The data modules' companions (extracted from data-modules/part.js): joining, leaving and
 // returning, their signature skills and gear, and the Ask card's reader action.
-import { DM_LIMITS as L, dmObject } from '../schema.js';
+import { DM_LIMITS as L, dmObject, dmRoom } from '../schema.js';
 import { validateDataModules } from '../check.js';
 import { copy, refuse, atPath } from '../interpreter.js';
 import { activeDefinition, inputsOf, instanceOf } from '../adapters.js';
@@ -207,8 +207,9 @@ export function createParty(deps) {
         const catalog = Object.keys(domain?.active ?? {}).map(id => activeDefinition(prefix, id)).filter(Boolean);
         const checked = validateDataModules([made.character, made.skills, ...extras], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions: catalog });
         if (!checked.ok) refuse(checked.errors[0].code, checked.errors[0].path, checked.errors[0].message);
-        if (blockCount(domain) + 2 > L.definitions) refuse('DM_BUDGET', '', B.blockLimit);
-        if (activeCount(domain) + 2 > L.pins) refuse('DM_BUDGET', '', B.limit);
+        const room = dmRoom(ctx);
+        if (blockCount(domain) + 2 > room.definitions) refuse('DM_BUDGET', '', fill(B.blockLimit, { max: room.definitions }));
+        if (activeCount(domain) + 2 > room.pins) refuse('DM_BUDGET', '', B.limit);
         const generation = Math.max(ctx.rev, 1), draft = draftOf(ctx);
         const pins = checked.definitions.map(definition => ({ definition, hash: hashOf(definition), pin: { definition, packId: 'chat', packVersion: '0', packHash: null, interpreter: 1 } }));
         for (const { definition, hash, pin } of pins) {
@@ -244,7 +245,7 @@ export function createParty(deps) {
             if (isReader(person.name)) refuse('REFUSED', '', fill(J.isYou, { name: person.name }));
             return leave(ctx, person, true, call);
         }
-        const check = rpg().checkJoin(prefix, read);
+        const check = rpg().checkJoin(prefix, read, dmRoom(ctx));
         if (!check.ok) refuse('REFUSED', '', check.why);
         if (check.returning) return leave(ctx, check.returning, false, call);
         if (rpg().joinMode(settings()) === 'ask') {

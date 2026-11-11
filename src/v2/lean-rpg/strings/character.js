@@ -37,8 +37,10 @@ export const CHARACTER_STRINGS = Object.freeze({
     }),
     party: Object.freeze({
         title: 'Party',
-        count: '{n} characters',
-        countOne: '1 character',
+        active: '{n} active',
+        leftCount: ' · {n} left',
+        leftRow: 'Left the party ({n})',
+        leftOne: '{name} · Lv {level}',
         own: 'you',
         companion: 'companion',
         xp: 'XP',

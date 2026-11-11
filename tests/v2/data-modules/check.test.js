@@ -358,7 +358,7 @@ test('additive migration checks old semantics, consecutive versions, exact schem
 });
 
 const budgetCases = [
-    ['definitions', 8, n => pack(Array.from({ length: n }, (_, i) => ({ ...definition(), slug: `module-${i}` })))],
+    ['definitions', 20, n => pack(Array.from({ length: n }, (_, i) => ({ ...definition(), slug: `module-${i}` })))],
     ['fields', 32, n => edit(d => { d.state = Object.fromEntries(Array.from({ length: n }, (_, i) => [`field-${i}`, integer()])); d.kinds.gain.effects = []; })],
     ['kinds', 16, n => edit(d => { d.kinds = Object.fromEntries(Array.from({ length: n }, (_, i) => [`kind-${i}`, { op: '!', labels: {}, effects: [] }])); })],
     ['rules', 32, n => edit(d => { d.rules = Array.from({ length: n }, (_, i) => ({ id: `rule-${i}`, when: true, then: [] })); })],

@@ -33,7 +33,7 @@ export const STRINGS = deepFreeze({
         origin: 'Made in this chat', reader: 'Only the reader can change a block.',
         chatScope: 'A block must have chat scope.', exists: 'A block with this name is already active.',
         limit: 'This chat already has the maximum number of blocks and data modules.',
-        blockLimit: 'This chat can have at most 8 blocks.',
+        blockLimit: 'This chat can have at most {max} blocks.',
         chatOnly: 'Only a block made in this chat can be changed here.',
         sameSlug: 'Keep the block identifier when changing its fields.',
         defined: 'You made {name}.', redefined: 'You changed {name}.', removed: 'You removed {name}.',
