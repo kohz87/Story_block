@@ -44,7 +44,10 @@ test('the rule table: a key line with a death word is diedAny; other lines and k
     assert.deepEqual(ruleMarksFor([line('+ party Mara')]), ['partyFour', 'partyRoom']);
     assert.deepEqual(ruleMarksFor([line('- party Mara')]), [], 'a leaving line changes no room');
     assert.deepEqual(RULE_LINES.partyRoom({ kind: 'dm', op: '+', raw: '+ party Mara' }), true, 'conservative: the raw words count, however it parsed');
-    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'partyRoom', 'partyFour', 'diedAny']);
+    assert.deepEqual(Object.keys(RULE_LINES), ['checks', 'partyRoom', 'partyFour', 'diedAny', 'factionTags']);
+    assert.deepEqual(ruleMarksFor([line('+ world Harbour Fight | factions: Quay Watch')]), ['factionTags'], 'any world line');
+    assert.deepEqual(ruleMarksFor([line('~ world Harbour Fight | factions: Quay Watch'), line('- world Harbour Fight')]), ['factionTags']);
+    assert.ok(allRuleNames().includes('factionTags'));
 });
 
 test('a Continue of an old unmarked death cannot change its earlier lines on Re-read', async t => {
@@ -263,4 +266,20 @@ test('an old reply (recorded without the mark) stays unmarked and byte-identical
     assert.equal(JSON.stringify(host.head()), live, 'a Re-read');
     assert.equal(recordOf(host, at).rules, undefined, 'a Re-read adds no mark');
     assert.equal(seen.at(-1).rules, null, 'the module saw no mark on the Re-read');
+});
+
+test('a new reply with a world line carries factionTags; an old reply recorded without the mark never gains it on Continue or Re-read', async t => {
+    const seen = [], host = await world(t, seen), setter = host.store.setRuleMarks;
+    await host.send('Brawl.', reply('A brawl.', ['+ world Harbour Fight | factions: Quay Watch']));
+    const fresh = host.ctx.chat.length - 1;
+    assert.ok(recordOf(host, fresh).rules.includes('factionTags'));
+    host.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await host.send('Quiet.', reply('Quiet.', ['~ world Harbour Fight | factions: Quay Watch']));
+    host.store.setRuleMarks = setter;
+    const old = host.ctx.chat.length - 1;
+    await host.cont(`\n\n${reply('Brawl.', ['+ world Harbour Fight | factions: Quay Watch'])}`);
+    assert.equal(recordOf(host, old).rules, undefined);
+    assert.equal((await host.turn.reread(old)).ok, true);
+    assert.equal(recordOf(host, old).rules, undefined);
+    assert.ok(recordOf(host, fresh).rules.includes('factionTags'));
 });

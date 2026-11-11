@@ -24,6 +24,8 @@ export const RULE_LINES = Object.freeze({
     // The party holds 4 active members, the reader's character included (lean-rpg/names.js PARTY_ACTIVE; a reply with only `partyRoom` keeps 8). Same lines as `partyRoom`.
     partyFour: partyJoin,
     diedAny: line => line?.kind === 'key' && line.op === '-' && [line.text, ...Object.keys(line.labels ?? {}), ...Object.values(line.labels ?? {})].some(part => DEATH.test(String(part ?? ''))),
+    // `+/~/- world Event | factions: A, B`: Story Director names unknown factions from an event's tags (feat/faction-from-events). Any world line counts, so an old reply with one never gains the new creation on Re-read.
+    factionTags: line => line?.kind === 'world',
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
