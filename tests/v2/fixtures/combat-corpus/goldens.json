@@ -260,7 +260,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_wsognqmp",
+          "id": "rc_5hxh8sob",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -789,7 +789,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_lgq5m8be",
+          "id": "rc_i2wloz7b",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -1538,7 +1538,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_lhhh35gi",
+          "id": "rc_tkk4n86a",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -2201,7 +2201,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_8yxsnupy",
+          "id": "rc_p70dyn7o",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -4224,7 +4224,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_wf3n86pv",
+          "id": "rc_8hb98988",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -4834,7 +4834,7 @@
       ],
       "steps": [
         {
-          "id": "rc_6kpm37ka",
+          "id": "rc_qebequg9",
           "type": "rpg.practice",
           "module": "story-block",
           "cause": "system",
@@ -6515,7 +6515,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_e1sorjy4",
+          "id": "rc_x2bfilff",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -7056,7 +7056,7 @@
       ],
       "steps": [
         {
-          "id": "rc_35pq5o8d",
+          "id": "rc_plzq6dc3",
           "type": "rpg.practice",
           "module": "story-block",
           "cause": "system",
@@ -7409,7 +7409,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_of1z7b91",
+          "id": "rc_i2gob9bh",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -7686,7 +7686,7 @@
       ],
       "steps": [
         {
-          "id": "rc_284qa9p6",
+          "id": "rc_bfpw5ep5",
           "type": "rpg.fight",
           "module": "story-block",
           "cause": "system",
@@ -8034,7 +8034,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_9bjxdi84",
+          "id": "rc_nq1hj7oe",
           "type": "rpg.noroll",
           "module": "story-block",
           "cause": "system",
@@ -8372,7 +8372,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_f8jlhsc6",
+          "id": "rc_bg8ntkqf",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -8531,7 +8531,7 @@
           "beforeGenerate": true
         },
         {
-          "id": "rc_vx9dbfhc",
+          "id": "rc_w596av96",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -9683,7 +9683,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_knc9wnsw",
+          "id": "rc_3fj1hcak",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -10380,7 +10380,7 @@
       "ok": true,
       "receipts": [
         {
-          "id": "rc_64hbqq38",
+          "id": "rc_iowgwalx",
           "type": "rpg.resolve",
           "module": "story-block",
           "cause": "system",
@@ -10802,7 +10802,7 @@
       ],
       "steps": [
         {
-          "id": "rc_l4h6o9ca",
+          "id": "rc_ug2y520e",
           "type": "rpg.fight",
           "module": "story-block",
           "cause": "system",
@@ -10858,7 +10858,7 @@
           "afterCapture": true
         },
         {
-          "id": "rc_c3kg53km",
+          "id": "rc_tk0cvo2e",
           "type": "rpg.practice",
           "module": "story-block",
           "cause": "system",

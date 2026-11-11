@@ -107,11 +107,30 @@ function regeneratedSpans(record) {
  */
 export function reusePlan(record, retire = new Set()) {
     const pool = regeneratedSpans(record);
+    const olds = Array.isArray(record?.receipts) ? record.receipts : [];
+    const storyOlds = olds.filter(receipt => receipt?.cause === 'story' && typeof receipt.line === 'string' && Number.isInteger(receipt.seed));
+    const stepOlds = olds.filter(receipt => receipt?.cause === 'system' && receipt.afterCapture === true && Number.isInteger(receipt.seed));
+    let storyNext = 0;
+    const stepUsed = new Set();
     const used = new Map();
     const fresh = allocator(record);
     const span = key => (retire.has(key) ? null : pool.get(key)?.[used.get(key) ?? 0] ?? null);
     return {
         span,
+        // The id of the receipt a Re-read's line (type, line mark) or step (type) made before, given again in the order storySeeds / stepSeeds
+        // (capture-flow.js) give its seed, so what a command stores from its receipt (a stack's `from`) is the same as live.
+        receipt(type, mark) {
+            const at = storyOlds.findIndex((receipt, n) => n >= storyNext && receipt.type === type && receipt.line === mark);
+            if (at < 0) return undefined;
+            storyNext = at + 1;
+            return typeof storyOlds[at].id === 'string' ? storyOlds[at].id : undefined;
+        },
+        stepReceipt(type) {
+            const at = stepOlds.findIndex((receipt, n) => !stepUsed.has(n) && receipt.type === type);
+            if (at < 0) return undefined;
+            stepUsed.add(at);
+            return typeof stepOlds[at].id === 'string' ? stepOlds[at].id : undefined;
+        },
         peek(key) {
             return occurrenceOf(span(key)) ?? fresh.peek(key);
         },
