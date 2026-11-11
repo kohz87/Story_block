@@ -10,7 +10,7 @@ import { createFireEvent } from '../../../src/v2/events/engine.js';
 test('the part: one internal command, one query, the beforeGenerate hook, an Events settings section', () => {
     assert.deepEqual(Object.keys(part.commands), [FIRE]);
     assert.equal(FIRE, 'events.fire');
-    assert.deepEqual(Object.keys(part.queries), ['events.status']);
+    assert.deepEqual(Object.keys(part.queries), ['events.status', 'events.replayState']);
     assert.deepEqual(Object.keys(part.hooks), ['beforeGenerate']);
     assert.deepEqual(part.domains, {});
     assert.deepEqual(part.kinds, {});

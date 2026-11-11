@@ -1,7 +1,7 @@
 // Prints the host's limits for packs and data modules.
 import { SB_V2 } from './sb-root.mjs';
 
-const { LIMITS, RECORD_LIMITS, CAST_LIMITS, PORTRAIT_LIMITS, ZIP_LIMITS } = await import(new URL('packs/limits.js', SB_V2));
+const { LIMITS, RECORD_LIMITS, CAST_LIMITS, PORTRAIT_LIMITS, ZIP_LIMITS, NAMES_LIMITS, RIPPLES_LIMITS } = await import(new URL('packs/limits.js', SB_V2));
 const { DM_LIMITS } = await import(new URL('data-modules/schema.js', SB_V2));
 const group = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const table = (head, rows) => [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`, ...rows.map(row => `| ${row.join(' | ')} |`)].join('\n');
@@ -13,6 +13,17 @@ say('## A pack file', table(['What', 'Limit'], [
     ['Nesting', LIMITS.depth], ['Object keys', LIMITS.keys], ['List entries', LIMITS.array],
     ['String length', LIMITS.string], ['Display name', LIMITS.name], ['Slug length', RECORD_LIMITS.slug],
     ['Reported problems', LIMITS.errors],
+]));
+
+say('## Names and ripples', table(['What', 'Limit'], [
+    ['Cultures, regions per culture', `${NAMES_LIMITS.cultures}, ${NAMES_LIMITS.regions}`],
+    ['Region, given and family name length', `${NAMES_LIMITS.region}, ${NAMES_LIMITS.name}, ${NAMES_LIMITS.name} characters`],
+    ['Given and family names per culture', `${NAMES_LIMITS.given}, ${NAMES_LIMITS.family}`],
+    ['Banned names and length', `${NAMES_LIMITS.banned}, ${NAMES_LIMITS.bannedName} characters`],
+    ['Ripple powers, power id length', `${RIPPLES_LIMITS.powers}, ${RIPPLES_LIMITS.id} characters`],
+    ['Ripple aliases, factions, givers or NPCs per power', RIPPLES_LIMITS.list],
+    ['Ripple name length, directions', `${RIPPLES_LIMITS.name} characters, ${RIPPLES_LIMITS.directions}`],
+    ['Ripple tier and cap maxima', `${RIPPLES_LIMITS.tier}, ${RIPPLES_LIMITS.cap}`],
 ]));
 
 say('## The cast and its portraits', table(['What', 'Limit'], [

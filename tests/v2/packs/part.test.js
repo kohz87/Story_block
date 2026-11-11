@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPacksPart, part as livePart, packs as livePacks, resolveItem as liveResolve, startState as liveStart } from '../../../src/v2/packs/index.js';
 import { slugify } from '../../../src/v2/packs/validate.js';
+import { rippleChoice } from '../../../src/v2/packs/content.js';
 import { foldKey } from '../../../src/text.js';
 import { fakeCtx } from './helpers/fake-ctx.js';
 import { fakeSettings } from './helpers/fake-settings.js';
@@ -17,7 +18,7 @@ test('the part has the MODULES §A shape and no domain, command or prompt text o
     assert.deepEqual(part.commands, {});
     assert.deepEqual(part.kinds, {});
     assert.deepEqual(part.tabs, []);
-    assert.deepEqual(Object.keys(part.queries), ['packs.list', 'packs.content', 'packs.item', 'packs.itemDefs', 'packs.start', 'packs.calendar', 'packs.weather', 'packs.youRank', 'packs.crafts', 'packs.economy', 'packs.markets', 'packs.portrait', 'packs.castGear']);
+    assert.deepEqual(Object.keys(part.queries), ['packs.list', 'packs.content', 'packs.item', 'packs.itemDefs', 'packs.start', 'packs.calendar', 'packs.weather', 'packs.ripples', 'packs.rippleChoice', 'packs.youRank', 'packs.crafts', 'packs.economy', 'packs.markets', 'packs.portrait', 'packs.castGear']);
     assert.deepEqual(Object.keys(part.hooks), ['item.resolve', 'start']);
     assert.equal(part.context.static(), '', 'the static prompt stays byte-identical whatever is installed');
     assert.deepEqual(part.context.tail({}), { lines: [], optional: [] });
@@ -119,4 +120,84 @@ test('the live part checks capabilities against the running sdk', async () => {
         delete globalThis.StoryBlock;
         st.uninstall();
     }
+});
+
+test('packs.ripples answers the first enabled pack\'s table with its pack id (a fresh copy), or null', async () => {
+    const { part, packs } = createPacksPart({ settings: fakeSettings() });
+    const ctx = fakeCtx({ queries: part.queries });
+    assert.equal(ctx.query('packs.ripples'), null, 'no pack, no table');
+    await packs.install(sampleText);
+    assert.equal(ctx.query('packs.ripples'), null, 'a pack without the section');
+    const table = { powers: [{ id: 'red', name: 'Red Queen', base: 60 }, { id: 'blue', name: 'Blue King', base: 40 }], tiers: { small: 3 } };
+    const first = await packs.install(JSON.stringify(pack({ id: 'rivals', ripples: table })));
+    assert.equal(first.ok, true, JSON.stringify(first.errors));
+    const answer = ctx.query('packs.ripples');
+    assert.equal(answer.pack, 'rivals');
+    assert.deepEqual(answer.powers.map(power => [power.id, power.base]), [['red', 60], ['blue', 40]]);
+    assert.deepEqual(answer.tiers, { small: 3 });
+    answer.powers.pop();
+    assert.equal(ctx.query('packs.ripples').powers.length, 2, 'the caller cannot change the pack');
+    assert.equal(ctx.query('packs.ripples', { pack: 'rivals' }).pack, 'rivals');
+    assert.equal(ctx.query('packs.ripples', { pack: 'missing' }), null);
+    await packs.setEnabled('rivals', false);
+    assert.equal(ctx.query('packs.ripples'), null, 'a disabled pack gives nothing');
+});
+
+test('ripple choices check pack provenance, all rows and ids before scoring', () => {
+    const target = { id: 'ersveil', ripples: { powers: ['wendhild', 'corvin', 'hasse'].map(id => ({ id })) } };
+    const other = { id: 'other', ripples: { powers: [{ id: 'x' }] } };
+    const args = { pack: 'ersveil', ids: 'wendhild,corvin,hasse', pick: 'bottom', fallback: 'hasse' };
+    const rows = [{ id: 'wendhild', sway: 10 }, { id: 'corvin', sway: 20 }, { id: 'hasse', sway: 30 }];
+    const old = { hasQuery: name => name === 'ripples.sway', query: () => rows };
+    assert.equal(rippleChoice([target], args, old), 'wendhild');
+    assert.equal(rippleChoice([other, target], args, old), 'hasse', 'old Director cannot scope its first table');
+    const scoped = { hasQuery: name => name === 'ripples.packSway', query: () => ({ pack: 'ersveil', rows }) };
+    assert.equal(rippleChoice([other, target], args, scoped), 'wendhild');
+    assert.equal(rippleChoice([target], args, { ...scoped, query: () => ({ pack: 'other', rows }) }), 'hasse');
+    assert.equal(rippleChoice([target], args, { ...old, query: () => rows.slice(0, 2) }), 'hasse');
+    assert.equal(rippleChoice([target], args, { ...old, query: () => [{ id: 'x', sway: 1 }, ...rows.slice(1)] }), 'hasse');
+    assert.equal(rippleChoice([target], args, { hasQuery: () => false }), 'hasse');
+    assert.throws(() => rippleChoice([target], args, { ...old, query: () => { throw new Error('provider broke'); } }), /provider broke/);
+});
+
+test('a real host with no registered Ripples query uses the authored fallback', async t => {
+    const { createHost } = await import('../../../testkit/index.js');
+    const host = await createHost();
+    t.after(() => host.close());
+    const ripples = { powers: ['wendhild', 'corvin', 'hasse'].map((id, i) => ({ id, name: id, base: 40 - i })) };
+    assert.equal((await host.packs.packs.install(pack({ id: 'ersveil', ripples }))).ok, true);
+    assert.equal(host.sdk.query('packs.rippleChoice', { pack: 'ersveil', ids: 'wendhild,corvin,hasse', pick: 'bottom', fallback: 'hasse' }), 'hasse');
+});
+
+test('a name-only pack is counted by culture, with warnings visible but enabled', async () => {
+    const { packs } = createPacksPart({ settings: fakeSettings() });
+    const names = { banned: ['Elara'], river: { regions: ['River'], given: ['Wenna'] } };
+    assert.equal((await packs.install(pack({ id: 'names-only', content: { names } }))).ok, true);
+    const { addsLine } = await import('../../../src/v2/packs/panel.js');
+    assert.equal(addsLine(packs.list()[0]), '1 name list');
+    const bad = await packs.install(pack({ id: 'warn', ripples: [], content: { names, items: [{ name: 'Rope' }] } }));
+    assert.equal(bad.ok, true);
+    assert.ok(packs.list().find(item => item.id === 'warn').warnings.length);
+    assert.ok(packs.packs().find(item => item.id === 'warn').content.items.length);
+});
+
+test('packs.content { kind: "names" } answers each enabled pack\'s name object (a fresh copy); a pack without names adds nothing', async () => {
+    const { part, packs } = createPacksPart({ settings: fakeSettings() });
+    const ctx = fakeCtx({ queries: part.queries });
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), []);
+    await packs.install(sampleText);
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), [], 'a pack without the section');
+    const names = { banned: ['Elara'], river: { regions: ['River Confederacy'], given: ['Wenna'], family: ['Lockwright'] } };
+    const added = await packs.install(JSON.stringify(pack({ id: 'rivers', content: { names } })));
+    assert.equal(added.ok, true, JSON.stringify(added.errors));
+    const answer = ctx.query('packs.content', { kind: 'names' });
+    assert.deepEqual(answer, [names]);
+    answer[0].river.given.pop();
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), [names], 'the caller cannot change the pack');
+    const bad = await packs.install(JSON.stringify(pack({ id: 'bad-names', content: { names: { river: 'x' } } })));
+    assert.equal(bad.ok, true, 'other content installs');
+    assert.equal(bad.warnings[0].path, 'content.names.river');
+    assert.equal(packs.list().find(item => item.id === 'bad-names').warnings[0].path, 'content.names.river');
+    await packs.setEnabled('rivers', false);
+    assert.deepEqual(ctx.query('packs.content', { kind: 'names' }), []);
 });

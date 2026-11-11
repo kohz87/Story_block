@@ -186,6 +186,10 @@ still fits; otherwise it uses the new default. Removed fields disappear. The gua
 generation and instance, so an earlier change that invalidates the decision leaves the later action
 off with a Problem. Removing a block drops its active instance but retains its historical pin for replay.
 
+## Event decisions
+
+An `events.fire` of a `decision` group stores a guard whose input is a hash of the whole state before it. A Re-read or a reconcile asks the guard first, on the state before the block: while it holds the stored block is replayed as it is and the decision is not run again; only when it fails (an earlier reply changed) the due alternative is worked out again. So a scoring change (Director update, `ripples.packSway`, table order) never rewrites a throne already told. Code: `replanned` in `store/replay-blocks.js`, the kept-block path in `store/write/replace.js`.
+
 ## Loot take guards
 
 A reader's loot take (`inventory.lootTake`, SPEC §7) is a guarded block of Story Block's own: `owner: 'story-block'`,

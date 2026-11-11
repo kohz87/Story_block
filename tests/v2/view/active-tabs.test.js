@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { activeNow } from '../../../src/v2/view/mounts/common.js';
 import { createScreenMount } from '../../../src/v2/view/mounts/screen.js';
-import { PINNED, barItems, pinAlerts } from '../../../src/v2/view/screen-bar.js';
+import { barItems } from '../../../src/v2/view/screen-bar.js';
 import { validateScreen } from '../../../src/v2/view/screens.js';
 import { fakeApi, fakeChat, fakeQuery, fakeRenderer, screen, screensWith, setupDom } from './mounts/helpers.js';
 
@@ -21,15 +21,11 @@ test('activeNow: no active is always on; the answer is read; a failing answer is
     assert.deepEqual(seen, [{ v: 2 }, { name: 'party.hp', args: { a: 1 }, v: 2 }], 'the state it is asked about, and the queries at that state');
 });
 
-test('the bar: an alert tab takes the last pinned slot and the item it displaces goes to More; without an alert the order is kept', () => {
-    const items = ['a', 'b', 'c', 'd', 'e', 'f'].map(id => ({ id, label: id, icon: '', alert: false }));
-    assert.deepEqual(pinAlerts(items).map(item => item.id), ['a', 'b', 'c', 'd', 'e', 'f'], 'no alert, no change');
-    const withAlert = items.map(item => (item.id === 'e' ? { ...item, alert: true } : item));
-    const pinned = pinAlerts(withAlert);
-    assert.deepEqual(pinned.map(item => item.id), ['a', 'b', 'c', 'e', 'd', 'f'], 'e takes the 4th slot, d goes to More');
-    assert.equal(barItems(pinned)[3].alert, true, 'the alert survives the bar\'s own cleaning');
-    assert.deepEqual(pinAlerts(items.map(item => (item.id === 'a' ? { ...item, alert: true } : item))).map(item => item.id), ['a', 'b', 'c', 'd', 'e', 'f'], 'an alert already pinned stays put');
-    assert.equal(PINNED, 4);
+test('the bar: an alerting item keeps its alert and its place (nothing is pinned or displaced)', () => {
+    const items = ['a', 'b', 'c', 'd', 'e', 'f'].map(id => ({ id, label: id, icon: '', alert: id === 'e' }));
+    const drawn = barItems(items);
+    assert.deepEqual(drawn.map(item => item.id), ['a', 'b', 'c', 'd', 'e', 'f']);
+    assert.equal(drawn[4].alert, true, 'the alert survives the bar\'s own cleaning');
 });
 
 test('validateScreen: active must be a function and activeNote text', () => {
@@ -84,7 +80,7 @@ test('on with an alert: it shows in its own place in the strip with a red dot, n
     assert.deepEqual(slots(doc), before, 'the same strip in the same order: an alert moves nothing and nothing goes under More');
     const fight = doc.body.querySelector('.ss-gameview').querySelector('[data-id="game/fight"]');
     assert.ok(fight.querySelector('.ss-screenbar-alert'), 'the red dot');
-    assert.equal(doc.body.querySelector('.ss-gameview').querySelector('.ss-screenbar-more').hidden, true, 'no More');
+    assert.equal(doc.body.querySelector('.ss-gameview').querySelector('.ss-screenbar-more'), null, 'no More');
     battle.on = false;
     view.update();
     assert.equal(listed(doc).includes('game/fight'), false, 'gone once it is off');

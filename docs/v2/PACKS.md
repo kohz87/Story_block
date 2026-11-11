@@ -8,6 +8,10 @@ Import a file under **Settings → Tabs & Packs → Import pack file**. A pack w
 
 For the format and limits, see the [authoring-kit reference](../../authoring-kit/reference/PACK-FORMAT.md) and [limits](../../authoring-kit/reference/LIMITS.md). [Data modules](DATA_MODULES.md) covers their definitions and examples. The authoring kit's checker uses Story Block's own pack validation.
 
+Story Block 2.31.0 adds optional `ripples` and `content.names` sections and event `decision` groups. `ripples` has ordered powers (`id`, `name`, `base`, optional aliases, factions, givers, NPCs and standing), optional `tiers`, `caps`, `worldDirections` and `standingModule`. `packs.ripples({ pack })` selects an enabled pack; with no pack it returns the first table. The Director scores the table. `content.names` is one object of culture ids to `{ regions, given, family? }` plus optional `banned`; `names` and `banned` are reserved keys. A bad section is ignored with a pack warning; other invalid fields still refuse installation. Director's names part is needed for suggestions.
+
+Once events may share a `decision` slug within a pack: the due alternative is selected again on the state before its stored receipt after an earlier Re-read, swipe or deletion. A decision group should contain mutually exclusive conditions. `packs.rippleChoice` checks the requested pack and claimant ids before using Director's sway; if the provider or the matching table is unavailable, it returns the pack's specified fallback. Older Directors use only their first table, so a preceding unrelated table causes the fallback until scoped sway is supported.
+
 Rules packs for RPG Battle cannot be imported. Keep existing RPG Battle chats on the previous versions.
 
 ## Character bars and skills in a pack

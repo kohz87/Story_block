@@ -1,4 +1,4 @@
-// The example pack (examples/packs/ersveil, Ersveil 2.9.4, the open world) and its lorebook (ersveil-lore.json): the pack
+// The example pack (examples/packs/ersveil, Ersveil 2.9.5, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
 // docs/v2/ERSVEIL.md describes; the lorebook has 227 entries with unique uids.
 import test from 'node:test';
@@ -37,7 +37,7 @@ test('examples/packs/ersveil/pack.json passes the authoring-kit checker, in code
 test('Story Block\'s own validator accepts the pack without RPG Battle (scene, inventory, data modules, Story Director\'s lasting changes), and refuses it on a host older than 2.18', () => {
     const good = validatePack(pack(), { capabilities: OPEN });
     assert.equal(good.ok, true, JSON.stringify(good.errors));
-    const old = validatePack(pack(), { capabilities: OPEN, hostVersion: '2.17.0' });
+    const old = validatePack(pack(), { capabilities: OPEN, hostVersion: '2.30.0' });
     assert.equal(old.ok, false);
     assert.ok(old.errors.some(error => error.code === 'HOST_VERSION'));
     // Without the data-modules capability it is refused for that alone.
@@ -48,17 +48,17 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(noDirector.ok, false);
 });
 
-test('the pack is Ersveil 2.9.4, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.9.5, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.9.4');
+    assert.equal(value.version, '2.9.5');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
-    assert.equal(value.requires.storyBlock, '^2.30.0', 'the guild screen\'s tiles prop 2.30.0; pack cast skills with a type 2.28.0; content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, portraits up to 150 KB 2.16.0, rpg.ranks and rpg.levelCap 2.17.0, and item gear fields and cast gear 2.18.0; the Reputation tab layouts and migrations 2.22.0');
+    assert.equal(value.requires.storyBlock, '^2.31.0', 'names, ripples and replay-safe decisions need the newer host');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
-    // (`you` is the Rank the pack gives Your look: one object, not a list, so it has no length.)
-    assert.deepEqual(counts, { you: undefined, items: 16, places: 320, routes: 350, events: 106, dataModules: 3, rpg: undefined, cast: 12 });
+    // (`you` is the Rank the pack gives Your look and `names` the name lists: one object each, not a list, so no length.)
+    assert.deepEqual(counts, { you: undefined, items: 16, places: 320, routes: 350, events: 136, dataModules: 3, rpg: undefined, cast: 12, names: undefined });
     assert.equal(value.economy, undefined, 'no money scale: prices are the story\'s');
     assert.ok(value.content.places.every(place => place.market === undefined), 'no market types: there are no market records to name');
     assert.equal(value.weather.tables.length, 84);
@@ -79,7 +79,7 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     const result = await installed.install(packText, { source: 'file', origin: 'pack.json' });
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.name, 'Ersveil (open world)');
-    assert.equal(addsLine(installed.list()[0]), '16 items, 106 events, 320 places, 350 routes, 1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables');
+    assert.equal(addsLine(installed.list()[0]), '16 items, 136 events, 320 places, 350 routes, 1 skill set, 12 cast members, 14 name lists, start state, 4 coins, a calendar, 84 weather tables');
 });
 
 test('ersveil-lore.json is a SillyTavern World Info book of 227 entries with unique uids', () => {
@@ -175,4 +175,33 @@ test('the lorebook\'s typical-level table agrees with the rank bands (E-D 10-29,
     assert.match(core, /Guild veterans \(C\), journeyman mages 30-39/);
     assert.match(core, /elite adventurers \(B-A\), masters of a tradition 40-59/);
     assert.match(core, /S-rank legends 60-69; level 70 and above/);
+});
+
+test('names: Ersveil gives each culture the region names its places use, 30 to 60 given and 20 to 40 family names, none the cast already has, and a banned list', () => {
+    const { names } = pack().content;
+    const result = validatePack(packText);
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    assert.deepEqual(result.pack.content.names, names, 'every list survives validation unchanged');
+    const regions = [...new Set(pack().content.places.map(place => place.region).filter(Boolean))];
+    const cultures = Object.entries(names).filter(([id]) => id !== 'banned');
+    assert.ok(cultures.length >= 12 && cultures.length <= 20, `${cultures.length} cultures`);
+    const castWords = new Set(pack().content.cast.flatMap(person => person.name.toLowerCase().split(/\s+/)));
+    const used = new Set();
+    for (const [id, culture] of cultures) {
+        assert.ok(culture.given.length >= 30 && culture.given.length <= 60, `${id}: ${culture.given.length} given`);
+        assert.ok(culture.family.length >= 20 && culture.family.length <= 40, `${id}: ${culture.family.length} family`);
+        for (const region of culture.regions) assert.ok(regions.some(own => own.toLowerCase().includes(region.toLowerCase())), `${id}: "${region}" matches no place's region`);
+        for (const given of culture.given) {
+            assert.equal(castWords.has(given.toLowerCase()), false, `${id}: ${given} is a cast name`);
+            assert.equal(names.banned.some(banned => banned.toLowerCase() === given.toLowerCase()), false, `${id}: ${given} is banned`);
+            assert.equal(used.has(given.toLowerCase()), false, `${given} is in two cultures`);
+            used.add(given.toLowerCase());
+        }
+    }
+    assert.ok(names.banned.length >= 20 && names.banned.length <= 80 && names.banned.includes('Elara'));
+    // Each of the Highmark and River places finds its culture by the first matching region, in key order.
+    const find = region => cultures.find(([, culture]) => culture.regions.some(own => region.toLowerCase().includes(own.toLowerCase())))?.[0];
+    assert.equal(find('River Confederacy: Bluewatch'), 'river');
+    assert.equal(find('Highmark Empire'), 'highmark');
+    assert.equal(find('Ardelian Empire and Southmarch'), 'ardelia');
 });

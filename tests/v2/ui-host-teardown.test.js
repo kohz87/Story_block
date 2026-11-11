@@ -92,10 +92,10 @@ test('the Story panel\'s bar is one strip with every tab and no More, and a chat
     const bar = () => doc.querySelector('.story-suite-sheet .ss-screenbar');
     const tabs = () => doc.querySelectorAll('.story-suite-sheet .story-suite-tab[data-tab-id]').map(node => node.getAttribute('data-tab-id'));
     assert.ok(bar().classList.contains('ss-screenbar-strip'), 'one scrolling strip');
-    assert.equal(bar().querySelector('.ss-screenbar-more').hidden, true, 'no More button');
+    assert.equal(bar().querySelector('.ss-screenbar-more'), null, 'no More button');
     for (const id of ['bag', 'map', 'log', 'people', 'notes']) assert.ok(tabs().some(tab => tab.endsWith(id)), `${id} is in the strip`);
     const before = tabs();
     await st.loadChat([], 'chat-b');
     assert.deepEqual(tabs(), before, 'the same tabs after the chat changed');
-    assert.equal(bar().querySelector('.ss-screenbar-more').hidden, true);
+    assert.equal(bar().querySelector('.ss-screenbar-more'), null);
 });
