@@ -104,6 +104,8 @@ jobs:
             tests/v2/packs/cast-presets.test.js
             tests/v2/integration/checks-flip.test.js
             tests/v2/data-modules/unused.test.js
+            tests/v2/data-modules/example-b.test.js
+            tests/v2/break/e2e-playthrough.test.js
           "
           for f in $files; do test -f "$f" || { echo "::error::missing suite test $f"; exit 1; }; done
           # shellcheck disable=SC2086
