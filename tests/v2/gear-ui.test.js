@@ -215,11 +215,11 @@ const gearRun = h => (type, payload) => h.run(type, payload, { cause: 'ui', extr
 // The form's Save through the mounted screen with a screen that holds like the real one: a command's `committed` redraw (here only counted in `redraws`) waits while a plan holds (`api.hold`) and runs once at its end. `leave` closes the screen (a chat switch, the panel closed) after the first command;
 // `refuse` turns the equip down.
 function mounted(h, { leave = false, refuse = false } = {}) {
-    const calls = [], redraws = { n: 0, at: [] };
+    const calls = [], redraws = { n: 0, at: [] }, notices = [];
     let holds = 0, owed = false, shown = null;
     const redraw = () => { redraws.n++; };
-    const hold = () => { holds++; return () => { if (!--holds && owed) { owed = false; redraw(); } }; };
-    shown = show(inventoryScreen, { state: h.state, query: h.query, extra: { api: { hold } }, command: async (type, payload) => {
+    const hold = () => { holds++; let done = false; return () => { if (done) return; done = true; if (!--holds && owed) { owed = false; redraw(); } }; };
+    shown = show(inventoryScreen, { state: h.state, query: h.query, extra: { api: { hold, notify: text => notices.push(text) } }, command: async (type, payload) => {
         redraws.at.push(redraws.n);
         calls.push(type);
         const done = refuse && type === 'item.equip' ? { ok: false, message: 'No room to carry it.' } : await gearRun(h)(type, payload);
@@ -228,7 +228,7 @@ function mounted(h, { leave = false, refuse = false } = {}) {
         else redraw();
         return done;
     } });
-    return { ...shown, calls, redraws };
+    return { ...shown, calls, redraws, notices, holding: () => holds };
 }
 const rowsOf = (el, name) => el.querySelectorAll('li.item').filter(item => item.querySelector('.name')?.textContent === name);
 const open = (el, name) => { const row = rowOf(el, name); row.querySelector('.ss-w-editable-pencil').click(); return row; };
@@ -369,10 +369,10 @@ test('Edit, gear on: closing the screen mid-plan stops the next step', async () 
     assert.equal(h.state.domains.inventory.stacks.it_sword001.equipped, null);
 });
 
-test('Edit, gear on: a refusal in the second step shows in the form, which stays open until the plan is over', async () => {
+test('Edit, gear on: a refusal in the second step releases the hold, redraws once and shows as a notice', async () => {
     const { module, state } = crewState();
     const h = createHarness([module], { state });
-    const { el, calls, redraws } = mounted(h, { refuse: true });
+    const { el, calls, redraws, notices, holding } = mounted(h, { refuse: true });
     const sword = open(el, 'Iron Sword');
     sword.querySelectorAll('input')[2].value = 'keen';
     sword.querySelectorAll('select')[1].value = 'ac_ren00001';
@@ -381,6 +381,9 @@ test('Edit, gear on: a refusal in the second step shows in the form, which stays
     await settle();
     assert.deepEqual(calls, ['inventory.edit', 'item.equip']);
     assert.deepEqual(redraws.at, [0, 0]);
+    assert.equal(holding(), 0, 'the hold is released after the refusal');
+    assert.equal(redraws.n, 1, 'the screen redraws once');
+    assert.deepEqual(notices, ['No room to carry it.'], 'the late refusal shows as a page notice');
     assert.match(text(sword.querySelector('.ss-w-editable-error')), /No room to carry it/);
     assert.equal(h.state.domains.inventory.stacks.it_sword001.note, 'keen');
 });
@@ -434,17 +437,40 @@ test('Edit in the game view, gear on: a note and a wearer in one Save run both s
     assert.match(text(form.fresh()), /keen/);
 });
 
-test('Edit in the game view, gear on: a refusal in the second step shows in the form, which holds the redraw until it closes', async t => {
+test('Edit in the game view, gear on: a refusal in the second step redraws the screen and later commands redraw at once', async t => {
     const form = await gameForm(t, (type, payload, options, run) => (type === 'item.equip' ? { ok: false, message: 'No room to carry it.' } : run(type, payload, options)));
     fill(form.row);
     await settle();
-    assert.equal(form.row.isConnected, true, 'the form is still there');
-    assert.match(text(form.row.querySelector('.ss-w-editable-error')), /No room to carry it/);
-    form.row.querySelector('.ss-w-editable-cancel').click();
-    await settle();
-    assert.equal(form.row.isConnected, false, 'closing it lets the held redraw run');
+    assert.equal(form.row.isConnected, false, 'the hold went with the plan: the screen redrew');
     assert.match(text(form.fresh()), /keen/);
     const later = form.fresh();
     form.host.events.emit('committed', {});
     assert.equal(later.isConnected, false, 'no hold is left behind: the next redraw runs at once');
+});
+
+test('Edit, gear on: a refusal in the first step keeps the form with its sentence and no notice, and holds nothing', async () => {
+    const { module, state } = crewState();
+    const h = createHarness([module], { state });
+    const { el, notices, holding } = mounted(h, { refuse: true });
+    const sword = open(el, 'Iron Sword');
+    sword.querySelectorAll('select')[1].value = 'ac_ren00001';
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    await settle();
+    assert.match(text(sword.querySelector('.ss-w-editable-error')), /No room to carry it/);
+    assert.deepEqual([holding(), notices.length], [0, 0]);
+    assert.equal(sword.isConnected, true);
+});
+
+test('Edit, gear on: destroying the form mid-plan releases the hold', async () => {
+    const { module, state } = crewState();
+    const h = createHarness([module], { state });
+    const { el, holding } = mounted(h, { leave: true });
+    const sword = open(el, 'Iron Sword');
+    sword.querySelectorAll('input')[2].value = 'keen';
+    sword.querySelectorAll('select')[1].value = 'ac_ren00001';
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    await settle();
+    assert.equal(holding(), 0);
 });

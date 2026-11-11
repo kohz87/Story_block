@@ -78,6 +78,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         preview: (type, payload) => sdk.preview(type, payload),
         // A form with several steps holds the screens' redraw from `committed` until its plan ends (the returned release), then each held redraw runs once.
         hold: () => redrawHold.hold(),
+        // A page notice for a result the screen cannot show itself (its form was redrawn away).
+        notify: text => globalThis.toastr?.warning?.(text, 'Story Block'),
         commit: token => sdk.commit(token),
         query: (name, args) => sdk.query(name, args),
         on: (name, fn) => {
