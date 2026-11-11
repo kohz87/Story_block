@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inventoryScreen } from '../../../src/v2/screens/index.js';
 import { core, foldButtons, foldOf, openFold, queries, renderSkip, settle, show, stocked, text } from './helpers.js';
+import { stackOf } from '../../../src/v2/view/modal-stack.js';
 import { gearHost } from '../helpers/gear-ui-state.js';
 import { createInventoryGridWidget, createInventoryViewWidget, INVENTORY_GRID_WIDGET, INVENTORY_VIEW_WIDGET } from '../../../src/v2/screens/inventory-add.js';
 
@@ -63,6 +64,7 @@ const gridWidgets = (store, chat = 'chat-1', fallback = 'grid') => ({
 });
 const settle2 = async () => { await settle(); await settle(); };
 const tiles = el => el.querySelectorAll('.tile');
+const sheetOf = doc => doc.body.querySelector('.inv-sheet');
 const tileOf = (el, name) => tiles(el).find(node => node.querySelector('.nm').textContent === name);
 const viewButton = (el, label) => el.querySelectorAll('.inv-view button').find(node => text(node) === label);
 async function gridWorld(t, { store = memory(), chat = 'chat-1', gear = true, extra = [] } = {}) {
@@ -117,19 +119,22 @@ test('Inventory Grid, gear on: Worn has one fold per wearer with its count, each
     const { run } = await gridWorld(t);
     const { el } = run();
     await settle2();
-    const folds = el.querySelectorAll('.worn-who > .fold-head');
+    const folds = el.querySelectorAll('.worn-wearer > .fold-head');
+    // The List's CSS hides every `.worn-who` that holds no `.item` row: a Grid fold must not carry that class, or Grid shows no worn gear.
+    assert.equal(el.querySelectorAll('.worn-who').length, 0, 'no Grid fold uses the class the List CSS hides');
+    assert.equal(el.querySelectorAll('.worn-wearer .tile').length, 5, 'the worn pieces are tiles inside the wearer\'s fold');
     assert.deepEqual(folds.map(node => text(node.querySelector('.fold-label'))), ['You · 5 pieces']);
     folds[0].click();
-    assert.equal(el.querySelector('.worn-who > .fold-head').getAttribute('aria-expanded'), 'false');
+    assert.equal(el.querySelector('.worn-wearer > .fold-head').getAttribute('aria-expanded'), 'false');
     assert.equal(el.querySelectorAll('.fold-head').find(node => node.getAttribute('data-fold') === 'cat-goods').getAttribute('aria-expanded'), 'true', 'the other folds are not touched');
 });
 
 test('Inventory Grid, gear on: a tile opens the sheet with the row\'s actions and no Give; Equip from it sends the row\'s command', { skip }, async t => {
     const { run } = await gridWorld(t, { extra: ['+ item Grey Hood | slot: head'] });
-    const { el, calls } = run();
+    const { el, calls, doc } = run();
     await settle2();
     tileOf(el, 'Grey Hood').click();
-    const sheet = el.querySelector('.sheet');
+    const sheet = sheetOf(doc);
     const labels = sheet.querySelectorAll('.sheet-act > button').map(node => text(node));
     assert.deepEqual(labels, ['Equip', 'Drop', 'Edit']);
     assert.ok(!labels.some(label => /give|repair|mend/i.test(label)));
@@ -140,7 +145,7 @@ test('Inventory Grid, gear on: a tile opens the sheet with the row\'s actions an
     assert.equal(calls[0][0], 'item.equip');
     assert.equal(calls[0][1].owner.length > 0, true);
     assert.equal(calls[0][1].transfer, true);
-    assert.equal(el.querySelector('.sheet'), null, 'the sheet closed');
+    assert.equal(sheetOf(doc), null, 'the sheet closed');
 });
 
 test('Inventory Grid: Escape closes the sheet and the focus goes back to the tile', { skip }, async t => {
@@ -149,19 +154,78 @@ test('Inventory Grid: Escape closes the sheet and the focus goes back to the til
     await settle2();
     const tile = tiles(el)[0];
     tile.click();
-    assert.ok(el.querySelector('.sheet'));
-    el.querySelector('.sheet-layer').dispatch('keydown', { key: 'Escape' });
-    assert.equal(el.querySelector('.sheet'), null);
+    assert.ok(sheetOf(doc));
+    sheetOf(doc).parentNode.dispatch('keydown', { key: 'Escape' });
+    assert.equal(sheetOf(doc), null);
     assert.equal(doc.activeElement, tile);
+});
+
+test('Inventory Grid: the sheet is a layer on the body, not inside the screen; Escape in it does not reach the game view; Edit\'s Escape neither', { skip }, async t => {
+    const { run } = await gridWorld(t);
+    const { el, doc } = run();
+    await settle2();
+    // a game view under it: a layer of the same stack, as mounts/screen.js pushes one
+    let gameEscapes = 0;
+    const game = doc.createElement('div');
+    doc.body.append(game);
+    stackOf(doc).push({ name: 'game', root: game, onEscape: () => { gameEscapes += 1; return true; } });
+    tiles(el)[0].click();
+    const sheet = sheetOf(doc);
+    assert.equal(sheet.closest('.inv'), null, 'not inside the screen');
+    assert.equal(el.querySelector('.inv-sheet'), null);
+    assert.equal(sheet.parentNode.parentNode, doc.body, 'its layer is on the body');
+    assert.ok(sheet.parentNode.className.includes('ss-dialog-backdrop'), 'the app\'s dialog layer');
+    assert.equal(stackOf(doc).top().root, sheet, 'the top layer of the host stack');
+    const event = sheet.querySelector('button').dispatch('keydown', { key: 'Escape' });
+    assert.equal(event.stopped, true, 'stopped at the sheet');
+    assert.equal(gameEscapes, 0, 'the game view did not get the key');
+    assert.equal(sheetOf(doc), null);
+    // Edit: a key inside the form
+    tiles(el)[0].click();
+    [...sheetOf(doc).querySelectorAll('.sheet-act > button')].find(node => text(node) === 'Edit').click();
+    const field = sheetOf(doc).querySelector('input');
+    assert.ok(field, 'the Edit form is in the sheet');
+    field.dispatch('keydown', { key: 'Escape' });
+    assert.equal(gameEscapes, 0, 'Escape in the Edit form does not reach the game view');
+    assert.equal(sheetOf(doc), null, 'and closes the sheet');
+    stackOf(doc).pop(stackOf(doc).top());
+});
+
+test('Inventory Grid: closing the sheet after a redraw puts the focus on the redrawn tile; a redraw keeps the focus on its tile', { skip }, async t => {
+    const { run } = await gridWorld(t);
+    const { el, doc } = run();
+    await settle2();
+    const first = tiles(el)[0];
+    const stack = first.getAttribute('data-stack');
+    first.click();
+    // the screen draws again under the open sheet (a fold of another section is pressed): every tile is a new node
+    const other = el.querySelectorAll('.fold-head').find(node => !first.closest('section').querySelector('.fold-head').getAttribute('data-fold').includes(node.getAttribute('data-fold')));
+    other.click();
+    const redrawn = tiles(el).find(node => node.getAttribute('data-stack') === stack);
+    assert.notEqual(redrawn, first, 'the tile is a new node');
+    sheetOf(doc).parentNode.dispatch('keydown', { key: 'Escape' });
+    assert.equal(doc.activeElement, redrawn, 'the focus is on the redrawn tile, not a detached one or the body');
+    redrawn.click();
+    sheetOf(doc).querySelector('.sheet-close').click();
+    assert.equal(doc.activeElement.getAttribute('data-stack'), stack);
+    // a redraw with the focus on a tile keeps it on that stack's tile
+    const now = tiles(el).find(node => node.getAttribute('data-stack') === stack);
+    now.focus();
+    const find = el.querySelector('input.find');
+    find.value = now.querySelector('.nm').textContent.slice(0, 2);
+    find.dispatch('input');
+    await settle2();
+    assert.notEqual(tiles(el).find(node => node.getAttribute('data-stack') === stack), now, 'drawn again');
+    assert.equal(doc.activeElement.getAttribute('data-stack'), stack, 'a redraw keeps the focus on the tile of the same stack');
 });
 
 test('Inventory Grid, gear off: Equip from the sheet sends inventory.equip, as the row does', { skip }, async () => {
     const module = core();
     const state = stocked(module);
-    const { el, calls } = show(inventoryScreen, { state, query: queries(module, state), draft: {}, widgets: gridWidgets(memory()) });
+    const { el, calls, doc } = show(inventoryScreen, { state, query: queries(module, state), draft: {}, widgets: gridWidgets(memory()) });
     await settle2();
     tileOf(el, 'Iron Sword').click();
-    el.querySelectorAll('.sheet-act > button').find(node => text(node) === 'Equip').click();
+    doc.body.querySelectorAll('.sheet-act > button').find(node => text(node) === 'Equip').click();
     await settle2();
     assert.deepEqual(calls[0].slice(0, 2), ['inventory.equip', { stack: 'it_sword001' }]);
 });

@@ -257,10 +257,11 @@ export function createInventoryGridWidget({ chatKey = () => '', storage = undefi
                 const open = (item, tile) => {
                     closeSheet();
                     const row = props.rows?.[item.stack] ?? null;
-                    const made = itemSheet(doc, { item, row, wearer: row?.by ?? '', actions: actionsOf(item, row), returnTo: tile, onClose: () => { editing?.destroy?.(); editing = null; if (sheet === made) sheet = null; } });
+                    // The sheet is a layer of the host's modal stack on the body (itemSheet), not a child of this screen. On close the focus goes to this stack's tile as drawn then.
+                    const back = () => content.querySelector?.(`[data-stack="${item.stack}"]`) ?? tile;
+                    const made = itemSheet(doc, { item, row, wearer: row?.by ?? '', actions: actionsOf(item, row), returnTo: back, onClose: () => { editing?.destroy?.(); editing = null; if (sheet === made) sheet = null; } });
                     sheet = made;
-                    root.append(made.el);
-                    made.focus();
+                    made.show();
                 };
                 const toggler = id => open => { foldsFor().set(id, open); draw(id); };
                 function draw(focusId = '') {
@@ -270,6 +271,9 @@ export function createInventoryGridWidget({ chatKey = () => '', storage = undefi
                     const folds = foldsFor();
                     const order = rows ? [...GEAR_ORDER, ...KIND_ORDER.filter(kind => !GEAR_ORDER.includes(kind))] : KIND_ORDER;
                     const parts = [];
+                    // A redraw replaces every tile and fold: the focus goes to the same one (a tile by its stack, a fold by its id), else the first tile, rather than to the body.
+                    const active = doc.activeElement;
+                    const kept = active && content.contains?.(active) ? { stack: active.getAttribute?.('data-stack'), fold: active.getAttribute?.('data-fold') } : null;
                     for (const kind of order) {
                         const mine = items.filter(item => item.kind === kind && !(rows && rows[item.stack]?.place));
                         const section = categorySection(doc, { kind, title: rows && kind === 'equipment' ? G.bagTitle : S.kinds[kind], items: mine, rows, open: folds.get(`cat-${kind}`, true), onToggle: toggler(`cat-${kind}`), onOpen: open });
@@ -282,6 +286,7 @@ export function createInventoryGridWidget({ chatKey = () => '', storage = undefi
                     if (!parts.length && (props.items ?? []).length) parts.push(h(doc, 'p', 'nomatch-grid muted', S.noMatch));
                     content.replaceChildren(...parts);
                     if (focusId) content.querySelector?.(`[data-fold="${focusId}"]`)?.focus?.();
+                    else if (kept) (content.querySelector?.(kept.stack ? `[data-stack="${kept.stack}"]` : `[data-fold="${kept.fold}"]`) ?? content.querySelector?.('.tile') ?? content.querySelector?.('.fold-head'))?.focus?.({ preventScroll: true });
                 }
                 draw();
                 cleanup(() => { closeSheet(); });

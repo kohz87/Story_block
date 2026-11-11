@@ -5,6 +5,7 @@
 import { SCREEN_STRINGS } from '../strings/screens.js';
 import { fill } from '../strings.js';
 import { h, s as svg } from '../view/widgets/dom.js';
+import { stackOf } from '../view/modal-stack.js';
 
 const S = SCREEN_STRINGS.inventory;
 const G = S.gear;
@@ -140,7 +141,7 @@ export function wornSection(doc, { wearers = [], items, rows, open, onToggle, on
         wrap.append(foldSection(doc, {
             id: `worn-${who.value}`, label, open: open(who.value),
             onToggle: on => onToggle?.(who.value, on),
-            body: tileGrid(doc, pieces, { rows, onOpen }), className: 'worn-who',
+            body: tileGrid(doc, pieces, { rows, onOpen }), className: 'worn-wearer',
         }));
     }
     return wrap;
@@ -185,14 +186,16 @@ function actionButton(doc, action, close) {
  * The bottom sheet for one item. `item` is the tile's item; `row` its `q.gx.rows[stack]` (null with Gear in fights off); `wearer` the wearer's name ('' for none).
  * `actions` are `{ label, title?, icon?, danger?, keepOpen?, run, choices? }` (`keepOpen`: the sheet stays, `run` draws into `slot`): `run()` must be the same handler the row's button calls (the command and its payload),
  * and `choices` are `{ label, title?, danger?, run }` shown under the action. The sheet closes before an action runs, so the screen can redraw.
- * Returns `{ el, focus, close }`: append `el` to the screen's container (it covers the container's bottom, with a dim layer behind), call `focus()`.
- * A tap on the dim, the Close button or Escape closes it; `returnTo` (the tile) gets the focus back, and `onClose` runs.
+ * Returns `{ el, slot, show, close }`. `show()` mounts it as a layer of the host's modal stack (view/modal-stack.js) on the document body, the way the app's other
+ * dialogs are, NOT inside the screen (a screen's CSS cannot be `position: fixed`, and a screen scrolls): fixed at the bottom of the visible screen over a dim backdrop,
+ * the list under it never moves. The stack owns Escape (only the top layer takes it, so the game view stays open) and keeps Tab inside it.
+ * A tap on the dim, the Close button or Escape closes it; `returnTo` (the tile, or a function giving it after the screen drew again) gets the focus back, and `onClose` runs.
  */
 export function itemSheet(doc, { item, row = null, wearer = '', actions = [], returnTo = null, onClose } = {}) {
     let open = true;
-    const layer = h(doc, 'div', 'sheet-layer');
-    const dim = h(doc, 'div', 'sheet-dim');
-    const sheet = h(doc, 'section', 'sheet');
+    let entry = null;
+    const layer = h(doc, 'div', 'ss-dialog-backdrop inv-sheet-layer');
+    const sheet = h(doc, 'section', 'ss-dialog inv-sheet');
     sheet.setAttribute('role', 'dialog');
     sheet.setAttribute('aria-modal', 'true');
     sheet.setAttribute('aria-label', S.sheetLabel);
@@ -200,9 +203,12 @@ export function itemSheet(doc, { item, row = null, wearer = '', actions = [], re
     const close = () => {
         if (!open) return;
         open = false;
+        if (entry) stackOf(doc).pop(entry, { focus: false });
+        entry = null;
         layer.remove();
         onClose?.();
-        returnTo?.focus?.();
+        const back = typeof returnTo === 'function' ? returnTo() : returnTo;
+        back?.focus?.({ preventScroll: true });   // (after onClose: the screen may have drawn again, and the tile is a new node)
     };
 
     const head = h(doc, 'div', 't');
@@ -233,22 +239,28 @@ export function itemSheet(doc, { item, row = null, wearer = '', actions = [], re
     const slot = h(doc, 'div', 'sheet-slot');   // where an action that keeps the sheet open (Edit) draws its form
     sheet.append(slot, bar, x);
 
-    dim.addEventListener('click', close);
+    layer.addEventListener('click', event => { if (event.target === layer) close(); });
+    // An Escape inside the sheet (its buttons, the Edit form) stops here: it never reaches the document, so a game view under it stays open.
     layer.addEventListener('keydown', event => {
-        if (event.key === 'Escape') { event.preventDefault?.(); close(); }
+        if (event.key === 'Escape') { event.preventDefault?.(); event.stopPropagation?.(); close(); }
     });
-    layer.append(dim, sheet);
+    layer.append(sheet);
     return {
         el: layer,
         slot,
-        focus: () => { sheet.scrollIntoView?.({ block: 'end' }); (bar.querySelector?.('button') ?? x).focus?.(); },
+        show() {
+            (doc.body ?? doc).append(layer);
+            entry = stackOf(doc).push({ name: 'inventory-sheet', el: layer, root: sheet, onEscape: () => { close(); return true; } });
+            (bar.querySelector?.('button') ?? x).focus?.({ preventScroll: true });
+        },
         close,
     };
 }
 
-/** The Grid view's CSS, added after the screen's own CSS (BASE_CSS first). Tiles are square, four to a line at phone width. */
+/** The Grid view's CSS, added after the screen's own CSS (BASE_CSS first). Tiles are square, four to a line on a phone. (The sheet's CSS is in view/mounts.css: it is outside the screen.) */
 export const GRID_CSS = `
-.tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; }
+.tile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; }
+@media (min-width: 760px) { .tile-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); } }
 .tile-cell { min-width: 0; }
 .tile { position: relative; display: flex; flex-direction: column; justify-content: flex-end; width: 100%; aspect-ratio: 1 / 1; min-width: 0; min-height: 36px;
   overflow: hidden; padding: 6px; border: 1.5px solid var(--rarity, var(--sb-common)); border-radius: 12px; background: var(--sb-surface);
@@ -257,7 +269,7 @@ export const GRID_CSS = `
 .tile.r-rare { --rarity: var(--sb-rare); }
 .tile.r-epic { --rarity: var(--sb-epic); }
 .tile.r-legendary { --rarity: var(--sb-legendary); }
-.tile:focus-visible, .fold-head:focus-visible, .sheet-act > button:focus-visible, .sheet-close:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+.tile:focus-visible, .fold-head:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
 .tile .nm { font-size: 11px; font-weight: 700; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .tile .bn { margin-top: 2px; font-size: 10px; font-weight: 800; color: var(--ss-good, var(--sb-good)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .sl { position: absolute; top: 5px; left: 6px; font-size: 8.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--sb-em); }
@@ -273,24 +285,10 @@ export const GRID_CSS = `
 .fold-chev { flex: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; }
 .fold-chev svg { width: 12px; height: 12px; display: block; transition: transform 0.15s; }
 .fold-head.is-open .fold-chev svg { transform: rotate(90deg); }
-.sheet-layer { position: absolute; inset: 0; z-index: 20; }
-.sheet-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
-.sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 80%; overflow: auto; display: grid; gap: 8px; padding: 10px 14px 16px;
-  background: var(--sb-raised); border-top: 1px solid var(--sb-border); border-radius: 18px 18px 0 0; box-sizing: border-box; }
-.sheet .t { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
-.sheet-name { font-size: 15px; font-weight: 800; }
-.sheet .m, .sheet-who { margin: 0; color: var(--sb-em); font-size: 12px; }
-.sheet-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; margin: 0; font-size: 0.85em; }
-.sheet-facts dt { color: var(--sb-em); }
-.sheet-facts dd { margin: 0; font-variant-numeric: tabular-nums; }
-.sheet-actions { display: grid; gap: 6px; }
-.sheet-actions .ss-button, .sheet-close { min-height: 36px; }
-.sheet-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.sheet-close { justify-self: end; }
 .inv-view { display: inline-flex; border: 1px solid var(--sb-border); border-radius: 10px; overflow: hidden; }
 .inv-view button { min-height: 36px; padding: 0 12px; border: 0; background: transparent; color: var(--sb-em); font: inherit; cursor: pointer; }
 .inv-view button[aria-pressed="true"] { background: color-mix(in srgb, var(--sb-accent) 24%, transparent); color: var(--sb-fg); }
 .inv-view button:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: -2px; }
-.inv-grid { display: grid; gap: var(--sb-gap); }
+.inv-grid-body { display: grid; gap: var(--sb-gap); }
 .worn-folds { display: grid; gap: var(--sb-gap); }
 `;
