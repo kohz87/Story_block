@@ -107,3 +107,46 @@ test('a carried board with no new group does not bring the offer back under the 
         assert.equal(offerIndex(host), null, 'the fight in hand is not offered again under its first reply');
     } finally { host.close(); }
 });
+
+test('six groups: the narrator can set slots five and six, and the fight board opens on all six groups', async () => {
+    const host = await world();
+    try {
+        const arrive = (n, name, count) => `+ dm foes — ${name} | kind: set-slot-${n} | name: ${name} | count: ${count} | level: 1`;
+        const text = `Story.\n<Changes>\n${[arrive(1, 'Ant', 1), arrive(2, 'Bee', 2), arrive(3, 'Cat', 1), arrive(4, 'Dog', 6), arrive(5, 'Eel', 7), arrive(6, 'Fox', 2)].join('\n')}\n</Changes>`;
+        await host.send('Six.', text);
+        const sheet = readSheet(host.head());
+        assert.deepEqual(sheet.foes.map(foe => [foe.slot, foe.name, foe.count]), [[1, 'Ant', 1], [2, 'Bee', 2], [3, 'Cat', 1], [4, 'Dog', 6], [5, 'Eel', 7], [6, 'Fox', 2]]);
+        const sid = host.store.carrierSid(host.store.headIndex());
+        const opened = openBoard(host.ctx.chatMetadata, host.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+        assert.equal(opened.error, undefined, opened.error);
+        assert.equal(opened.session.setup.foesSix, 1);
+        assert.deepEqual(opened.session.groups, [1, 2, 3, 4, 5, 6]);
+        const members = opened.preview.result.members;
+        assert.equal(members.filter(member => member.group === 4 && !member.pack).length, 6, 'a group of six is six bars');
+        assert.equal(members.filter(member => member.group === 5 && member.pack).length, 1, 'a group of seven is one pack');
+    } finally { host.close(); }
+});
+
+test('six groups: an older Foes block with four slots is read as before and has no slots five or six', async () => {
+    const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } } });
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    host.features.set(CORE_FEATURE.fightBoard, true);
+    try {
+        await host.send('Begin.', 'Opening.');
+        for (const { definition } of STANDARD_TEMPLATES) {
+            const copy = structuredClone(definition);
+            if (copy.role === 'foes') {
+                for (const n of [5, 6]) {
+                    for (const key of ['foe', 'count', 'level', 'hurt']) delete copy.state[`${key}${n}`];
+                    for (const key of ['set-slot', 'hurt', 'clear']) delete copy.kinds[`${key}-${n}`];
+                }
+                copy.prompt = copy.prompt.replace('six', 'four');
+            }
+            assert.equal((await host.sdk.command('dm.define', { definition: copy })).ok, true);
+        }
+        await host.send('One.', `Story.\n<Changes>\n+ dm foes — Ant | kind: set-slot-1 | name: Ant | count: 1 | level: 1\n</Changes>`);
+        const sheet = readSheet(host.head());
+        assert.deepEqual(sheet.foes.map(foe => [foe.slot, foe.local]), [[1, undefined], [2, undefined], [3, undefined], [4, undefined]], 'four slots, none invented for five and six, and no new keys on them (the fight witness hashes the sheet)');
+        assert.equal(sheet.foes[0].name, 'Ant');
+    } finally { host.close(); }
+});

@@ -38,13 +38,13 @@ export const skillBlock = (who, skills = []) => ({
     ...slots('uses', skills.map(skill => skill[3] ?? 'stamina'), 5), ...slots('about', skills.map(skill => skill[4] ?? ''), 5),
 });
 /** Field values of a Foes block: foes = [[name, count, class, hurt], …]. */
-export const foeBlock = (foes = [], key = 'class') => ({
-    ...slots('foe', foes.map(foe => foe[0]), 4), ...slots('count', foes.map(foe => foe[1] ?? 1), 4),
-    ...slots(key, foes.map(foe => foe[2] ?? 1), 4), ...slots('hurt', foes.map(foe => foe[3] ?? 5), 4),
+export const foeBlock = (foes = [], key = 'class', size = 4) => ({
+    ...slots('foe', foes.map(foe => foe[0]), size), ...slots('count', foes.map(foe => foe[1] ?? 1), size),
+    ...slots(key, foes.map(foe => foe[2] ?? 1), size), ...slots('hurt', foes.map(foe => foe[3] ?? 5), size),
 });
 
 /** The same with a `level{n}` column (a block of the Levels rules); `foeBlock` keeps the `class{n}` column of the earlier rules. */
-export const levelFoeBlock = foes => foeBlock(foes, 'level');
+export const levelFoeBlock = (foes, size = 4) => foeBlock(foes, 'level', size);   // `size` 6: a block of the six-group rule (slots 5 and 6 present)
 
 /** The data-module domain holding blocks: `blocks` = { slug: { role, fields } }. */
 export function sheetDomain(blocks) {

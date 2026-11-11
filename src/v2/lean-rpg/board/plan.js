@@ -83,7 +83,7 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1, { members =
     }
     // Every member attacks once and a pack attacks as its thinning bar allows. The flattened attacker index rotates targets.
     // A new-board defence is charged on its first executed attack, so Standard decides `paid` at the table, not here.
-    const attackers = foes.flatMap(foe => Array.from({ length: foe.pack === true ? packAttacks(foe.count, foe.hurt, foe.size) : 1 }, () => foe));
+    const attackers = foes.flatMap(foe => Array.from({ length: foe.pack === true ? packAttacks(foe.count, foe.hurt, foe.size, foe.full) : 1 }, () => foe));
     const guards = actors.map(target => {
         const skill = bestDefence(target, item => flagsFor(flags, target, item));
         return { target: target.who, ...(skill ? { skill: skill.name } : {}) };

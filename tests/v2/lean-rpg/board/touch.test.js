@@ -72,7 +72,9 @@ const view = createBoardView({ doc:document, headState:() => state, meta:() => m
 function draw() { for (const handle of handles.splice(0)) handle.destroy?.(); view.clear(); node.replaceChildren(); node.classList.remove('rpg-board-active');
     const snapshot = view.snapshot(state); if (snapshot) view.render(node, snapshot, draw, handles, {}); else view.offer(node, draw); }
 draw();
-window.boardTest = { count:() => boardSession(meta)?.exchanges.length ?? 0, configure:({ skills = 2, rounds = 0, wrap = false } = {}) => {
+window.boardTest = { count:() => boardSession(meta)?.exchanges.length ?? 0, configure:({ skills = 2, rounds = 0, wrap = false, groups = 2 } = {}) => {
+    const foe = domain.instances['pack.chat/foes'].chat.fields;
+    ['Rats', 'Spiders', 'Wolves', 'Crows', 'Gulls', 'Bats'].forEach((name, at) => Object.assign(foe, { ['foe' + (at + 1)]:at < groups ? name : '', ['count' + (at + 1)]:at < groups ? 8 : 0, ['level' + (at + 1)]:1, ['hurt' + (at + 1)]:5 }));
     const fields = domain.instances['pack.chat/skills'].chat.fields;
     for (let n = 1; n <= 5; n += 1) {
         fields['skill' + n] = n <= skills ? (wrap && n === 2 ? 'An exceptionally long skill name that must wrap over several lines on a phone' : 'Cut ' + n) : '';
@@ -175,6 +177,14 @@ for (const viewport of [...PHONES, { width:820, height:1000 }, { width:1280, hei
             assert.deepEqual(now.party, ['AstraLv 1']);
             assert.deepEqual(now.labels, ['Mana', 'Stamina']);
         }
+        // six foe groups (the six-group rule): six chips, nothing overflows or scrolls, the choices stay touch targets
+        await configure({ skills:2, rounds:0, groups:6 });
+        const six = await layout();
+        assert.equal(six.chips.length, 6, 'six foe groups are six chips');
+        assert.equal(six.overflow, false, 'six groups: no horizontal scroll');
+        assert.deepEqual(six.scrollers, [], 'six groups: nothing inside the board scrolls');
+        assert.ok(six.buttons.every(b => b.height >= (phone ? 47.5 : 36)), 'six groups: buttons stay touch targets');
+        await configure({ skills:2, rounds:0, groups:2 });
         const wide = await layout();
         if (phone) assert.ok(wide.controls.top >= wide.status.bottom - 1, 'one column on a phone');
         else {

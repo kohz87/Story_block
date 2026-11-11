@@ -121,7 +121,7 @@ test('vetOpen: level as written, a rank\'s band, an old class as its level, or n
     assert.deepEqual(vetted.open.slice(0, 4), [
         { name: 'Goblins', count: 5, level: 14 }, { name: 'Wolves', count: 2, level: 35 }, { name: 'Ogres', count: 1, rank: 'E', from: 10, to: 19 }, { name: 'Drakes', count: 1 },
     ], 'an unknown rank is passed over: its level is drawn');
-    assert.equal(vetted.open.length, 4, 'four slots at most');
+    assert.equal(vetted.open.length, 5, 'six slots at most (five here: the sixth entry is refused)');
     // The cap on a NEW foe: the party's highest level + 20, at least 1.
     const party14 = { characters: [{ level: 14 }, { level: 9 }], foes: [] };
     assert.deepEqual(vetOpen([{ name: 'Wolves', level: '99' }], party14, text).open, [{ name: 'Wolves', count: 1, level: 34 }], 'level 99 against a party of 14: 34');

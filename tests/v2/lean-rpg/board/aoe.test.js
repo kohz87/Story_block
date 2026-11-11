@@ -313,3 +313,32 @@ test('areaAll: a new fight is marked, the live host rolls every group alike and 
         assert.equal(rollReceipt(host, 2).summary, cue);
     } finally { host.close(); restore(); }
 });
+
+// The six-group rule (setup `foesSix: 1`): live, Re-read and an old record that lacks the mark.
+test('foesSix: a new fight is marked, six foes are six bars live, and Re-read keeps the bytes; a record without the mark keeps cap five', async () => {
+    for (const old of [false, true]) {
+        const restore = seedCrypto(77);
+        const six = blocks([['Mother', 1, 1, 4], ['Gulls', 6, 1, 4], ['Swarm', 12, 1, 4]]);
+        six.foes.fields = levelFoeBlock([['Mother', 1, 1, 4], ['Gulls', 6, 1, 4], ['Swarm', 12, 1, 4]], 6);
+        const { host } = await setup({ blocks: six, board: true });
+        try {
+            const sid = host.store.carrierSid(host.store.headIndex());
+            const opened = openBoard(host.ctx.chatMetadata, host.head(), { sid, rules });
+            assert.equal(opened.error, undefined, opened.error);
+            assert.equal(boardSession(host.ctx.chatMetadata).setup.foesSix, 1);
+            if (old) delete boardSession(host.ctx.chatMetadata).setup.foesSix;
+            const staged = stageExchange(host.ctx.chatMetadata, host.head(), [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }]);
+            assert.equal(staged.error, undefined, staged.error);
+            const bars = staged.preview.result.members;
+            assert.equal(bars.filter(member => member.group === 2).length, old ? 1 : 6, 'six foes: bars with the mark, one pack without');
+            assert.equal(bars.find(member => member.group === 3).pack, true);
+            await host.send('Go.', 'One.');
+            const first = rollReceipt(host, 2).data.v2.result, cue = rollReceipt(host, 2).summary;
+            assert.deepEqual(first.rounds, staged.preview.result.rounds, 'live matches the board preview');
+            assert.equal(first.foesSix, old ? undefined : 1);
+            assert.equal((await host.sdk.reread(2)).ok, true);
+            assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), JSON.stringify(first), 'Re-read: the same bytes');
+            assert.equal(rollReceipt(host, 2).summary, cue);
+        } finally { host.close(); restore(); }
+    }
+});

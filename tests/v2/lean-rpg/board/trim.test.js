@@ -23,15 +23,15 @@ test('board on trims the stock lines, keeps flavour and has the same static text
         const quietOff = await host.send('I wait.', 'Quiet again.');
         host.features.set(CORE_FEATURE.fightBoard, true);
         assert.ok(staticOf(quiet).length <= staticOf(quietOff).length);
-        assert.doesNotMatch(tailOf(quiet), /No Plot Armor:|Up to four foe groups in the fight/);
+        assert.doesNotMatch(tailOf(quiet), /No Plot Armor:|Up to six foe groups in the fight/);
         assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/foes', fields: { foe1: 'Rats', count1: 1, level1: 2, hurt1: 5 } })).ok, true);
         const fight = await host.send('I wait.', 'The rats watch.');
         const text = staticOf(fight);
         assert.equal(staticOf(quiet), text);
         assert.doesNotMatch(text, /No Plot Armor: combat follows physical reality/);
         assert.match(tailOf(fight), /No Plot Armor: combat follows physical reality/);
-        assert.match(tailOf(fight), /Up to four foe groups in the fight.*The narrator sets a slot when a group arrives\./);
-        assert.doesNotMatch(text, /Up to four foe groups in the fight/);
+        assert.match(tailOf(fight), /Up to six foe groups in the fight.*The narrator sets a slot when a group arrives\./);
+        assert.doesNotMatch(text, /Up to six foe groups in the fight/);
         assert.match(text, /kind: set-slot-N/);
         assert.doesNotMatch(text, /kind: hurt-N|kind: clear-N|Rolls: tell the rolled result|code gives XP for a won fight/);
         assert.doesNotMatch(text, /Other deeds 5 to 40|add-xp/);

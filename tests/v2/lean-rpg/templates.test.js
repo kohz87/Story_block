@@ -35,7 +35,7 @@ test('every block stays inside the field, kind and text limits', () => {
         // The block engine's limit is DM_LIMITS.fields (32), not 16. (Pinned change, extra skill slots: the Skills block's eight slots of six fields, its `who`
         // and the signature mark are 50, inside DM_LIMITS.skillsFields, the limit of a block with the role `skills`.)
         assert.ok(Object.keys(definition.state).length <= (definition.role === 'skills' ? L.skillsFields : L.fields), `${definition.slug} fields`);
-        assert.ok(Object.keys(definition.kinds).length <= (definition.role === 'skills' ? L.skillsKinds : L.kinds), `${definition.slug} kinds`);
+        assert.ok(Object.keys(definition.kinds).length <= (definition.role === 'skills' ? L.skillsKinds : definition.role === 'foes' ? L.foesKinds : L.kinds), `${definition.slug} kinds`);   // (the Foes block: six groups of three kinds, DM_LIMITS.foesKinds 18)
         for (const field of Object.values(definition.state)) if (field.type === 'text') assert.ok(field.max <= L.text);
         for (const kind of Object.values(definition.kinds)) for (const label of Object.values(kind.labels)) {
             if (label.type === 'text') assert.ok(label.max <= L.text);
@@ -95,9 +95,11 @@ test('the Skills block has eight slots of name, description, stat, resource, ran
     }
 });
 
-test('the Foes block has four slots of name, count, level (1 to 99) and health blocks', () => {
-    const { state, kinds } = template('Foes');
-    for (let n = 1; n <= 4; n++) {
+test('the Foes block has six slots of name, count, level (1 to 99) and health blocks, and says up to six groups', () => {
+    const { state, kinds, prompt } = template('Foes');
+    assert.match(prompt, /^Up to six foe groups/u);
+    assert.equal(state.foe7, undefined);
+    for (let n = 1; n <= 6; n++) {
         assert.equal(state[`foe${n}`].type, 'text');
         assert.deepEqual([state[`count${n}`].min, state[`count${n}`].max], [0, 99]);
         assert.deepEqual([state[`level${n}`].min, state[`level${n}`].max, state[`level${n}`].default], [1, 99, 1]);
@@ -158,7 +160,7 @@ test('without the new block-engine keys, each template passes the data-module ch
     for (const { definition } of STANDARD_TEMPLATES) {
         const legacy = definition.role === 'character' ? characterV1For() : structuredClone(definition);
         // (pinned change, extra skill slots: the Skills block's eight slots need the role's larger field limit, so its role stays)
-        if (definition.role !== 'skills') delete legacy.role;
+        if (definition.role !== 'skills' && definition.role !== 'foes') delete legacy.role;   // (the Foes block's six groups need the role's larger kind limit)
         delete legacy.replyEnd;
         delete legacy.cards;
         for (const field of Object.values(legacy.state)) {
@@ -184,7 +186,9 @@ test('the party fixture gives every block all of its template fields, inside the
         // (pinned change, extra skill slots: the fixture's Skills block is one made before them, with five slots and no signature mark: a subset of today's template)
         // (and the Character and Foes blocks are ones made before the bars were rows of blocks: they hold no `*-blocks` fields)
         assert.ok(Object.keys(block.fields).every(key => key in state), block.slug);
-        if (block.template !== 'Skills' && block.template !== 'Character') assert.deepEqual(Object.keys(block.fields).sort(), Object.keys(state).sort(), block.slug);
+        // (and a Foes block is one made before the six-group rule: slots 1 to 4 only, a subset of today's six)
+        if (block.template === 'Foes') assert.deepEqual(Object.keys(state).filter(key => !(key in block.fields)).sort(), ['count5', 'count6', 'foe5', 'foe6', 'hurt5', 'hurt6', 'level5', 'level6'], block.slug);
+        else if (block.template !== 'Skills' && block.template !== 'Character') assert.deepEqual(Object.keys(block.fields).sort(), Object.keys(state).sort(), block.slug);
         for (const [key, value] of Object.entries(block.fields)) {
             const field = state[key];
             if (field.type === 'int') {

@@ -29,7 +29,7 @@ test('validatePlan accepts the shape and says what is wrong in plain words', () 
     bad(plan => { plan.acts[0].edge = 1.5; }, /edge must be a whole number/);
     bad(plan => { plan.acts[0].uses = 'rage'; }, /uses must be mana or stamina/);
     bad(plan => { plan.acts[0].damage = 9; }, /"damage", which a plan does not use/);
-    bad(plan => { plan.foes[0].slot = 65; }, /foe 1 needs a slot from 1 to 64/);   // (slots count on across the chat's Foes blocks, four a block: B13)
+    bad(plan => { plan.foes[0].slot = 97; }, /foe 1 needs a slot from 1 to 96/);   // (slots count on across the chat's Foes blocks, up to six a block: B13; 96 holds a six-bar group's virtual slots too)
     bad(plan => { plan.foes[1].hold = false; }, /hold must be true/);
     bad(plan => { delete plan.foes[0].defend; }, /foe 1 needs defend/);
     bad(plan => { plan.checks[0].difficulty = 'trivial'; }, /difficulty to be one of easy, normal, hard, very hard/);

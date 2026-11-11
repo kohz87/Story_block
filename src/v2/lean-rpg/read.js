@@ -147,12 +147,15 @@ function skillsOf(fields, hidden = new Set()) {
     return out;
 }
 
-// A block's four slots. `offset`: where its numbering starts (the first Foes block is 1…4, the next 5…8, and so on), so every
+// A block's slots (six; an older block has 1…4). `offset`: where its numbering starts (the first Foes block is 1…4, the next 5…8, and so on), so every
 // slot of every Foes block has a number of its own in the plan.
 // A hidden foe name is the slot's ("Foe 2"); a hidden count, class or health still counts for the rules and is listed in `hidden`.
 function foesOf(id, fields, offset = 0, hidden = new Set(), state = null) {
     const out = [];
+    // A six-group block has `foe5`/`foe6` and marks each slot `local` (its field number); an older one reads as always (the fight's witness hashes this sheet).
+    const six = Object.hasOwn(fields, 'foe5') || Object.hasOwn(fields, 'foe6');
     for (let n = 1; n <= FOE_SLOTS; n += 1) {
+        if (n > 4 && !Object.hasOwn(fields, `foe${n}`)) continue;
         // A Standard group's Health is blocks left, out of foeHealthBlocks(class): `size` says how many (a stage-field slot has none).
         const size = barOf(state?.[`hurt${n}`]) ? sizeOf(state[`hurt${n}`], fields, `hurt${n}`) : null;
         const name = hidden.has(`foe${n}`) ? (text(fields[`foe${n}`]) ? `Foe ${offset + n}` : '') : text(fields[`foe${n}`]);
@@ -160,7 +163,7 @@ function foesOf(id, fields, offset = 0, hidden = new Set(), state = null) {
         // A block of the Levels rules has `level{n}`; one of the earlier rules has `class{n}` (kept as it was), whose level is worked out from it.
         const levelled = Object.hasOwn(fields, `level${n}`), soulClass = int(fields[`class${n}`]) ?? 1;
         const level = levelled ? Math.max(1, Math.min(99, int(fields[`level${n}`]) ?? 1)) : levelOfClass(soulClass) ?? 1;
-        out.push({ slot: offset + n, module: id, name, count, class: levelled ? classOfLevel(level) : soulClass, level, ...(levelled ? { levelled } : {}), hurt: int(fields[`hurt${n}`]) ?? 0, ...(size ? { size } : {}), filled: Boolean(name) && count > 0,
+        out.push({ slot: offset + n, ...(six ? { local: n } : {}), module: id, name, count, class: levelled ? classOfLevel(level) : soulClass, level, ...(levelled ? { levelled } : {}), hurt: int(fields[`hurt${n}`]) ?? 0, ...(size ? { size } : {}), filled: Boolean(name) && count > 0,
             hidden: ['count', 'class', 'level', 'hurt'].filter(part => hidden.has(`${part}${n}`)) });
     }
     return out;

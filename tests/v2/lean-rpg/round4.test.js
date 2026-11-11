@@ -53,7 +53,7 @@ test('B13: every Foes block is read by the RPG, as Fight reads them: slots count
     const { readFoes } = await import('../../../src/v2/lean-rpg/view/party-data.js');
     const sheet = readSheet(host.head());
     assert.deepEqual(readFoes(host.head()).map(foe => foe.name), ['Gutter Serpent'], 'Fight shows the second block\'s foe');
-    assert.deepEqual(sheet.foes.filter(foe => foe.filled).map(foe => [foe.name, foe.slot]), [['Gutter Serpent', 6]], 'and so does the sheet (5–8 are the second block\'s)');
+    assert.deepEqual(sheet.foes.filter(foe => foe.filled).map(foe => [foe.name, foe.slot]), [['Gutter Serpent', 8]], 'and so does the sheet (a block of six groups: 7–12 are the second block\'s)');
     assert.equal(matchFoe(sheet, 'serpent').name, 'Gutter Serpent');
-    assert.equal(matchFoe(sheet, 'foe 6').name, 'Gutter Serpent');
+    assert.equal(matchFoe(sheet, 'foe 8').name, 'Gutter Serpent');
 });
