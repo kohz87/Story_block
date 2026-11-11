@@ -89,7 +89,7 @@ export function createStore({
     chat, save, now = null, apply = applyOps, onSaveError = null, timers = globalThis,
     checkpointEvery = CHECKPOINT_EVERY, checkpointBytes = CHECKPOINT_BYTES, recordId = newRecordId, validate = null,
     chatId = () => undefined, place = () => null, rescue = null, scratch = null, receiptKeep = RECEIPT_KEEP,
-    confirm = null, memo = null, metadata = () => null, marked = () => false, replayEnv = () => '',
+    confirm = null, memo = null, metadata = () => null, marked = () => false, replayEnv = () => '', witnessPrefixMax = null,
 } = {}) {
     if (typeof chat !== 'function') throw new TypeError('createStore needs a chat() function.');
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
@@ -331,7 +331,7 @@ export function createStore({
     const { head, at, headIndex, opsAt, changesAt, problems, readOnly, startOver, keepEarliest, ensureInitial, proofs, blockAt, replansFrom, boundaryProblems, payloadHashAt, boundary, timelineMarkers, prefixWitness, witnessScope, witnessMemoSize, witnessFresh } = createRead(s, {
         api: { sourceAt: (...args) => api.sourceAt(...args) }, blockParts, blocksBefore, carriedTo, chainHash, current, faultsNow, forgetMemos, idsOf, keptNow,
         list, listProofs, markSeen, memoAt, prefixWitnessUncached, preservedAt, rawKind, readOnlyMessage, reservedSid, saver, sidFor, sourceFor, spansFor,
-        spineRun, witnessGeneration, witnessKeyOf, write, archive, chatId, marked, replayEnv,
+        spineRun, witnessGeneration, witnessKeyOf, write, archive, chatId, marked, replayEnv, witnessPrefixMax,
     });
     // The write part (store/write.js): the methods of `api` that change the chat's records. Wired last, after every part and function it
     // calls; nothing here is looked up before it runs.

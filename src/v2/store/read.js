@@ -16,6 +16,7 @@ const BY_PREFIX_MAX = 2048;
 
 export function createRead(s, deps) {
     const { archive, chatId, marked, replayEnv } = deps;
+    const byPrefixMax = Number.isInteger(deps.witnessPrefixMax) && deps.witnessPrefixMax > 0 ? deps.witnessPrefixMax : BY_PREFIX_MAX;     // (a smaller cap is for tests)
     const text = read => { try { return String(read()); } catch { return '?'; } };
     // The one carrier each (sid, swipeKey) names in this generation (null when none or several), worked out once per generation.
     function uniqueIndex(gen, arr, cursor) {
@@ -33,7 +34,7 @@ export function createRead(s, deps) {
     }
     // Everything a witness answer reads, by the prefix it is about: the cursor, its carrier and the chained hash of every replay input
     // through it (spineRun, checkpoint chain and guarded text included), the boundary message's text, the Features, the guard mark,
-    // the reply mark, the chat, the source archive. Null: no memo (the cursor is not unique in the chat, or has no record).
+    // the reply mark, the chat, the source archive (the replay environment carries the Features and the registered replay rules; a checkpoint's proof owners are in the spine run). Null: no memo (the cursor is not unique in the chat, or has no record).
     function prefixKey(gen, arr, cursor, key) {
         const index = uniqueIndex(gen, arr, cursor);
         if (index === null) return null;
@@ -360,7 +361,7 @@ export function createRead(s, deps) {
             const stored = pkey === null ? null : prefixKey(gen, arr, cursor, key);
             if (stored !== null) {
                 byPrefix.set(stored, { answer, replan: found });
-                while (byPrefix.size > BY_PREFIX_MAX) byPrefix.delete(byPrefix.keys().next().value);
+                while (byPrefix.size > byPrefixMax) byPrefix.delete(byPrefix.keys().next().value);
             }
             // (the replay may have seen guarded blocks for the first time: the mark then reads differently, though nothing else did)
             if (gen === s.witnessGen && gen.mark === '' && s.guardSeen && gen.epoch === s.epoch) gen.mark = markSeen();

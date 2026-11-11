@@ -402,3 +402,16 @@ test('a module held back and released: the answers equal fresh ones (the mark is
     assert.equal(walk(host, cursors).misses, 0, 'released: found again by their own prefix');
     sameAsFresh(host, cursors, 'released');
 });
+
+test('a module registering a domain validator or scratch fields makes the kept answers miss, and each equals a fresh one', async t => {
+    const host = await plain(t, 4);
+    const cursors = cursorsOf(host);
+    walk(host, cursors);
+    assert.equal(walk(host, cursors).misses, 0);
+    const before = host.registry.rulesSignature();
+    host.registry.register({ id: 'qc-rules', name: 'Late rules', version: '1.0.0', domains: { qcl: { initial: () => ({}), validate: () => {}, scratch: ['seen'] } } });
+    assert.notEqual(host.registry.rulesSignature(), before, 'the signature names the new rules');
+    assert.equal(walk(host, cursors).misses, cursors.length, 'every answer is worked out again under the new rules');
+    sameAsFresh(host, cursors, 'late registration');
+    assert.equal(walk(host, cursors).misses, 0);
+});

@@ -27,7 +27,7 @@ const applyRecord = (current, record) => {
     return state(prior.n + record.ops.length, [...prior.seen, record.sid]);
 };
 
-function setup({ guardSeen = false } = {}) {
+function setup({ guardSeen = false, found = null } = {}) {
     const s = {
         prefixes: new Map(), guardSeen, applying: null, staged: null,
         counts: { replays: 0, recordsRead: 0, lineScans: 0, witnessMisses: 0, prefixHits: 0, prefixSteps: 0, prefixReplays: 0 },
@@ -36,6 +36,7 @@ function setup({ guardSeen = false } = {}) {
     const calls = { replay: 0, step: 0, chain: 0, spine: 0 };
     const replay = (arr, index) => {
         calls.replay++;
+        if (found !== null && index >= found) s.replanFrom = Math.min(s.replanFrom, found);   // (a guarded step with a replan at `found`)
         let current = null;
         for (let i = 0; i <= index; i++) {
             const record = readRecord(arr[i]);
@@ -310,4 +311,69 @@ test('witness memo: a hit by the witness\'s own prefix lowers replanFrom again, 
     assert.deepEqual(store.prefixWitness(cursor), first);
     assert.equal(store.work().witnessMisses, misses, 'the answer came from its own prefix');
     assert.equal(store.replansFrom(), 1, 'and the hit lowered replanFrom as the replay would have');
+});
+
+test('prefix memo: a checkpoint\'s proof owners are part of the spine run (an owned-only change gives another key)', () => {
+    const { memo } = setup();
+    const make = owned => [reply('a'), reply('b', 1, { checkpoint: state(1), ...(owned ? { owned } : {}) }), reply('c')];
+    const base = memo.spineRun(make(null));
+    const one = memo.spineRun(make({ ev_x: 'a' }));
+    const two = memo.spineRun(make({ ev_x: 'b' }));
+    assert.equal(base[0], one[0], 'before the checkpoint nothing moved');
+    for (const at of [1, 2]) { assert.notEqual(base[at], one[at]); assert.notEqual(one[at], two[at]); }
+    assert.equal(JSON.stringify(memo.spineRun(make({ ev_x: 'a' }))), JSON.stringify(one), 'the same owners give the same run');
+});
+
+test('prefix memo: a state stepped or hit on a shared base lowers replanFrom as the replay that made it did', () => {
+    const { s, memo } = setup({ found: 1 });
+    s.replanFrom = Infinity;
+    const arr = [reply('a'), reply('b'), reply('c'), reply('d'), reply('e')];
+    arr[1].extra.storySuite.checkpoint = state(1);      // (the replay of carrier 1 starts here and finds the point)
+    const run = memo.spineRun(arr);
+    memo.stateAfterPrefix(arr, 1, run);
+    assert.equal(s.replanFrom, 1, 'the replay found it');
+    s.replanFrom = Infinity;                           // (a head replay resets it)
+    memo.stateAfterPrefix(arr, 1, run);
+    assert.equal(s.replanFrom, 1, 'a hit lowers it again');
+    s.replanFrom = Infinity;
+    memo.stateAfterPrefix(arr, 3, run);                // (carriers 2 and 3 are stepped from the cached carrier 1: no replay of their own)
+    assert.equal(s.replanFrom, 1, 'a step from a shared base inherits it');
+    s.replanFrom = Infinity;
+    memo.stateAfterPrefix(arr, 4, run);
+    assert.equal(s.replanFrom, 1, 'and so does the next step');
+    s.replanFrom = 0;
+    memo.stateAfterPrefix(arr, 3, run);
+    assert.equal(s.replanFrom, 0, 'a lower point already there stays');
+});
+
+test('witness memo: replacing the guard checker clears the answers kept by prefix', () => {
+    const arr = [reply('a', 0, { checkpoint: state(0) }), reply('b'), reply('c')];
+    let id = 0;
+    const store = createStore({ chat: () => arr, save: async () => {}, checkpointEvery: 1, recordId: () => `sw_${String(++id).padStart(8, '0')}` });
+    store.head();
+    const source = store.sourceAt(1);
+    const cursor = { sid: source.sid, swipeKey: source.swipeKey, op: 0 };
+    assert.ok(store.prefixWitness(cursor));
+    const misses = () => store.work().witnessMisses;
+    const before = misses();
+    store.rebuild();
+    store.prefixWitness(cursor);
+    assert.equal(misses(), before, 'a rebuild alone keeps it (found by its prefix)');
+    store.attachGuard(() => ({ ok: true }), () => 'same');
+    store.prefixWitness(cursor);
+    assert.equal(misses(), before + 1, 'a new checker under the same mark works it out again');
+});
+
+test('witness memo: the answers kept by prefix stop at the cap, the oldest first', () => {
+    const arr = [reply('a', 0, { checkpoint: state(0) }), reply('b'), reply('c'), reply('d'), reply('e'), reply('f')];
+    let id = 0;
+    const store = createStore({ chat: () => arr, save: async () => {}, checkpointEvery: 1, witnessPrefixMax: 2, recordId: () => `sw_${String(++id).padStart(8, '0')}` });
+    store.head();
+    const cursors = [1, 2, 3, 4, 5].map(i => { const source = store.sourceAt(i); return { sid: source.sid, swipeKey: source.swipeKey, op: 0 }; });
+    const walk = () => { const before = store.work().witnessMisses; for (const cursor of cursors) store.prefixWitness(cursor); return store.work().witnessMisses - before; };
+    assert.equal(walk(), 5);
+    store.rebuild();                                    // (the generation goes; only the answers kept by prefix are left)
+    const asked = list => { const before = store.work().witnessMisses; for (const cursor of list) store.prefixWitness(cursor); return store.work().witnessMisses - before; };
+    assert.equal(asked(cursors.slice(3)), 0, 'the two newest are found');
+    assert.equal(asked(cursors.slice(0, 1)), 1, 'the oldest was evicted');
 });

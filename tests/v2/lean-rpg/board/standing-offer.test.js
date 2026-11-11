@@ -11,10 +11,10 @@ import { begin, makeBlocks, page, settle } from '../view/page.js';
 
 const SET = 'The boar charges out.\n<Changes>\n+ dm foes — a fight starts | kind: set-slot-1 | name: Bristle-boar | count: 3 | level: 3\n</Changes>';
 
-async function fought(t, seed, pick) {
+async function fought(t, seed, pick, spy = null) {
     const restore = seedCrypto(seed);
     t.after(restore);
-    const app = await page(t, { formula: 'standard', callModel: async () => 'none' });
+    const app = await page(t, { formula: 'standard', callModel: async () => 'none', spy });
     const { host, doc } = app;
     await begin(host);
     await makeBlocks(host, { character: { str: 8, agi: 8, dex: 2, vit: 20 }, skills: { skill1: 'Obscure', stat1: 'dex', about1: 'hide before a fight' } });
@@ -86,4 +86,28 @@ test('the offer\'s switch may be a function: not asked with no foe standing, ask
     assert.equal(asked, 1, 'asked once');
     assert.equal(make(() => false).find(), null);
     assert.equal(make(false).find(), null);
+});
+
+// With the board on and foes standing, the Fight tab's offer reads the pack's rules; each read settles the timeline, so it is read once per head.
+test('the standing offer reads the pack\'s rules once for an unchanged head (no settle per redraw)', async t => {
+    let asked = 0, counting = false;
+    const { ui, host } = await fought(t, 802, label => /flee|run|retreat/i.test(label), name => { if (counting && (name === 'packs.content' || name === 'packs.list')) asked++; });
+    counting = true;
+    await host.send('Onward.', 'The boar snorts.');
+    await settle();
+    ui.refresh();
+    const first = asked;
+    for (let i = 0; i < 5; i++) ui.refresh();
+    assert.equal(asked, first, 'five more redraws on the same head read no pack rules');
+});
+
+test('the offer is built on the head after the switch\'s own settle', async t => {
+    const { host } = await fought(t, 802, label => /flee|run|retreat/i.test(label));
+    const real = host.store.head();
+    const reads = [];
+    const store = { head: () => { reads.push('head'); return real; }, receipts: () => host.store.receipts(), at: i => host.store.at(i) };
+    const order = [];
+    const found = createFightOffers({ ctx: host.ctx, store: { ...store, head: () => { order.push('head'); return real; } }, meta: () => host.ctx.chatMetadata, on: () => { order.push('on'); return true; } }).find();
+    assert.ok(found, 'standing foes give the offer');
+    assert.deepEqual(order.slice(0, 3), ['head', 'on', 'head'], 'the head is read again after the switch answered');
 });

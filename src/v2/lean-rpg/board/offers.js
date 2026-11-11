@@ -39,7 +39,12 @@ function findFightOffer(chat, store, meta, enabled = true) {
     let current;
     try { current = standing(store.head()); } catch { return null; }
     if (!current.length) return null;
-    if (typeof enabled === 'function' && !enabled()) return null;
+    if (typeof enabled === 'function') {
+        if (!enabled()) return null;
+        // (the answer may have settled the timeline: the foes that stand are the head's after it)
+        try { current = standing(store.head()); } catch { return null; }
+        if (!current.length) return null;
+    }
     let next = byIdentity(current);
     const messages = Array.isArray(chat) ? chat : [];
     for (let index = messages.length - 1; index >= 0; index -= 1) {
