@@ -282,7 +282,7 @@ export async function fuzz(t, seed, steps) {
         else if (roll === 13) action = (ctx.chat.at(-1).swipes?.length ?? 0) > 1 && lastIsCarrier() ? 'swipeTo' : 'ui';
         else if (roll === 14) action = (ctx.chat.at(-1).swipes?.length ?? 0) > 1 && lastIsCarrier() ? 'deleteSwipe' : 'ui';
         else if (roll === 15) action = 'uiFail';
-        else if (roll === 17) action = ctx.chat.length > 1 ? 'reread' : 'ui';
+        else if (roll === 17) action = ctx.chat.length > 1 && !process.env.QA_NO_REREAD ? 'reread' : 'ui';
         else action = 'ui';
         if (action === 'regenerate' && ctx.chat.length < 2) action = 'send';
         log.push(`seed ${seed} step ${step} ${action}`);

@@ -23,7 +23,7 @@ export function changeLine(r) {
         case 8: return `! probe ${r.pick(WORDS)}`;
         case 9: return r.pick(['+ dragon Smaug', 'not a change line', '* - item', '~ wound Ren — a scratch']);
         // A story check line (`? roll`, checks/line.js): a die the reply was not offered, a name nobody has, a skill the sheet lacks, or a stat of Astra's: read, refused or worked, never skipped silently.
-        case 10: return `? roll ${r.pick(['Astra', 'Astra', 'Nobody', 'Fenna'])} | ${r.pick(['str', 'cha', 'Cut', 'juggling'])} | ${r.pick(['easy', 'normal', 'hard', 'very hard', 'bogus'])} | ${r.int(1, 20)}`;
+        case 10: { const line = `? roll ${r.pick(['Astra', 'Astra', 'Nobody', 'Fenna'])} | ${r.pick(['str', 'cha', 'Cut', 'juggling'])} | ${r.pick(['easy', 'normal', 'hard', 'very hard', 'bogus'])} | ${r.int(1, 20)}`; return process.env.QA_NO_CHECKLINE ? '! probe quiet' : line; }
         // Loot to pick from (story-block.loot): laid out by the reply, taken by a ui burst below.
         default: return r.chance(0.5) ? `+ item ${r.pick(ITEMS)}` : `? loot ${r.pick(ITEMS)}, ${r.pick(ITEMS)} x${r.int(1, 3)} — ${r.pick(PLACES)}`;
     }
