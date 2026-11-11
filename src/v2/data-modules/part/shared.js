@@ -53,8 +53,11 @@ const partyPairs = state => {
     }
     return out;
 };
+// The only thing a join, creation or return relied on from the party: was there room (fewer than 8 active) before it. Replay witnesses just this boolean,
+// so removing an unrelated earlier member below the cap leaves later members as they were.
+const partyRoomOf = state => partyPairs(state).filter(pair => !pair[1]).length < PARTY_MAX;
 const partyFull = (ctx, prefix) => {
-    if (ctx.cause === 'ui' && partyPairs(prefix).filter(pair => !pair[1]).length >= PARTY_MAX) refuse('REFUSED', '', fill(B.partyFull, { max: PARTY_MAX }));
+    if (ctx.cause === 'ui' && !partyRoomOf(prefix)) refuse('REFUSED', '', fill(B.partyFull, { max: PARTY_MAX }));
 };
 const instancePath = (id, subject) => ['instances', id, ...(subject === 'chat' ? ['chat'] : ['characters', subject])];
 const rawDefinition = definition => Object.fromEntries(Object.entries(definition).filter(([key]) => !['id', 'pack'].includes(key)));
@@ -86,4 +89,4 @@ function newInstance(definition, inputs) {
 }
 
 export { E, B, rpg, J, SET_FIELDS, initial, kept, hashOf, sizeOf, draftOf, stateOf, pairKey, subjectsOf,
-    activeCount, blockCount, partyWitness, partyPairs, partyFull, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };
+    activeCount, blockCount, partyWitness, partyPairs, partyRoomOf, partyFull, instancePath, rawDefinition, prefixImports, checkedTarget, newInstance };

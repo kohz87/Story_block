@@ -6,7 +6,7 @@ import { oneLine } from '../../../text.js';
 import { activeDefinition, inputsOf, instanceOf, resolveActor } from '../adapters.js';
 import { hashJson } from '../../replay.js';
 import { fill } from '../../strings.js';
-import { E, SET_FIELDS, draftOf, stateOf, subjectsOf, instancePath, prefixImports } from './shared.js';
+import { E, SET_FIELDS, partyFull, partyWitness, draftOf, stateOf, subjectsOf, instancePath, prefixImports } from './shared.js';
 import { shownText } from './prompt.js';
 import { timerDue, SETTLED_TYPES } from './timing.js';
 
@@ -52,6 +52,9 @@ export function createFields(deps) {
             entry.value = value;
             entry.before = atPath(instance.fields, entry.path);
         }
+        // Setting a chat Character's Left to false by hand is a return: the 8-active limit is checked now and the party's room is witnessed like any join.
+        const returns = !story && definition.role === 'character' && definition.scope === 'chat' && entries.some(entry => entry.name === 'left' && entry.value === false && entry.before === true);
+        if (returns) partyFull(ctx, prefix);
         const inputs = inputsOf(prefix, definition);
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
         const fieldsBefore = copy(instance.fields);
@@ -59,7 +62,7 @@ export function createFields(deps) {
         evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.set', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: prefixImports(definition), actor: subject !== 'chat', party,
+            reads: result.reads.map(read => read.path), imports: prefixImports(definition), actor: subject !== 'chat', party: party || (returns && partyWitness(ctx)),
             decision: { inputs, conds: result.conds } });
         const labelOf = entry => (entry.map ? `${entry.schema.label ?? entry.name} (${entry.key})` : entry.schema.label ?? entry.name);
         const was = entry => (entry.map ? null : { fields: fieldsBefore, key: entry.name }), now = entry => (entry.map ? null : { fields: instance.fields, key: entry.name });

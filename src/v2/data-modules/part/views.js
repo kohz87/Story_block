@@ -12,7 +12,7 @@ import { blockTabScreen } from '../block-screen.js';
 import { boardGrammar, boardXpGuide } from '../board-static.js';
 import { isMarkedCharacter, restLine } from '../recovery.js';
 import { rpgLib } from '../../rpg-lazy.js';
-import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget, partyPairs } from './shared.js';
+import { hashOf, sizeOf, subjectsOf, activeCount, blockCount, checkedTarget, partyRoomOf } from './shared.js';
 
 export function validateDomain(domain) {
     if (!dmObject(domain) || Object.keys(domain).some(key => !['pins', 'active', 'instances', 'perReply', 'boardFlags'].includes(key))
@@ -113,8 +113,8 @@ export function replayInputs(state, { module, subject = 'chat', reads = [], impo
     const definition = activeDefinition(state, module), instance = instanceOf(state, module, subject);
     return { active: active ? { hash: active.hash, generation: active.generation, attached: active.subjects.includes(subject) } : null,
         ...(clock ? { clock: state?.domains?.director?.time?.minutes ?? null } : {}),
-        // (a marked join or return: who is in the party and who has left, so an earlier leave that went changes the answer; unmarked replies record none)
-        ...(party ? { party: partyPairs(state) } : {}),
+        // (a marked join, creation or return: only whether the party had room, fewer than 8 active; unmarked replies record none)
+        ...(party ? { party: { room: partyRoomOf(state) } } : {}),
         reads: reads.map(path => ({ path, value: copy(atPath(instance, path)) })),
         imports: Object.fromEntries(imports.map(alias => [alias, (adapters ?? definition?.imports)?.[alias] ? projectImport(state, (adapters ?? definition.imports)[alias]) : null])),
         actor: actor ? actorsOf(state)[subject] ?? null : null,
@@ -144,6 +144,9 @@ export function dataModuleGuard(view, info) {
             // (a join recorded without the party witness was made under the old room, 8 own blocks and 16 pins: the guard keeps that, as Re-read does)
             const room = join && recorded.selector?.party !== true ? DM_OLD_ROOM : L;
             if (activeCount(domain) + more.length >= room.pins) return { ok: false, reason: 'Data module limit changed.' };
+            // A Skills block made with its Character (the wizard) goes with it: with the Character gone from this prefix, it is skipped too.
+            const after = recorded.decision?.after;
+            if (predicate.kind === 'dm.define' && after !== undefined && (typeof after !== 'string' || !domain?.active?.[after])) return { ok: false, reason: 'The Character this Skills block was made with is not in the story now.' };
             const chatBlock = (pin, module) => pin?.packId === 'chat' && pin.packVersion === '0' && pin.packHash === null && pin.definition?.pack === 'chat'
                 && module === `pack.chat/${pin.definition.slug}` && pin.definition.scope === 'chat';
             if ((predicate.kind !== 'dm.pin' && (!chatBlock(recorded.pin, predicate.module) || blockCount(domain) + more.length >= room.definitions))) return { ok: false, reason: 'Block selection or chat limit changed.' };

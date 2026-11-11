@@ -422,7 +422,7 @@ Proposed limits are exported host constants and are part of interpreter version 
 | Budget | Limit |
 |---|---|
 | Pack / nesting / installed library | Existing 512 KiB / 16 / 2 MiB, no increase |
-| Definitions per pack / pins per chat / subjects per module | 8 / 28 / 16 (a chat's own blocks: 20; replies from before the `partyRoom` mark: 8 blocks / 16 pins) |
+| Definitions per pack / pins per chat / subjects per module | 20 / 28 / 16 (a chat's own blocks: 20; replies from before the `partyRoom` mark: 8 blocks / 16 pins) |
 | Definition / all retained pins / one instance | 32 KiB / 256 KiB / 16 KiB UTF-8 JSON |
 | Fields / kinds / rules / timers / templates per definition | 32 / 16 / 32 / 8 / 16 |
 | Expr depth / AST nodes per expression / effects per list | 6 / 64 / 16; pack depth 16 still wins |

@@ -35,6 +35,7 @@ export const STRINGS = deepFreeze({
         limit: 'This chat already has the maximum number of blocks and data modules.',
         // (the same sentence as the RPG's `join.fullActive`, kept here so the check needs no RPG library)
         partyFull: 'the party is full ({max} active); someone must leave first',
+        afterCharacter: 'A Skills block can only follow a Character of this chat.',
         blockLimit: 'This chat can have at most {max} blocks.',
         chatOnly: 'Only a block made in this chat can be changed here.',
         sameSlug: 'Keep the block identifier when changing its fields.',

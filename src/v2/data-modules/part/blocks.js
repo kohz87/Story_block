@@ -95,6 +95,9 @@ export function createBlocks(deps) {
         // A Character made here (the wizard, Edit first, the template) joins the party: the limit is checked now and the party is witnessed for a replay.
         const joins = action === 'define' && definition.role === 'character';
         if (joins) partyFull(ctx, prefix);
+        // A Skills block made with its Character (`after`, the Character's module) is replayed only with it.
+        const after = action === 'define' && definition.role === 'skills' && payload.after !== undefined ? payload.after : null;
+        if (payload.after !== undefined && (after === null || activeDefinition(prefix, after)?.role !== 'character')) refuse('DM_SCHEMA', 'after', B.afterCharacter);
         dependency(definition, prefix);
         const inputs = inputsOf(prefix, definition), hash = dataModuleHash(definition);
         const generation = Math.max(ctx.rev, (old?.generation ?? 0) + 1);
@@ -127,7 +130,7 @@ export function createBlocks(deps) {
         if (old && old.hash !== hash && !Object.values(draft.active).some(entry => entry.hash === old.hash)) delete draft.pins[old.hash];
         const recorded = guard(ctx, prefix, { kind: `dm.${action}`, module, hash, generation,
             reads: previous ? [['fields'], ['timers'], ['offers'], ['settled']] : [], imports: Object.keys(definition.imports),
-            decision: { subjects: ['chat'], inputs, previous: old?.hash ?? null }, pin, bound: true, party: joins && partyWitness(ctx) });
+            decision: { subjects: ['chat'], inputs, previous: old?.hash ?? null, ...(after ? { after } : {}) }, pin, bound: true, party: joins && partyWitness(ctx) });
         const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module, generation },
             summary: fill(action === 'define' ? B.defined : B.redefined, { name: definition.name }) });
         answer.data.edit = true;
