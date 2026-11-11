@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validatePack, slugify } from '../../../src/v2/packs/validate.js';
-import { LIMITS } from '../../../src/v2/packs/limits.js';
+import { LIMITS, CONTENT_KINDS, OPTIONAL_KINDS } from '../../../src/v2/packs/limits.js';
 import { pack, sample, sampleText } from './helpers/fixtures.js';
 
 const codes = result => (result.ok ? [] : result.errors.map(error => error.code));
@@ -368,4 +368,72 @@ test('events: a condition the runtime cannot parse is refused at check time, nam
     assert.equal(validatePack(event('hp >')).ok, false, 'a condition cut short');
     assert.equal(validatePack(event('has("Smith\'s key")')).ok, true, 'the same name in double quotes reads');
     assert.equal(validatePack(event("query('party.pc').level < 30 && true")).ok, true);
+});
+
+// A pack's ripples table (read by Story Director's ripples part): a good one normalizes; a bad one is a pack Problem (BAD_RIPPLES) and is not kept.
+const ripples = extra => ({ powers: [{ id: 'red', name: 'Red Queen', base: 60 }, { id: 'blue', name: 'Blue King', base: 40 }], ...extra });
+test('ripples: a good table is kept in order with its lists, tiers and directions; no section leaves no key', () => {
+    const table = ripples({
+        powers: [{ id: 'red', name: ' Red  Queen ', aliases: ['Queen'], factions: ['Red Court'], givers: ['Sir Rook'], npcs: [{ name: 'Sir Rook', weight: 2 }, { name: 'Page' }], base: 60 }, { id: 'blue', name: 'Blue King', base: 40 }],
+        tiers: { small: 3 }, caps: { power: 15 }, worldDirections: [{ event: 'The Siege', favours: 'blue', unless: ['lost'] }], standingModule: 'pack.mini/standing',
+    });
+    const result = validatePack(pack({ ripples: table }));
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    assert.deepEqual(result.pack.ripples.powers.map(power => [power.id, power.name, power.base]), [['red', 'Red Queen', 60], ['blue', 'Blue King', 40]]);
+    assert.deepEqual(result.pack.ripples.powers[0].npcs, [{ name: 'Sir Rook', weight: 2 }, { name: 'Page', weight: 1 }]);
+    assert.deepEqual([result.pack.ripples.tiers, result.pack.ripples.caps, result.pack.ripples.worldDirections], [{ small: 3 }, { power: 15 }, [{ event: 'The Siege', favours: 'blue', unless: ['lost'] }]]);
+    assert.equal('ripples' in validatePack(pack()).pack, false, 'a pack without the section keeps its old bytes');
+});
+
+test('ripples: a bad section is refused with BAD_RIPPLES (or UNKNOWN_FIELD) naming the path', () => {
+    const bad = [
+        ['not an object', [], 'ripples'], ['no powers', {}, 'ripples.powers'], ['empty powers', { powers: [] }, 'ripples.powers'],
+        ['a bad id', ripples({ powers: [{ id: 'Red Queen', name: 'x', base: 1 }] }), 'ripples.powers[0].id'],
+        ['a repeated id', ripples({ powers: [{ id: 'a', name: 'A', base: 1 }, { id: 'a', name: 'B', base: 2 }] }), 'ripples.powers[1].id'],
+        ['no name', ripples({ powers: [{ id: 'a', base: 1 }] }), 'ripples.powers[0].name'],
+        ['a base over 100', ripples({ powers: [{ id: 'a', name: 'A', base: 101 }] }), 'ripples.powers[0].base'],
+        ['a fractional base', ripples({ powers: [{ id: 'a', name: 'A', base: 1.5 }] }), 'ripples.powers[0].base'],
+        ['an npc weight of 4', ripples({ powers: [{ id: 'a', name: 'A', base: 1, npcs: [{ name: 'N', weight: 4 }] }] }), 'ripples.powers[0].npcs'],
+        ['a names list that is text', ripples({ powers: [{ id: 'a', name: 'A', base: 1, givers: 'Rook' }] }), 'ripples.powers[0].givers'],
+        ['a tier that is negative', ripples({ tiers: { small: -1 } }), 'ripples.tiers'], ['an unknown cap', ripples({ caps: { luck: 1 } }), 'ripples.caps'],
+        ['a direction for nobody', ripples({ worldDirections: [{ event: 'E', favours: 'green' }] }), 'ripples.worldDirections[0].favours'],
+    ];
+    for (const [label, section, path] of bad) {
+        const result = refused(pack({ ripples: section }), 'BAD_RIPPLES');
+        assert.ok(result.errors.some(error => error.code === 'BAD_RIPPLES' && error.path === path), `${label}: ${JSON.stringify(result.errors)}`);
+    }
+    refused(pack({ ripples: ripples({ extra: 1 }) }), 'UNKNOWN_FIELD');
+    refused(pack({ ripples: ripples({ powers: [{ id: 'a', name: 'A', base: 1, favour: 2 }] }) }), 'UNKNOWN_FIELD');
+});
+
+// A pack's name lists (`content.names`, read by Story Director's names part through packs.content { kind: 'names' }): ONE object; a bad section is a Problem and is left out.
+const names = extra => ({ banned: ['Elara'], river: { regions: ['River Confederacy'], given: ['Wenna', 'Joost'], family: ['Lockwright'] }, ...extra });
+test('names: a good object is kept (trimmed, de-duplicated ignoring case, key order); no section leaves no key; names is a content kind', () => {
+    assert.ok(CONTENT_KINDS.includes('names') && OPTIONAL_KINDS.includes('names'));
+    const result = validatePack(pack({ content: { names: names({ hill: { regions: [' Northern  Holds '], given: ['Torgun', 'torgun', ' Sigrun '] } }) } }));
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    assert.deepEqual(result.pack.content.names, { banned: ['Elara'], river: { regions: ['River Confederacy'], given: ['Wenna', 'Joost'], family: ['Lockwright'] }, hill: { regions: ['Northern Holds'], given: ['Torgun', 'Sigrun'] } });
+    assert.deepEqual(Object.keys(result.pack.content.names), ['banned', 'river', 'hill']);
+    assert.equal('names' in validatePack(pack()).pack.content, false, 'a pack without the section keeps its old bytes');
+});
+
+test('names: a bad section is a pack Problem naming the path and is not kept', () => {
+    const many = n => Array.from({ length: n }, (_, i) => `N${i}`);
+    const culture = extra => names({ river: { regions: ['River'], given: ['Wenna'], ...extra } });
+    const bad = [
+        ['a list', [], 'content.names'], ['a culture that is a list', names({ river: ['Wenna'] }), 'content.names.river'], ['a culture that is text', names({ river: 'Wenna' }), 'content.names.river'],
+        ['an id that is not a slug', names({ 'River Folk': { regions: ['R'], given: ['W'] } }), 'content.names.River Folk'],
+        ['no regions', culture({ regions: [] }), 'content.names.river.regions'], ['no given names', culture({ given: [] }), 'content.names.river.given'],
+        ['a region that is a number', culture({ regions: [4] }), 'content.names.river.regions'], ['a blank given name', culture({ given: ['Wenna', '  '] }), 'content.names.river.given'],
+        ['61 given names', culture({ given: many(61) }), 'content.names.river.given'], ['9 regions', culture({ regions: many(9) }), 'content.names.river.regions'],
+        ['a 41-character name', culture({ given: ['x'.repeat(41)] }), 'content.names.river.given'], ['family that is text', culture({ family: 'Lock' }), 'content.names.river.family'],
+        ['banned that is text', names({ banned: 'Elara' }), 'content.names.banned'], ['201 banned', names({ banned: many(201) }), 'content.names.banned'],
+        ['21 cultures', Object.fromEntries(many(21).map(id => [id.toLowerCase(), { regions: ['R'], given: ['W'] }])), 'content.names'],
+    ];
+    for (const [label, section, path] of bad) {
+        const result = refused(pack({ content: { names: section } }), 'BAD_CONTENT');
+        assert.ok(result.errors.some(error => error.path === path), `${label}: ${JSON.stringify(result.errors)}`);
+    }
+    const unknown = refused(pack({ content: { names: culture({ bynames: ['Long-Oar'] }) } }), 'UNKNOWN_FIELD');
+    assert.equal(unknown.errors[0].path, 'content.names.river.bynames');
 });
