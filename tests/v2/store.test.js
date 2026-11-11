@@ -381,7 +381,7 @@ test('Re-read of a reply with two preludes and a step, twice: each keeps its own
     }
 });
 
-test('Re-read heals a record an older Re-read stored with its two preludes merged: live spans and receipts, revs as a clean rebuild', () => {
+test('Re-read heals a record an older Re-read stored with its two preludes merged: live spans and receipts, revs as a replay of the healed record', () => {
     const { ctx, store } = setup([greeting(), user(), reply()]);
     store.ensureInitial(initial());
     const at = (rev, extra = {}) => receipt({ cause: 'system', rev, afterCapture: true, ...extra });
@@ -402,6 +402,68 @@ test('Re-read heals a record an older Re-read stored with its two preludes merge
         assert.deepEqual(store.head(), liveHead, `pass ${pass}: the state and /meta/rev are as live`);
         assert.deepEqual(store.head(), fullReplay(ctx.chat, 2), `pass ${pass}: and as a clean rebuild`);
     }
+});
+
+// A reply with preludes P1, P2, a story line, one afterCapture step and a reader block (the shape the heal tests start from).
+const rv = value => ({ op: 'replace', path: '/meta/rev', value });
+const placeOp = place => ({ op: 'replace', path: '/domains/scene/place', value: place });
+const stackOp = (id, qty) => ({ op: 'add', path: `/domains/inventory/stacks/${id}`, value: { id, qty } });
+const prelude = rev => receipt({ cause: 'system', rev, afterCapture: true, beforeGenerate: true });
+const stepAt = rev => receipt({ cause: 'system', rev, afterCapture: true });
+function liveReply() {
+    const { ctx, store } = setup([greeting(), user(), reply()]);
+    store.ensureInitial(initial());
+    store.append({ ops: [rv(1), placeOp('P1')], receipt: prelude(1) });
+    store.append({ ops: [rv(2), placeOp('P2')], receipt: prelude(2) });
+    store.append({ ops: [rv(3), stackOp('it_a', 1)], receipt: receipt({ cause: 'story', rev: 3 }) });
+    store.append({ ops: [rv(4), placeOp('Camp')], receipt: stepAt(4) });
+    store.append({ ops: [rv(5), stackOp('it_ui', 2)], receipt: receipt({ cause: 'ui', rev: 5 }) });
+    return { ctx, store };
+}
+function rereadLive(store) {
+    const steps = [prelude(1), prelude(2)];
+    const story = receipt({ cause: 'story', rev: 3 });
+    store.replaceStory(2, {
+        ops: [rv(1), placeOp('P1'), rv(2), placeOp('P2'), rv(3), stackOp('it_a', 1)], receipts: [...steps, story],
+        settled: [{ ops: [rv(4), placeOp('Camp')], receipt: stepAt(4) }],
+        blocks: [{ n: 2, receipt: steps[0] }, { n: 2, receipt: steps[1] }, { n: 2, receipt: story }],
+    });
+}
+
+test('Re-read heals a record two older Re-reads left (merged preludes twice, old step renumbered): domains as live, stable, replay == head', () => {
+    const { ctx, store } = liveReply();
+    const liveHead = structuredClone(store.head());
+    const rec = ctx.chat[2].extra.storySuite;
+    const [p1, p2, , step, ui] = rec.receipts;
+    rec.ops = [rv(1), placeOp('P1'), rv(2), placeOp('P2'), rv(3), stackOp('it_a', 1), rv(4), placeOp('P1'), rv(5), placeOp('P2'), rv(6), placeOp('Camp'), rv(7), stackOp('it_ui', 2)];
+    rec.receipts = [prelude(1), prelude(2), receipt({ cause: 'story', rev: 3 }), { ...p1, rev: 4 }, { ...p2, rev: 5 }, { ...step, rev: 6 }, { ...ui, rev: 7 }];
+    rec.spans = [{ n: 4, story: false }, { n: 2, story: true }, { n: 4, story: false }, { n: 2, story: false }, { n: 2, story: false }];
+    rec.rev = 7;
+    if (ctx.chat[2].swipe_info?.[0]?.extra) ctx.chat[2].swipe_info[0].extra.storySuite = structuredClone(rec);
+    let first = null;
+    for (let pass = 0; pass < 3; pass += 1) {
+        rereadLive(store);
+        const record = structuredClone(ctx.chat[2].extra.storySuite);
+        assert.deepEqual(record.spans.map(span => [span.n, span.story]), [[2, false], [2, false], [2, true], [2, false], [2, false]], `pass ${pass}: one block per prelude, story, step, reader`);
+        assert.deepEqual(record.receipts.map(each => each.cause), ['system', 'system', 'story', 'system', 'ui'], `pass ${pass}: receipts in live order`);
+        assert.deepEqual(store.head().domains, liveHead.domains, `pass ${pass}: domains as live`);
+        assert.deepEqual(store.head(), fullReplay(ctx.chat, 2), `pass ${pass}: replay == head`);
+        if (first) {
+            assert.deepEqual(record.ops, first.ops, `pass ${pass}: ops unchanged`);
+            assert.deepEqual(record.spans, first.spans, `pass ${pass}: spans unchanged`);
+        } else first = record;
+    }
+});
+
+test('Re-read leaves an unpaired record the heal cannot pair as stored: its afterCapture step is kept', () => {
+    const { ctx, store } = liveReply();
+    const rec = ctx.chat[2].extra.storySuite;
+    rec.receipts.push(receipt({ cause: 'ui', rev: 99 }));     // names no stored change; unguarded, so not quarantined
+    if (ctx.chat[2].swipe_info?.[0]?.extra) ctx.chat[2].swipe_info[0].extra.storySuite = structuredClone(rec);
+    assert.equal(fullReplay(ctx.chat, 2).domains.scene.place, 'Camp');
+    rereadLive(store);
+    assert.equal(store.head().domains.scene.place, 'Camp', 'the step\'s change is still in the head');
+    assert.deepEqual(store.head(), fullReplay(ctx.chat, 2), 'replay == head');
 });
 
 test('Re-read without settled steps: a kept afterCapture step planned again keeps its afterCapture mark', () => {

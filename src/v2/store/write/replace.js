@@ -60,13 +60,19 @@ export function createReplace(s, deps) {
             // whose receipts are all preludes (all afterCapture steps too, when `settled` is given) goes with its receipts,
             // because this Re-read plans them all again; what is left then lines up one to one, as a live record does.
             if (!paired) {
-                for (let n = blocks.length - 1; n >= 0; n -= 1) {
-                    const own = receiptsFor({ receipts: keptReceipts }, blocks[n].ops);
+                const left = [...blocks];
+                let leftReceipts = keptReceipts;
+                for (let n = left.length - 1; n >= 0; n -= 1) {
+                    const own = receiptsFor({ receipts: leftReceipts }, left[n].ops);
                     if (!own.length || !own.every(receipt => receipt.beforeGenerate === true || (Array.isArray(settled) && receipt.afterCapture === true))) continue;
-                    blocks.splice(n, 1);
-                    keptReceipts = keptReceipts.filter(receipt => !own.includes(receipt));
+                    left.splice(n, 1);
+                    leftReceipts = leftReceipts.filter(receipt => !own.includes(receipt));
                 }
-                paired = keptReceipts.length === blocks.length;
+                if (leftReceipts.length === left.length) {
+                    blocks.splice(0, blocks.length, ...left);
+                    keptReceipts = leftReceipts;
+                    paired = true;
+                }
             }
             // The old afterCapture steps go when the Re-read ran them again (only told apart one to one).
             const resettle = Array.isArray(settled) && paired;
