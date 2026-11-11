@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom } from '../../ui-fake-dom.js';
-import { capToggle, createShowMoreWidget, CAP_CLASS } from '../../../src/v2/screens/show-more.js';
+import { capToggle, createQuestsLinkWidget, createShowMoreWidget, CAP_CLASS, QUESTS_LINK_WIDGET, QUESTS_SCREEN } from '../../../src/v2/screens/show-more.js';
 import { homeScreen } from '../../../src/v2/screens/home.js';
 import { STRINGS } from '../../../src/v2/strings.js';
 
@@ -122,4 +122,28 @@ test('a resize of the card re-checks the toggle (ResizeObserver, guarded); destr
     const plain = capToggle(doc, doc.createElement('ul'), { key: 'story-block/home:no-observer-test' });
     assert.equal(plain.button.hidden, true);
     plain.destroy();
+});
+
+test('Home\'s Quests card has the "Open Quests ›" slot, after the show-more toggle', () => {
+    assert.equal(homeScreen.template.includes(`name="${QUESTS_LINK_WIDGET}"`), true);
+    assert.equal(homeScreen.template.indexOf(QUESTS_LINK_WIDGET) > homeScreen.template.indexOf('story-block.show-more'), true);
+    assert.equal(STRINGS.home.openQuests, 'Open Quests ›');
+});
+
+test('the Quests link opens the Quests screen when it exists, and draws nothing when it does not', () => {
+    const doc = installFakeDom();
+    const opened = [];
+    const there = doc.createElement('div');
+    const live = createQuestsLinkWidget({ has: id => id === QUESTS_SCREEN, open: id => { opened.push(id); return true; } }).render(there);
+    const button = there.querySelector('button');
+    assert.equal(button.textContent, 'Open Quests ›');
+    assert.equal(button.type, 'button');
+    button.click();
+    assert.deepEqual(opened, ['story-director/quests']);
+    live.destroy();
+    assert.equal(there.children.length, 0, 'destroy leaves nothing');
+    const absent = doc.createElement('div');
+    createQuestsLinkWidget({ has: () => false, open: id => opened.push(id) }).render(absent);
+    assert.equal(absent.children.length, 0, 'no Quests screen: no link');
+    assert.equal(opened.length, 1);
 });

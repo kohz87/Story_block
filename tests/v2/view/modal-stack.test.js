@@ -154,7 +154,7 @@ test('Tab inside the game view stays in it, and the strip has no More to take th
         dispatch(doc, 'keydown', { key: 'Tab' });
         assert.ok(root.contains(doc.activeElement) || inside().includes(doc.activeElement), `Tab ${i + 1} stayed in the game view`);
     }
-    assert.equal(view.openMore(), false, 'there is no More');
+    assert.equal(view.openMore, undefined, 'there is no More');
     dispatch(doc, 'keydown', { key: 'Escape' });
     assert.equal(view.isOpen(), false, 'Escape closes the view');
 });
