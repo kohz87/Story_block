@@ -43,6 +43,12 @@ test('a message with no attack word, only quoted words or a doubt clause gives n
         assert.equal(looksLikeAttack(message), false, message);
 });
 
+test('a doubt word only cancels its own part of a sentence', () => {
+    const owner = 'I prepared warm ration and tea before waking Sister Temiwa up, as Joren and his teamsters are already hitching the wagon.\n\nSoon enough, we are on our way again, but instead of monsters, we encountered beasts in human skin, a group of bandits circled us.\n\nAnd before they could strike us, I attacked them.';
+    for (const message of [owner, 'If they move, I attack.', 'before they could strike us, I attacked them']) assert.equal(looksLikeAttack(message), true, message);
+    for (const message of ['I could attack them.', "I won't attack.", "I don't want to fight, I raise my hands."]) assert.equal(looksLikeAttack(message), false, message);
+});
+
 test('a third party or an idiom passes the gate by design: Assist decides', () => {
     for (const message of ['The rats attack me.', 'the boar attacked me', 'they attacked the cart', 'she struck him, I watched', 'I wait for the sow to attack me',
         'I hit the road', 'I kill time at the inn'])
@@ -137,6 +143,8 @@ test('the standing-foe hold stays strict on the subject and judges every attack 
     const dogs = { foes: [{ name: 'Dog', filled: true, hurt: 1 }] };
     assert.equal(knownFoeAction('while the dogs are mauling him, I attack the dogs', dogs), true);
     assert.equal(knownFoeAction('while the dogs are mauling him, they attack the dogs', dogs), false);
+    // The hold acts with no pre-check: a comma must not hide a third-party subject or a doubt that governs the attack.
+    for (const text of ['The boar, snarling, attacks the dogs', 'If the dogs move, I attack the dogs', 'before they could strike us, I attacked the dogs']) assert.equal(knownFoeAction(text, dogs), false, text);
 });
 
 test('the prompt carries the count rule, the not-a-fight rule and up to 4000 characters of the reply before', () => {
