@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Event conditions: `region(name, ...)`** is true when the scene's place is in any of the named regions (1 to 16, exact names; false with no place), so one event can cover several regions. **Ersveil 2.9.6** (needs Story Block 2.31.1) merges its two flood-news events into one with it, so the bulletin is told once however you move between those regions. A chat that already heard it keeps its record; replies already written replay as before.
+
 ## 2.31.0
 
 Update Story Block, Story Director and NPC State Delta together, then re-import the Ersveil pack (2.9.5 needs Story Block 2.31.0). The new features apply to new replies; start a new chat to see them all. Replies already written replay and Re-read exactly as before.

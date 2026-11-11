@@ -1,4 +1,4 @@
-// The example pack (examples/packs/ersveil, Ersveil 2.9.5, the open world) and its lorebook (ersveil-lore.json): the pack
+// The example pack (examples/packs/ersveil, Ersveil 2.9.6, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
 // docs/v2/ERSVEIL.md describes; the lorebook has 227 entries with unique uids.
 import test from 'node:test';
@@ -48,17 +48,17 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(noDirector.ok, false);
 });
 
-test('the pack is Ersveil 2.9.5, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.9.6, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.9.5');
+    assert.equal(value.version, '2.9.6');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
-    assert.equal(value.requires.storyBlock, '^2.31.0', 'names, ripples and replay-safe decisions need the newer host');
+    assert.equal(value.requires.storyBlock, '^2.31.1', 'names, ripples and replay-safe decisions need the newer host');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
     // (`you` is the Rank the pack gives Your look and `names` the name lists: one object each, not a list, so no length.)
-    assert.deepEqual(counts, { you: undefined, items: 16, places: 320, routes: 350, events: 136, dataModules: 3, rpg: undefined, cast: 12, names: undefined });
+    assert.deepEqual(counts, { you: undefined, items: 16, places: 320, routes: 350, events: 135, dataModules: 3, rpg: undefined, cast: 12, names: undefined });
     assert.equal(value.economy, undefined, 'no money scale: prices are the story\'s');
     assert.ok(value.content.places.every(place => place.market === undefined), 'no market types: there are no market records to name');
     assert.equal(value.weather.tables.length, 84);
@@ -79,7 +79,7 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     const result = await installed.install(packText, { source: 'file', origin: 'pack.json' });
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.name, 'Ersveil (open world)');
-    assert.equal(addsLine(installed.list()[0]), '16 items, 136 events, 320 places, 350 routes, 1 skill set, 12 cast members, 14 name lists, start state, 4 coins, a calendar, 84 weather tables');
+    assert.equal(addsLine(installed.list()[0]), '16 items, 135 events, 320 places, 350 routes, 1 skill set, 12 cast members, 14 name lists, start state, 4 coins, a calendar, 84 weather tables');
 });
 
 test('ersveil-lore.json is a SillyTavern World Info book of 227 entries with unique uids', () => {

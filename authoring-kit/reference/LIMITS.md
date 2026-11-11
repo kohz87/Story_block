@@ -45,6 +45,15 @@
 | Portrait files in one pack | 32 |
 | A pack zip: the zip, unpacked in all, one file in it, entries | 322 MB, 322 MB, 10 MB, 40 |
 
+## Event conditions
+
+| What | Limit |
+|---|---|
+| One condition | 1000 characters, 200 tokens, nesting 24 |
+| A quoted word, a name | 200, 64 characters |
+| Calls made while checking one condition | 32 |
+| Names in one `region(...)` call | 1 to 16 |
+
 ## Data modules (interpreter 1)
 
 | What | Limit |
