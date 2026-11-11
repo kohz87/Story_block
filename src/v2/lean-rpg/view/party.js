@@ -150,7 +150,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 if (shared.gear && !(wearing && wearView)) shared.gear = null;
                 main.hidden = Boolean(open || looking || shared.gear);
                 if (open) sheet = renderDistribute(host, { character: open, session: shared.open, api, doc, onClose: closeSheet, onDone: ended, ...(rules ? { rules } : {}) });
-                else if (shared.gear) sheet = renderGearCard(host, { character: wearing, view: wearView, onBack: closeGear, doc });
+                else if (shared.gear) sheet = renderGearCard(host, { character: wearing, view: wearView, onBack: closeGear, api, onChanged: tell, doc });
                 else if (looking) sheet = renderSkills(host, { character: looking, session: shared.skills, api, doc, onBack: closeSkills, onSaved: tell, rolled, board, ...(rules ? { rules } : {}) });
                 const head = h(doc, 'div', 'rpg-head');
                 head.appendChild(h(doc, 'h3', '', P.title));

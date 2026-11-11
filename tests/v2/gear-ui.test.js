@@ -13,16 +13,21 @@ import { show, settle, text } from './screens/helpers.js';
 import { editPlan } from '../../src/v2/view/gear-form.js';
 import { page } from './lean-rpg/view/page.js';
 import { FIGHT, dump, gearHost, reply } from './helpers/gear-ui-state.js';
+import { createScreenRenderer } from '../../src/v2/view/render-screen.js';
+import { resolveData } from '../../src/v2/view/screens.js';
+import { standardWidgets } from '../../src/v2/view/widgets/index.js';
+import { installFakeDom } from '../ui-fake-dom.js';
+import { createInventoryAddWidget, createWornFoldWidget, WORN_FOLD_WIDGET, INVENTORY_ADD_WIDGET } from '../../src/v2/screens/inventory-add.js';
 
-const draw = (host, options = {}) => show(inventoryScreen, { state: host.head(), query: host.sdk.query, command: (type, payload, opts) => host.sdk.command(type, payload, opts), ...options });
+const draw = (host, options = {}) => show(inventoryScreen, { state: host.head(), query: host.sdk.query, draft: { wornOpen: '1' }, command: (type, payload, opts) => host.sdk.command(type, payload, opts), ...options });   // (Worn opened: every piece has its row)
 const rowOf = (el, name) => el.querySelectorAll('li.item').find(item => item.querySelector('.name')?.textContent === name);
 const headings = el => el.querySelectorAll('h4.ss-section-label').map(node => text(node));
 
-test('Inventory, gear on: Carry first, then Equipment, Consumables, Goods, Quest items; the Carry card is a row-style card with the load, a bar and the breakdown', async t => {
+test('Inventory, gear on: Carry first, then Equipment (in the bag), the wearer\'s Worn list, Consumables, Goods; the Carry card is a row-style card with the load, a bar and the breakdown', async t => {
     const host = await gearHost(t);
     const { el, view, problems } = draw(host);
     assert.deepEqual([view.warnings, problems], [[], []]);
-    assert.deepEqual(headings(el).filter(Boolean).slice(0, 5), ['Carry', 'Equipment', 'Consumables', 'Goods', 'Quest items']);
+    assert.deepEqual(headings(el).filter(Boolean).slice(0, 5), ['Carry', 'Equipment \u00b7 in the bag', 'You', 'Consumables', 'Goods']);
     assert.ok(el.querySelector('.inv').classList.contains('gear'));
     const sections = el.querySelectorAll('section.group, section.carry-sec');
     assert.equal(sections[0].classList.contains('carry-sec'), true, 'Carry is the first section');
@@ -79,8 +84,9 @@ test('Inventory rows, gear on: rarity colour and word, slot chip, Equipped · ow
     const salve = rowOf(el, 'Healing Salve');
     assert.equal(salve.querySelector('.chip.worn-by'), null);
     assert.equal(salve.querySelector('.cbar'), null);
-    // The Equip / Unequip buttons are the Edit's job now.
-    assert.equal(el.querySelectorAll('button').filter(node => ['Equip', 'Unequip'].includes(text(node))).length, 0);
+    // The worn pieces have Unequip; nothing here is in the bag, so no Equip.
+    assert.equal(el.querySelectorAll('button').filter(node => text(node) === 'Unequip').length, 5);
+    assert.equal(el.querySelectorAll('button').filter(node => text(node) === 'Equip').length, 0);
     // The filter box and "Equipped only" still work as before.
     assert.equal(el.querySelectorAll('.filter select').length, 2);
 });
@@ -219,7 +225,7 @@ function mounted(h, { leave = false, refuse = false } = {}) {
     let holds = 0, owed = false, shown = null;
     const redraw = () => { redraws.n++; };
     const hold = () => { holds++; let done = false; return () => { if (done) return; done = true; if (!--holds && owed) { owed = false; redraw(); } }; };
-    shown = show(inventoryScreen, { state: h.state, query: h.query, extra: { api: { hold, notify: text => notices.push(text) } }, command: async (type, payload) => {
+    shown = show(inventoryScreen, { state: h.state, query: h.query, draft: { wornOpen: '1' }, extra: { api: { hold, notify: text => notices.push(text) } }, command: async (type, payload) => {
         redraws.at.push(redraws.n);
         calls.push(type);
         const done = refuse && type === 'item.equip' ? { ok: false, message: 'No room to carry it.' } : await gearRun(h)(type, payload);
@@ -279,7 +285,7 @@ test('Edit, gear on: reducing a group\'s count while choosing a wearer keeps the
 test('Edit, gear on: a count that would remove the selected piece (the other is worn) is refused, nothing changes', async () => {
     const { h } = twoSwords('weapon');
     const { el, calls } = mounted(h);
-    const sword = rowsOf(el, 'Iron Sword')[1];
+    const sword = rowsOf(el, 'Iron Sword')[0];   // (the one in the bag is listed first; the worn one is under Worn)
     sword.querySelector('.ss-w-editable-pencil').click();
     const [, count] = sword.querySelectorAll('input');
     count.value = '1';
@@ -413,10 +419,11 @@ async function gameForm(t, wrap = null) {
     await host.send('Loot.', reply('Gear.', ['+ item Iron Sword | slot: weapon']));
     assert.equal(ui.mounts.screen.open('story-block/inventory'), true);
     await settle();
-    const fresh = () => rowOf(doc.querySelector('.ss-gameview [data-ss-screen="story-block/inventory"]'), 'Iron Sword');
+    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/inventory"]');
+    const fresh = () => rowOf(screen(), 'Iron Sword');
     const row = fresh();
     row.querySelector('.ss-w-editable-pencil').click();
-    return { host, row, fresh };
+    return { host, row, fresh, screen };
 }
 const fill = row => {
     row.querySelectorAll('input')[2].value = 'keen';
@@ -434,7 +441,7 @@ test('Edit in the game view, gear on: a note and a wearer in one Save run both s
     assert.equal(form.row.isConnected, false, 'the screen redrew after the plan');
     const held = Object.values(form.host.head().domains.inventory.stacks).find(item => item.note === 'keen');
     assert.deepEqual([held.owner, held.equipped], ['party', 'weapon']);
-    assert.match(text(form.fresh()), /keen/);
+    assert.match(text(form.screen()), /Worn \(1\)/, 'the piece is worn now: the folded Worn row counts it');
 });
 
 test('Edit in the game view, gear on: a refusal in the second step redraws the screen and later commands redraw at once', async t => {
@@ -473,4 +480,120 @@ test('Edit, gear on: destroying the form mid-plan releases the hold', async () =
     await settle();
     await settle();
     assert.equal(holding(), 0);
+});
+
+// ---- The bag list and the folded Worn row (gear on) ----
+const BAG = ['+ item Skinner Billhook | rarity: uncommon | slot: weapon', '+ item Grey Hood | slot: head'];
+const names = list => list.map(item => item.querySelector('.name').textContent);
+const groupRows = (el, kind) => el.querySelector(`section.group[data-kind="${kind}"]`).querySelectorAll('li.item');
+const buttonsOf = (root, label) => root.querySelectorAll('button').filter(node => text(node) === label);
+const memory = () => { const map = new Map(); return { map, getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value), removeItem: key => map.delete(key) }; };
+const foldWidgets = storage => ({ [WORN_FOLD_WIDGET]: createWornFoldWidget({ chatKey: () => 'chat-1', storage }) });
+
+test('Inventory, gear on: Equipment lists only the pieces nobody wears, each keeping its bonus, condition and rarity colour, with Equip; Carry still counts everything', async t => {
+    const host = await gearHost(t, { extra: BAG });
+    const folded = draw(host, { draft: {}, widgets: foldWidgets(memory()) });
+    const rows = groupRows(folded.el, 'equipment');
+    assert.deepEqual(names(rows), ['Grey Hood', 'Skinner Billhook'], 'the five worn pieces are not listed here');
+    const billhook = rowOf(folded.el, 'Skinner Billhook');
+    assert.ok(billhook.classList.contains('r-uncommon'));
+    assert.equal(text(billhook.querySelector('.gear-line .bonus')), '+2 STR');
+    assert.equal(text(billhook.querySelector('.cword')), 'Good');
+    assert.ok(billhook.querySelector('.cbar'));
+    assert.deepEqual(rows.map(row => buttonsOf(row, 'Equip').length), [1, 1]);
+    assert.equal(buttonsOf(folded.el, 'Unequip').length, 0, 'the worn rows are folded away');
+    assert.equal(headings(folded.el)[1], 'Equipment \u00b7 in the bag');
+    // The load counts every piece owned, worn or not.
+    const opened = draw(host);
+    assert.equal(text(folded.el.querySelector('.carry-num')), text(opened.el.querySelector('.carry-num')));
+    // Equip: choose the wearer; the taken weapon slot swaps and the Cane Sword goes back to the bag.
+    buttonsOf(billhook, 'Equip')[0].click();
+    const who = buttonsOf(billhook.querySelector('.fold.use-on'), 'You');
+    assert.equal(who.length, 1);
+    who[0].click();
+    await settle();
+    const stacks = Object.values(host.head().domains.inventory.stacks);
+    const sword = stacks.find(stack => stack.def.endsWith('cane-sword') || /cane/i.test(stack.def));
+    const hook = stacks.find(stack => /billhook/i.test(stack.def));
+    assert.equal(hook.equipped, 'weapon');
+    assert.equal(sword?.equipped ?? null, null, 'the old piece is back in the bag');
+    assert.deepEqual(names(groupRows(draw(host, { draft: {}, widgets: foldWidgets(memory()) }).el, 'equipment')).sort(), ['Cane Sword', 'Grey Hood']);
+});
+
+test('Inventory, gear on: the Worn (N) row is folded by default with "wearer count"; opened it groups the worn pieces by wearer with Unequip; the choice is kept per chat on this device', async t => {
+    const host = await gearHost(t, { extra: BAG });
+    const store = memory();
+    const first = draw(host, { draft: {}, widgets: foldWidgets(store) });
+    const fold = first.el.querySelector('.worn-fold-btn');
+    assert.equal(text(fold), 'Worn (5)You 5');
+    assert.equal(fold.getAttribute('aria-expanded'), 'false');
+    assert.ok(fold.querySelector('svg path'), 'a drawn chevron, as the Party card\'s Left row');
+    assert.equal(first.el.querySelectorAll('.worn-who').length >= 0 && first.el.querySelectorAll('.worn-who li.item').length, 0);
+    fold.click();
+    await settle();
+    assert.equal(first.el.querySelector('.worn-fold-btn').getAttribute('aria-expanded'), 'true');
+    assert.equal(text(first.el.querySelector('.worn-fold-btn')), 'Worn (5)', 'opened: no wearer summary');
+    const groups = first.el.querySelectorAll('.worn-who');
+    assert.deepEqual(groups.map(group => text(group.querySelector('h4'))), ['You']);
+    const worn = groups[0].querySelectorAll('li.item');
+    assert.deepEqual(names(worn).sort(), ['Boiled Leather Jerkin', 'Cane Sword', 'Iron Cap', 'Moss-Agate Ring', 'Oak Buckler']);
+    assert.equal(text(rowOf(first.el, 'Cane Sword').querySelector('.gear-line .bonus')), '+3 DEX');
+    assert.ok(rowOf(first.el, 'Cane Sword').classList.contains('r-rare'));
+    assert.equal(buttonsOf(rowOf(first.el, 'Cane Sword'), 'Unequip').length, 1);
+    assert.ok(rowOf(first.el, 'Cane Sword').querySelector('.ss-w-editable-pencil'), 'Edit stays on a worn row');
+    assert.deepEqual([...store.map], [['story-block.inventoryWornOpen|chat-1', '1']]);
+    // The same chat on this device opens it again; another chat does not.
+    const again = draw(host, { draft: {}, widgets: foldWidgets(store) });
+    await settle();
+    assert.equal(again.el.querySelector('.worn-fold-btn').getAttribute('aria-expanded'), 'true');
+    const other = draw(host, { draft: {}, widgets: { [WORN_FOLD_WIDGET]: createWornFoldWidget({ chatKey: () => 'chat-2', storage: store }) } });
+    await settle();
+    assert.equal(other.el.querySelector('.worn-fold-btn').getAttribute('aria-expanded'), 'false');
+    // Unequip sends inventory.unequip: the piece goes to the bag list.
+    buttonsOf(rowOf(first.el, 'Iron Cap'), 'Unequip')[0].click();
+    await settle();
+    assert.deepEqual(first.calls.map(([type]) => type), ['inventory.unequip']);
+    const cap = Object.values(host.head().domains.inventory.stacks).find(stack => /cap/i.test(stack.def));
+    assert.equal(cap.equipped ?? null, null);
+    // Closing keeps the choice too.
+    first.el.querySelector('.worn-fold-btn').click();
+    await settle();
+    assert.equal(store.map.size, 0);
+    assert.equal(first.el.querySelector('.worn-fold-btn').getAttribute('aria-expanded'), 'false');
+    assert.match(text(draw(host, { draft: {}, widgets: foldWidgets(memory()) }).el.querySelector('.worn-fold-btn')), /^Worn \(4\)You 4$/, 'drawn again: four are still worn');
+});
+
+test('Worn row: a storage that throws means folded, and the choice then lasts this page', async t => {
+    const host = await gearHost(t);
+    const broken = { getItem() { throw new Error('no'); }, setItem() { throw new Error('no'); }, removeItem() { throw new Error('no'); } };
+    const { el } = draw(host, { draft: {}, widgets: foldWidgets(broken) });
+    await settle();
+    assert.equal(el.querySelector('.worn-fold-btn').getAttribute('aria-expanded'), 'false');
+    el.querySelector('.worn-fold-btn').click();
+    await settle();
+    assert.equal(el.querySelector('.worn-fold-btn').getAttribute('aria-expanded'), 'true');
+});
+
+// The late refusal of a multi-step item form, through the real renderer the mounts use (render-screen.js), not a scope the test builds: its widget api carries the page's `notify`.
+test('Edit, gear on: a refusal after a committed step reaches the page notice through the real screen renderer', async () => {
+    const { module, state } = crewState();
+    const h = createHarness([module], { state });
+    const doc = installFakeDom();
+    const el = doc.createElement('div');
+    doc.body.appendChild(el);
+    doc.head ??= doc.createElement('head');
+    const notices = [];
+    const renderer = createScreenRenderer({ queryAt: (name, args, at) => h.query(name, args), widgets: () => ({ ...standardWidgets, [INVENTORY_ADD_WIDGET]: createInventoryAddWidget(), [WORN_FOLD_WIDGET]: createWornFoldWidget({ storage: null }) }) });
+    const api = { hold: () => () => {}, notify: text => notices.push(text), on: () => () => {},
+        command: async (type, payload) => (type === 'item.equip' ? { ok: false, message: 'No room to carry it.' } : gearRun(h)(type, payload)) };
+    const data = resolveData(inventoryScreen.data, h.query);
+    renderer.render(el, inventoryScreen, { state: h.state, q: data.q, api, mount: 'tab', draft: { wornOpen: '1' }, changes: [], settings: {} });
+    const sword = open(el, 'Iron Sword');
+    sword.querySelectorAll('input')[2].value = 'keen';
+    sword.querySelectorAll('select')[1].value = 'ac_ren00001';
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    await settle();
+    assert.deepEqual(notices, ['No room to carry it.']);
+    assert.match(text(sword.querySelector('.ss-w-editable-error')), /No room to carry it/);
 });

@@ -27,7 +27,7 @@ async function world(t, { packs = false } = {}) {
     t.after(() => host.close());
     return host;
 }
-const draw = host => show(inventoryScreen, { state: host.head(), query: host.sdk.query, command: (type, payload, opts) => host.sdk.command(type, payload, opts) });
+const draw = host => show(inventoryScreen, { state: host.head(), query: host.sdk.query, draft: { wornOpen: '1' }, command: (type, payload, opts) => host.sdk.command(type, payload, opts) });
 const labelled = (el, name) => el.querySelectorAll('label').find(node => node.querySelector('span')?.textContent === name)?.querySelector('input, select');
 const change = (node, value) => { node.value = value; node.dispatch('change'); };
 const openAdd = el => { el.querySelector('.ss-w-inventory-add button').click(); return el.querySelector('.ss-w-editable-form'); };
