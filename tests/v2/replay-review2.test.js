@@ -65,6 +65,49 @@ test('a readiness change drops the checkpoints made under other owners, finds gu
     assert.equal(plain.store.lifecycleChanged(), false);
 });
 
+test('Memos survive a barrier flip with no write: the banks of each mark come back, a write drops them all, a module turning ready is still asked', () => {
+    const h = paid();
+    const replays = () => h.store.work().replays;
+    const flip = state => { h.registry.setRestore(state, state === 'idle' ? '' : 'test', { temporary: true }); return h.store.lifecycleChanged({ barrier: true }); };
+    const on = h.store.head();
+    assert.equal(flip('pending'), true);
+    const held = h.store.head();
+    assert.equal(h.gt().coin, 0, 'the held mark answers as it did');
+    const before = replays();
+    for (let round = 0; round < 3; round++) {
+        flip('idle');
+        assert.deepEqual(h.store.head(), on, 'the ready mark\'s head comes back as it was');
+        flip('pending');
+        assert.deepEqual(h.store.head(), held);
+    }
+    assert.equal(replays(), before, 'every flip was a map swap: no replay');
+    flip('idle');
+    const fresh = reopen(h, [guarded()]);
+    assert.deepEqual(h.store.head(), fresh.store.head(), 'equal to a fresh replay');
+    for (let at = 0; at < h.chat.length; at++) {
+        if (h.chat[at].is_user) continue;
+        assert.deepEqual(h.store.at(at), fresh.store.at(at), `state at ${at} equals a fresh replay`);
+    }
+    // A write between flips drops every bank (the held mark's too): the next held look is replayed.
+    h.send('u10', 'r10');
+    assert.equal(h.command('gt.quick', { id: questId(10) }).ok, true);
+    const mid = replays();
+    flip('pending');
+    assert.ok(replays() > mid, 'no bank survived the write');
+    assert.equal(h.gt().coin, 0);
+    flip('idle');
+    assert.equal(h.gt().coin, 10);
+    // A module turning dormant and ready (not the barrier) forgets the banks and asks its guard again.
+    h.registry.setEnabled('zz-guarded', false, 'off for the test');
+    h.store.lifecycleChanged();
+    assert.equal(h.gt().coin, 0);
+    const asked = replays();
+    h.registry.setEnabled('zz-guarded', true);
+    h.store.lifecycleChanged();
+    assert.equal(h.gt().coin, 10);
+    assert.ok(replays() > asked, 'the ready mark was replayed with the guards asked, not taken from a bank');
+});
+
 test('a module cannot make a block guarded by what it puts in its own data.v2; the host marks it, and a stripped span is damaged for every path', async t => {
     const own = {
         id: 'zz-own', name: 'Own', version: '0.0.1',
