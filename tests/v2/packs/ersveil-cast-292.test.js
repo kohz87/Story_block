@@ -10,8 +10,8 @@ const pack = JSON.parse(raw);
 const cast = pack.content.cast;
 const by = id => cast.find(person => person.id === id);
 
-test('Ersveil 2.9.2: the pack is 2.9.4 and no look names an age or "looks about"', () => {
-    assert.equal(pack.version, '2.9.4');
+test('Ersveil 2.9.2: the pack is 2.9.5 and no look names an age or "looks about"', () => {
+    assert.equal(pack.version, '2.9.5');
     assert.equal(cast.length, 12);
     for (const person of cast) {
         assert.doesNotMatch(person.look, /\blooks about\b|\b\d+\b(?! cm)/, person.id);

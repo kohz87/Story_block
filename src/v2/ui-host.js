@@ -68,7 +68,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     const { registry, store, sdk, settings, events } = runtime;
     const { queryAt, widgets, coreOn, blockTemplates, blockWidgets, liveCtx, savePoints, inspector, hostWidgets, renderer,
         screens, tabOrder, extraTabs, navPresent, barDeclared, setSharedTabs } = createHostSetup({
-        runtime, ctx, doc, registry, store, sdk, openSettings, inspectorProblems, getRpg: () => rpg,
+        runtime, ctx, doc, registry, store, sdk, openSettings, inspectorProblems, getRpg: () => rpg, openScreen: id => mounts?.screen?.open?.(id) ?? false,
     });
     const { rpgOn, blockPresentation, syncScreens } = createScreenSync({ doc, registry, sdk, screens, setSharedTabs });
 

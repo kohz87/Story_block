@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Ersveil 2.9.5 and Story Block 2.31.0.** Claimant sway can select the restored throne branches; earlier story edits reselect later decisions. Missing or unscoped Ripples uses the fixed fallback, and a previously crowned chat keeps its reign. Ersveil adds regional name lists; name suggestions need a Director release with its names part. Home links to Quests when that screen exists.
+- **Pack fields.** Optional `ripples` and `content.names` sections are validated separately; a bad section is ignored with a warning. Once events may group alternatives with `decision`.
 - **Up to six foe groups.** The Foes block holds six groups (it held four). A group of up to six foes shows each member with their own Health bar; seven or more fight as a swarm. A swarm attacks once per two members each exchange (1 + half its size, at most 6; it was one per six, at most 3), still thinning as its bar drops. Replies written before this keep four groups, five members and the old swarm attacks when read again.
 - **The fight board, redesigned.** Foes and party are compact chips with name, level and Health (a group is one chip, "Ridge hounds ×12"), and the status stays at the top while you choose. The member choosing sees their Mana and Stamina right above the skills, each skill shows its cost and is greyed when they cannot pay, and skills sit in a two-column grid with Back / Auto / Discard below. On tablet and desktop, status and actions sit side by side and nothing scrolls. The log is one line you tap to open.
 - **Area skills hit every group alike.** An area skill is one tap with no group to pick ("Astra · Flash") and strikes every group in reach the same. Replies written before this keep the old main-group rule.
@@ -12,8 +14,7 @@
 - **Reputation lists with room.** Each known entry is its own row with an 8 px bar; signed lists (standing) run from a centre line, red below 0 and green above, with the scale shown once; the top 3 show and the rest fold as "N more known · Not known yet (N)"; pencils appear only after the section's Edit. Applies to every pack's number lists.
 - **Guild card as tiles** (Ersveil 2.9.4): Rank, Standing and Dues; years as a member stays editable in the block's Edit. A chat that pinned the old guild screen offers Migrate.
 - **Enable all blocks.** Settings → Tabs & Packs → the installed blocks: one "Enable all N for this chat" button, one confirm listing the names, then each is enabled in the order they need; a block refused on its own shows why, the rest still enable.
-- Version 2.30.0 (Ersveil 2.9.4 needs it for the guild tiles).
-- **Example pack Ersveil 2.9.3: no Court favour block.** Highmark's throne follows one fixed road for now (a later release lets your deeds decide it); a chat already on another throne branch keeps it, and a chat that enabled Court favour keeps the block.
+- Ersveil 2.9.3 removed Court favour; a chat that enabled it keeps the block.
 
 ## 2.29.0
 
