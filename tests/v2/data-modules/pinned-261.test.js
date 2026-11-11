@@ -114,13 +114,13 @@ test('a 2.6.1 chat with a rules hash keeps its pin and guarded action', async t 
     check();
 });
 
-test('re-importing the example pack as 2.9.2 keeps the 2.6.1 pins, values and status', async t => {
+test('re-importing the example pack as 2.9.3 keeps the 2.6.1 pins, values and status', async t => {
     // 2.2.x's world events record lasting changes in Story Director's chronicle: a stand-in gives the capability.
     const host = await createHost({ st: { chat: chat() }, modules: [{ id: 'chronicle-stand-in', version: '1.0.0', capabilities: ['chronicle-lasting'] }] });
     t.after(() => host.close());
     assert.equal((await host.packs.packs.install(pack())).ok, true);
     const updated = current();
-    assert.equal(updated.version, '2.9.2');
+    assert.equal(updated.version, '2.9.3');
     const installed = await host.packs.packs.install(updated);
     assert.equal(installed.ok, true, installed.message);
     const fresh = host.sdk.query('dataModules.offers').find(row => row.module === 'pack.ersveil/standing').packHash;
@@ -132,4 +132,38 @@ test('re-importing the example pack as 2.9.2 keeps the 2.6.1 pins, values and st
     assertPinned(host, fresh, offered, 'Migration available');
     host.store.rebuild();
     assertPinned(host, fresh, offered, 'Migration available');
+});
+
+test('2.9.3 drops Court favour from Ersveil: a chat that pinned it keeps the block, its values and its place in Setup; the reader cannot remove a pack block', async t => {
+    // The pack as it was with the Court favour block (the Standing block's shape, named as the old one), pinned and set, then the pack re-imported without it.
+    const withBlock = current();
+    const old = structuredClone(withBlock.content.dataModules.find(module => module.slug === 'standing'));
+    Object.assign(old, { slug: 'succession', name: 'Court favour', screens: [] });
+    withBlock.version = '2.9.2';
+    withBlock.content.dataModules.push(old);
+    const host = await createHost({ modules: [{ id: 'chronicle-stand-in', version: '1.0.0', capabilities: ['chronicle-lasting'] }] });
+    t.after(() => host.close());
+    assert.equal((await host.packs.packs.install(withBlock)).ok, true);
+    await host.send('Begin.', 'Opening.');
+    const module = 'pack.ersveil/succession';
+    const offer = host.sdk.query('dataModules.offers').find(row => row.module === module);
+    assert.equal((await host.sdk.command('dm.pin', { module, hash: offer.hash, packHash: offer.packHash, subjects: [] })).ok, true);
+    assert.equal((await host.sdk.command('dm.set', { module, field: 'standing', key: 'highmark', value: 7 })).ok, true);
+    const before = host.sdk.query('dataModules.view', { module });
+    assert.equal((await host.packs.packs.install(current())).ok, true);
+    assert.equal(host.sdk.query('dataModules.offers').some(row => row.module === module), false, 'the pack no longer offers it');
+    const check = () => {
+        assert.deepEqual(host.sdk.query('dataModules.view', { module }), before, 'its values are kept');
+        const row = host.sdk.query('dataModules.setup').find(entry => entry.module === module);
+        assert.equal(row.status, 'Pinned');
+        assert.equal(row.pinned, true);
+        assert.equal(row.pinnedDefinition.name, 'Court favour');
+        assert.deepEqual(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), []);
+    };
+    check();
+    host.store.rebuild();
+    check();
+    const removed = await host.sdk.command('dm.remove', { module });
+    assert.equal(removed.ok, false, 'dm.remove is for blocks made in the chat, not pack blocks');
+    check();
 });

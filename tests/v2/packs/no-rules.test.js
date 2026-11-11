@@ -25,5 +25,5 @@ test('the open world example remains valid with the supported host capabilities'
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.pack.content.places.length, 320);
     assert.equal(result.pack.content.routes.length, 350);
-    assert.equal(result.pack.content.dataModules.length, 4);
+    assert.equal(result.pack.content.dataModules.length, 3);
 });
