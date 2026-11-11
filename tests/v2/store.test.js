@@ -381,6 +381,42 @@ test('Re-read of a reply with two preludes and a step, twice: each keeps its own
     }
 });
 
+test('Re-read heals a record an older Re-read stored with its two preludes merged: live spans and receipts, revs as a clean rebuild', () => {
+    const { ctx, store } = setup([greeting(), user(), reply()]);
+    store.ensureInitial(initial());
+    const at = (rev, extra = {}) => receipt({ cause: 'system', rev, afterCapture: true, ...extra });
+    for (const rev of [1, 2, 3]) store.append({ ops: [{ op: 'replace', path: '/meta/rev', value: rev }], receipt: at(rev, rev < 3 ? { beforeGenerate: true } : {}) });
+    const live = structuredClone(ctx.chat[2].extra.storySuite);
+    const liveHead = structuredClone(store.head());
+    ctx.chat[2].extra.storySuite.spans.splice(0, 2, { n: 2, story: false });     // (the old merge: both preludes in one span)
+    for (let pass = 0; pass < 2; pass += 1) {
+        const steps = [1, 2].map(rev => at(rev, { beforeGenerate: true }));
+        store.replaceStory(2, {
+            ops: [1, 2].map(rev => ({ op: 'replace', path: '/meta/rev', value: rev })), receipts: steps,
+            settled: [{ ops: [{ op: 'replace', path: '/meta/rev', value: 3 }], receipt: at(3) }],
+            blocks: steps.map(receipt => ({ n: 1, receipt })),
+        });
+        const record = ctx.chat[2].extra.storySuite;
+        assert.equal(record.receipts.length, live.receipts.length, `pass ${pass}: no old receipt stays beside its new copy`);
+        assert.deepEqual(record.spans.map(span => span.n), live.spans.map(span => span.n), `pass ${pass}: one block per prelude and step`);
+        assert.deepEqual(store.head(), liveHead, `pass ${pass}: the state and /meta/rev are as live`);
+        assert.deepEqual(store.head(), fullReplay(ctx.chat, 2), `pass ${pass}: and as a clean rebuild`);
+    }
+});
+
+test('Re-read without settled steps: a kept afterCapture step planned again keeps its afterCapture mark', () => {
+    const { ctx, store } = setup([greeting(), user(), reply()]);
+    store.ensureInitial(initial());
+    store.append({ ops: [{ op: 'replace', path: '/meta/rev', value: 1 }], receipt: receipt({ cause: 'story', rev: 1 }) });
+    store.append({ ops: [{ op: 'replace', path: '/meta/rev', value: 2 }], receipt: receipt({ cause: 'system', rev: 2, afterCapture: true, replan: { payload: {} } }) });
+    let asked = 0;
+    const rerun = () => { asked += 1; return { ok: true, ops: [{ op: 'replace', path: '/meta/rev', value: 2 }], receipt: receipt({ cause: 'system', rev: 2, replan: { payload: {} } }) }; };
+    store.replaceStory(2, { ops: [{ op: 'replace', path: '/meta/rev', value: 1 }], receipts: [receipt({ cause: 'story', rev: 1 })], rerun });
+    assert.equal(asked, 1, 'the step was planned again');
+    const step = ctx.chat[2].extra.storySuite.receipts.find(each => each.cause === 'system');
+    assert.equal(step.afterCapture, true, 'its mark is kept');
+});
+
 test('Re-read rejects non-story receipts and changes that no longer fit, writing nothing', () => {
     const { ctx, store } = setup([greeting(), user(), reply()]);
     store.ensureInitial(initial());
