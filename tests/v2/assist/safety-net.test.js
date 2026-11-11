@@ -155,3 +155,20 @@ test('a late place from the reply before never holds back the next reply\'s own 
     assert.equal(host.sdk.query('scene.place').name, 'Tavern');
     host.close();
 });
+
+test('a preset\'s ^ block: the safety net reads its lines the way the reply was captured, so live and Re-read end in the same scene', { skip }, async () => {
+    let calls = 0;
+    const model = async () => (++calls === 2 ? '~ place Old Market | kind: settlement\n~ weather rain' : 'none');
+    const host = await hostWith(model);
+    await host.send('I go.', 'You set out.');
+    const turn = new Promise(resolve => host.sdk.on('turn', item => { if (item.type === 'late') resolve(item); }));
+    const reply = await host.send('I arrive.', 'You reach the market.\n<Changes>\n^~ ^place ^Market ^| ^kind: ^settlement\n</Changes>');
+    const late = await turn;
+    assert.deepEqual(late.receipts.map(receipt => receipt.assistLine), ['~ weather rain'], 'the place the block set is not set again');
+    assert.equal(host.sdk.query('scene.place').name, 'Market');
+    const live = JSON.stringify(host.sdk.query('scene.place'));
+    const again = await host.sdk.reread(reply.index);
+    assert.equal(again.ok, true, JSON.stringify(again));
+    assert.equal(JSON.stringify(host.sdk.query('scene.place')), live, 'Re-read: same place as live');
+    host.close();
+});

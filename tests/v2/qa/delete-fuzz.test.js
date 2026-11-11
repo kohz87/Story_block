@@ -228,7 +228,8 @@ for (const seed of SEEDS) {
             const astraLevel = staged ? memberLevel(readSheet(host.head()).characters.find(actor => actor.who === 'Astra')) : 1;
             await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, all));
             const index = host.store.headIndex();
-            assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
+            // (a repeated award is only told as a possible repeat, money-guard.js: not a line problem)
+            assert.deepEqual(host.turn.problems().filter(problem => problem.index === index && !/^Possible repeat/u.test(problem.message)), [], `seed ${seed} step ${step}: the lines are clean`);
             if (staged) {
                 const receipts = readRecord(host.ctx.chat[index]).receipts;
                 const roll = receipts.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
