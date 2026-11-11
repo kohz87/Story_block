@@ -103,6 +103,17 @@ test('oneCoin: a one-coin list worth 1 named differently from the currency keeps
     assert.doesNotMatch(line, /Name amounts in marks/);
 });
 
+test('oneCoin: never names a word coin lines refuse (penny with plural pence, a short form beside coins)', () => {
+    const penny = currencyOf({ currency: 'penny', currencyPlural: 'pence', coins: [{ name: 'penny', value: 1 }] });
+    assert.equal(coinValue('pence', penny), 0);
+    assert.equal(moneyLine(penny, true), moneyLine(penny), 'the coin line stays');
+    assert.doesNotMatch(moneyLine(penny, true), /Name amounts in pence/);
+    const short = currencyOf({ currency: 'crown', currencyShort: 'cr', coins: [{ name: 'crown', value: 1 }] });
+    assert.equal(moneyLine(short, true), moneyLine(short));
+    const plain = currencyOf({ currency: 'crown', coins: [{ name: 'crown', value: 1 }] });
+    assert.match(moneyLine(plain, true), /Name amounts in crowns .*no other coins exist/, 'the same name and plural: still a single-unit line');
+});
+
 test('oneCoin: a coin list of one coin worth 1 is told as a single-unit currency in a chat under the mark; a chat begun before keeps the coin line, byte for byte', async t => {
     const settings = { currency: 'crown', coins: [{ name: 'crown', value: 1 }] };
     const currency = currencyOf(settings);
