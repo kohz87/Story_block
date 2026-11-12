@@ -185,6 +185,9 @@ export function createStore({
             for (const [message, entry] of s.unsaved) {
                 if (entry.chatId !== change.chatId) continue;
                 if (arr.includes(message)) left = true;
+                // A write the open chat took after this one (a message of the same place with a later entry) is newer than the old
+                // object's copy: carrying the old record over it would drop that write (a receipt on no carrier), so the old entry goes.
+                else if (s.unsaved.get(arr[entry.index])?.n > entry.n) { s.unsaved.delete(message); left = true; }
                 // The same chat read again (a reload, or opened again before the save): the change goes
                 // onto the same message as read back, when it still is that message.
                 else if (carryRecord(message, arr[entry.index])) {
