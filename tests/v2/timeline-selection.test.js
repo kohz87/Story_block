@@ -112,9 +112,10 @@ test('selection rules and durability have one implementation site', async () => 
 
 // A reply's text changes after its guarded steps were stamped (another extension adds a panel), a native change is recorded on it, and a
 // swipe's reconcile stamps the steps again: the native state of the reply before the swiped one comes back, not the first reply's.
-async function replies(t, count, { edit = true } = {}) {
+async function replies(t, count, { edit = true, older = '' } = {}) {
     const link = hostModule();
     const native = nativeModule();
+    if (older) { const real = native.def.participant.activate; native.def.participant.activate = async input => ({ ...(await real(input)), older }); }
     const host = await createHost({ modules: [link.def, director(), rulesModule(), native.def], core: false });
     t.after(() => host.close());
     link.link(host.store);
@@ -149,6 +150,15 @@ test('swipe of the latest reply: the state of the reply before it comes back alt
     await host.swipe('Reply 5 once more.');
     await host.timeline.host.recover();
     assert.equal(native.store.dossiers.tavi.trust, 4);
+});
+
+test('a participant that installed an older state than expected says so: the answer\'s `older` line is a Problem, quiet, with its own code', async t => {
+    const { host } = await replies(t, 3, { older: 'Restored an older dossier state than expected: 9 messages back.' });
+    await host.swipe('Reply 3 again.');
+    await host.timeline.host.recover();
+    const found = host.turn.problems().filter(problem => problem.code === 'SELECTION_OLDER');
+    assert.equal(found.length > 0, true);
+    assert.equal(found[0].message, 'Restored an older dossier state than expected: 9 messages back.');
 });
 
 test('a mapping is not carried when the text of an earlier reply changed: the selection stays exact', async t => {

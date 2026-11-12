@@ -155,7 +155,7 @@ export function createNative(s, deps) {
             if (!slot.ack) {
                 const done = await callParticipant(module, 'activate', { return: entry.id, prepared: slot.prepared });
                 if (!done.ok) return block.note(module, done);
-                if (typeof done.kept === 'string' && done.kept) try { problem?.({ module, code: 'SELECTION_KEPT', quiet: true, message: done.kept }); } catch { /* a listener is not the timeline's business */ }
+                if (typeof done.older === 'string' && done.older) try { problem?.({ module, code: 'SELECTION_OLDER', quiet: true, message: done.older }); } catch { /* a listener is not the timeline's business */ }
                 if (done.checkpoint !== target.checkpoint || done.hash !== target.hash) return block.note(module, fail('CONFLICT', 'The participant selected other bytes.'));
                 archive.patch(entry.id, { slots: { ...archive.get(entry.id).slots, [module]: { ...slot, ack: true } } });
                 await durable();
