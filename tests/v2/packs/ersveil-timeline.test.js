@@ -459,3 +459,36 @@ test('2.9.6: a chat that already heard the news keeps its record, and written re
     assert.equal(again.ok, false, 'the record stands: it is not told twice');
     assert.equal(JSON.stringify(host.ctx.chat.map(message => message.mes)), before, 'written replies are untouched');
 });
+
+// The old two-event list (2.9.5): the first group's event and the second group's own event, as the merged one was made from.
+test('2.9.6: a chat that fired only the old second-group news: swap to the merged event, rebuild equals the head, Re-read is byte-identical, the claim stands', async t => {
+    const { createHost } = await import('../../../testkit/index.js');
+    const host = await createHost({});
+    t.after(() => host.close());
+    const [group1, group2] = [NEWS_REGIONS.slice(0, 6), NEWS_REGIONS.slice(6)];
+    const { after, when, ...base } = events.find(event => event.id === 'flood-611-news');   // (the chronicle wait is left out: the mini-pack has no flood-611)
+    const eventFor = (id, names) => ({ ...base, id, when: `query('scene.place') != null && region(${names.map(name => `'${name}'`).join(', ')})` });
+    const oldPack = { id: 'ersveil', version: '2.9.5', requires: { storyBlock: '^2.31.1' }, content: { events: [eventFor('flood-611-news', group1), eventFor('flood-611-news-2', group2)] } };
+    const first = await host.packs.packs.install(oldPack);
+    assert.equal(first.ok, true, JSON.stringify(first.errors));
+    await host.send('Begin.', '<Changes>\n~ place Silver Keep | kind: town | region: Silver Mark\n</Changes>');
+    const fired = await host.bus.command('events.fire', { id: 'pack.ersveil/flood-611-news-2' }, { cause: 'system' });
+    assert.equal(fired.ok, true, fired.message);
+    await host.send('Onward.', 'The road goes on.');
+    const at = host.ctx.chat.findIndex(message => message.extra?.storySuite?.receipts?.some(receipt => receipt.type === 'events.fire'));   // the reply that holds the fire
+    assert.ok(at > 0, 'the fire is in a reply');
+    // 2.9.6 replaces both with the merged event (the second group's event is gone from the list).
+    const merged = await host.packs.packs.install({ id: 'ersveil', version: '2.9.6', requires: { storyBlock: '^2.31.1' }, content: { events: [eventFor('flood-611-news', NEWS_REGIONS)] } });
+    assert.equal(merged.ok, true, JSON.stringify(merged.errors));
+    const head = JSON.stringify(host.head()), chat = JSON.stringify(host.ctx.chat);
+    assert.match(head, /event:pack\.ersveil\/flood-611-news-2/, 'the claim of the old second-group event is in the head');
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), head, 'rebuild equals the head');
+    const done = await host.turn.reread(at);
+    assert.equal(done.ok, true, done.message);
+    assert.equal(JSON.stringify(host.head()), head, 'Re-read leaves the record byte-identical');
+    assert.equal(JSON.stringify(host.ctx.chat), chat, 'Re-read leaves the chat byte-identical');
+    await host.st.loadChat(structuredClone(host.ctx.chat));
+    assert.equal(JSON.stringify(host.head()), head, 'reload equals the head');
+    assert.match(JSON.stringify(host.head()), /event:pack\.ersveil\/flood-611-news-2/, 'the claim stands');
+});

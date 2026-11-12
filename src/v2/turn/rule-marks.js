@@ -39,6 +39,8 @@ export const RULE_LINES = Object.freeze({
     caretWords: () => false,
     // Foes the narrator has not touched for a few replies no longer start a fight from a typed attack (lean-rpg/precall.js currentFoes). Static per chat: only a reply's first live capture is marked, so an old chat keeps its foes as they were.
     foesFresh: () => false,
+    // `! dm foes - cleared` (no kind) clears the one group that stands (data-modules/part/act.js foesClearLine). Static per chat: only a reply's first live capture is marked, so an older reply keeps the line unused on Re-read.
+    foesClear: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
