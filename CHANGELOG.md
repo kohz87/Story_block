@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.32.1
+
+Update Story Block. After a board fight ends its foes are cleared, so the next attack starts a new fight; the narrator keeps your character sheet and the Foes line when the prompt is tight, so a lost fight is remembered. New replies only; old replies replay unchanged.
+
+- **Fights end cleanly: foes cleared, the loss remembered (#419).** When a board fight ends (won, lost or fled) its foes leave the Foes slot, so the next attack starts a new fight instead of being blocked by a leftover raider. The fight's end is recorded with its result (rule mark `foesClear`: new chats and new fights only; older records keep their foes), and the reply that tells the fight's end keeps its fight tail. Fight XP is tied to that reply's own board result. **Tail change (new replies only):** under a tight tail budget the character sheet and Foes lines are kept and go first, so a lost fight is not forgotten; the board log line names who rolled what. The fixed prompt is unchanged; plain attacks are unchanged; replies already written replay as before.
+
 ## 2.32.0
 
 Update Story Block, Story Director, NPC State Delta (and Story Studio for pack authors) together. Replies already written replay and Re-read exactly as before; start a new chat to see the new dossier, mood, ties and drives behaviour.
