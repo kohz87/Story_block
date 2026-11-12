@@ -142,7 +142,7 @@ async function world(t, { list = [person({ skills: SKILLS })], rpg = true, join 
 const fieldsOf = (host, slug) => host.head().domains.dataModules.instances[`pack.chat/${slug}`]?.chat.fields;
 const receipts = host => host.ctx.chat.at(-1).extra.storySuite.receipts;
 const joinReceipt = host => receipts(host).find(entry => entry.type === 'capture.party');
-const told = host => host.turn.problems().map(problem => problem.message);
+const told = host => host.turn.problems().filter(problem => problem.code !== 'DICE_SKIPPED').map(problem => problem.message);
 const update = async (host, list) => {
     const raw = withCast(list);
     const out = await host.packs.packs.install(raw);

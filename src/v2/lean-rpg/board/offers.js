@@ -76,7 +76,7 @@ function findFightOffer(chat, store, meta, enabled = true) {
         // new foes the same reply introduced keep the usual "A fight started".
         const left = ended !== null && next.size > 0;
         if (introduced || left) {
-            if (meta?.rpgFightOffers?.[record.sid] === true || (session && !(session.carried && session.anchor === record.sid))) return null;
+            if (meta?.rpgFightOffers?.[record.sid] === true || (session && !((session.carried || session.idle) && session.anchor === record.sid))) return null;
             return { index, sid: record.sid, fight: { groups: current.map(foe => foe.slot), ...(introduced ? {} : { standing: true }) } };
         }
         next = prior;

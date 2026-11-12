@@ -95,10 +95,9 @@ export async function fuzz(t, seed, steps) {
     const trace = [];                   // action and command order, included in replay failures
     let boardFights = 0;
 
-    // A board fight from the first reply on: it stays open for the whole run, so the fuzz's sends carry
-    // the same setup and never need the planner. It has a real count-one foe and a three-member group, so
-    // both the lone-foe and member paths are exercised. The blocks are pinned before any request, so the
-    // static prompt still has one value (the fight stays open: not quiet).
+    // Start with a real board fight that later edits, swipes and deletes can replay. It has a count-one foe
+    // and a three-member group, so both the lone-foe and member paths are exercised. An unstaged later
+    // send no longer writes a spurious empty fight. The blocks are pinned before any request.
     async function startBoardFight() {
         const definitions = structuredClone(STANDARD_TEMPLATES.filter(entry => ['character', 'foes'].includes(entry.definition.role)).map(entry => entry.definition));
         const hero = definitions.find(definition => definition.role === 'character'), foes = definitions.find(definition => definition.role === 'foes');
@@ -124,6 +123,7 @@ export async function fuzz(t, seed, steps) {
         statics.add(result.request.chat[0].content);
         const receipt = readRecord(ctx.chat[result.index])?.receipts?.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
         assert.ok(receipt, 'the first reply is a board fight');
+        boardFights += 1;
         assert.equal(receipt.data?.v2?.result?.stop, 'open', 'the seeded foe group leaves the fight open for the rest of the run');
         const members = receipt.data.v2.result.members;
         assert.equal(members.find(member => member.group === 1)?.name, 'Fuzz Rats', 'the lone real foe stays in the mixed fight');
@@ -135,8 +135,8 @@ export async function fuzz(t, seed, steps) {
         checkInvariants(host, 'board fight opens', { trace });
     }
 
-    // A deleted opening reply takes its board anchor with it. A later send opens a new segment on the
-    // current head, so the fuzz keeps exercising the board's commit and replay instead of the planner.
+    // A deleted opening reply takes its board anchor with it. Open a board on the current head if possible;
+    // only a genuinely staged exchange will be carried by a later send.
     function ensureBoard() {
         const sid = store.carrierSid(store.headIndex());
         if (sid && boardSession(ctx.chatMetadata)?.anchor === sid) return;

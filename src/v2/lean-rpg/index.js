@@ -114,7 +114,7 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
         hooks: {
             canGenerate: Object.assign((view, info) => precall.canGenerate(view, info), { feature: LEAN_RPG_FEATURE }),
             // The foe pre-check may call the model once (PRECHECK_LIMIT_MS, or `timeoutMs`): the hook may take that long and a little more.
-            beforeGenerate: Object.defineProperty((view, info) => precall.beforeGenerate(view, info), 'timeoutMs', { enumerable: true, get: () => (timeoutMs ?? PRECHECK_LIMIT_MS) + 2000 }),
+            beforeGenerate: Object.defineProperty((view, info) => view?.feature?.(LEAN_RPG_FEATURE) === true ? precall.beforeGenerate(view, info) : null, 'timeoutMs', { enumerable: true, get: () => (timeoutMs ?? PRECHECK_LIMIT_MS) + 2000 }),
             afterCapture: (view, info) => {
                 precall.afterCapture(view);
                 // The fight's XP, then the rolled skills' practice: two steps after the reply's lines.

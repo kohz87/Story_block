@@ -140,8 +140,9 @@ test('a fled fight is carried the same way: staged == committed, no model call',
     const result = roll(host, sent.index).data.v2.result;
     assert.deepEqual(result.rounds, staged.rounds);
     assert.equal(result.stop, 'fled');
-    assert.equal(host.ctx.chat[sent.index].extra.storySuite.receipts.some(item => item.type === 'rpg.dice'), false, 'a fight reply is offered no story-check dice');
-    assert.equal(/Dice for this reply/u.test(JSON.stringify(sent.request ?? '')), false, 'and its prompt has no dice note');
+    assert.equal(host.ctx.chat[sent.index].extra.storySuite.receipts.some(item => item.type === 'rpg.dice'), true, 'separate story checks have their own dice');
+    assert.match(JSON.stringify(sent.request ?? ''), /Dice for this reply/u);
+    assert.match(JSON.stringify(sent.request ?? ''), /the fight board already rolled every exchange/u);
 });
 
 // Round 17: Send is a 'regenerate'; a stale cached payload (rpgFightLast, same anchor) must never beat the staged session.

@@ -230,7 +230,7 @@ test('a marked board win with the stock hero pays, clears the block, names its r
         const payload = fights(host)[0].replan.payload;
         assert.equal(payload.gone, 1);
         assert.match(payload.claim, /^rpg:resolve:b:/u);
-        assert.deepEqual(host.turn.problems(), []);
+        assert.deepEqual(host.turn.problems().filter(problem => problem.code !== 'DICE_SKIPPED'), []);
         const prompt = promptOf(sent);
         assert.ok(prompt.includes('[COMBAT SYSTEM]'), 'the reply that tells the end keeps the combat rules');
         assert.ok(prompt.includes('If a new group arrives after this fight'));

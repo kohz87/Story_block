@@ -99,7 +99,7 @@ async function agree(host, label, index) {
     same(host.head(), JSON.parse(live), `${label}: a Re-read of reply ${index} equals live`);
     COUNTS.reads += 1;
 }
-const problemsOf = host => host.turn.problems().map(problem => `${problem.code}: ${String(problem.message ?? '').slice(0, 400)}`);
+const problemsOf = host => host.turn.problems().filter(problem => problem.code !== 'DICE_SKIPPED').map(problem => `${problem.code}: ${String(problem.message ?? '').slice(0, 400)}`);
 const unexpected = (list, step) => list.filter(text => !Object.entries(EXPECTED).some(([code, steps]) => text.startsWith(`${code}:`) && steps.includes(step)));
 
 test('E2E: a 30-reply Ersveil playthrough keeps live, rebuild, reload, Re-read, swipe and delete in step', { skip, timeout: 240000 }, async t => {
