@@ -422,3 +422,16 @@ test('rebaseOps rule e for ops stored before the mark: an append to the scene\'s
     const wrote = [{ op: 'replace', path: '/domains/scene/present', value: ['Fenna'] }, add('Fenna')];
     assert.deepEqual(rebaseOps(state, wrote, { replayed: true }).ops, wrote, 'the list written earlier in the block: as written');
 });
+
+test('rebaseOps: a second counted change of one count starts from what the first left, not from the state', () => {
+    const qtyPath = '/domains/inventory/stacks/it_aaaaaaaa/qty', stack = { stacks: { it_aaaaaaaa: { qty: 10 } } };
+    const two = [{ op: 'replace', path: qtyPath, value: 10, was: 5 }, { op: 'replace', path: qtyPath, value: 15, was: 10 }];
+    assert.deepEqual(rebaseOps({ domains: { inventory: stack } }, two, { replayed: true }).ops.map(op => op.value), [15, 20], '5 → 10 → 15 on a stack now at 10');
+    const take = [{ op: 'replace', path: qtyPath, value: 4, was: 3 }, { op: 'replace', path: qtyPath, value: 2, was: 4 }, { op: 'remove', path: '/domains/inventory/stacks/it_aaaaaaaa', was: 2, count: '/qty' }];
+    const here = { domains: { inventory: { stacks: { it_aaaaaaaa: { qty: 3 } } } } };
+    assert.deepEqual(rebaseOps(here, take, { replayed: true }).ops, take, 'a stack that stands as the block saw it: the ops as written (the take of the last 2 stays whole)');
+    const wallet = '/domains/inventory/wallets/party/coin';
+    const gone = [{ op: 'replace', path: wallet, value: 11, was: 5 }, { op: 'replace', path: wallet, value: 4, was: 11 }];
+    const none = rebaseOps({ domains: { inventory: { wallets: {} } } }, gone, { replayed: true }).ops;
+    assert.equal(none[1].value, -1, 'a wallet that is gone counts from 0: +6 then -7 is -1 (refused below), never the 4 the second change was made at');
+});

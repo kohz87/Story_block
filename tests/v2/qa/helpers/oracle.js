@@ -33,6 +33,9 @@ import { createStore } from '../../../../src/v2/store.js';
 import { validateInventory } from '../../../../src/v2/domains/inventory.js';
 import { aliasKey, resolveDef } from '../../../../src/v2/domains/names.js';
 import { validateScene } from '../../../../src/v2/domains/scene.js';
+import { hashJson } from '../../../../src/v2/replay.js';
+import { checkGuard } from '../../../../src/v2/lean-rpg/practice.js';
+import { inventoryEditGuard } from '../../../../src/v2/domains/inventory/edit.js';
 import { probeModule } from './probe-module.js';
 import { replayFailure } from './replay-diagnostics.js';
 
@@ -233,8 +236,14 @@ export function blocksOf(record) {
 /** Whether a guarded block may apply on `state` (the state before it): a loot offer (reply-bound, so it stands while its reply
  * does, and the oracle reads only the replies there are), a loot take whose offer still holds what it took (above), or a
  * data-modules / RPG block (the host writes those ops; this oracle checks the patch replay, not the guard's input hash). */
-export function guardHolds(state, guard) {
+export function guardHolds(state, guard, span = null) {
     const predicate = guard?.predicate;
+    // A story check's results stand while the party's sheet is what they were worked on, and an add's name decision while the name resolves as it did:
+    // both are witnesses of the real state the oracle has no second copy of, so the owner's own guard function is asked (the oracle rebuilds the state itself).
+    if (predicate?.kind === 'rpg.check') return checkGuard({ state, hash: hashJson }, { guard, source: span?.source, recorded: span?.recorded ?? null }).ok === true;
+    if (predicate?.kind === 'inventory.reader-edit' && predicate.action === 'inventory.add' && predicate.decision !== undefined) {
+        return inventoryEditGuard({ state, hash: hashJson }, { guard, source: span?.source, operation: span?.operation }).ok === true;
+    }
     if (String(predicate?.kind ?? '').startsWith('dm.') || predicate?.kind === 'rpg.resolve') return true;
     if (predicate?.kind === 'loot.offer') return guard.replyBound === true;
     if (predicate?.kind === 'inventory.reader-edit') {
@@ -287,7 +296,7 @@ export function rebuildAt(chat, upTo) {
         if (!record) continue;
         spannedBlocks(record).forEach(({ ops, span }, block) => {
             try {
-                if (span?.id && span.guard && !guardHolds(state, span.guard)) throw new Error('its guard does not hold');
+                if (span?.id && span.guard && !guardHolds(state, span.guard, span)) throw new Error('its guard does not hold');
                 state = strictApply(state, ops);
             } catch (error) {
                 const revs = ops.filter(op => op.path === '/meta/rev').map(op => op.value);
@@ -345,7 +354,7 @@ export function checkInvariants(host, label, { trace = [], dumpDir } = {}) {
         // (one copy, read as the same array every time, as SillyTavern's chat is: a reply-bound block is told by its message)
         const copy = structuredClone(chat);
         const fresh = createStore({ chat: () => copy, save: async () => {}, validate, scratch });
-        fresh.attachGuard((state, { guard }) => (guardHolds(state, guard) ? { ok: true } : { ok: false, reason: 'its guard does not hold' }));
+        fresh.attachGuard((state, { guard, source, operation, recorded }) => (guardHolds(state, guard, { source, operation, recorded }) ? { ok: true } : { ok: false, reason: 'its guard does not hold' }));
         assert.deepEqual(plain(fresh.head()), plain(store.head()), `${label}: a new store over a copy of the chat agrees with the cached head`);
     }
 

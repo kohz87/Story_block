@@ -11,6 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
+import { carryRecord } from '../../../src/v2/persist.js';
 
 const settle = async (n = 20) => { for (let i = 0; i < n; i++) await new Promise(resolve => setImmediate(resolve)); };
 
@@ -53,4 +54,14 @@ test('C4-4: a change saved by SillyTavern after a delete is not told as lost whe
     const warned = console.warn.mock.calls.map(call => call.arguments.map(String).join(' ')).filter(text => /was not saved/.test(text));
     assert.deepEqual(warned, [], 'nothing is told as not saved: the change is in chat A\'s file');
     assert.equal(saver.dirty(), false);
+});
+
+test('C4-5: a rescue never writes a record onto another reply that stands at the old place (same name, swipe and minute)', () => {
+    const reply = (sid, extra = {}) => ({ name: 'Narrator', is_user: false, mes: 'x', send_date: 'same minute', swipe_id: 0, swipes: ['x'], swipe_info: [], extra });
+    const record = sid => ({ storySuite: { sid, ops: [], receipts: [], spans: [], narrated: [], swipe: 0, rev: 1 } });
+    const from = reply('a', record('sw_aaaaaaaaaaaa')), other = reply('b', record('sw_bbbbbbbbbbbb')), blank = reply('c'), again = reply('d', record('sw_aaaaaaaaaaaa'));
+    assert.equal(carryRecord(from, other), false, 'a reply with its own record is another message: not written over');
+    assert.equal(other.extra.storySuite.sid, 'sw_bbbbbbbbbbbb');
+    assert.equal(carryRecord(from, blank), true, 'a message with no record of its own takes it');
+    assert.equal(carryRecord(from, again), true, 'the same message read again (same record id) takes the newer record');
 });
