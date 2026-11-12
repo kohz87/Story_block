@@ -122,7 +122,8 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         verify = clock.setTimeout(() => {
             verify = null;
             if (sp.state().state !== 'sending') return;
-            if (started || !read().trim()) { sp.taken(); return; }
+            if (started) { sp.taken(); return; }
+            if (!read().trim()) { sp.cancel(); return; }
             if (read() !== text) { sp.cancel(); return; }
             if (!sp.fail()) return;
             // Not taken (SillyTavern was still closing the last reply): the same text goes again, at most RETRIES more times, then the note waits for the reader.
@@ -159,7 +160,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         if (event?.target?.id !== 'send_textarea') return;
         const now = sp.state().state;
         if (now === 'sent') return;
-        if (now === 'sending' && !read().trim()) { sp.taken(); return; }
+        if (now === 'sending' && !read().trim()) { if (started) sp.taken(); else sp.cancel(); return; }
         sp.typed();
     };
     // The bubble phase: reached only when nothing earlier stopped the press. SillyTavern's own Enter handler runs first and calls
@@ -172,8 +173,12 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
     doc.addEventListener?.('click', onBubble, false);
     doc.addEventListener?.('keydown', onBubble, false);
     const types = ctx?.eventTypes ?? ctx?.event_types ?? {};
-    // (type, params, dryRun): a dry run (SillyTavern counting the prompt's tokens after a reply) is not a Send being taken; nor is a quiet call.
-    const onStart = (type, _params, dryRun) => { if (dryRun !== true && type !== 'quiet') started = true; land(); sp.taken(); };
+    // (type, params, dryRun): only the real user-message Generate is a Send being taken. SillyTavern's dry run (it counts the prompt's tokens about 1 s
+    // after every reply on Chat Completion), quiet and background calls (Summarize, expressions), extension calls, and regenerate / swipe / continue /
+    // impersonate (they never take the box text) must leave a waiting or sending round alone.
+    const isSend = (type, params, dryRun) => dryRun !== true && (type === undefined || type === null || type === '' || type === 'normal')
+        && !params?.quiet_prompt && !params?.automatic_trigger && !params?.quietToLoud;
+    const onStart = (type, params, dryRun) => { if (!isSend(type, params, dryRun)) return; started = true; land(); sp.taken(); };
     // Generate was entered (AFTER_COMMANDS comes first, before any interceptor can hold the reply back; STARTED follows).
     const starts = [types.GENERATION_AFTER_COMMANDS, types.GENERATION_STARTED].filter(Boolean);
     for (const name of starts) ctx?.eventSource?.on?.(name, onStart);

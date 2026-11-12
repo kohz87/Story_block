@@ -314,7 +314,7 @@ function pageRig(opts = {}) {
     // SillyTavern's Send: takes the text (clears the box and says "input") unless told to ignore it.
     // A programmatic click travels the document's listeners like a real one (the note's own re-send must not count as a new press).
     send.click = () => { doc.fire('click', {}, send); };
-    send.addEventListener('click', () => { page.clicks++; if (!page.ignore) { box.value = ''; doc.fire('input', {}, box); } });
+    send.addEventListener('click', () => { page.clicks++; if (!page.ignore) { page.handlers.forEach(fn => fn('normal', {}, false)); box.value = ''; doc.fire('input', {}, box); } });
     const clock = fakeClock();
     const ctx = { eventTypes: { GENERATION_STARTED: 'gs', GENERATION_AFTER_COMMANDS: 'gac' }, eventSource: { on: (n, f) => page.handlers.push(f), removeListener: () => {} } };
     const note = createSendNote({ doc, ctx, enabled: () => page.on, busy: () => page.busy, held: () => page.held, openBoard: () => { page.boards++; return true; }, timers: clock.timers, ...opts });
@@ -580,4 +580,37 @@ test('send note: an Enter ST handled first (preventDefault before our bubble lis
     assert.notEqual(r.pill(), null, 'ignored while free: the round started');
     r.clock.advance(750);
     assert.equal(r.page.clicks, 0 + 1);
+});
+
+test('send note: a dry run or a quiet call never ends a waiting round or makes a sending round "Sent"; the round still sends once when free', () => {
+    const noise = r => r.page.handlers.forEach(fn => { fn('normal', {}, true); fn('quiet', {}, false); fn('extension', {}, false); fn('regenerate', {}, false); fn('swipe', {}, false); fn('continue', {}, false); fn('impersonate', {}, false); fn('normal', { quiet_prompt: 'x' }, false); });
+    const text = r => r.pill()?.querySelector('.ss-send-note-text').textContent;
+    const w = pageRig();
+    w.page.busy = true;
+    w.press();
+    noise(w);
+    assert.equal(text(w), SEND_NOTE_TEXT.pending, 'a waiting round survives the noise');
+    w.page.busy = false;
+    w.clock.advance(1000);
+    assert.equal(w.page.clicks, 2, 'and still sends once');
+    const s = pageRig();
+    s.page.busy = true;
+    s.press();
+    s.page.busy = false;
+    s.clock.advance(1000);
+    assert.equal(s.page.clicks, 2);
+    noise(s);
+    assert.equal(text(s), SEND_NOTE_TEXT.pending, 'sending is not "Sent" after a dry run');
+    assert.equal(s.box.value, 'I knock on the cabin door and wait.');
+    s.page.handlers.forEach(fn => fn('normal', {}, false));
+    assert.equal(text(s), SEND_NOTE_TEXT.sent, 'the real start makes it Sent');
+    // The reader emptying the box themselves while sending, before any start, is not "Sent".
+    const e = pageRig();
+    e.page.busy = true;
+    e.press();
+    e.page.busy = false;
+    e.clock.advance(1000);
+    e.box.value = '';
+    e.doc.fire('input', {}, e.box);
+    assert.equal(e.pill(), null);
 });
