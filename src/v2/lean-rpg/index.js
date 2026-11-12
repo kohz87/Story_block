@@ -20,6 +20,8 @@ export { parseCheckLine } from './checks/line.js';
 import { JOIN_NO, joinCard, joinOffers, partyOf } from './join.js';
 import { fold } from './read.js';
 import { createPrecall } from './precall.js';
+import { FOES_TOUCH_QUERY } from './names.js';
+import { lastFoeTouch } from './board/offers.js';
 import { leanRpgGuard, resolve, rollsOf } from './resolve.js';
 import { skipOf } from './start.js';
 import { levelsQuery, rosterQueries } from './roster.js';
@@ -102,6 +104,8 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
             [JOINS_QUERY]: Object.assign((state, args, tools) => joinOffers(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index, partyOf(state)), { feature: LEAN_RPG_FEATURE }),
             // The rank a level falls in, by the story's pack (levels.js): { level } → { name } | null.
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),
+            // The chat index of the latest reply that touched the Foes block, -1 when none (board/offers.js lastFoeTouch): the stale-foes rule reads it.
+            [FOES_TOUCH_QUERY]: Object.assign((_state, _args, tools) => lastFoeTouch(tools?.receipts?.() ?? []), { feature: LEAN_RPG_FEATURE }),
             [ROLLS_QUERY]: Object.assign((_state, args, tools) => rollsOf(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index), { feature: LEAN_RPG_FEATURE }),
             // The party's members and the reader's own Character, from the Character blocks (roster.js; fallbacks: a module that answers them itself is asked instead).
             ...rosterQueries({ persona, on: rosterOn }),
