@@ -262,3 +262,26 @@ test('the three new keys sit with the other cast fields; unknown fields are stil
     const { behaviour, mannerisms, withYou, ...rest } = more;
     assert.deepEqual(rest, base);
 });
+
+// birthday: "<month> <day>[, <year>]" against the pack's calendar months.
+const iceCalendar = { era: 'CY', months: [{ name: 'Goldwane', days: 30 }, { name: 'Icewane', days: 28 }] };
+const withBirthday = (birthday, calendar = iceCalendar) => pack({ ...(calendar ? { calendar } : {}), content: { cast: [person({ birthday })] } });
+
+test('a cast birthday is read against the pack calendar, kept in its spelling, with an optional year', () => {
+    assert.ok(CAST_FIELDS.includes('birthday'));
+    assert.equal(ok(withBirthday('Icewane 27')).content.cast[0].birthday, 'Icewane 27');
+    assert.equal(ok(withBirthday('  icewane   28 ')).content.cast[0].birthday, 'Icewane 28');
+    assert.equal(ok(withBirthday('GOLDWANE 1, 604')).content.cast[0].birthday, 'Goldwane 1, 604');
+    assert.equal(ok(withBirthday('Goldwane 30 -12')).content.cast[0].birthday, 'Goldwane 30, -12');
+});
+
+test('a cast birthday that does not fit the calendar is refused, naming the months', () => {
+    for (const bad of ['Icewane 29', 'Icewane 0', 'Marchember 3', 'Icewane', '27', 'Icewane 27, x', 5, true, '', null, ['Icewane 3']]) refused(withBirthday(bad), 'BAD_RECORD', 'content.cast[0].birthday');
+    const message = validatePack(JSON.stringify(withBirthday('Marchember 3'))).errors.find(error => error.path === 'content.cast[0].birthday').message;
+    assert.match(message, /Goldwane, Icewane/);
+    refused(withBirthday('Icewane 3', null), 'BAD_RECORD', 'content.cast[0].birthday');
+});
+
+test('old packs without a birthday stay valid and carry none', () => {
+    assert.equal('birthday' in ok(withCast([person()])).content.cast[0], false);
+});
