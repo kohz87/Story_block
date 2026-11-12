@@ -5,6 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
+import { canonicalJson } from '../../../src/v2/replay.js';
 import { LEAN_RPG_FEATURE, readSheet } from '../../../src/v2/lean-rpg/index.js';
 import { vetOpen } from '../../../src/v2/lean-rpg/open.js';
 import { vetGroups } from '../../../src/v2/lean-rpg/board/precheck.js';
@@ -241,12 +242,13 @@ test('a missing cap writer keeps the old cap live and on Re-read', { skip }, asy
     assert.equal(levelNow(host), 25);
 });
 
-// Byte identity (JSON text, key order included). A Continue or a late line adds its block's action AFTER the reply-end step's action (live order: line,
-// step, line); a Re-read runs every line first and the steps last. The values are equal (checked above); the key order of
-// `perReply.*.actions` differs. No local change closes it without changing what a Re-read of an old reply writes: open (FIXREPORT).
-const bytes = host => JSON.stringify(host.head());
+// Identity of the head (canonical JSON: keys sorted, as every hash in the store reads them). A Continue or a late line adds its block's action AFTER the
+// reply-end step's action (live order: line, step, line); a Re-read runs every line first and the steps last, so the insertion order of
+// `perReply.*.actions` differs while the values are equal. Nothing reads that order: hashJson / canonicalJson sort keys, the store's digests and
+// keys hash text and counts, the actions are only walked to sum their visits, and ops are sorted by path. So the comparison here is canonical.
+const bytes = host => canonicalJson(host.head());
 
-test('an old reply stays byte-identical after Continue, rebuild, reload, swipes and Re-read', { skip, todo: 'action key order changes on Re-read' }, async t => {
+test('an old reply stays byte-identical after Continue, rebuild, reload, swipes and Re-read', { skip }, async t => {
     const host = await world(t), setter = host.store.setFoeCap;
     host.store.setFoeCap = () => { throw new Error('old reply'); };
     await host.send('A dragon.', reply(LINE));
@@ -264,10 +266,10 @@ test('an old reply stays byte-identical after Continue, rebuild, reload, swipes 
     assert.equal(recordOf(host, at).foeCap, undefined);
     assert.equal((await host.turn.reread(at)).ok, true);
     assert.deepEqual(host.head(), JSON.parse(live), 'Re-read preserves the live values');
-    assert.ok(bytes(host) === live, 'Re-read preserves the live JSON, including key order');
+    assert.ok(bytes(host) === live, 'Re-read preserves the live head (canonical JSON)');
 });
 
-test('an old reply stays byte-identical after a late line and Re-read', { skip, todo: 'action key order changes on Re-read' }, async t => {
+test('an old reply stays byte-identical after a late line and Re-read', { skip }, async t => {
     const host = await world(t);
     let resolveCapture;
     const capture = new Promise(resolve => { resolveCapture = resolve; });
@@ -286,7 +288,7 @@ test('an old reply stays byte-identical after a late line and Re-read', { skip, 
     assert.equal(recordOf(host, at).foeCap, undefined);
     assert.equal((await host.turn.reread(at)).ok, true);
     assert.deepEqual(host.head(), JSON.parse(live), 'Re-read preserves the live values');
-    assert.ok(bytes(host) === live, 'Re-read preserves the live JSON, including key order');
+    assert.ok(bytes(host) === live, 'Re-read preserves the live head (canonical JSON)');
 });
 
 test('a plain reply (one pass): Re-read and a reload leave the head byte-identical', { skip }, async t => {
