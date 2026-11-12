@@ -31,22 +31,17 @@ export function guildOf(domain, query) {
     } catch { return null; }
 }
 
-// Does a rank text agree with the Guild module? Unregistered: it must say so (or be empty). Registered: it must not say unregistered or name another letter.
+// Does a rank text agree with the Guild module? Unregistered: it must not claim registration or a letter (neutral text and "unregistered" pass).
+// Registered: it must not say unregistered or name another letter.
+const NOT_REGISTERED = /\b(unregistered|not registered|no rank|unranked)\b/i;
+const LETTER = /(?:^|\s)([FEDCBAS])(?:-rank\b|\s+rank\b)|^\s*([FEDCBAS])\s*$|\bGuild\s+([FEDCBAS])\b/;
 export function rankAgrees(text, guild) {
     if (!guild || !text) return true;
-    const says = /\b(unregistered|not registered|no rank|unranked|none)\b/i.test(text);
-    if (!guild.registered) return says;
-    if (says) return false;
-    const m = /(?:^|\s)([FEDCBAS])(?:-rank\b|\s+rank\b)|^\s*([FEDCBAS])\s*$|\bGuild\s+([FEDCBAS])\b/.exec(text);
+    const says = NOT_REGISTERED.test(text);
+    const m = LETTER.exec(text);
     const named = m ? (m[1] ?? m[2] ?? m[3]) : '';
-    return !named || named === guild.letter;
-}
-
-// What the Home line and the query show: the stored rank when it agrees with the module, else the module's own standing.
-export function rankShown(stored, guild) {
-    if (!guild) return stored;
-    if (stored && rankAgrees(stored, guild)) return stored;
-    return guild.registered ? `${guild.label} ${guild.letter}` : 'Unregistered';
+    if (!guild.registered) return says || (!named && !/\bregistered\b/i.test(text));
+    return !says && (!named || named === guild.letter);
 }
 
 /**
@@ -79,7 +74,8 @@ function changeYou(ctx, parts, { dropRank = false } = {}) {
         delete parts.rank;
     }
     // With the pack's Guild module in the story, the rank follows it: a story line that claims otherwise is left out with one plain Problem.
-    if (dropRank && parts.rank) {
+    // Only for a reply marked `youRank` (turn/rule-marks.js): a reply captured before it, run again, keeps its rank line as it was.
+    if (dropRank && parts.rank && ctx.carrier?.rules?.includes('youRank')) {
         let guild = null;
         try { guild = guildOf(ctx.read('dataModules'), ctx.query); } catch { guild = null; }
         if (!rankAgrees(parts.rank, guild)) {

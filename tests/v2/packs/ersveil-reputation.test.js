@@ -126,7 +126,9 @@ test('a ~ you rank line that contradicts the Guild module is refused with a Prob
         await host.send('Go on.', block([`~ you rank: ${claim} | wearing: a grey coat`]));
         const you = host.sdk.query('scene.you');
         assert.equal(you.wearing, 'a grey coat', `${claim}: the other part is kept`);
-        assert.equal(you.rank, 'Unregistered', `${claim}: shown as the module says`);
+        assert.equal(you.rank, '', `${claim}: the contradicting rank is not stored`);
+        const told = host.turn.problems().filter(item => item.index === host.ctx.chat.length - 1);
+        assert.ok(told.some(item => /The Guild record says you are not registered, so "rank" was not used/.test(item.message)), `${claim}: one plain Problem`);
     }
     await host.send('Say so.', block(['~ you rank: unregistered']));
     assert.equal(host.sdk.query('scene.you').rank, 'unregistered', 'a line that agrees is stored as written');
@@ -137,7 +139,29 @@ test('once the module says registered, the letter must match it', async t => {
     await host.send('Begin.', 'Opening.');
     success(await host.sdk.command('dm.set', { module: 'pack.ersveil/guild-membership', field: 'registered', value: true }));
     await host.send('Pay.', block(['~ you rank: E-rank | wearing: coat']));
-    assert.equal(host.sdk.query('scene.you').rank, 'Guild F', 'a different letter is refused; the module\'s letter shows');
+    assert.equal(host.sdk.query('scene.you').rank, '', 'a different letter is refused');
+    assert.equal(host.sdk.query('scene.you').wearing, 'coat');
+    await host.send('Meek.', block(['~ you rank: Aspirant']));
+    assert.equal(host.sdk.query('scene.you').rank, 'Aspirant', 'neutral text names no other letter');
     await host.send('Sign.', block(['~ you rank: F-rank, Adventurer Guild']));
     assert.equal(host.sdk.query('scene.you').rank, 'F-rank, Adventurer Guild');
+});
+
+test('neutral rank text passes while unregistered; a reply captured before the rule keeps its rank line, also on a Re-read', async t => {
+    const host = await pinned(t);
+    await host.send('Begin.', 'Opening.');
+    await host.send('Look.', block(['~ you rank: Aspirant']));
+    assert.equal(host.sdk.query('scene.you').rank, 'Aspirant', 'it claims no registration and no letter');
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await host.send('Old.', block(['~ you rank: Registered']));
+    host.store.setRuleMarks = setter;
+    const old = host.ctx.chat.length - 1;
+    assert.equal(host.ctx.chat[old].extra.storySuite.rules, undefined);
+    assert.equal(host.sdk.query('scene.you').rank, 'Registered', 'an unmarked reply: stored as before');
+    assert.equal((await host.turn.reread(old)).ok, true);
+    assert.equal(host.sdk.query('scene.you').rank, 'Registered', 'and the same on a Re-read');
+    await host.send('New.', block(['~ you rank: F']));
+    assert.ok(host.ctx.chat[host.ctx.chat.length - 1].extra.storySuite.rules.includes('youRank'));
+    assert.equal(host.sdk.query('scene.you').rank, 'Registered', 'a marked reply\'s contradicting line is refused');
 });

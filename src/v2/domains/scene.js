@@ -12,7 +12,7 @@ import { markEdit } from './scene/shared.js';
 import { changePresent, setPresent } from './scene/present.js';
 import { setPlace } from './scene/place.js';
 import { setWeather } from './scene/weather.js';
-import { guildOf, rankLabelIn, rankShown, setYou, youNote } from './scene/you.js';
+import { rankLabelIn, setYou, youNote } from './scene/you.js';
 
 export { WEATHER_CHARS, WEATHER_TAIL_CHARS, WEATHER_KEY_CHARS, WEATHER_FEATURE, YOU_CHARS, YOU_FEATURE } from './scene/constants.js';
 export { capturePresent } from './scene/present.js';
@@ -103,9 +103,7 @@ export const sceneQueries = {
         const you = state?.domains?.scene?.you;
         const text = part => (typeof you?.[part] === 'string' ? you[part] : '');
         const label = typeof tools?.query === 'function' ? rankLabelIn(tools.query) : '';
-        let guild = null;
-        try { guild = label && typeof tools?.query === 'function' ? guildOf(state?.domains?.dataModules, tools.query) : null; } catch { guild = null; }
-        return { ...(label ? { rank: rankShown(text('rank'), guild), rankLabel: label } : {}), wearing: text('wearing'), condition: text('condition') };
+        return { ...(label ? { rank: text('rank'), rankLabel: label } : {}), wearing: text('wearing'), condition: text('condition') };
     }, { feature: YOU_FEATURE }),
 };
 
