@@ -44,7 +44,7 @@ async function make(host, who, soul = 1) {
 }
 const blocks = host => Object.keys(host.head().domains.dataModules?.active ?? {}).sort();
 const fields = (host, slug) => host.sdk.query('dataModules.view', { module: `pack.chat/${slug}` })?.chat;
-const problems = host => host.turn.problems().filter(item => item.code !== 'ROLLS_SKIPPED').map(item => item.message);
+const problems = host => host.turn.problems().filter(item => !['ROLLS_SKIPPED', 'DICE_SKIPPED'].includes(item.code)).map(item => item.message);
 const statics = host => host.registry.contexts().map(context => context.static ?? '').join('\n');
 const grammar = host => host.registry.contexts().flatMap(context => context.kinds).filter(entry => entry.kind === 'party').map(entry => entry.grammar);
 const lastReceipts = host => host.ctx.chat.at(-1).extra.storySuite.receipts;

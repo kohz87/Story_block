@@ -43,6 +43,8 @@ async function play(seed, definition) {
             // (a refusal is a choice the sheet cannot pay or a fight already over: the fight goes on with what is staged)
             if (staged.error || staged.preview.result.stop !== 'open') break;
         }
+        // An unusable random skill is not a staged fight; ensure this replay fixture actually has an exchange.
+        if (!session.exchanges.length) assert.equal(stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]).error, undefined);
         await host.send('Strike.', 'The fight.');
         const at = host.ctx.chat.length - 1, record = rollReceipt(host, at).data.v2.result;
         const live = JSON.stringify(host.head()), sheet = sheetOf(host);

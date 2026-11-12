@@ -45,6 +45,8 @@ export const RULE_LINES = Object.freeze({
     clockMonth: () => false,
     // `~ you rank:` that contradicts the pack's rank data module (Ersveil guild-membership: registered, letter) is left out with a Problem (domains/scene/you.js changeYou). Static per chat: only a reply's first live capture is marked, so an older reply keeps its rank line on Re-read.
     youRank: () => false,
+    // Practice lines can explicitly name a skill and must not credit an arbitrary slot when their reason names several skills.
+    skillPractice: line => line?.kind === 'dm' && line.op === '+' && (!line.labels?.kind || /^practice-(?:[1-9]|1[01])$/u.test(String(line.labels.kind))),
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */

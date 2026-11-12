@@ -46,18 +46,64 @@ for (const [label, templates] of [['Standard', STANDARD_TEMPLATES], ['Classic']]
     });
 }
 
-test('a new name goes to slot N when it is empty; a practice reason naming two skills, or none, is slot N as written', async t => {
+test('a named practice goes to its slot; ambiguous names are refused while an unnamed reason uses N', async t => {
     const host = await story(t);
     await host.send('Learn.', reply(learn(4, SHADOW)));
     assert.deepEqual([sheet(host).skill2, sheet(host).skill4], ['', 'Shadow Cut']);
     await host.send('Learn.', reply(learn(2, ' | name: Cut | about: A plain cut. | stat: str | uses: stamina')));
     assert.equal(sheet(host).skill2, 'Cut');
     await host.send('Train.', reply(practice(1, 'Practiced Shadow Cut and Iaijutsu')));
-    assert.deepEqual([sheet(host).practice1, sheet(host).practice2, sheet(host).practice4], [10, 0, 0], 'two skills named: slot N');
+    assert.deepEqual([sheet(host).practice1, sheet(host).practice2, sheet(host).practice4], [0, 0, 0], 'two skills named: no arbitrary credit');
+    assert.ok(told(host).some(message => message.includes('Name exactly one known skill')));
     await host.send('Train.', reply(practice(1, 'Practiced Shadow Cut')));
     assert.deepEqual([sheet(host).practice4, sheet(host).practice2], [10, 0], 'Shadow Cut, not its part Cut');
     await host.send('Train.', reply(practice(3, 'nothing to name')));
     assert.equal(sheet(host).practice3, 0, 'slot 3 is empty: refused as before');
+    rebuilt(host);
+});
+
+test('explicit skill labels credit the named utility slot; unknown and ambiguous names never default to slot 1', async t => {
+    const host = await story(t);
+    for (const [n, name] of [[2, 'Flash'], [3, 'Shadow Step'], [4, 'Obscure']]) {
+        await host.send('Learn.', reply(learn(n, ` | name: ${name} | about: Skill. | stat: dex | uses: mana${n === 4 ? ' | type: utility' : ''}`)));
+    }
+    await host.send('Use.', reply('+ dm skills — practiced | kind: practice-1 | skill: Obscure | amount: 10'));
+    assert.deepEqual([1, 2, 3, 4].map(n => sheet(host)[`practice${n}`]), [0, 0, 0, 10]);
+    await host.send('Use both.', reply('+ dm skills — practiced | kind: practice-1 | skill: Obscure | amount: 7', '+ dm skills — practiced | kind: practice-1 | skill: Flash | amount: 7'));
+    assert.deepEqual([sheet(host).practice1, sheet(host).practice2, sheet(host).practice4], [0, 7, 17]);
+    await host.send('Use.', reply('+ dm skills — practiced | kind: practice-1 | name: Unknown | amount: 10'));
+    assert.deepEqual([sheet(host).practice1, sheet(host).practice4], [0, 17]);
+    const live = JSON.stringify(sheet(host));
+    assert.equal((await host.turn.reread(host.ctx.chat.length - 3)).ok, true);
+    assert.equal(JSON.stringify(sheet(host)), live);
+    rebuilt(host);
+    await reload(host);
+});
+
+test('an old unmarked ambiguous practice line keeps its slot on Re-read', async t => {
+    const host = await story(t);
+    await host.send('Learn.', reply(learn(2, SHADOW)));
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await host.send('Train.', reply(practice(1, 'Practiced Shadow Cut and Iaijutsu')));
+    host.store.setRuleMarks = setter;
+    const at = host.ctx.chat.length - 1;
+    assert.deepEqual([sheet(host).practice1, sheet(host).practice2], [10, 0]);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.deepEqual([sheet(host).practice1, sheet(host).practice2], [10, 0]);
+    rebuilt(host);
+});
+
+test('changing an earlier skill name cannot leave later practice on the wrong skill', async t => {
+    const host = await story(t);
+    await host.send('Learn.', reply(learn(4, ' | name: Obscure | about: Hide. | stat: dex | uses: mana | type: utility')));
+    const earlier = host.ctx.chat.length - 1;
+    await host.send('Train.', reply('+ dm skills — practiced | kind: practice-1 | skill: Obscure | amount: 10'));
+    assert.equal(sheet(host).practice4, 10);
+    host.ctx.chat[earlier].mes = host.ctx.chat[earlier].mes.replace('name: Obscure', 'name: Vanish');
+    assert.equal((await host.turn.reread(earlier)).ok, true);
+    assert.equal(sheet(host).skill4, 'Vanish');
+    assert.equal(sheet(host).practice4, 0, 'a no-longer-matching skill gets no practice');
     rebuilt(host);
 });
 

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
 import { ROLLS_SETTING, createLeanRpgPart, createPrecall } from '../../../src/v2/lean-rpg/index.js';
 import { PARTY, PLAN_ANSWER, setup, sheetDomain, tailOf } from './helpers.js';
+import { discardBoard } from '../../../src/v2/lean-rpg/board/session.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -39,7 +40,35 @@ test('with the feature off none of the RPG settings is read: no note, no numbers
     const boom = () => { throw new Error('read'); };
     const precall = createPrecall({ chat: boom, metadata: boom });
     const view = { feature: () => false, settings: boom, state: {} };
-    assert.equal(await precall.beforeGenerate(view, { type: 'normal' }), null);
+    const out = await precall.beforeGenerate(view, { type: 'normal' });
+    assert.deepEqual(out.problems.map(problem => [problem.code, problem.quiet]), [['DICE_SKIPPED', true]]);
+    assert.match(out.problems[0].message, /RPG is off/u);
+});
+
+test('skipped dice reasons survive merged hooks quietly on normal sends', async () => {
+    const { mergeParts } = await import('../../../src/v2/domains/index.js');
+    const messages = [{ is_user: false, mes: 'Before.' }, { is_user: true, mes: 'I wait.' }];
+    const state = { meta: { claims: {} }, domains: { dataModules: sheetDomain({}) } };
+    const view = { state, feature: id => id === 'story-block.rpg', settings: () => ({}) };
+    const precall = createPrecall({ chat: () => messages, metadata: () => ({}) });
+    const merged = mergeParts([{ hooks: { beforeGenerate: precall.beforeGenerate } }, { hooks: { beforeGenerate: () => ['another note'] } }]);
+    const out = await merged.hooks.beforeGenerate(view, { type: 'normal', commit: true });
+    assert.deepEqual(out.lines, ['another note']);
+    assert.deepEqual(out.problems.map(p => [p.code, p.quiet]), [['DICE_SKIPPED', true]]);
+    assert.match(out.problems[0].message, /no active character/u);
+    assert.equal(await precall.beforeGenerate(view, { type: 'normal', commit: false }), null);
+    assert.equal(await precall.beforeGenerate(view, { type: 'swipe', commit: true }), null);
+});
+
+test('discarding a fight clears even an older unsent copy', () => {
+    const meta = { rpgFightBoard: { id: 'fight', origin: 'anchor' }, rpgFightSend: { board: { id: 'fight' } } };
+    assert.equal(discardBoard(meta), true);
+    assert.equal(meta.rpgFightSend, undefined);
+    assert.equal(meta.rpgFightAttempts.anchor, 1);
+    meta.rpgFightBoard = { id: 'other', origin: 'anchor' };
+    meta.rpgFightSend = { board: { id: 'fight' } };
+    assert.equal(discardBoard(meta), true);
+    assert.equal(meta.rpgFightSend, undefined);
 });
 
 // ---- hooks: the part's limit, merged hooks, and the no-dice flag ------------------------------------------------------
@@ -72,6 +101,7 @@ test('"Send without the RPG for now": the next reply is sent with no pre-call an
     assert.deepEqual(rolled(host), [], 'no dice');
     assert.equal(tailOf(request).includes('[Rolls]'), false);
     assert.deepEqual(host.ctx.chatMetadata.storySuite, { rpgStart: { asked: true } }, 'the flag is let go once the reply is captured; the choice stays');
+    assert.ok(host.turn.problems().some(p => p.code === 'DICE_SKIPPED' && p.quiet && /chose to send without/u.test(p.message)));
     await host.send(MESSAGE, 'The rats scatter again.');
     assert.equal(callModel.calls.length, 1, 'planned as usual');
     assert.equal(rolled(host).length, 1);

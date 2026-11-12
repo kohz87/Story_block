@@ -88,7 +88,7 @@ test('a board carried on from an earlier fight does not hide the offer of a new 
         assert.equal(opened.error, undefined);
         assert.equal(offerIndex(host), null, 'a board the reader opened on this very reply is the fight in hand');
         await host.send('Scout again.', arrives(2));
-        assert.ok(boardSession(meta)?.carried, 'the session went on with the reply as a carried segment');
+        assert.equal(boardSession(meta)?.idle, true, 'the empty session follows the reply without a fight receipt');
         assert.equal(offerIndex(host), host.store.headIndex(), 'the new group arrived after it: it gets its offer');
         boardSession(meta).exchanges.push({ actions: [] });
         assert.equal(offerIndex(host), null, 'staged exchanges are never clobbered by an offer');
@@ -103,7 +103,7 @@ test('a carried board with no new group does not bring the offer back under the 
         const meta = host.ctx.chatMetadata;
         assert.equal(openBoard(meta, host.head(), { sid: host.store.carrierSid(host.store.headIndex()), rules: { ...STANDARD_FORMULA, levelDivisor: 5 } }).error, undefined);
         await host.send('Wait.', 'Nothing changes.');
-        assert.ok(boardSession(meta)?.carried, 'the session went on as a carried segment');
+        assert.equal(boardSession(meta)?.idle, true, 'the empty session follows the reply without a fight receipt');
         assert.equal(offerIndex(host), null, 'the fight in hand is not offered again under its first reply');
     } finally { host.close(); }
 });

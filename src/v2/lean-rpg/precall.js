@@ -1,6 +1,6 @@
 // The roll hook (SPEC_RPG §2R A3). Rolls are made by the fight board; the optional pre-check reads new foes without planning dice.
-// beforeGenerate carries a board fight the reader staged ("Send with this fight") as `rpg.resolve` board commands and, with no fight to carry, tells
-// the narrator how to open one (noFight); canGenerate holds a send until the waiting fight is played or chosen. Old chats keep their planner
+// beforeGenerate carries a staged board fight as `rpg.resolve` and offers separate dice for story checks; with no fight to carry it tells
+// the narrator how to open one (noFight). canGenerate holds a send until a waiting fight is played or chosen. Old chats keep their planner
 // rolls as records (resolve.js replays them); nothing here asks a model for a plan.
 import { hashText, normalizeType } from '../assist/common.js';
 import { DICE, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING, RESOLVE, ROLLS_SETTING, checksOn, practiceOf } from './names.js';
@@ -119,7 +119,7 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
                     return { ok: false, reason: 'Play the waiting fight on the board.', action: false, fightStart: true };
             }
             if (on || live) {
-                board = session && session.anchor === anchor ? boardPayload(session) : lastBoard(meta, anchor, last)?.board;
+                board = live && session.anchor === anchor ? boardPayload(session) : normalizeType(info.type) === 'regenerate' ? lastBoard(meta, anchor, last)?.board : null;
                 // (the copy made at "Send with this fight" stands in when the session itself is gone)
                 if (!board) board = sentBoard(meta, messages);
             }
@@ -142,29 +142,39 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
     }
 
     async function beforeGenerate(view, info = {}) {
-        if (view?.feature?.(LEAN_RPG_FEATURE) !== true) return null;
+        const type = normalizeType(info?.type);
+        const skipped = (reason, answer = null) => type === 'normal' && info?.commit !== false
+            ? { ...(answer ?? {}), problems: [{ code: 'DICE_SKIPPED', quiet: true, message: `Story-check dice were not offered: ${reason}.` }] } : answer;
+        if (view?.feature?.(LEAN_RPG_FEATURE) !== true) return skipped('the RPG is off');
         if (info?.commit === false) return null;
-        if (!['normal', 'regenerate', 'swipe'].includes(normalizeType(info?.type))) return null;
+        if (!['normal', 'regenerate', 'swipe'].includes(type)) return null;
         // The reader's message: the last one for a send or a regenerate, the one before the reply for a swipe.
         const messages = chat() ?? [];
-        if (!messages.some(message => message && !message.is_user)) return null;
-        const index = normalizeType(info?.type) === 'swipe' ? messages.length - 2 : messages.length - 1;
+        if (!messages.some(message => message && !message.is_user)) return skipped('there is no earlier story reply');
+        const index = type === 'swipe' ? messages.length - 2 : messages.length - 1;
         const last = messages[index];
-        if (!last?.is_user) return null;
+        if (!last?.is_user) return skipped('there is no reader message to roll for');
         const text = String(last.mes ?? '').trim();
-        if (!text) return null;
+        if (!text) return skipped('the reader message is empty');
         const { sheet, stale } = currentFoes(view, messages, readSheet(view.state), text, index);
         const key = `${index}-${hashText(text)}`;
         const startAnchor = readRecord(messages[index - 1])?.sid;
         const on = boardOn(view);
+        const values = readSettings(view, moduleId);
+        const diceReason = () => type === 'normal' && noDice.peek() ? 'the reader chose to send without the RPG'
+            : !sheet.characters.length ? 'there is no active character' : !checksOn(values) ? 'Story checks are off' : null;
+        const makeDice = () => {
+            let records = null;
+            try { records = view.query?.('packs.content', { kind: 'rpg' }); } catch { /* no pack rules */ }
+            return { type: DICE, payload: dicePayload(membersOf(view, sheet), values, records) };
+        };
         let meta = null;
         try { meta = metadata(); } catch { /* no board without chat metadata */ }
         if (on) {
-            const anchorRecord = readRecord(messages[index - 1]);
-            const type = normalizeType(info?.type), previous = type === 'swipe' ? priorBoard(messages[index + 1]) : null;
+            const previous = type === 'swipe' ? priorBoard(messages[index + 1]) : null;
             const remembered = type === 'regenerate' ? lastBoard(meta, startAnchor, last) : null;
             let session = boardSession(meta);
-            if (session && session.anchor === startAnchor) session = reconcileBoard(meta, id => (anchorRecord?.receipts ?? []).some(item => item?.id === id));
+            if (session && session.anchor === startAnchor) session = reconcileBoard(meta, id => messages.slice(0, index).some(message => (readRecord(message)?.receipts ?? []).some(item => item?.id === id)));
             // (a live fight: this reply's own anchor holds the session)
             const live = Boolean(session) && session.anchor === startAnchor;
             // A fight the reader staged on this very anchor is what this send carries: "Send with this fight" is a 'regenerate', and the
@@ -172,39 +182,40 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
             const staged = live && session.exchanges?.length ? boardPayload(session) : null;
             const copied = type !== 'swipe' ? sentBoard(meta, messages) : null;
             const fresh = previous ? null : staged ?? copied;
-            const board = previous?.board ?? fresh ?? remembered?.board ?? (live ? boardPayload(session) : null);
+            const board = previous?.board ?? fresh ?? remembered?.board;
             if (board) {
                 const anchored = board.anchor ? board : { ...board, anchor: startAnchor ?? board.id };
                 const fightKey = previous?.key?.startsWith('b:') ? previous.key : !fresh && remembered?.key?.startsWith('b:') ? remembered.key : boardKey(anchored);
                 linkBoard(last, fightKey);
                 const opening = anchored.setup?.opening;
-                return { commands: [
+                const reason = diceReason();
+                const answer = { ...(reason ? {} : { lines: [{ text: 'Use story-check dice only for separate non-combat attempts; the fight board already rolled every exchange, so do not roll those again.', keep: true }] }), commands: [
                     ...(opening ? [{ type: RESOLVE, payload: opening.payload, seed: opening.seed }] : []),
                     { type: RESOLVE, payload: { key: fightKey, board: anchored, practice: previous?.practice ?? (fresh ? null : remembered?.practice) ?? practiceOf(opening?.payload?.practice) ?? practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse } },
+                    ...(reason ? [] : [makeDice()]),
                 ] };
+                return reason ? skipped(reason, answer) : answer;
             }
         }
-        if (claimed(view.state, key)) return null;
-        if (on && normalizeType(info?.type) === 'normal' && info.commit !== false && !(info.again && checked.get(last) === key) && !waiting(pendingStart(meta, messages))) {
+        if (type !== 'normal' && claimed(view.state, key)) return null;
+        if (on && type === 'normal' && info.commit !== false && !(info.again && checked.get(last) === key) && !waiting(pendingStart(meta, messages))) {
             const fightStart = await precheck(view, sheet, messages, key, text, startAnchor, stale);
-            if (fightStart) return { fightStart, ...(readSettings(view, moduleId)[ROLLS_SETTING] !== 'off' ? noFight(sheet, on, stale) ?? {} : {}) };
+            if (fightStart) {
+                const reason = diceReason();
+                const answer = { fightStart, ...(values[ROLLS_SETTING] !== 'off' ? noFight(sheet, on, stale) ?? {} : {}), ...(reason ? {} : { commands: [makeDice()] }) };
+                return reason ? skipped(reason, answer) : answer;
+            }
         }
-        if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
-        if (!sheet.characters.length) return null;
+        const reason = diceReason();
+        if (reason && (type === 'normal' && noDice.peek() || !sheet.characters.length)) return skipped(reason);
         // Story checks (checks/dice.js): this reply, which carries no fight, is offered three dice, rolled from its own seed and recorded with it, together with the
         // rules, difficulty numbers and practice in force now and each member's bonuses (a Re-read and a replay use these, never the settings of the day). The switch is
         // Story checks alone, as the grammar line is: Rolls (the fights' setting) does not matter, so the static prompt does not move with it.
-        const values = readSettings(view, moduleId);
-        let dice = null;
-        if (checksOn(values)) {
-            let records = null;
-            try { records = view.query?.('packs.content', { kind: 'rpg' }); } catch { /* no pack rules */ }
-            dice = { type: DICE, payload: dicePayload(membersOf(view, sheet), values, records) };
-        }
-        if (values[ROLLS_SETTING] === 'off') return dice ? { commands: [dice] } : null;
+        const dice = reason ? null : makeDice();
+        if (values[ROLLS_SETTING] === 'off') return dice ? { commands: [dice] } : skipped(reason);
         // No model is asked for a plan: with no fight to carry the reply goes out as one the planner once answered "none" to.
         const first = noFight(sheet, on, stale);
-        return dice ? { ...(first ?? {}), commands: [dice] } : first;
+        return dice ? { ...(first ?? {}), commands: [dice] } : skipped(reason, first);
     }
 
     // The reply is captured: the one-time "send without the RPG" flag goes.
@@ -217,9 +228,17 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         try { current = metadata(); } catch { /* no saved start */ }
         clearStart(current);
         clearSend(current);
-        const record = readRecord((chat() ?? [])[info.index]);
+        const messages = chat() ?? [], record = readRecord(messages[info.index]);
         const receipt = record?.receipts?.findLast(item => item?.type === RESOLVE && item.replan?.payload?.board);
-        if (!receipt) return;
+        if (!receipt) {
+            // A quiet reply may pass an unfinished fight without replaying an empty segment; keep its choices anchored for a later exchange.
+            const session = boardSession(current), prior = readRecord(messages[info.index - 2])?.sid;
+            const replaced = ['regenerate', 'swipe'].includes(normalizeType(info.type)) && session?.idle && session.idleFrom === prior;
+            if (record?.sid && session && !session.exchanges?.length && (session.anchor === prior || replaced)) {
+                session.anchor = record.sid; session.idle = true; session.idleFrom = prior;
+            }
+            return;
+        }
         let meta = null;
         try { meta = metadata(); } catch { return; }
         receiveBoard(meta, receipt.replan.payload, receipt.data?.v2?.result, record.sid, receipt.id, state, query);

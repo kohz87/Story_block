@@ -67,6 +67,7 @@ export function discardBoard(meta) {
     if (!session) return false;
     if (!object(meta[ATTEMPTS])) meta[ATTEMPTS] = {};
     meta[ATTEMPTS][session.origin] = (Number.isSafeInteger(meta[ATTEMPTS][session.origin]) ? meta[ATTEMPTS][session.origin] : 0) + 1;
+    delete meta[SEND];
     delete meta[KEY];
     return true;
 }
@@ -89,11 +90,11 @@ export function priorBoard(message) {
     return null;
 }
 
-/** The cache also covers a regenerate that removed its old reply before generation began. */
+/** The cache covers a regenerate only when this reader message was linked to that fight. */
 export const lastBoard = (meta, anchor, message = null) => {
     const saved = meta?.[LAST];
     const linked = object(message?.extra?.[LINKS]) && message.extra[LINKS][saved?.key] === true;
-    return saved?.board && (linked || saved.board.anchor === anchor) ? structuredClone(saved) : null;
+    return saved?.board && linked ? structuredClone(saved) : null;
 };
 
 /** Link the user's message to its reply's board key for regenerate after a middle delete. */

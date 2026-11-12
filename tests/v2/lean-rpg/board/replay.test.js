@@ -144,7 +144,7 @@ test('a rewind cannot reroll an already staged continuation', async () => {
 
 test('a middle delete and a rewind keep the fight and replay it again', async () => {
     const restore = seedCrypto(91);
-    const { host, callModel } = await setup({ blocks: FIGHT, board: true });
+    const { host, callModel } = await setup({ blocks: FIGHT, board: true, planner: false });
     try {
         const meta = host.ctx.chatMetadata, opened = open(host);
         assert.equal(stageExchange(meta, host.head(), ACTION).error, undefined);

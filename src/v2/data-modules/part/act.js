@@ -99,6 +99,14 @@ export function createAct(deps) {
         line = foesClearLine(ctx, definition, prefix, module, line);
         let given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
         if (redirect) given = { ...given, kind: redirect };
+        const strictPractice = Boolean(line && definition.role === 'skills' && PRACTICE_KIND.test(String(given.kind ?? '')) && ctx.carrier?.rules?.includes('skillPractice'));
+        let namedSkill;
+        if (strictPractice && (dmOwn(given, 'skill') || dmOwn(given, 'name'))) {
+            if (dmOwn(given, 'skill') && dmOwn(given, 'name') && fold(given.skill) !== fold(given.name)) refuse('DM_LABEL', 'skill', 'Name exactly one skill to practise.');
+            namedSkill = String(given.skill ?? given.name ?? '').trim();
+            const { skill: _skill, name: _name, ...other } = given;
+            given = other;
+        }
         const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
         // A foe group the narrator sets may give `level: N` or `rank: <name>`, or neither: then its level is drawn from the reply's seed (see foeLevelLabels).
         const labels = kind && line && definition.role === 'foes' ? foeLevelLabels(given, kind, prefix, ctx, module) : given;
@@ -132,9 +140,11 @@ export function createAct(deps) {
         const subject = definition.scope === 'chat' ? 'chat' : resolveActor(prefix, labels.who, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx);
         const instance = atPath(draft, instancePath(module, subject)), inputs = inputsOf(prefix, definition);
+        const practiceRoute = strictPractice ? skillRoute(instance.fields, labels.kind, args, line.text, skillRoom(prefix, definition, instance.fields), { strict: true, ...(namedSkill !== undefined ? { skill: namedSkill } : {}) }) : null;
+        if (practiceRoute?.refuse) refuse('DM_CONDITION', '', practiceRoute.refuse);
         // (a line that works a List of entries is told apart by everything it says: two quests in one reply are two lines, the same line twice is one)
         const entryLine = kind.effects?.some(effect => ['entryAdd', 'entrySet', 'entryDrop'].includes(effect?.op));
-        const claim = `dm:${pairKey(ctx.source)}:${module}:${labels.kind}:${subject}:${hashJson(entryLine ? args : kind.oncePerReply.map(key => args[key]))}`;
+        const claim = `dm:${pairKey(ctx.source)}:${module}:${practiceRoute?.kind ?? labels.kind}:${subject}:${hashJson(entryLine ? args : kind.oncePerReply.map(key => args[key]))}`;
         if (!ctx.claim(claim)) refuse('CLAIMED', '', `${labels.kind} was already applied for this in this reply`);
         const listKey = `${module}:${subject}`, listsKept = draft.perReply[pairKey(ctx.source)]?.lists ?? {};
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject, lists: copy(listsKept[listKey] ?? {}) });
@@ -150,7 +160,7 @@ export function createAct(deps) {
         evaluation.timers();
         // A foe group the narrator sets by a name already on a slot of the same Foes block (the pre-call may have opened this very fight, lean-rpg/open.js)
         // is that group: the slot is updated (count and class), never a second slot with the same name; its health stays as it is.
-        const route = definition.role === 'skills' && line ? skillRoute(instance.fields, labels.kind, args, line.text, skillRoom(prefix, definition, instance.fields)) : null;
+        const route = practiceRoute ?? (definition.role === 'skills' && line ? skillRoute(instance.fields, labels.kind, args, line.text, skillRoom(prefix, definition, instance.fields)) : null);
         if (route?.refuse) refuse('DM_CONDITION', '', route.refuse);
         const same = definition.role === 'foes' && /^set-slot-\d$/u.test(labels.kind) && typeof args.name === 'string'
             ? [1, 2, 3, 4, 5, 6].find(n => typeof instance.fields[`foe${n}`] === 'string' && instance.fields[`count${n}`] > 0 && fold(instance.fields[`foe${n}`]) === fold(args.name)) : undefined;
@@ -170,7 +180,7 @@ export function createAct(deps) {
         const result = evaluation.finish();
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: prefixImports(definition), clock: restKind,
+            reads: [...result.reads.map(read => read.path), ...(strictPractice ? Object.keys(definition.state).filter(key => /^skill\d+$/u.test(key)).sort().map(key => ['fields', key]) : [])], imports: prefixImports(definition), clock: restKind,
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: grown ? [] : result.conds, ...(clock !== null ? { clock } : {}), ...(xpRate !== XP_RATE.default ? { xpRate } : {}), ...(grown ? { grown: dataModuleHash(grown) } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, ...(xpKept !== null ? { xpRate: xpKept } : {}), decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
