@@ -16,6 +16,8 @@ import { boardInputError } from './board/commit.js';
 import { CORE_FEATURE } from '../features.js';
 import { clearStart, holdStart, pendingStart } from '../turn/fight-start.js';
 import { isStandard, packRulesOf, rulesFromSettings } from './rules.js';
+import { FOES_FRESH_REPLIES } from './board/offers.js';
+import { FOES_TOUCH_QUERY } from './names.js';
 import { openingPayload, runPrecheck, wantsPrecheck } from './board/precheck-run.js';
 
 // Whether the fight board is on (one literal id, read once per call).
@@ -32,6 +34,23 @@ const readSettings = (view, moduleId) => {
 
 /** Whether `state` already holds this message's rolls (its claim). */
 export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === true;
+
+/**
+ * The sheet with stale foes put down (hurt 0, so no fight stands): in a chat under the `foesFresh` mark, Foes the narrator last touched more than FOES_FRESH_REPLIES
+ * replies ago belong to a scene that has moved on, and a typed attack must not start a fight against them. A fight starts when the narrator sets (or updates) the Foes line,
+ * so any touch keeps the foes current. No receipt (foes set by hand) leaves them as they are. An old chat (no mark) keeps every foe as it was.
+ */
+function currentFoes(view, messages, sheet) {
+    if (!sheet.foes.some(foe => foe.filled && foe.hurt > 0)) return sheet;
+    let touched = -1;
+    try {
+        if (view.rule?.('foesFresh') !== true) return sheet;
+        touched = view.query?.(FOES_TOUCH_QUERY);
+    } catch { return sheet; }
+    if (!Number.isInteger(touched) || touched < 0) return sheet;
+    const since = messages.filter((message, at) => at > touched && !message?.is_user && !message?.is_system).length;
+    return since > FOES_FRESH_REPLIES ? { ...sheet, foes: sheet.foes.map(foe => ({ ...foe, hurt: 0 })) } : sheet;
+}
 
 /** The text of the reply just before the reader's last message (the narration that introduced the foes), or ''. */
 const previousReply = messages => { const before = messages.at(-2); return before && !before.is_user && !before.is_system ? String(before.mes ?? '') : ''; };
@@ -103,7 +122,7 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         if (!board) {
             if (info.commit !== true || !['normal', 'regenerate'].includes(normalizeType(info.type)) || !last?.is_user || !on) return null;
             if (!pending && normalizeType(info.type) !== 'normal') return null;
-            const sheet = readSheet(view.state);
+            const sheet = currentFoes(view, messages, readSheet(view.state));
             if (pending || (sheet.characters.length && sheet.foes.some(foe => foe.filled && foe.hurt > 0) && knownFoeAction(last.mes, sheet))) {
                 if (!pending && !holdStart(meta, messages, { mode: 'known' })) return null;
                 return { ok: false, reason: 'Choose how to play the waiting fight.', action: false, fightStart: true };
@@ -119,9 +138,9 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         if (view?.feature?.(LEAN_RPG_FEATURE) !== true) return null;
         if (info?.commit === false) return null;
         if (!['normal', 'regenerate', 'swipe'].includes(normalizeType(info?.type))) return null;
-        const sheet = readSheet(view.state);
         // The reader's message: the last one for a send or a regenerate, the one before the reply for a swipe.
         const messages = chat() ?? [];
+        const sheet = currentFoes(view, messages, readSheet(view.state));
         if (!messages.some(message => message && !message.is_user)) return null;
         const index = normalizeType(info?.type) === 'swipe' ? messages.length - 2 : messages.length - 1;
         const last = messages[index];

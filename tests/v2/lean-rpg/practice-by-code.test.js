@@ -195,7 +195,8 @@ test('rank-up: practice past 100 by code raises the rank by the block\'s rule an
     const { host } = await world(t, { perUse: 5, answers: [PLAN] });
     // (the practice is brought to 98 with Rolls off, where the narrator's line still works; then Rolls goes automatic and a roll gives the last 5)
     host.settings.set('story-block', 'rpgRolls', 'off');
-    for (const amount of [20, 20, 20, 20, 18]) await host.send('Training.', reply(`+ dm skills — practised Iron Breath | kind: practice-1 | amount: ${amount}`));
+    // (the narrator touches the Foes line on the last training reply: foes left alone for more than 3 replies no longer start a fight, stale-foes rule)
+    for (const amount of [20, 20, 20, 20, 18]) await host.send('Training.', reply(`+ dm skills — practised Iron Breath | kind: practice-1 | amount: ${amount}`, ...(amount === 18 ? ['+ dm foes — still there | kind: set-slot-1 | name: Rats | count: 2 | level: 5'] : [])));
     assert.equal(sheetFields(host, 'skills').practice1, 98);
     host.settings.set('story-block', 'rpgRolls', 'automatic');
     await host.send('I strike.', reply());

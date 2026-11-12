@@ -141,3 +141,43 @@ test('a swipe of the reply after the fight gets the same cue as the first try', 
     await host.send('And on.', 'Calm.');
     assert.ok(!tail().includes(FIGHT_CUE), 'two replies later: not told');
 });
+
+// Stale foes (real run 2, reply 18): a Foes slot set at reply 3 and never touched again must not start a fight from an unrelated attack message 15 replies later.
+const SET_BOARS = 'Boars rush out.\n<Changes>\n+ dm foes — a fight starts | kind: set-slot-1 | name: Bristle-boar | count: 3 | level: 3\n</Changes>';
+async function staleChat(t, seed, fillers, { oldChat = false } = {}) {
+    const restore = seedCrypto(seed);
+    t.after(restore);
+    const app = await page(t, { formula: 'standard', callModel: async () => 'none' });
+    const { host } = app;
+    await begin(host);
+    await makeBlocks(host, { character: { agi: 20 }, skills: { skill1: 'Obscure', stat1: 'agi', about1: 'hide before a fight' } });
+    const foes = structuredClone(STANDARD_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
+    await host.send('Boars are near.', SET_BOARS);
+    for (let n = 0; n < fillers; n += 1) await host.send(`I walk on, step ${n}.`, 'The road goes on.');
+    if (oldChat) for (const message of host.ctx.chat) if (message.extra?.storySuite?.rules) message.extra.storySuite.rules = message.extra.storySuite.rules.filter(name => name !== 'foesFresh');
+    return app;
+}
+
+test('stale foes: 5 replies after the Foes line, an attack message is not held as a fight start', async t => {
+    const { host } = await staleChat(t, 711, 5);
+    const sent = await host.send('I attack the boar.', 'You swing at the rats.');
+    assert.equal(sent.aborted, undefined, 'the message goes out');
+    assert.equal(pendingStart(host.ctx.chatMetadata, host.ctx.chat), null);
+});
+
+test('stale foes: within 3 replies of the Foes line the attack is still held as a fight start', async t => {
+    const { host } = await staleChat(t, 712, 2);
+    assert.equal((await host.send('I attack the boar.', 'Not yet.')).aborted, true);
+});
+
+test('stale foes: an old chat (no foesFresh mark) keeps holding the attack against old foes', async t => {
+    const { host } = await staleChat(t, 713, 5, { oldChat: true });
+    assert.equal((await host.send('I attack the boar.', 'Not yet.')).aborted, true);
+});
+
+test('stale foes: a new Foes line on the way keeps the foes current', async t => {
+    const { host } = await staleChat(t, 714, 4);
+    await host.send('More boars.', SET_BOARS);
+    assert.equal((await host.send('I attack the boar.', 'Not yet.')).aborted, true);
+});
