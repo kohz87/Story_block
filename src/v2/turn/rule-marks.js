@@ -41,7 +41,7 @@ export const RULE_LINES = Object.freeze({
     foesFresh: () => false,
     // `! dm foes - cleared` (no kind) clears the one group that stands (data-modules/part/act.js foesClearLine). Static per chat: only a reply's first live capture is marked, so an older reply keeps the line unused on Re-read.
     foesClear: () => false,
-    // `~ time` with a month name the calendar does not have ("Redfall 1"), or the grammar's `<...>` placeholder copied as written, is refused with a Problem and the clock stays (Story Director tracker/time.js timeAfter). Static per chat: only a reply's first live capture is marked, so an older reply keeps reading such a line as it did.
+    // `~ time` with a month name the calendar does not have ("Redfall 1") is refused with a Problem and the clock stays (Story Director tracker/time.js timeAfter). Static per chat: only a reply's first live capture is marked, so an older reply keeps reading such a line as it did.
     clockMonth: () => false,
 });
 
