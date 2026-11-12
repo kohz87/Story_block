@@ -147,7 +147,8 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
     doc.addEventListener?.('click', onBubble, false);
     doc.addEventListener?.('keydown', onBubble, false);
     const types = ctx?.eventTypes ?? ctx?.event_types ?? {};
-    const onStart = () => { started = true; };
+    // (type, params, dryRun): a dry run (SillyTavern counting the prompt's tokens after a reply) is not a Send being taken; nor is a quiet call.
+    const onStart = (type, _params, dryRun) => { if (dryRun !== true && type !== 'quiet') started = true; };
     // Generate was entered (AFTER_COMMANDS comes first, before any interceptor can hold the reply back; STARTED follows).
     const starts = [types.GENERATION_AFTER_COMMANDS, types.GENERATION_STARTED].filter(Boolean);
     for (const name of starts) ctx?.eventSource?.on?.(name, onStart);

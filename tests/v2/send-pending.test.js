@@ -357,7 +357,7 @@ test('send note: a free press that SillyTavern ignored is sent again once; one i
     assert.equal(t.pill(), null);
     const g = pageRig();
     g.press();
-    g.page.handlers.forEach(fn => fn());
+    g.page.handlers.forEach(fn => fn('normal', {}, false));
     g.clock.advance(5000);
     assert.equal(g.page.clicks, 1, 'Generate was entered (a hold or interceptor may have kept the text): not ignored');
     assert.equal(g.page.handlers.length, 2, 'both events are listened to');
@@ -383,6 +383,15 @@ test('send note: a press another handler swallowed (a hold, a fight pause) is ne
     k.press();
     k.clock.advance(10000);
     assert.equal(k.page.clicks, 1, 'a cancelled press is not re-sent either (only the reader\'s own press)');
+});
+
+test('send note: a dry run or a quiet call is not a Send being taken', () => {
+    const r = pageRig();
+    r.press();
+    r.page.handlers.forEach(fn => { fn('normal', {}, true); fn('quiet', {}, false); });
+    r.clock.advance(1500);
+    r.clock.advance(1000);
+    assert.equal(r.page.clicks, 2, 'ignored press re-sent once');
 });
 
 test('send note: a re-send SillyTavern also ignored is not called "Sent": it says Not sent yet, and the text stays', () => {
