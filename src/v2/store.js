@@ -223,6 +223,9 @@ export function createStore({
                     .map(where => where?.[KEY]).filter(record => isObject(record) && record.sid === token.sid);
                 if (held.some(record => record.rev === token.rev)) return '';
                 if (held.length) rev = held[0].rev;
+                // The swipe the token wrote was deleted while the save ran (the other swipe is shown now): its record is nowhere on the
+                // message, so nothing of it is left to check; the save stands (the shown record's own write marked it unsaved).
+                else return '';
             }
             if (rev === token.rev) return '';
             if (s.lastWrite === token) s.lastWrite = null;
