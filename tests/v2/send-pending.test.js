@@ -359,6 +359,20 @@ test('send note: a free press that SillyTavern ignored is sent again once; one i
     assert.equal(g.page.clicks, 1, 'a generation began: not ignored');
 });
 
+test('send note: a press another handler swallowed (a hold, a fight pause) is never re-sent', () => {
+    const r = pageRig();
+    r.doc.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); }, true);
+    r.press();
+    r.clock.advance(10000);
+    assert.equal(r.page.clicks, 0);
+    assert.equal(r.pill(), null);
+    const k = pageRig();
+    k.doc.addEventListener('click', event => event.preventDefault(), true);
+    k.press();
+    k.clock.advance(10000);
+    assert.equal(k.page.clicks, 1, 'a cancelled press is not re-sent either (only the reader\'s own press)');
+});
+
 test('send note: the Stop button showing counts as busy; Enter in the box is a press too', () => {
     const r = pageRig();
     r.stop.style = { display: 'flex' };

@@ -3,7 +3,9 @@
 // taking it over: SillyTavern always handles the press itself. Three things start a round (send-pending.js):
 //   * the story is busy at the press (SillyTavern's Stop button is showing, or the story's own reply is still being finished);
 //   * a fight start holds the Send (the Fight board's pause swallows it; the note offers "Open fight board");
-//   * the press was free but SillyTavern took no notice: the text is still in the box after `verifyMs` and no generation began.
+//   * the press was free and reached SillyTavern, but it took no notice: the text is still in the box after `verifyMs` and no generation began.
+//     (A press another handler swallowed first, such as the "Make your character first" hold or a fight start's pause, never reaches the page's
+//     bubble phase, so it is not re-sent: that handler owns it.)
 // The one re-send is a click on #send_but when the story is free. UI only: no payload, no prompt, no chat data. Text is set with
 // textContent; the icons are fixed paths. The setting "Send pending note" (host setting `sendPending`, on by default) turns it off.
 
@@ -52,7 +54,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         if (!stop) return false;
         return (view?.getComputedStyle ? view.getComputedStyle(stop).display : stop.style?.display) !== 'none' && stop.style?.display !== 'none' && stop.hidden !== true;
     };
-    let root = null, started = false, verify = null;
+    let root = null, started = false, reached = false, verify = null;
     const clock = timers ?? { setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms), clearTimeout: h => globalThis.clearTimeout(h) };
     const sp = createSendPending({
         readText: read,
@@ -107,10 +109,10 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         if (!text.trim()) return;
         stopVerify();
         if (held() === true || stopShown() || busy() === true || sp.state().state !== 'idle') { sp.press(); return; }
-        started = false;
+        started = false; reached = false;
         verify = clock.setTimeout(() => {
             verify = null;
-            if (!started && read() === text && !stopShown()) sp.press({ ignored: true });
+            if (reached && !started && read() === text && !stopShown()) sp.press({ ignored: true });
         }, verifyMs);
     };
     const onClick = event => { if (event.target?.closest?.('#send_but')) pressed(); };
@@ -122,10 +124,14 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
     };
     // Typing clears the note. SillyTavern's own emptying of the box when it takes a Send also fires "input": that must not end "Sent".
     const onInput = () => { if (sp.state().state !== 'sent') sp.typed(); };
+    // The bubble phase: reached only when nothing earlier stopped or cancelled the press.
+    const onBubble = event => { if (!event.defaultPrevented) reached = true; };
     const target = view ?? doc;
     target.addEventListener?.('click', onClick, true);
     target.addEventListener?.('keydown', onKey, true);
     doc.addEventListener?.('input', onInput, true);
+    doc.addEventListener?.('click', onBubble, false);
+    doc.addEventListener?.('keydown', onBubble, false);
     const types = ctx?.eventTypes ?? ctx?.event_types ?? {};
     const onStart = () => { started = true; };
     if (types.GENERATION_STARTED) ctx?.eventSource?.on?.(types.GENERATION_STARTED, onStart);
@@ -136,6 +142,8 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
             target.removeEventListener?.('click', onClick, true);
             target.removeEventListener?.('keydown', onKey, true);
             doc.removeEventListener?.('input', onInput, true);
+            doc.removeEventListener?.('click', onBubble, false);
+            doc.removeEventListener?.('keydown', onBubble, false);
             if (types.GENERATION_STARTED) ctx?.eventSource?.removeListener?.(types.GENERATION_STARTED, onStart);
         },
     };
