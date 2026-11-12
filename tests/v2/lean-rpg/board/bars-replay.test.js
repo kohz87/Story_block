@@ -8,15 +8,18 @@ import { STANDARD_TEMPLATES, characterV1For } from '../../../../src/v2/lean-rpg/
 import { openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { runAuto } from '../../../../src/v2/lean-rpg/board/auto-run.js';
 import { readResolve } from '../../../../src/v2/lean-rpg/view/battle-log.js';
-import { wantsPrecheck } from '../../../../src/v2/lean-rpg/board/precheck-run.js';
+import { pendingStart } from '../../../../src/v2/turn/fight-start.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { prng, seedCrypto } from '../../qa/helpers/seeded.js';
-import { character, levelFoeBlock, rollReceipt, setup, skillBlock } from '../helpers.js';
+import { clearFoes } from '../../../../src/v2/lean-rpg/board/engine.js';
+import { character, levelFoeBlock, rollReceipt, setup, sheetDomain, skillBlock } from '../helpers.js';
 
 const RULES = { ...STANDARD_FORMULA, levelDivisor: 5 };
 const SKILLS = [['Cut', 3, 'str', 'stamina', 'cut one foe'], ['Sweep', 3, 'str', 'stamina', 'sweep every foe'], ['Spark', 2, 'int', 'mana', 'a bolt at one foe']];
+// The stock Character as a made hero holds it: every field of the template at its default (the hidden bar sizes, Level, the cap), then what the test sets. The shared `character()` helper adds `soul`, which the stock block has no field for.
+const stock = (who, over) => ({ ...Object.fromEntries(Object.entries(STANDARD_TEMPLATES[0].definition.state).filter(([, schema]) => 'default' in schema).map(([key, schema]) => [key, schema.default])), who, ...over });
 const blocks = definition => ({
-    hero: { role: 'character', definition: structuredClone(definition), fields: character('Astra', { str: 14, dex: 10, vit: 5, agi: 10, int: 10, ...(definition === STANDARD_TEMPLATES[0].definition ? { health: 10, stamina: 12, mana: 12 } : { health: 5, stamina: 5, mana: 5 }) }) },
+    hero: { role: 'character', definition: structuredClone(definition), fields: (definition === STANDARD_TEMPLATES[0].definition ? stock : character)('Astra', { str: 14, dex: 10, vit: 5, agi: 10, int: 10, ...(definition === STANDARD_TEMPLATES[0].definition ? { health: 10, stamina: 12, mana: 12, 'health-blocks': 10, 'stamina-blocks': 12, 'mana-blocks': 12 } : { health: 5, stamina: 5, mana: 5 }) }) },
     skills: { role: 'skills', fields: skillBlock('Astra', SKILLS) },
     foes: { role: 'foes', fields: levelFoeBlock([['Bristle-boar', 3, 30, 5], ['Rat', 1, 1, 4]]) },
 });
@@ -110,12 +113,13 @@ test('a marked Auto heal stages, tells the heal and survives rebuild, Re-read an
 });
 
 // The foe-clear mark: a board fight that ended (won, lost or fled) clears its groups from the Foes block as part of its recorded result.
+const RAIDER = JSON.stringify({ groups: [{ name: 'Raider', count: 1 }] });
 const standing = host => readSheet(host.head()).foes.filter(foe => foe.filled);
-async function endFight(seed, how, { clear = true, health = 10 } = {}) {
+async function endFight(seed, how, { clear = true, health = 10, after = null } = {}) {
     const restore = seedCrypto(seed), parts = blocks(STANDARD_TEMPLATES[0].definition);
     parts.hero.fields.health = health;
     parts.foes.fields = levelFoeBlock([['Raider', 1, how === 'lost' ? 30 : 1, 12]]);
-    const { host } = await setup({ blocks: parts, board: true });
+    const { host, callModel } = await setup({ blocks: parts, board: true, ...(after ? { planner: false, precheck: true, answers: [RAIDER] } : {}) });
     try {
         const meta = host.ctx.chatMetadata, opened = openBoard(meta, host.head(), { sid: host.store.carrierSid(host.store.headIndex()), rules: RULES }), session = opened.session;
         if (!clear) delete session.setup.foesClear;
@@ -133,7 +137,7 @@ async function endFight(seed, how, { clear = true, health = 10 } = {}) {
         assert.equal(JSON.stringify(host.head()), live, `${how} ${seed}: replay equals live`);
         assert.equal((await host.sdk.reread(at)).ok, true);
         assert.equal(JSON.stringify(host.head()), live, `${how} ${seed}: Re-read equals live`);
-        return { record, left: standing(host), sheet: readSheet(host.head()) };
+        return { record, left: standing(host), sheet: readSheet(host.head()), after: after ? await after(host, callModel) : null };
     } finally { host.close(); restore(); }
 }
 async function found(how, options) {
@@ -156,8 +160,27 @@ test('a fight opened without the mark (an old chat) keeps its foes, and records 
     assert.ok(left.length > 0);
 });
 
-test('after a lost fight a typed attack on a new foe reaches the pre-check', async () => {
-    const { sheet, left } = await found('lost', { health: 1 });
+test('after a lost fight a typed attack on a new foe goes through createPrecall: the pre-check runs and a new fight is held for the board', async () => {
+    const { left, after } = await found('lost', { health: 1, after: async (host, callModel) => {
+        const stopped = await host.send('A second lone raider steps out. I attack.', 'Not sent.');
+        const pending = pendingStart(host.ctx.chatMetadata, host.ctx.chat);
+        return { aborted: stopped.aborted, helpers: callModel.calls.map(call => call.options.helper), mode: pending?.mode, opened: pending?.result?.opened?.map(entry => entry.name) };
+    } });
     assert.equal(left.length, 0);
-    assert.equal(wantsPrecheck({}, { ...sheet, characters: [{}] }, 'A second lone raider steps out. I attack.'), true);
+    assert.equal(after.aborted, true, 'the send is held');
+    assert.deepEqual(after.helpers, ['precheck']);
+    assert.equal(after.mode, 'new');
+    assert.deepEqual(after.opened, ['Raider']);
+});
+
+test('the foe clear runs the Foes block\'s own rules after its clear kind, as the stale-Down clear does', () => {
+    const base = STANDARD_TEMPLATES[2].definition, definition = structuredClone(base);
+    definition.state.tally = { type: 'int', min: 0, max: 99, default: 0, label: 'Tally' };
+    definition.rules = [...(definition.rules ?? []), { id: 'tally', when: ['eq', ['get', ['count1']], 0], then: [{ op: 'set', path: ['tally'], value: 7 }] }];
+    const domain = sheetDomain({ foes: { role: 'foes', definition, fields: { ...Object.fromEntries(Object.entries(definition.state).map(([key, schema]) => [key, schema.default])), foe1: 'Raider', count1: 2, level1: 1, hurt1: 5 } } });
+    assert.deepEqual(clearFoes(domain, readSheet({ domains: { dataModules: domain } }).foes, [1]), [1]);
+    const fields = domain.instances['pack.chat/foes'].chat.fields;
+    assert.equal(fields.count1, 0);
+    assert.equal(fields.foe1, '');
+    assert.equal(fields.tally, 7, 'the rule ran');
 });
