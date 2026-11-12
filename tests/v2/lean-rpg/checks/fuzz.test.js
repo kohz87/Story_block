@@ -37,7 +37,7 @@ const records = host => host.ctx.chat.map((message, index) => ({ index, record: 
 const diceAt = (host, index) => host.ctx.chat[index].extra?.storySuite?.receipts?.find(receipt => receipt.type === 'rpg.dice')?.data.v2.dice.list ?? null;
 
 let kept = 0;
-for (const seed of [1, 2, 3, 4, 5, 6]) {
+for (const seed of process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : [1, 2, 3, 4, 5, 6]) {
     test(`story checks replay fuzz, seed ${seed}`, { skip }, async t => {
         t.after(seedCrypto(seed * 101));
         const random = prng(seed * 7919);

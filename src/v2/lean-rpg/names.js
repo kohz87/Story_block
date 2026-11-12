@@ -34,6 +34,8 @@ export const FIGHT = 'rpg.fight';
 
 /** The step after a reply's lines that gives practice for the skills its rolls used (practice.js); also the kind of its replay guard. */
 export const PRACTICE_STEP = 'rpg.practice';
+/** The query B reads a reply's rolls through: `rpg.rolls { index? }` → { receipt, result, summary } | null (the head reply by default); the practice step asks it too. */
+export const ROLLS_QUERY = 'rpg.rolls';
 
 /**
  * Practice by code (practice.js): each use of a skill in a reply's rolls (an act's or a check's skill, a defender's skill) gives the reader's setting

@@ -20,7 +20,7 @@
 // and asks for one guarded `rpg.check` step. It works the lines and gives their skills practice together, so a replan cannot leave practice attached to an old
 // result. The lines it refused are one Problems line. No XP. `checksOf(receipts)` reads the results back for the card.
 import { createEvaluation } from '../data-modules/interpreter.js';
-import { CHECK_STEP, DICE, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_STEP, RESOLVE, practiceOf } from './names.js';
+import { CHECK_STEP, DICE, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_STEP, RESOLVE, ROLLS_QUERY, practiceOf } from './names.js';
 import { skillFieldSlots } from '../skill-slots.js';
 import { fold, readSheet, sameWho } from './read.js';
 import { actorIdOf } from './roster.js';
@@ -176,6 +176,8 @@ export function practiceStep(ctx, payload = {}) {
     if (ctx.cause !== 'system' || ctx.caller !== null) ctx.fail('REFUSED', 'Practice for rolled skills is given by Story Block after a reply, not by an action.');
     const uses = usesFrom(payload?.uses), perUse = practiceOf(payload?.perUse);
     if (!uses || perUse === null) ctx.fail('INVALID', 'The practice step needs the skills the rolls used.');
+    // The roll these skills were used in stands on this same reply: when a delete or a Re-read took it back (a fight whose sheet or gear changed), nothing is left to practise for.
+    if (Number.isInteger(ctx.reply?.index) && ctx.query(ROLLS_QUERY, { index: ctx.reply.index }) === null) ctx.fail('NO_LONGER_DONE', 'No roll is left on this reply to give practice for.');
     const domain = ctx.read('dataModules');
     const items = itemsOf(domain, uses);
     if (!items.length) ctx.fail('NO_LONGER_DONE', 'None of the skills the rolls used is on a sheet any more.');

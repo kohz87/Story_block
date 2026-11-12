@@ -10,7 +10,7 @@
 // names.js, the plan in plan.js, the sheet reader in read.js, the pre-call in precall.js, the roll in resolve.js
 // (its header documents the `data.v2.result` record the battle log draws from) and the cue text in cue.js.
 import { stChat } from '../assist/st-adapter.js';
-import { AUTO_CAP, AUTO_CAP_SETTING, BOARD_SKILL, CHECKS_SETTING, CHECK_STEP, DICE, FIGHT, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, NOROLL, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, PRECHECK_LIMIT_MS, PRECHECK_SETTING, RESOLVE, ROLLS, ROLLS_SETTING } from './names.js';
+import { AUTO_CAP, AUTO_CAP_SETTING, BOARD_SKILL, CHECKS_SETTING, CHECK_STEP, DICE, FIGHT, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, NOROLL, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, PRECHECK_LIMIT_MS, PRECHECK_SETTING, RESOLVE, ROLLS, ROLLS_QUERY, ROLLS_SETTING } from './names.js';
 import { noRoll } from './noroll.js';
 import { fightHook, fightXp } from './fight.js';
 import { RANK_QUERY, SETTINGS_SCHEMA, XP_RATE, XP_RATE_SETTING, rankQuery } from './levels.js';
@@ -57,9 +57,6 @@ export const DEFAULT_SETTINGS = Object.freeze({ [ROLLS_SETTING]: ROLLS[0], [PRAC
 
 /** The offers a reply's `+ party` lines made under Ask (the card under the reply reads them): `rpg.joins { index? }` → [{ name, about, soul, best }] on the head reply (or the reply `index`). */
 export const JOINS_QUERY = 'rpg.joins';
-
-/** The query B reads a reply's rolls through: `rpg.rolls { index? }` → { receipt, result, summary } | null (the head reply by default). */
-export const ROLLS_QUERY = 'rpg.rolls';
 
 /**
  * The part merged into Story Block's core module (domains/index.js). `deps` (all optional):
