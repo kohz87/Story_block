@@ -5,6 +5,7 @@ import { nativeModule, rulesModule, restore, clone, reload, NATIVE } from './hel
 import { hashJson } from '../../src/v2/replay.js';
 import { createParticipants } from '../../src/v2/timeline/participants.js';
 import { sourceOf } from '../helpers/split-source.js';
+import { director, hostModule } from './helpers/evidence.js';
 
 async function setup(t) {
     const native = nativeModule();
@@ -107,4 +108,84 @@ test('selection rules and durability have one implementation site', async () => 
     assert.equal((coordinator.match(/await store\.flush\(/g) ?? []).length, 1);
     assert.equal((participants.match(/timer = setTimeout\(/g) ?? []).length, 1);
     assert.equal(coordinator.includes('archive.prefixes(module).at(-1)'), false);
+});
+
+// A reply's text changes after its guarded steps were stamped (another extension adds a panel), a native change is recorded on it, and a
+// swipe's reconcile stamps the steps again: the native state of the reply before the swiped one comes back, not the first reply's.
+async function replies(t, count, { edit = true } = {}) {
+    const link = hostModule();
+    const native = nativeModule();
+    const host = await createHost({ modules: [link.def, director(), rulesModule(), native.def], core: false });
+    t.after(() => host.close());
+    link.link(host.store);
+    for (let n = 1; n <= count; n++) {
+        await host.send(`Turn ${n}.`, `Reply ${n}.`);
+        assert.equal((await host.bus.command('sd.setting', {}, { cause: 'system' })).ok, true);
+        if (edit) { const message = host.ctx.chat.at(-1); message.mes += '\n\n<Blocks>\n</Blocks>'; message.swipes[message.swipe_id ?? 0] = message.mes; }
+        const head = await host.sdk.timeline.head();
+        const made = await native.native.handle.nativeMutation({ participant: NATIVE, source: head.source, expectedHead: head.headHash, prepare: async () => {
+            const before = native.native.checkpoint();
+            const next = clone(native.native.store);
+            next.dossiers.tavi.trust = n;
+            const after = native.native.keep(next);
+            native.native.prepared[`pr_${n}`] = { checkpoint: after.checkpoint };
+            return { before: { module: NATIVE, ...before, schema: 1 }, after: { module: NATIVE, ...after, schema: 1 }, prepared: `pr_${n}` };
+        } });
+        assert.equal(made.ok, true);
+    }
+    return { host, native: native.native };
+}
+
+test('swipe of the latest reply: the state of the reply before it comes back although a reconcile stamped the earlier steps anew', async t => {
+    const { host, native } = await replies(t, 5);
+    const stamps = () => host.ctx.chat.map(message => JSON.stringify(message.extra?.storySuite?.spans?.filter(span => span.id)?.map(span => span.boundaries)));
+    const before = stamps();
+    await host.swipe('Reply 5 again.');
+    assert.equal(stamps().some((stamp, at) => stamp !== before[at]), true, 'the reconcile did stamp earlier steps anew (else this checks nothing)');
+    await host.timeline.host.recover();
+    assert.equal(native.store.dossiers.tavi.trust, 4);
+    assert.deepEqual(host.store.boundaryProblems().filter(problem => problem.index < host.ctx.chat.length - 1), []);
+    // The carried mappings stand: a second swipe of the latest reply gives the same parent, and a reload agrees.
+    await host.swipe('Reply 5 once more.');
+    await host.timeline.host.recover();
+    assert.equal(native.store.dossiers.tavi.trust, 4);
+});
+
+test('a mapping is not carried when the text of an earlier reply changed: the selection stays exact', async t => {
+    const { host, native } = await replies(t, 5);
+    const message = host.ctx.chat[2];
+    message.mes = `${message.mes.replace('Reply 1.', 'Reply 1, edited.')}`;
+    message.swipes[message.swipe_id ?? 0] = message.mes;
+    await host.swipe('Reply 5 again.');
+    await host.timeline.host.recover();
+    assert.equal(native.store.dossiers.tavi.trust, 3, 'no mapping stands on the edited text, so none is carried: the first known state (as before)');
+});
+
+test('prefix witness: `bare` ignores the stored boundary stamps and follows records and text (run data, when present)', async t => {
+    const { readFile } = await import('node:fs/promises');
+    let lines;
+    try { lines = (await readFile('/home/raven/story_suite/scratch/batch/SMALL/night/swipechk_files/chat.jsonl', 'utf8')).trim().split('\n').map(line => JSON.parse(line)); } catch { t.skip('the run data is not here'); return; }
+    const open = async mutate => {
+        const chat = clone(lines.slice(1));
+        mutate(chat);
+        const host = await createHost({ modules: [], st: { chat, chatMetadata: clone(lines[0].chat_metadata) } });
+        t.after(() => host.close());
+        return host;
+    };
+    const cursors = Object.values(lines[0].chat_metadata.storySuite.timeline.prefix['npc-state-delta']).map(mapping => mapping.boundary.cursor);
+    const plain = await open(() => {});
+    const restamped = await open(chat => { for (const message of chat) for (const span of message.extra?.storySuite?.spans ?? []) for (const boundary of span.boundaries ?? []) { boundary.prefixHash = 'f'.repeat(64); boundary.payloadHash = 'e'.repeat(64); } });
+    const edited = await open(chat => { chat[2].mes = chat[2].mes.replace('stallkeeper', 'stall-keeper'); });
+    let compared = 0;
+    for (const cursor of cursors) {
+        const a = plain.store.prefixWitness(cursor);
+        const b = restamped.store.prefixWitness(cursor);
+        const c = edited.store.prefixWitness(cursor);
+        if (!a || !b || !c || a.index <= 2) continue;
+        compared += 1;
+        assert.equal(b.bare, a.bare, 'new stamps change no records and no text');
+        assert.notEqual(b.prefixHash, a.prefixHash, 'but they do change the prefix hash the mapping was made on');
+        assert.notEqual(c.bare, a.bare, 'an edited earlier reply is a different prefix');
+    }
+    assert.ok(compared >= 4);
 });
