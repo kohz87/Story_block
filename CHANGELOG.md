@@ -2,7 +2,18 @@
 
 ## Unreleased
 
+## 2.32.0
+
+Update Story Block, Story Director, NPC State Delta (and Story Studio for pack authors) together. Replies already written replay and Re-read exactly as before; start a new chat to see the new dossier, mood, ties and drives behaviour.
+
 - **A "Send pending" note above the message box.** When a Send cannot go yet (the story is still finishing the last reply, or a fight start is holding it), a small note says so instead of leaving you guessing: "Sends when the story is ready" (✕ cancels), "Not sent yet: the story is still busy" after 6 seconds (Send again, ✕), "Your fight hasn't been sent yet" with Open fight board, and "Sent" for 2 seconds after the one automatic re-send. It never changes your text, the prompt or the chat. Settings → Look → Send pending note (on by default).
+- **A swipe of the latest reply keeps the right dossier state.** Swiping the newest reply no longer makes the story head pick an older reply's restore point (and lose the dossier progress after it): re-checked replies that come out the same keep their original stamps. A module that installed an older state than the one selected is now shown as a Problem. Replies already written replay as before.
+- **Stale foes no longer start a fight.** A Foes group the narrator has not touched for more than 3 replies is not attacked by a vague "I attack them"; a message that names a standing group still attacks it, and stale groups never join a fight the pre-check opens. **Prompt change, new chats only (rule mark `foesFresh`):** the per-reply tail line now says "The Foes listed are from an earlier scene and are not in this fight." when the Foes are stale, instead of "No foes are set."; the fixed prompt is unchanged and chats without the mark keep the old behaviour and text.
+- **The narrator can clear the Foes slot after a fight.** `! dm foes - cleared` clears the one group that stands, and `kind: set-slot-N | count: 0` clears slot N. **New chats only (rule mark `foesClear`):** older replies keep the line unused, so Re-read and reload give the same result as before. The fixed prompt is unchanged.
+- **The World tab no longer disappears while NPC State Delta works.** While a restore or scan holds the modules, the tab strip keeps the World tab (and the other module screens) instead of dropping it until the work ends. Display only: no prompt or replay change.
+- **Pack cast entries can carry a birthday.** An optional `birthday` on a cast entry (a month name of the pack's calendar and a day, optionally a year: `"Icewane 27"`, `"Icewane 27, 1204"`; at most 80 characters) is checked against the pack calendar. For pack authors: **needs Story Block 2.32.0** (an older Story Block refuses it as an unknown cast field); packs without it stay valid. Story Studio 0.12.0 writes it.
+- **Replay fixes for rare cases found by the fuzz.** A practice step is taken back with its roll on delete or Re-read; a new reply at an old place is no longer given another reply's roll record; no false "failed save" when a swipe is deleted during the save; a later write is no longer overwritten by a carried old record. Replies already written replay as before; no prompt change.
+- **Caret chatter of a marked reply shows on the chatter screens.** Chatter written with ^ formatting now appears there, and Continue counts its ^ lines. Replies already written are unchanged.
 
 ## 2.31.1
 
