@@ -113,7 +113,11 @@ export function createReread(s, deps) {
             // before: a system step, its own seed.
             // A guarded block of a later reply is planned again on its own reply, keeping its ordinal (info.span).
             const rerun = (state, receipt, info = null) => planAgain(state, receipt, info, !Number.isInteger(info?.index) || info.index === index ? reply : null);
+            // The native mappings of this reply and the ones after it follow the new records (timeline/coordinator-read.js `carryBoundaries`): a
+            // Re-read does not take a participant's state back to before the reply.
+            const carry = timeline?.carryBoundaries?.();
             store.replaceStory(index, { ops, receipts, rerun, settled: steps, blocks: plan.blocks });
+            carry?.();
         } catch (error) {
             return refusal('CONFLICT', `${error?.message ?? error}`);
         }

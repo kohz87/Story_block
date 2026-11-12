@@ -343,7 +343,8 @@ export function createEvents(s, deps) {
 
     /**
      * Deleted messages, swipes, a greeting picked: the state is rebuilt from what is stored. `reason` ('delete', 'swipe',
-     * 'edit'; anything else is none) rides on the head event for the public API's `story:rebuilt`.
+     * 'edit'; anything else is none) rides on the head event for the public API's `story:rebuilt`. The native mappings of the replies still
+     * there follow the change (`carryBoundaries`), so a delete or an edit of an earlier reply does not take a participant's state back.
      */
     async function onTimelineChanged(reason) {
         if (typeof prepare === 'function') { try { await within(prepare({ scan: false }), RPG_LOAD_WAIT_MS); } catch { /* the loader reports its own failure */ } }

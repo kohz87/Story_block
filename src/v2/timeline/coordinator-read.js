@@ -95,13 +95,15 @@ export function createRead(s, deps) {
         }
     }
 
-    // A swipe's or a delete's reconcile plans the guarded steps again, and each one's stored boundary (a prefix hash that follows what is before it,
-    // the text and the prefix as they are now) is stamped anew. The hash a native mapping was made on takes those stamps in with the records, so
-    // a stamp that moved, with nothing else changed, would leave every mapping after that reply unmatched and the head would settle on the oldest
-    // one that still matches. `carryBoundaries()` is asked before the reconcile and returns the function to run after it: a mapping that matched
-    // before, whose prefix (`bare`: records, text and steps, without the stamps) and replayed state are the same now, takes the new prefix hash.
-    // A mapping that did not match, or whose records, text or state changed, is left as it is, and the selection rule stays exact.
-    // (a state's hash is worked out once per frozen state object, in the memo the selection plan shares)
+    // A change of the story under a native mapping (a swipe's or a delete's reconcile that stamps the guarded steps anew, a deleted, edited or
+    // Re-read reply, a save point's root among them) changes the prefix hash, and the replayed state, of every boundary after it. A participant's
+    // native state is what it read of the replies that are still there (NPC State Delta's dossiers come from the story's text and are not
+    // replayed), so the change does not take it back: every mapping whose boundary is still on the chat (its reply, swipe, block and op) takes
+    // the prefix and the state that boundary has now. A mapping whose reply is gone (deleted, swiped away) is left as it is, and so is one whose
+    // new key a mapping holds already (a change published on the new prefix is newer; the newest mapping is carried first). The selection rule
+    // itself stays exact: it only ever reads the mappings as they are keyed. `carryBoundaries()` is asked before the change and returns the
+    // function to run after it (→ how many mappings it carried). (a state's hash is worked out once per frozen state object, in the memo the
+    // selection plan shares)
     function hashOf(state) {
         if (!state || typeof state !== 'object' || !Object.isFrozen(state) || !s.witnessHashes) return stateHash(state);
         let hash = s.witnessHashes.get(state);
@@ -109,23 +111,31 @@ export function createRead(s, deps) {
         return hash;
     }
     function carryBoundaries() {
-        if (!archive.exists() || registry.hypothetical?.() || !Number.isInteger(store.replansFrom?.())) return () => 0;
-        const scoped = fn => withWholePrefixes(() => (store.witnessScope ?? (read => read()))(fn));
-        const kept = scoped(() => participants.modules().flatMap(module => archive.prefixes(module).flatMap(mapping => {
-            const witness = mapping.boundary && mapping.after ? store.prefixWitness(mapping.boundary.cursor) : null;
-            return witness?.bare && boundaryMatches(mapping, witness, { stateHashOf: hashOf }) ? [{ module, key: mapping.key, boundary: mapping.boundary, bare: witness.bare }] : [];
-        })));
+        if (!archive.exists() || registry.hypothetical?.()) return () => 0;
+        const holder = archive.holder();
         return () => {
+            if (!archive.exists() || registry.hypothetical?.() || archive.holder() !== holder) return 0;
             let moved = 0;
-            scoped(() => {
-                for (const { module, key, boundary, bare } of kept) {
-                    const witness = store.prefixWitness(boundary.cursor);
-                    const stored = archive.prefix(module, key);
-                    if (!stored || !witness || witness.bare !== bare || witness.prefixHash === boundary.prefixHash || hashOf(witness.state) !== boundary.stateHash) continue;
-                    archive.rekeyPrefix(module, key, prefixKey(boundary.cursor, witness.prefixHash), { ...stored, boundary: { ...stored.boundary, prefixHash: witness.prefixHash } });
-                    moved += 1;
+            withWholePrefixes(() => (store.witnessScope ?? (read => read()))(() => {
+                for (const module of participants.modules()) {
+                    const mappings = archive.prefixes(module);
+                    const taken = new Set(mappings.map(mapping => mapping.key));
+                    // (the witnesses are read in the order the mappings were made, then the newest is carried first)
+                    const read = mappings.map(mapping => (mapping.boundary?.cursor && mapping.after ? store.prefixWitness(mapping.boundary.cursor) : null));
+                    for (let at = mappings.length - 1; at >= 0; at -= 1) {
+                        const mapping = mappings[at];
+                        const witness = read[at];
+                        if (!witness || boundaryMatches(mapping, witness, { stateHashOf: hashOf })) continue;
+                        const next = prefixKey(mapping.boundary.cursor, witness.prefixHash);
+                        const { key, ...stored } = mapping;
+                        if (next !== key && taken.has(next)) continue;
+                        archive.rekeyPrefix(module, key, next, { ...stored, boundary: { ...stored.boundary, prefixHash: witness.prefixHash, stateHash: hashOf(witness.state) } });
+                        taken.delete(key);
+                        taken.add(next);
+                        moved += 1;
+                    }
                 }
-            });
+            }));
             return moved;
         };
     }

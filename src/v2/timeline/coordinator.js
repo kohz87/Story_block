@@ -278,7 +278,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         recover: recoverOnce,
         /** A chat was opened: what belongs to the one before it is dropped (the host calls it before it recovers). */
         settle,
-        /** Before a reconcile: the function that follows the native mappings over the stamps it writes anew (coordinator-read.js). */
+        /** Before a change of the story (a reconcile, a delete, an edit, a Re-read): the function that carries the native mappings of the replies still there (coordinator-read.js). */
         carryBoundaries,
         available: hash => archive.hasPayload(hash),
         /** Internal turn hint: unchanged roots must keep Sources once native checkpoints depend on their prefixes. */
