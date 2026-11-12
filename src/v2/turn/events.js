@@ -350,7 +350,9 @@ export function createEvents(s, deps) {
         rebuild({ publish: false });
         resumeHeldBoard();
         restoreHeldBoard();
+        const carry = timeline?.carryBoundaries?.();
         reconcileNow();
+        carry?.();
         timeline?.settle();
         if (timeline?.needsRecovery()) await timeline.recover();
         // one head, after the steps that follow the change are planned again
