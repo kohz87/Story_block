@@ -164,7 +164,9 @@ test('a mapping is not carried when the text of an earlier reply changed: the se
 test('prefix witness: `bare` ignores the stored boundary stamps and follows records and text (run data, when present)', async t => {
     const { readFile } = await import('node:fs/promises');
     let lines;
-    try { lines = (await readFile('/home/raven/story_suite/scratch/batch/SMALL/night/swipechk_files/chat.jsonl', 'utf8')).trim().split('\n').map(line => JSON.parse(line)); } catch { t.skip('the run data is not here'); return; }
+    const dir = process.env.SWIPECHK_FILES;
+    if (!dir) { t.skip('SWIPECHK_FILES (the run data folder) is not set'); return; }
+    try { lines = (await readFile(`${dir}/chat.jsonl`, 'utf8')).trim().split('\n').map(line => JSON.parse(line)); } catch { t.skip('the run data is not here'); return; }
     const open = async mutate => {
         const chat = clone(lines.slice(1));
         mutate(chat);
@@ -188,4 +190,34 @@ test('prefix witness: `bare` ignores the stored boundary stamps and follows reco
         assert.notEqual(c.bare, a.bare, 'an edited earlier reply is a different prefix');
     }
     assert.ok(compared >= 4);
+});
+
+test('carryBoundaries: a mapping follows stamps that moved and nothing else; a changed step or text is not followed', async t => {
+    const { host } = await replies(t, 3);
+    const mapped = () => host.timeline.archive.prefixes(NATIVE).map(mapping => `${mapping.key}`).sort();
+    const rewrite = change => {
+        // (a new record object, as a reconcile writes one: the store's per-record caches are keyed by the object)
+        const record = structuredClone(host.ctx.chat[2].extra.storySuite);
+        change(record);
+        host.ctx.chat[2].extra.storySuite = record;
+    };
+    const stamped = record => record.spans.find(span => span.boundaries);
+    const before = mapped();
+    let finish = host.timeline.carryBoundaries();
+    rewrite(record => { stamped(record).boundaries[0].prefixHash = 'f'.repeat(64); stamped(record).boundaries[0].payloadHash = 'e'.repeat(64); });
+    assert.equal(finish(), 2, 'the mappings of the two replies after the re-stamped one are carried');
+    assert.notDeepEqual(mapped(), before, 'under their new prefix hash');
+    const carried = mapped();
+    for (const mapping of host.timeline.archive.prefixes(NATIVE)) {
+        const witness = host.store.prefixWitness(mapping.boundary.cursor);
+        assert.equal(witness.prefixHash, mapping.boundary.prefixHash, 'each mapping names what the chat gives now');
+    }
+    finish = host.timeline.carryBoundaries();
+    rewrite(record => { record.ops.find(op => op.path !== '/meta/rev').value = 'something else'; });
+    assert.equal(finish(), 0, 'a changed step is a different prefix');
+    assert.deepEqual(mapped(), carried);
+    finish = host.timeline.carryBoundaries();
+    const message = host.ctx.chat[2];
+    message.mes = message.mes.replace('Reply 1.', 'Reply 1, edited.');
+    assert.equal(finish(), 0);
 });
