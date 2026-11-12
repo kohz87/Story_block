@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createHost } from '../../../testkit/index.js';
 import { checkInvariants, rebuildAt } from './helpers/oracle.js';
 import { firstDifference } from './helpers/replay-diagnostics.js';
+import { fuzz } from './helpers/state-fuzz-run.js';
 
 test('refused rare shield then story-given Iron Key equipment leaves every replay unchanged', async t => {
     const host = await createHost({ settings: { features: { 'story-block.gear': true, 'story-block.rpg': true } } });
@@ -114,4 +115,14 @@ test('a block the oracle skips says why', async t => {
     const { skipped } = rebuildAt(chat, index);
     assert.equal(skipped.length, 1);
     assert.match(skipped[0].why, /no \/meta\/nope/);
+});
+
+// Class F of the fuzz review: reading the same reply twice gives the same story. Seed 2 (step 36) is the run where an edited reply's
+// new block once landed only on the second Re-read; the cause was fixed with the carry and rebase changes, and this keeps the seed
+// covered. The default fuzz list does not set QA_FUZZ_REREAD_TWICE, so the seed runs here with it on (restored after).
+test('fuzz seed 2 with every Re-read read twice: the second Re-read changes nothing', async t => {
+    const before = process.env.QA_FUZZ_REREAD_TWICE;
+    process.env.QA_FUZZ_REREAD_TWICE = '1';
+    t.after(() => { if (before === undefined) delete process.env.QA_FUZZ_REREAD_TWICE; else process.env.QA_FUZZ_REREAD_TWICE = before; });
+    await fuzz(t, 2, 90);
 });

@@ -282,7 +282,7 @@ for (const seed of SEEDS) {
             // Delete a reply in the middle (after the set-up, not the last) and the reader's message before it.
             const replies = host.ctx.chat.map((message, at) => (!message.is_user && at > setup && at < index ? at : -1)).filter(at => at >= 0)
                 .filter(at => forced !== null || step > 12 || ![6, 7, 8].includes(done.get(host.store.carrierSid(at))?.step))
-                // (the six-group fight's Foes block is a dm.set on step 13's carrier, built on the one step 8's set left on step 7's: a delete of either makes the dm.set 'Data module prefix prerequisite changed' (REPLAY_PREREQUISITE, seeds 9 and 101) or drops the fight's roll and keeps its practice (seed 3); QA_DELETE_SIX_SHEET=1 allows them)
+                // (the six-group fight's Foes block is a dm.set on step 13's carrier, built on the one step 8's set left on step 7's: a delete of either makes the dm.set 'Data module prefix prerequisite changed' (REPLAY_PREREQUISITE, seeds 9 and 101) or drops the fight's roll (its practice and XP go with it, seed 3); QA_DELETE_SIX_SHEET=1 allows them)
                 .filter(at => process.env.QA_DELETE_SIX_SHEET || ![7, 13].includes(done.get(host.store.carrierSid(at))?.step));
             if (!replies.length) continue;
             const gone = forced === null ? r.pick(replies) : replies.find(at => done.get(host.store.carrierSid(at))?.step === forced);
