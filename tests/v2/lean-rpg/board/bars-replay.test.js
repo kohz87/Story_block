@@ -8,6 +8,8 @@ import { STANDARD_TEMPLATES, characterV1For } from '../../../../src/v2/lean-rpg/
 import { openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { runAuto } from '../../../../src/v2/lean-rpg/board/auto-run.js';
 import { readResolve } from '../../../../src/v2/lean-rpg/view/battle-log.js';
+import { wantsPrecheck } from '../../../../src/v2/lean-rpg/board/precheck-run.js';
+import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { prng, seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, levelFoeBlock, rollReceipt, setup, skillBlock } from '../helpers.js';
 
@@ -105,4 +107,57 @@ test('a marked Auto heal stages, tells the heal and survives rebuild, Re-read an
         await host.st.loadChat(structuredClone(host.st.saves.at(-1)), 'heal-replay');
         assert.equal(sheetOf(host), live);
     } finally { host.close(); restore(); }
+});
+
+// The foe-clear mark: a board fight that ended (won, lost or fled) clears its groups from the Foes block as part of its recorded result.
+const standing = host => readSheet(host.head()).foes.filter(foe => foe.filled);
+async function endFight(seed, how, { clear = true, health = 10 } = {}) {
+    const restore = seedCrypto(seed), parts = blocks(STANDARD_TEMPLATES[0].definition);
+    parts.hero.fields.health = health;
+    parts.foes.fields = levelFoeBlock([['Raider', 1, how === 'lost' ? 30 : 1, 12]]);
+    const { host } = await setup({ blocks: parts, board: true });
+    try {
+        const meta = host.ctx.chatMetadata, opened = openBoard(meta, host.head(), { sid: host.store.carrierSid(host.store.headIndex()), rules: RULES }), session = opened.session;
+        if (!clear) delete session.setup.foesClear;
+        const pick = how === 'fled' ? { kind: 'flee' } : { kind: 'attack', target: opened.preview.result.members[0].slot };
+        let stop = 'open';
+        for (let n = 0; n < 12 && stop === 'open'; n += 1) {
+            const staged = stageExchange(meta, host.head(), [{ who: 'Astra', ...pick }]);
+            if (staged.error) break;
+            stop = staged.preview.result.stop;
+        }
+        if (stop !== how) return null;
+        await host.send('Strike.', 'The fight.');
+        const at = host.ctx.chat.length - 1, record = rollReceipt(host, at).data.v2.result, live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live, `${how} ${seed}: replay equals live`);
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.equal(JSON.stringify(host.head()), live, `${how} ${seed}: Re-read equals live`);
+        return { record, left: standing(host), sheet: readSheet(host.head()) };
+    } finally { host.close(); restore(); }
+}
+async function found(how, options) {
+    for (let seed = 400; seed < 460; seed += 1) { const out = await endFight(seed, how, options); if (out) return out; }
+    assert.fail(`no seed ended ${how}`);
+}
+
+test('a won, lost or fled board fight clears its foes in its recorded result; replay equals live', async () => {
+    for (const how of ['won', 'lost', 'fled']) {
+        const { record, left } = await found(how, how === 'lost' ? { health: 1 } : {});
+        assert.equal(record.stop, how);
+        assert.deepEqual(record.cleared, [1], `${how}: the result names the slot it cleared`);
+        assert.equal(left.length, 0, `${how}: no foe stands on`);
+    }
+});
+
+test('a fight opened without the mark (an old chat) keeps its foes, and records no clear', async () => {
+    const { record, left } = await found('lost', { health: 1, clear: false });
+    assert.equal(Object.hasOwn(record, 'cleared'), false);
+    assert.ok(left.length > 0);
+});
+
+test('after a lost fight a typed attack on a new foe reaches the pre-check', async () => {
+    const { sheet, left } = await found('lost', { health: 1 });
+    assert.equal(left.length, 0);
+    assert.equal(wantsPrecheck({}, { ...sheet, characters: [{}] }, 'A second lone raider steps out. I attack.'), true);
 });

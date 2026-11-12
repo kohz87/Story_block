@@ -96,6 +96,26 @@ export function applyHurts(domain, hurts) {
     }
 }
 
+/**
+ * The foe-clear mark (`setup.foesClear = 1`, set on a fight opened under it): when the board fight has ended (won, lost or fled) its groups
+ * are cleared from the Foes block, by the block's own `clear-N` kind (its literal `set` effects), so no beaten or fled foe stands on for the
+ * next message. Returns the slots cleared; a slot that was empty is left alone.
+ */
+export function clearFoes(domain, foes, groups) {
+    const done = [];
+    for (const foe of foes ?? []) {
+        if (!foe.filled || !groups.includes(foe.slot)) continue;
+        const n = foe.local ?? (((foe.slot - 1) % 4) + 1);
+        const fields = domain?.instances?.[foe.module]?.chat?.fields;
+        if (!fields) continue;
+        const effects = domain?.pins?.[domain?.active?.[foe.module]?.hash]?.definition?.kinds?.[`clear-${n}`]?.effects;
+        const sets = (Array.isArray(effects) ? effects : []).filter(e => e?.op === 'set' && Array.isArray(e.path) && e.path.length === 1 && !Array.isArray(e.value) && Object.hasOwn(fields, e.path[0]));
+        for (const e of sets.length ? sets : [{ path: [`count${n}`], value: 0 }, { path: [`foe${n}`], value: '' }]) if (Object.hasOwn(fields, e.path[0])) fields[e.path[0]] = e.value;
+        done.push(foe.slot);
+    }
+    return done;
+}
+
 const foeField = (prefix, foe) => `${prefix}${foe?.local ?? (((foe?.slot ?? 1) - 1) % 4) + 1}`;
 
 // A member fight keeps its bars as virtual foes, so only the final ordinary count/hurt moves are written to the Foes block.

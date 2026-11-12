@@ -28,7 +28,9 @@ const fights = host => recordOf(host, host.store.headIndex()).receipts.filter(re
 async function winWith(host, story) {
     const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex()), rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
     for (let attempt = 0; attempt < 100; attempt += 1) {
-        assert.equal(openBoard(meta, host.head(), { sid, rules }).error, undefined);
+        const opened = openBoard(meta, host.head(), { sid, rules });
+        assert.equal(opened.error, undefined);
+        delete opened.session.setup.foesClear;   // (these tests are about a fight that leaves its block as it was: a chat from before the foe-clear mark)
         let preview;
         for (let n = 0; n < 12; n += 1) {
             const target = readSheet(preview?.state ?? host.head()).foes.find(foe => foe.filled && foe.hurt > 0)?.slot;

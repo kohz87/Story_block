@@ -19,6 +19,7 @@ const records = host => host.store.receipts();
 async function fledFight(host) {
     const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
     assert.equal(openBoard(meta, host.head(), { sid, rules: RULES, records: records(host) }).error, undefined);
+    delete boardSession(meta).setup.foesClear;   // (a chat from before the foe-clear mark: its fled fight leaves the foes to resume)
     assert.equal(boardSession(meta).resumed, undefined, 'a first fight has nothing to resume');
     assert.equal(stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target: 11 }]).error, undefined);
     for (let tries = 0; tries < 6; tries += 1) {
