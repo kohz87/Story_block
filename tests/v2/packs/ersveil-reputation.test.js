@@ -115,3 +115,29 @@ test('in the host the three screens are one tab, Reputation, and none of them a 
     for (const id of ['ersveil-standing', 'ersveil-fame', 'ersveil-guild-membership']) assert.equal(tabs.includes(id), false, id);
     assert.equal(ui.screens.resolve('story-block/tab/reputation').screen.title, 'Reputation');
 });
+
+// The Guild rank in the player's look follows the guild-membership module (the owner's Ersveil chat, 12 Nov): the narrator wrote
+// "~ you rank: Registered" / "~ you rank: F" while the clerk had only asked for the fee and the module still said registered false.
+const block = lines => `Story.\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
+test('a ~ you rank line that contradicts the Guild module is refused with a Problem; the other parts stay', async t => {
+    const host = await pinned(t);
+    await host.send('Begin.', 'Opening.');
+    for (const claim of ['Registered', 'F']) {
+        await host.send('Go on.', block([`~ you rank: ${claim} | wearing: a grey coat`]));
+        const you = host.sdk.query('scene.you');
+        assert.equal(you.wearing, 'a grey coat', `${claim}: the other part is kept`);
+        assert.equal(you.rank, 'Unregistered', `${claim}: shown as the module says`);
+    }
+    await host.send('Say so.', block(['~ you rank: unregistered']));
+    assert.equal(host.sdk.query('scene.you').rank, 'unregistered', 'a line that agrees is stored as written');
+});
+
+test('once the module says registered, the letter must match it', async t => {
+    const host = await pinned(t);
+    await host.send('Begin.', 'Opening.');
+    success(await host.sdk.command('dm.set', { module: 'pack.ersveil/guild-membership', field: 'registered', value: true }));
+    await host.send('Pay.', block(['~ you rank: E-rank | wearing: coat']));
+    assert.equal(host.sdk.query('scene.you').rank, 'Guild F', 'a different letter is refused; the module\'s letter shows');
+    await host.send('Sign.', block(['~ you rank: F-rank, Adventurer Guild']));
+    assert.equal(host.sdk.query('scene.you').rank, 'F-rank, Adventurer Guild');
+});
