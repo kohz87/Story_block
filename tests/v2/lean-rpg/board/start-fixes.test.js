@@ -6,6 +6,9 @@ import { knownFoeAction } from '../../../../src/v2/lean-rpg/board/action-gate.js
 import { pauseViewData } from '../../../../src/v2/lean-rpg/board/start-view-data.js';
 import { buildPanel, panelModel, readResolve } from '../../../../src/v2/lean-rpg/view/battle-log.js';
 import { pendingStart } from '../../../../src/v2/turn/fight-start.js';
+import { openBoard } from '../../../../src/v2/lean-rpg/board/session.js';
+import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
+import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { setupDom } from '../../view/mounts/helpers.js';
 import { begin, makeBlocks, page, settle } from '../view/page.js';
@@ -140,4 +143,87 @@ test('a swipe of the reply after the fight gets the same cue as the first try', 
     assert.ok(tail().includes(FIGHT_CUE), 'the swipe: told too');
     await host.send('And on.', 'Calm.');
     assert.ok(!tail().includes(FIGHT_CUE), 'two replies later: not told');
+});
+
+// Stale foes (real run 2, reply 18): a Foes slot set at reply 3 and never touched again must not start a fight from an unrelated attack message 15 replies later.
+// A message that names the group always counts; only a generic target ("them") needs the foes to be fresh (touched within 3 replies of the message).
+const SET_BOARS = 'Boars rush out.\n<Changes>\n+ dm foes — a fight starts | kind: set-slot-1 | name: Bristle-boar | count: 3 | level: 3\n</Changes>';
+async function staleChat(t, seed, fillers, { oldChat = false, groups = null } = {}) {
+    const restore = seedCrypto(seed);
+    t.after(restore);
+    const calls = [];
+    const app = await page(t, { formula: 'standard', callModel: async () => { calls.push(1); return groups ? JSON.stringify({ groups }) : 'none'; } });
+    const { host } = app;
+    await begin(host);
+    await makeBlocks(host, { character: { agi: 20 }, skills: { skill1: 'Obscure', stat1: 'agi', about1: 'hide before a fight' } });
+    const foes = structuredClone(STANDARD_TEMPLATES.find(item => item.definition.role === 'foes').definition);
+    assert.equal((await host.sdk.command('dm.define', { definition: foes })).ok, true);
+    await host.send('Boars are near.', SET_BOARS);
+    for (let n = 0; n < fillers; n += 1) await host.send(`I walk on, step ${n}.`, 'The road goes on.');
+    if (oldChat) for (const message of host.ctx.chat) if (message.extra?.storySuite?.rules) message.extra.storySuite.rules = message.extra.storySuite.rules.filter(name => name !== 'foesFresh');
+    return { ...app, calls };
+}
+const standing = state => readSheet(state).foes.filter(foe => foe.filled && foe.hurt > 0).map(foe => `${foe.slot}:${foe.name}x${foe.count}`);
+
+test('stale foes: 5 replies after the Foes line, a generic attack ("them") is not held as a fight start', async t => {
+    const { host } = await staleChat(t, 711, 5);
+    const sent = await host.send('I attack them.', 'You swing at the air.');
+    assert.equal(sent.aborted, undefined, 'the message goes out');
+    assert.equal(pendingStart(host.ctx.chatMetadata, host.ctx.chat), null);
+});
+
+test('stale foes: within 3 replies of the Foes line the generic attack is still held as a fight start', async t => {
+    const { host } = await staleChat(t, 712, 3);
+    assert.equal((await host.send('I attack them.', 'Not yet.')).aborted, true);
+});
+
+test('stale foes: an old chat (no foesFresh mark) keeps holding the attack against old foes', async t => {
+    const { host } = await staleChat(t, 713, 5, { oldChat: true });
+    assert.equal((await host.send('I attack them.', 'Not yet.')).aborted, true);
+});
+
+test('stale foes: a new Foes line on the way keeps the foes current', async t => {
+    const { host } = await staleChat(t, 714, 4);
+    await host.send('More boars.', SET_BOARS);
+    assert.equal((await host.send('I attack them.', 'Not yet.')).aborted, true);
+});
+
+test('stale foes: a parley of 5 replies, then an attack that names the group, is held as the known fight with no pre-check call', async t => {
+    const { host, calls } = await staleChat(t, 715, 5, { groups: [{ name: 'Bristle-boar', count: 3 }] });
+    const sent = await host.send('Talk is over. I draw my blade and attack the boars.', 'Not sent.');
+    assert.equal(sent.aborted, true);
+    assert.equal(pendingStart(host.ctx.chatMetadata, host.ctx.chat)?.mode, 'known');
+    assert.equal(calls.length, 0, 'no model call is spent');
+});
+
+test('stale foes: a pre-check that opens new foes leaves the stale group out of the fight (review repro 1)', async t => {
+    const { host, calls } = await staleChat(t, 716, 5, { groups: [{ name: 'Rats', count: 6 }] });
+    const sent = await host.send('Rats pour out of the tannery drain. I attack the rats.', 'Not sent.');
+    assert.equal(sent.aborted, true);
+    assert.equal(calls.length, 1);
+    const held = pendingStart(host.ctx.chatMetadata, host.ctx.chat);
+    assert.equal(held?.mode, 'new');
+    const preview = host.turn.fightStartPreview();
+    assert.deepEqual(standing(preview.state), ['1:Ratsx6'], 'the boars no longer stand, the rats took the freed slot');
+    const board = openBoard(host.ctx.chatMetadata, preview.state, { sid: host.store.carrierSid(host.store.headIndex()), rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
+    assert.equal(board.session.groups.length, 1, 'the board fights the rats only');
+});
+
+test('stale foes: the tail does not say "No foes are set" while old Foes are listed', async t => {
+    const { TAIL_KEY } = await import('../../../../src/v2/turn.js');
+    const { host } = await staleChat(t, 717, 5);
+    await host.send('I look around.', 'Quiet.');
+    const tail = host.st.promptLog.filter(entry => entry.key === TAIL_KEY && entry.value).at(-1)?.value ?? '';
+    assert.ok(tail.includes('from an earlier scene'), tail);
+    assert.ok(!tail.includes('No foes are set'), 'no contradiction with the Foes block');
+});
+
+test('stale foes: a swipe counts the replies the first try did (the 3/4 boundary)', async t => {
+    const { TAIL_KEY } = await import('../../../../src/v2/turn.js');
+    const { host } = await staleChat(t, 718, 3);
+    const tail = () => host.st.promptLog.filter(entry => entry.key === TAIL_KEY && entry.value).at(-1)?.value ?? '';
+    await host.send('I look around.', 'Quiet.');
+    assert.ok(!tail().includes('earlier scene'), 'the first try: foes still fresh');
+    await host.swipe('Still quiet.');
+    assert.ok(!tail().includes('earlier scene'), 'the swipe: the reply it replaces is not counted');
 });

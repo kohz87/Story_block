@@ -461,3 +461,13 @@ test('a marked ^ reply: its choices and chatter are drawn (caret), an unmarked o
     const tail = host.st.requests.at(-1).chat.filter(message => message.role === 'system').map(message => message.content).join('\n');
     assert.match(tail, /Inner chatter last reply, unspoken: only the thinker knows\] Minke: careful/);
 });
+
+test('a marked ^ reply: its chatter is shown on chatter.head and scene.chatter, an unmarked ^ reply shows none', async t => {
+    const host = await fresh(t);
+    await host.send('Go.', block('Minke waited.', ['+ present Minke', '^~ ^chatter ^Minke: ^careful']));
+    assert.deepEqual(host.sdk.query('chatter.head'), [{ name: 'Minke', text: 'careful' }]);
+    assert.deepEqual(host.sdk.query('scene.chatter'), [{ name: 'Minke', text: 'careful' }]);
+    const at = lastIndex(host);
+    delete host.ctx.chat[at].extra.storySuite;   // the same text without its record: no mark, so the ^ lines are not read
+    assert.deepEqual(host.sdk.query('chatter.head'), []);
+});

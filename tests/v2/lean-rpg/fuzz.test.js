@@ -65,7 +65,7 @@ async function check(host, label) {
     assert.deepEqual(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), [], `${label}: nothing left inactive`);
 }
 
-for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+for (const seed of process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 102]) {   // (102: a new reply at an old place was given a copy of another reply's roll by the rescue)
     test(`replay fuzz with plans, seed ${seed}`, { skip }, async () => {
         const random = prng(seed * 7919);
         const pick = list => list[Math.floor(random() * list.length)];

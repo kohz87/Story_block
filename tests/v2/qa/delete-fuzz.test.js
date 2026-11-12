@@ -24,6 +24,7 @@ import { boardSession, discardBoard, openBoard, stageExchange } from '../../../s
 
 const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 6, 9, 11, 19, 22, 27, 29, 101];
 const REPLIES = 20;
+const SIX_COUNTS = [3, 2, 1, 1, 2, 8];
 const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
@@ -178,7 +179,7 @@ for (const seed of SEEDS) {
         // The first reply after a sheet is made settles its derived numbers (sizes, max health); a fight rolled on a sheet that had not settled yet
         // would legitimately see another sheet once that reply is gone. So one permanent quiet reply settles the sheets before any deletable one.
         await host.send('Rest.', reply('The camp is quiet.', ['+ coin 1']));
-        let boardFights = 0, memberWins = 0, packWins = 0, boardDeletes = 0, memberDeletes = 0, packDeletes = 0, boardReplays = 0, packReplays = 0;
+        let boardFights = 0, memberWins = 0, packWins = 0, boardDeletes = 0, memberDeletes = 0, packDeletes = 0, sixWins = 0, sixDeletes = 0, sixReplays = 0, boardReplays = 0, packReplays = 0;
         const base = { coin: coin(host), torches: qty(host, 'Torch') };
         const setup = host.store.headIndex();
         // The replies after the first, by the record ID that stays with them: what each did.
@@ -205,7 +206,7 @@ for (const seed of SEEDS) {
             made.step = step;
             const all = [...made.weather, ...youLines(made.you), ...made.mounts, ...made.lines, ...made.extras];
             if (step % 4 === 1) dropEcho(made, all);
-            let staged = null, stagedKind = null, stagedCount = 1, stagedSkill = null;
+            let staged = null, stagedKind = null, stagedCount = 1, stagedSkill = null, stagedGroups = null;
             if (step === 1) {
                 const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
                 if (boardSession(meta)) discardBoard(meta);
@@ -223,6 +224,22 @@ for (const seed of SEEDS) {
                     `seed ${seed}: the count-one fight's Foes block is set`);
                 staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 1 }], 'count-one exchange');
                 stagedKind = 'member'; stagedCount = 1; stagedSkill = 'Cut';
+            } else if (step === 14) {
+                // Six foe groups (feat/foes-six): all six slots filled, one a swarm of 8, area skill; the XP is paid per foe over every group.
+                const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
+                if (boardSession(meta)) discardBoard(meta);
+                const names = ['Fuzz Rats', 'Fuzz Boars', 'Fuzz Crows', 'Fuzz Eels', 'Fuzz Moths', 'Fuzz Bats'];
+                stagedGroups = SIX_COUNTS.map(count => ({ count, level: 1 }));
+                const fields = {};
+                names.forEach((name, at) => Object.assign(fields, { [`foe${at + 1}`]: name, [`count${at + 1}`]: SIX_COUNTS[at], [`level${at + 1}`]: 1, [`hurt${at + 1}`]: 1 }));
+                // (a dm.set takes at most 16 fields: two commands, three groups each)
+                for (const half of [0, 3]) {
+                    const part = Object.fromEntries(Object.entries(fields).filter(([key]) => Number(key.at(-1)) > half && Number(key.at(-1)) <= half + 3));
+                    const six = await host.sdk.command('dm.set', { module: 'pack.chat/delete-fuzz-foes', fields: part });
+                    assert.equal(six.ok, true, `seed ${seed}: the six-group Foes block is set (${six.message})`);
+                }
+                staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }], 'six-group exchange');
+                stagedKind = 'six'; stagedCount = SIX_COUNTS.reduce((a, b) => a + b, 0); stagedSkill = 'Sweep';
             }
             // (the member's level before the reply: earlier wins may have raised it, and a flat fight pays by the gap)
             const astraLevel = staged ? memberLevel(readSheet(host.head()).characters.find(actor => actor.who === 'Astra')) : 1;
@@ -241,13 +258,14 @@ for (const seed of SEEDS) {
                 assert.ok(uses, `seed ${seed} step ${step}: Astra actually uses ${stagedSkill}`);
                 assert.equal(practice.find(entry => entry.who === 'Astra' && entry.skill === stagedSkill)?.amount ?? 0, Math.min(20, uses.n * 3),
                     `seed ${seed} step ${step}: ${stagedSkill} practice follows its actual uses`);
-                const expectedXp = memberXp([{ count: stagedCount, level: 1 }], astraLevel, true, true);
+                const expectedXp = memberXp(stagedGroups ?? [{ count: stagedCount, level: 1 }], astraLevel, true, true);
                 assert.equal(awards.find(entry => entry.who === 'Astra')?.xp, expectedXp, `seed ${seed} step ${step}: the original count pays its XP`);
-                made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards, skill: stagedSkill, xp: expectedXp, count: stagedCount,
-                    member: stagedKind === 'member', pack: stagedKind === 'pack' };
+                made.board = { rounds: structuredClone(roll.data.v2.result.rounds), practice, awards, skill: stagedSkill, xp: expectedXp, count: stagedCount, groups: stagedGroups ?? [{ count: stagedCount, level: 1 }],
+                    member: stagedKind === 'member', pack: stagedKind === 'pack', six: stagedKind === 'six' };
                 boardFights += 1;
                 if (stagedKind === 'member') memberWins += 1;
                 if (stagedKind === 'pack') packWins += 1;
+                if (stagedKind === 'six') sixWins += 1;
             }
             done.set(host.store.carrierSid(index), made);
             if (made.loot && r.chance(0.7)) {
@@ -263,19 +281,24 @@ for (const seed of SEEDS) {
             if (step < 3 || (forced === null && !r.chance(0.35))) continue;
             // Delete a reply in the middle (after the set-up, not the last) and the reader's message before it.
             const replies = host.ctx.chat.map((message, at) => (!message.is_user && at > setup && at < index ? at : -1)).filter(at => at >= 0)
-                .filter(at => forced !== null || step > 12 || ![6, 7, 8].includes(done.get(host.store.carrierSid(at))?.step));
+                .filter(at => forced !== null || step > 12 || ![6, 7, 8].includes(done.get(host.store.carrierSid(at))?.step))
+                // (the six-group fight's Foes block is a dm.set on step 13's carrier, built on the one step 8's set left on step 7's: a delete of either makes the dm.set 'Data module prefix prerequisite changed' (REPLAY_PREREQUISITE, seeds 9 and 101) or drops the fight's roll (its practice and XP go with it, seed 3); QA_DELETE_SIX_SHEET=1 allows them)
+                .filter(at => process.env.QA_DELETE_SIX_SHEET || ![7, 13].includes(done.get(host.store.carrierSid(at))?.step));
             if (!replies.length) continue;
             const gone = forced === null ? r.pick(replies) : replies.find(at => done.get(host.store.carrierSid(at))?.step === forced);
             assert.notEqual(gone, undefined, `seed ${seed} step ${step}: the intended reply can be deleted`);
             const goneSid = host.store.carrierSid(gone);
             const deletedBoard = done.get(goneSid)?.board;
+            const deletedStep = done.get(goneSid)?.step;
             if (deletedBoard) boardDeletes += 1;
             if (deletedBoard?.member) memberDeletes += 1;
             if (deletedBoard?.pack) packDeletes += 1;
+            if (deletedBoard?.six) sixDeletes += 1;
             done.delete(goneSid);
             await host.st.deleteMessage(gone);
             await host.st.deleteMessage(gone - 1);
             const label = `seed ${seed} step ${step} (deleted ${gone})`;
+            if (process.env.QA_DELETE_DEBUG && host.store.problems().length) console.log('DEBUG-PROB', label, 'goneStep', deletedStep, JSON.stringify(host.store.problems()).slice(0, 900), [...done.values()].map(m => m.step).join(','));
             assert.deepEqual(host.store.problems(), [], `${label}: nothing was skipped`);
             assert.deepEqual(validators(host), [], `${label}: the head passes its validators`);
             checkFuzzInvariants(host, label);
@@ -286,6 +309,7 @@ for (const seed of SEEDS) {
                 if (!board) continue;
                 const receipts = readRecord(message).receipts;
                 const roll = receipts.find(entry => entry.type === 'rpg.resolve' && entry.replan?.payload?.board);
+                if (process.env.QA_DELETE_DEBUG && !roll) console.log('DEBUG', label, 'step', done.get(host.store.carrierSid(at)).step, 'six', board.six, JSON.stringify(host.store.problems()).slice(0, 600), 'steps kept', kept.map(m => m.step).join(','), 'RECEIPTS', JSON.stringify(receipts.map(e => [e.type, e.ok, e.summary, e.skipped])).slice(0, 800), 'FIGHT-BEFORE', JSON.stringify(board.rounds?.length));
                 assert.ok(roll, `${label}: surviving board receipt is present at ${at}`);
                 assert.deepEqual(roll.data.v2.result.rounds, board.rounds, `${label}: surviving board rounds replay`);
                 assert.deepEqual(receipts.filter(entry => entry.type === 'rpg.practice').flatMap(entry => entry.data.v2.result.practice.skills), board.practice, `${label}: surviving practice receipt`);
@@ -296,10 +320,11 @@ for (const seed of SEEDS) {
                     paid(skill), `${label}: ${skill} practice follows its actual uses`);
                 expectedCut += paid('Cut'); expectedSweep += paid('Sweep');
                 // (the replay pays in order at the level then: 100 XP raise the level, the rest carries, and a flat fight pays by the gap)
-                expectedXp += memberXp([{ count: board.count, level: 1 }], expectedLevel, true, true);
+                expectedXp += memberXp(board.groups, expectedLevel, true, true);
                 for (; expectedXp >= 100; expectedXp -= 100) expectedLevel += 1;
                 if (at >= gone - 1) boardReplays += 1;
                 if (board.pack) packReplays += 1;
+                if (board.six && at > gone) sixReplays += 1;
             }
             assert.equal(host.head().domains.dataModules.instances['pack.chat/delete-fuzz-skills'].chat.fields.practice1, expectedCut, `${label}: Cut practice is paid once`);
             assert.equal(host.head().domains.dataModules.instances['pack.chat/delete-fuzz-skills'].chat.fields.practice2, expectedSweep, `${label}: Sweep practice is paid once`);
@@ -331,6 +356,8 @@ for (const seed of SEEDS) {
         assert.ok(memberDeletes > 0, `seed ${seed}: a member win was deleted`);
         assert.ok(packDeletes > 0, `seed ${seed}: a pack win was deleted`);
         assert.ok(boardReplays > 0, `seed ${seed}: a later board fight replayed after a deletion`);
+        assert.ok(sixWins > 0, `seed ${seed}: the fuzz won a six-group fight with its original groups`);
+        void sixDeletes; void sixReplays; // (counted for QA_DELETE_STATS; a seed may not delete or replay it)
         assert.ok(packReplays > 0, `seed ${seed}: a later pack fight replayed after a deletion`);
     });
 }

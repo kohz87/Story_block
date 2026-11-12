@@ -40,6 +40,7 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
 - A save checks the open chat in the same tick; a change made in another chat goes to that chat's file
   (rescue). Refused saves retry (1, 2, 4, 8, 15 s); 20 s without an answer counts as refused and marks the
   chat suspect: rising `chat_metadata.storySuiteSave` stamps and read-backs over about five minutes.
+- A rescue carries a record onto the message read back only when that message has no record of its own or the same record id. A stale pre-reopen change is dropped (newest wins) when the reopened message took a newer write.
 - Page hidden or closed with unsaved changes: keepalive send at once, within `KEEPALIVE_MAX` (60 KiB of UTF-8
   bytes); bigger, `beforeunload` asks first.
 - Not covered: two tabs on one chat (last writer wins).
