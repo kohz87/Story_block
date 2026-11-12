@@ -677,7 +677,7 @@ test('Look: Panel style, Glass strength and Font come from the host schema, are 
     const { root, host } = await open({ window: { theme: { apply: () => applied.push(host.settings().panelStyle) } } });
     const look = page(root, 'look');
     assert.deepEqual(look.querySelectorAll('.ss-field').map(row => row.dataset.field), LOOK_KEYS);
-    assert.deepEqual(texts(look, '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font', 'Text size']);
+    assert.deepEqual(texts(look, '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font', 'Text size', 'Send pending note']);
     assert.equal(look.querySelectorAll('details').length, 0, 'no folds');
     // The budgets are the Prompt card's (Tabs & Packs), the call queue the Assist page's; the Story Suite fold is gone.
     assert.deepEqual(page(root, 'tabs').querySelectorAll('.ss-prompt-card .ss-field').map(row => row.dataset.field), ['tailBudget', 'contextShare', 'maxChangeLines']);
