@@ -109,7 +109,7 @@ export function createCaptureFlow(s, deps) {
     // How many lines of each display kind `mes` already shows (extras.js displayLines, the rule the card
     // draws by): lines a Continue or the extractor adds count after these against the cap (F115), so a
     // choice past it is told as one of the original reply's would be.
-    const shownIn = mes => new Map(Object.entries(displayLines(mes, { entryOf: word => registry.capture(word), max: lineCap() }))
+    const shownIn = (mes, caret = false) => new Map(Object.entries(displayLines(mes, { entryOf: word => registry.capture(word), max: lineCap(), caret }))
         .map(([kind, values]) => [kind, values.length]));
 
     // `before`: the reply's text before these lines were added (a Continue's, the extractor's), or null.
@@ -128,7 +128,7 @@ export function createCaptureFlow(s, deps) {
         const lines = capped(index, all, found);
         const extra = assistRoom(index, [...late.map(line => ({ line, mark: LATE })), ...assist.map(line => ({ line, mark: NOW }))], used + lines.length, found);
         const blocked = markHistory(ctx?.chat?.[index], store.carrierSid?.(index), type, before, changeHeads(), type === 'continue' || type === 'late' ? lateLines(index) : []);
-        const shown = typeof before === 'string' ? shownIn(before) : new Map();
+        const shown = typeof before === 'string' ? shownIn(before, ruleMarksOf(readRecord(ctx?.chat?.[index])?.rules).includes('caretWords')) : new Map();
         // One write of the reply's record for all its lines and its afterCapture steps (store.batch).
         let off = [];
         let steps = [];
