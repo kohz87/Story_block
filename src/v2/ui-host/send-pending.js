@@ -78,6 +78,14 @@ export function createSendPending({
             clickSend();
             return 'passed';
         },
+        // The re-send was not taken (the text is still in the box and Generate was never entered): "Sent" was not true, so the note says
+        // "Not sent yet" (stalled) and the reader can press Send again. The text is untouched.
+        fail() {
+            if (state !== 'sent') return false;
+            clearAll();
+            set('stalled');
+            return true;
+        },
         // ✕ on the note: leaves the text in the box and sends nothing.
         cancel() {
             if (state === 'idle') return false;

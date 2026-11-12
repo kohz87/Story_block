@@ -12,6 +12,7 @@
 import { createSendPending } from './send-pending.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
+const CALM = 3;
 export const SEND_NOTE_TEXT = Object.freeze({
     label: 'Send status',
     pending: 'Sends when the story is ready',
@@ -56,14 +57,19 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
     };
     let root = null, started = false, reached = false, verify = null, resending = false;
     const clock = timers ?? { setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms), clearTimeout: h => globalThis.clearTimeout(h) };
+    // SillyTavern hides its Stop button a little before it takes a Send again (the last reply's listeners still run), so the story counts as
+    // free only after `CALM` polls in a row with nothing busy; a Send clicked in that gap would be ignored.
+    let quiet = 0;
+    const rawBusy = () => stopShown() || busy() === true;
+    const calm = () => { quiet = rawBusy() ? 0 : quiet + 1; return quiet < CALM; };
     const sp = createSendPending({
         readText: read,
         // The note's own click goes through this page's listeners too: `resending` keeps it from counting as a new press.
         clickSend: () => { resending = true; try { doc.getElementById?.('send_but')?.click?.(); } finally { resending = false; } },
-        isBusy: () => stopShown() || busy() === true,
+        isBusy: calm,
         fightHeld: () => held() === true,
         openBoard: () => openBoard() === true,
-        onChange: ({ state }) => draw(state),
+        onChange: ({ state }) => { draw(state); if (state === 'sent') checkTaken(); },
         timers: clock,
     });
 
@@ -101,6 +107,13 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         if (root.parentNode !== anchor.parentNode || root.nextElementSibling !== anchor) anchor.parentNode.insertBefore(root, anchor);
     }
 
+    // After the one re-send: the text still in the box with Generate never entered means SillyTavern ignored it too.
+    function checkTaken() {
+        const text = read();
+        started = false;
+        stopVerify();
+        verify = clock.setTimeout(() => { verify = null; if (!started && read() === text && text.trim()) sp.fail(); }, verifyMs);
+    }
     const stopVerify = () => { if (verify !== null) clock.clearTimeout(verify); verify = null; };
     // A Send press (capture phase, before SillyTavern's own handler). Busy or held: SillyTavern will ignore it, so a round starts now.
     // Free: SillyTavern should take it; if the text is still there after `verifyMs` and nothing began, it was ignored.
@@ -109,7 +122,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         const text = read();
         if (!text.trim()) return;
         stopVerify();
-        if (held() === true || stopShown() || busy() === true || sp.state().state !== 'idle') { sp.press(); return; }
+        if (held() === true || rawBusy() || sp.state().state !== 'idle') { quiet = 0; sp.press(); return; }
         started = false; reached = false;
         verify = clock.setTimeout(() => {
             verify = null;

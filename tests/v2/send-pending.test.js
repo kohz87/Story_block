@@ -331,6 +331,8 @@ test('send note: busy at the press shows a role=status pill right above #send_fo
     r.page.busy = false;
     r.page.ignore = false;
     r.clock.advance(250);
+    assert.equal(r.page.clicks, 1, 'not at once: the story must stay free for a few polls (SillyTavern is still closing the last reply)');
+    r.clock.advance(750);
     assert.equal(r.page.clicks, 2, 'one re-send');
     assert.equal(r.pill().querySelector('.ss-send-note-text').textContent, SEND_NOTE_TEXT.sent, 'the box clearing does not end Sent');
     r.clock.advance(2000);
@@ -344,6 +346,7 @@ test('send note: a free press that SillyTavern ignored is sent again once; one i
     r.press();
     assert.equal(r.pill(), null);
     r.clock.advance(1500);
+    r.clock.advance(1000);
     assert.equal(r.page.clicks, 2);
     assert.equal(r.pill().querySelector('.ss-send-note-text').textContent, SEND_NOTE_TEXT.sent);
     const t = pageRig();
@@ -382,6 +385,40 @@ test('send note: a press another handler swallowed (a hold, a fight pause) is ne
     assert.equal(k.page.clicks, 1, 'a cancelled press is not re-sent either (only the reader\'s own press)');
 });
 
+test('send note: a re-send SillyTavern also ignored is not called "Sent": it says Not sent yet, and the text stays', () => {
+    const r = pageRig();
+    r.page.busy = true;
+    r.press();
+    r.page.busy = false;
+    r.clock.advance(1000);
+    assert.equal(r.page.clicks, 2);
+    assert.equal(r.pill().querySelector('.ss-send-note-text').textContent, SEND_NOTE_TEXT.sent);
+    r.clock.advance(1500);
+    assert.equal(r.pill().querySelector('.ss-send-note-text').textContent, SEND_NOTE_TEXT.stalled);
+    assert.equal(r.box.value, 'I knock on the cabin door and wait.');
+    r.clock.advance(20000);
+    assert.equal(r.page.clicks, 2, 'no loop of re-sends');
+    r.page.ignore = false;
+    r.pill().querySelectorAll('.ss-send-note-btn')[0].click();
+    r.clock.advance(1000);
+    assert.equal(r.page.clicks, 3, 'Send again tries once more');
+});
+
+test('send note: a busy blip resets the calm count (no re-send while the story is still working)', () => {
+    const r = pageRig();
+    r.page.busy = true;
+    r.press();
+    r.page.busy = false;
+    r.clock.advance(500);
+    r.page.busy = true;
+    r.clock.advance(250);
+    r.page.busy = false;
+    r.clock.advance(500);
+    assert.equal(r.page.clicks, 1);
+    r.clock.advance(500);
+    assert.equal(r.page.clicks, 2);
+});
+
 test('send note: the Stop button showing counts as busy; Enter in the box is a press too', () => {
     const r = pageRig();
     r.stop.style = { display: 'flex' };
@@ -418,6 +455,7 @@ test('send note: still busy after 6 s says so; Send again tries once more', () =
     const again = r.pill().querySelectorAll('.ss-send-note-btn')[0];
     assert.equal(again.textContent, SEND_NOTE_TEXT.again);
     again.click();
+    r.clock.advance(1000);
     assert.equal(r.page.clicks, 2);
 });
 
@@ -451,4 +489,17 @@ test('send note CSS: container-decided layout, 44 px targets, tokens, motion gua
     assert.match(css, /min-height: 44px; min-width: 44px/);
     for (const token of ['--ss-accent', '--ss-warn', '--ss-good', '--ss-text']) assert.ok(css.includes(token), token);
     assert.match(css, /prefers-reduced-motion/);
+});
+
+test('machine: fail() turns Sent into stalled with the text kept, only from sent', () => {
+    const r = rig();
+    assert.equal(r.sp.fail(), false);
+    r.page.busy = true;
+    r.sp.press();
+    r.page.busy = false;
+    r.clock.advance(300);
+    assert.equal(r.sp.state().state, 'sent');
+    assert.equal(r.sp.fail(), true);
+    assert.equal(r.sp.state().state, 'stalled');
+    assert.equal(r.clock.pending(), 0, 'no timers left');
 });
