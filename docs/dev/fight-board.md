@@ -100,6 +100,7 @@ foes a fled or lost fight left, with the note 'These foes are as you left them: 
   claim is keyed by the carrier reply `sid`. The receipt's `replan.payload` keeps `{ key, board, practice }`;
   `result.board` keeps `{ id, seed, offset, groups }`, alongside rounds, order, hurts, wear and stop. The opening
   prelude has a separate claim keyed by its starting anchor and the narrated reply's sid.
+- The practice step is taken back (`NO_LONGER_DONE`) when its reply no longer holds the roll.
 
 ## Decisions
 
