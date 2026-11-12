@@ -171,6 +171,17 @@ test('a mapping is not carried when the text of an earlier reply changed: the se
     assert.equal(native.store.dossiers.tavi.trust, 3, 'no mapping stands on the edited text, so none is carried: the first known state (as before)');
 });
 
+for (const action of ['edit', 'reread', 'delete']) test(`${action} of a middle reply: the selection is the state saved just before it (the newest mapping whose prefix and state still match), not an earlier one and not a later one`, async t => {
+    const { host, native } = await replies(t, 5);
+    // messages: the opening is 0, turn n is 2n-1, reply n is 2n; reply 3 is message 6
+    if (action === 'edit') await host.st.editMessage(6, 'Reply 3, edited.');
+    if (action === 'reread') { await host.st.editMessage(6, 'Reply 3, edited.'); await host.sdk.reread(6); }
+    if (action === 'delete') await host.st.deleteMessage(6);
+    assert.equal((await host.timeline.host.recover()).state, 'idle');
+    assert.equal(native.store.dossiers.tavi.trust, 2, 'the state after reply 2: no later mapping contains the changed reply');
+    assert.equal(hashJson(native.store), (await host.sdk.timeline.status()).participants[0].hash);
+});
+
 test('prefix witness: `bare` ignores the stored boundary stamps and follows records and text (run data, when present)', async t => {
     const { readFile } = await import('node:fs/promises');
     let lines;
