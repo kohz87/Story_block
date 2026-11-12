@@ -13,6 +13,7 @@ import { createSendPending } from './send-pending.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const CALM = 3;
+const RETRIES = 2;
 export const SEND_NOTE_TEXT = Object.freeze({
     label: 'Send status',
     pending: 'Sends when the story is ready',
@@ -55,7 +56,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         if (!stop) return false;
         return (view?.getComputedStyle ? view.getComputedStyle(stop).display : stop.style?.display) !== 'none' && stop.style?.display !== 'none' && stop.hidden !== true;
     };
-    let root = null, started = false, reached = false, verify = null, resending = false;
+    let root = null, started = false, reached = false, verify = null, resending = false, retries = 0;
     const clock = timers ?? { setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms), clearTimeout: h => globalThis.clearTimeout(h) };
     // SillyTavern hides its Stop button a little before it takes a Send again (the last reply's listeners still run), so the story counts as
     // free only after `CALM` polls in a row with nothing busy; a Send clicked in that gap would be ignored.
@@ -69,7 +70,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         isBusy: calm,
         fightHeld: () => held() === true,
         openBoard: () => openBoard() === true,
-        onChange: ({ state }) => { draw(state); if (state === 'sent') checkTaken(); },
+        onChange: ({ state }) => { if (state === 'idle') retries = 0; draw(state); if (state === 'sent') checkTaken(); },
         timers: clock,
     });
 
@@ -100,7 +101,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         if (ICONS[state]) pill.appendChild(icon(doc, state));
         pill.appendChild(text);
         if (state === 'pending') pill.appendChild(button('✕', SEND_NOTE_TEXT.cancel, false, () => sp.cancel()));
-        if (state === 'stalled') pill.append(button(SEND_NOTE_TEXT.again, '', true, () => sp.press()), button('✕', SEND_NOTE_TEXT.dismiss, false, () => sp.cancel()));
+        if (state === 'stalled') pill.append(button(SEND_NOTE_TEXT.again, '', true, () => { retries = 0; sp.press(); }), button('✕', SEND_NOTE_TEXT.dismiss, false, () => sp.cancel()));
         if (state === 'fightHeld') pill.appendChild(button(SEND_NOTE_TEXT.openBoard, '', true, () => sp.openBoard()));
         root.replaceChildren(pill);
         root.setAttribute('data-state', state);
@@ -112,7 +113,12 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         const text = read();
         started = false;
         stopVerify();
-        verify = clock.setTimeout(() => { verify = null; if (!started && read() === text && text.trim()) sp.fail(); }, verifyMs);
+        verify = clock.setTimeout(() => {
+            verify = null;
+            if (started || read() !== text || !text.trim() || !sp.fail()) return;
+            // Not taken (SillyTavern was still closing the last reply): the same text goes again, at most RETRIES more times, then the note waits for the reader.
+            if (retries < RETRIES) { retries += 1; quiet = 0; sp.press(); }
+        }, verifyMs);
     }
     const stopVerify = () => { if (verify !== null) clock.clearTimeout(verify); verify = null; };
     // A Send press (capture phase, before SillyTavern's own handler). Busy or held: SillyTavern will ignore it, so a round starts now.

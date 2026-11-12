@@ -394,23 +394,36 @@ test('send note: a dry run or a quiet call is not a Send being taken', () => {
     assert.equal(r.page.clicks, 2, 'ignored press re-sent once');
 });
 
-test('send note: a re-send SillyTavern also ignored is not called "Sent": it says Not sent yet, and the text stays', () => {
+test('send note: a re-send SillyTavern also ignored is tried again twice at most, never called "Sent" while the text is still there, then says Not sent yet', () => {
     const r = pageRig();
     r.page.busy = true;
     r.press();
     r.page.busy = false;
     r.clock.advance(1000);
-    assert.equal(r.page.clicks, 2);
+    assert.equal(r.page.clicks, 2, 'the first re-send');
     assert.equal(r.pill().querySelector('.ss-send-note-text').textContent, SEND_NOTE_TEXT.sent);
-    r.clock.advance(1500);
+    r.clock.advance(60000);
+    assert.equal(r.page.clicks, 4, 'two more tries and no more');
     assert.equal(r.pill().querySelector('.ss-send-note-text').textContent, SEND_NOTE_TEXT.stalled);
     assert.equal(r.box.value, 'I knock on the cabin door and wait.');
-    r.clock.advance(20000);
-    assert.equal(r.page.clicks, 2, 'no loop of re-sends');
     r.page.ignore = false;
     r.pill().querySelectorAll('.ss-send-note-btn')[0].click();
     r.clock.advance(1000);
-    assert.equal(r.page.clicks, 3, 'Send again tries once more');
+    assert.equal(r.page.clicks, 5, 'Send again goes once more');
+});
+
+test('send note: a retry that SillyTavern takes ends the round (the box empties, no further click)', () => {
+    const r = pageRig();
+    r.page.busy = true;
+    r.press();
+    r.page.busy = false;
+    r.clock.advance(1000);
+    r.page.ignore = false;
+    r.clock.advance(1500);
+    assert.equal(r.page.clicks, 3, 'the retry');
+    r.clock.advance(60000);
+    assert.equal(r.page.clicks, 3);
+    assert.equal(r.pill(), null);
 });
 
 test('send note: a busy blip resets the calm count (no re-send while the story is still working)', () => {
