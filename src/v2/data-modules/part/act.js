@@ -33,6 +33,17 @@ export function withKind(definition, line) {
     return fits.length === 1 ? { ...labels, kind: fits[0] } : labels;
 }
 
+// The narrator's natural clear, `! dm foes - cleared` (or `- dm foes - cleared`, no kind): read as clear-N when exactly one group stands on a Foes block
+// (two or more would be a guess). Only a reply with the `foesClear` rule mark (rule-marks.js): an older reply keeps the line unused.
+const FOES_CLEARED = /^(?:cleared?|all clear(?:ed)?|gone|all gone|defeated|all down|fight over|over)\.?$/iu;
+function foesClearLine(ctx, definition, prefix, module, line) {
+    if (!line || definition.role !== 'foes' || (line.op !== '!' && line.op !== '-') || dmOwn(line.labels ?? {}, 'kind') || !ctx.carrier?.rules?.includes('foesClear')) return line;
+    if (Object.keys(line.labels ?? {}).length || !FOES_CLEARED.test(String(line.text ?? '').trim())) return line;
+    const have = prefix.domains?.dataModules?.instances?.[module]?.chat?.fields;
+    const standing = have ? [1, 2, 3, 4, 5, 6].filter(n => have[`count${n}`] > 0 && definition.kinds[`clear-${n}`]?.op === '-') : [];
+    return standing.length === 1 ? { ...line, op: '-', labels: { kind: `clear-${standing[0]}`, why: 'gone' } } : line;
+}
+
 export function createAct(deps) {
     const { dependency, guard, finish, growSkills, skillRoute, skillRoom, skillWant, settings } = deps;
     // A Foes block of the Levels rules (its set-slot kind has a `level` label): a line that gives a level keeps it; one that gives a rank gets a level drawn inside that
@@ -79,6 +90,7 @@ export function createAct(deps) {
                     && (!ctx.standing || fold(deps.standingBlock(ctx, String(fields.who ?? ''))?.fields?.[`skill${probe.slot}`] ?? '') === fold(String(named.name ?? '')))) redirect = probe.kind;
             }
         }
+        line = foesClearLine(ctx, definition, prefix, module, line);
         let given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
         if (redirect) given = { ...given, kind: redirect };
         const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
