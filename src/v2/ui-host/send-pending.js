@@ -3,7 +3,7 @@
 // then "sent" for 2 s, then idle. A round still busy after 6 s stops waiting ("stalled"); a new press starts one more round. Changed or
 // empty text, a cancel, or typing drops the round without sending. Pure logic: the page is injected (readText, isBusy, clickSend,
 // fightHeld, openBoard) and so are the timers, so there is no DOM and no SillyTavern global here.
-// States: idle | pending | stalled | fightHeld | sent. Only `sent` comes from a re-send; a press that goes straight through stays idle.
+// States: idle | pending | sending | stalled | fightHeld | sent. `sending` (our click made, drawn as pending) becomes `sent` only when taken(); a press that goes straight through stays idle.
 
 const LIVE = new Set(['pending', 'fightHeld']);
 const defaultTimers = {
@@ -33,11 +33,11 @@ export function createSendPending({
         if (state === 'fightHeld') { if (!fightHeld()) toIdle(); return; }
         if (fightHeld()) { stop(stallTimer); stallTimer = null; set('fightHeld'); return; }
         if (isBusy()) return;
-        // The one re-send of this round: the state moves to sent before the click, so nothing can send it twice.
+        // The one re-send of this round: the state moves to sending (shown like pending) before the click, so nothing can send it twice.
+        // "sent" only comes from taken(), once SillyTavern really started on the message.
         stop(stallTimer); stop(pollTimer);
         stallTimer = pollTimer = null;
-        set('sent');
-        sentTimer = timers.setTimeout(() => { sentTimer = null; toIdle(); }, sentMs);
+        set('sending');
         clickSend();
     };
     const poll = () => {
@@ -67,7 +67,7 @@ export function createSendPending({
         press({ ignored = false } = {}) {
             const now = readText();
             if (!now.trim()) return 'empty';
-            if (LIVE.has(state)) return 'waiting';
+            if (LIVE.has(state) || state === 'sending') return 'waiting';
             if (fightHeld() || isBusy() || state === 'stalled' || ignored) {
                 startRound();
                 return state === 'fightHeld' ? 'fightHeld' : state === 'pending' ? 'pending' : 'sent';
@@ -78,10 +78,22 @@ export function createSendPending({
             clickSend();
             return 'passed';
         },
-        // The re-send was not taken (the text is still in the box and Generate was never entered): "Sent" was not true, so the note says
+        // SillyTavern started on the message (Generate entered or the box emptied): after our click this is "sent" for `sentMs`; a round
+        // still waiting (the reader's own Enter got there first) just ends, with no click.
+        taken() {
+            if (state === 'sending') {
+                clearAll();
+                set('sent');
+                sentTimer = timers.setTimeout(() => { sentTimer = null; toIdle(); }, sentMs);
+                return true;
+            }
+            if (state === 'pending') { toIdle(); return true; }
+            return false;
+        },
+        // The re-send was not taken (the text is still in the box and Generate was never entered): the note says
         // "Not sent yet" (stalled) and the reader can press Send again. The text is untouched.
         fail() {
-            if (state !== 'sent') return false;
+            if (state !== 'sending') return false;
             clearAll();
             set('stalled');
             return true;
