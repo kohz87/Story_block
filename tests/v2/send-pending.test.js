@@ -307,8 +307,8 @@ function pageRig(opts = {}) {
     form.append(box, send); doc.body.append(form, stop);
     const page = { clicks: 0, busy: false, held: false, boards: 0, on: true, handlers: [], ignore: true };
     // SillyTavern's Send: takes the text (clears the box and says "input") unless told to ignore it.
-    const realClick = send.click.bind(send);
-    send.click = () => { realClick(); };
+    // A programmatic click travels the document's listeners like a real one (the note's own re-send must not count as a new press).
+    send.click = () => { doc.fire('click', {}, send); };
     send.addEventListener('click', () => { page.clicks++; if (!page.ignore) { box.value = ''; doc.fire('input', {}, box); } });
     const clock = fakeClock();
     const ctx = { eventTypes: { GENERATION_STARTED: 'gs', GENERATION_AFTER_COMMANDS: 'gac' }, eventSource: { on: (n, f) => page.handlers.push(f), removeListener: () => {} } };

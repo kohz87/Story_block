@@ -54,11 +54,12 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
         if (!stop) return false;
         return (view?.getComputedStyle ? view.getComputedStyle(stop).display : stop.style?.display) !== 'none' && stop.style?.display !== 'none' && stop.hidden !== true;
     };
-    let root = null, started = false, reached = false, verify = null;
+    let root = null, started = false, reached = false, verify = null, resending = false;
     const clock = timers ?? { setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms), clearTimeout: h => globalThis.clearTimeout(h) };
     const sp = createSendPending({
         readText: read,
-        clickSend: () => doc.getElementById?.('send_but')?.click?.(),
+        // The note's own click goes through this page's listeners too: `resending` keeps it from counting as a new press.
+        clickSend: () => { resending = true; try { doc.getElementById?.('send_but')?.click?.(); } finally { resending = false; } },
         isBusy: () => stopShown() || busy() === true,
         fightHeld: () => held() === true,
         openBoard: () => openBoard() === true,
@@ -104,7 +105,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
     // A Send press (capture phase, before SillyTavern's own handler). Busy or held: SillyTavern will ignore it, so a round starts now.
     // Free: SillyTavern should take it; if the text is still there after `verifyMs` and nothing began, it was ignored.
     const pressed = () => {
-        if (!enabled()) return;
+        if (!enabled() || resending) return;
         const text = read();
         if (!text.trim()) return;
         stopVerify();
