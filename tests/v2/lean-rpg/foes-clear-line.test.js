@@ -16,7 +16,7 @@ async function chat(t, ...sets) {
     return host;
 }
 
-test('the run\'s exact line `! dm foes - cleared` clears the one group that stands (and survives a rebuild)', async t => {
+test('the short form `! dm foes - cleared` clears the one group that stands (and survives a rebuild)', async t => {
     const host = await chat(t, SET(1, 'Tannery raiders'));
     assert.equal(foes(host).count1, 3);
     await host.send('Done.', reply('! dm foes - cleared'));
@@ -66,4 +66,33 @@ test('a reply captured before the rule (no foesClear mark) keeps the line unused
     assert.equal((await host.turn.reread(fresh)).ok, true);
     assert.equal(foes(host).count1, 0);
     rebuilt(host);
+});
+
+const RUN_LINE = '! dm foes — cleared | kind: set-slot-1 | name: Tannery raiders | count: 0 | level: 2'; // copied from the run's chat (liverun3/capture/chat.jsonl)
+
+test('the run\'s exact line (set-slot-1, count: 0) clears slot 1; unmarked and on its Re-read it stays unused; survives a rebuild', async t => {
+    const host = await chat(t, SET(1, 'Tannery raiders'), SET(2, 'Rats'));
+    const setter = host.store.setRuleMarks;
+    host.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await host.send('Done.', reply(RUN_LINE));
+    host.store.setRuleMarks = setter;
+    const old = host.ctx.chat.length - 1;
+    assert.equal(foes(host).count1, 3, 'unmarked: refused as before');
+    assert.equal((await host.turn.reread(old)).ok, true);
+    assert.equal(foes(host).count1, 3);
+    await host.send('Again.', reply(RUN_LINE));
+    const fresh = host.ctx.chat.length - 1;
+    assert.deepEqual([foes(host).count1, foes(host).foe1, foes(host).count2], [0, '', 3]);
+    assert.equal((await host.turn.reread(fresh)).ok, true);
+    assert.deepEqual([foes(host).count1, foes(host).count2], [0, 3]);
+    rebuilt(host);
+});
+
+test('a clear with only a why label keeps that why, and a `+` set-slot with count 0 clears too', async t => {
+    const host = await chat(t, SET(1, 'Tannery raiders'));
+    await host.send('Done.', reply('- dm foes — cleared | why: down'));
+    assert.equal(foes(host).count1, 0);
+    await host.send('More.', reply(SET(1, 'Rats')));
+    await host.send('Gone.', reply(RUN_LINE.replace('!', '+')));
+    assert.equal(foes(host).count1, 0);
 });

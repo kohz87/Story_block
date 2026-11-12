@@ -33,15 +33,21 @@ export function withKind(definition, line) {
     return fits.length === 1 ? { ...labels, kind: fits[0] } : labels;
 }
 
-// The narrator's natural clear, `! dm foes - cleared` (or `- dm foes - cleared`, no kind): read as clear-N when exactly one group stands on a Foes block
+// The narrator's natural clear, `! dm foes - cleared` (or `- dm foes - cleared`, no kind; or the run's `kind: set-slot-N | count: 0`): read as clear-N when exactly one group stands on a Foes block
 // (two or more would be a guess). Only a reply with the `foesClear` rule mark (rule-marks.js): an older reply keeps the line unused.
 const FOES_CLEARED = /^(?:cleared?|all clear(?:ed)?|gone|all gone|defeated|all down|fight over|over)\.?$/iu;
 function foesClearLine(ctx, definition, prefix, module, line) {
-    if (!line || definition.role !== 'foes' || (line.op !== '!' && line.op !== '-') || dmOwn(line.labels ?? {}, 'kind') || !ctx.carrier?.rules?.includes('foesClear')) return line;
-    if (Object.keys(line.labels ?? {}).length || !FOES_CLEARED.test(String(line.text ?? '').trim())) return line;
+    if (!line || definition.role !== 'foes' || !ctx.carrier?.rules?.includes('foesClear')) return line;
+    const labels = line.labels ?? {};
+    // The slot named with a zero count (`kind: set-slot-N | count: 0`, the block prompt's "0 = empty slot"), under any sign: the clear of that slot (a named slot is no guess).
+    const named = /^set-slot-([1-6])$/u.exec(String(labels.kind ?? ''));
+    if (named && String(labels.count ?? '').trim() === '0' && definition.kinds[`clear-${named[1]}`]?.op === '-') return { ...line, op: '-', labels: { kind: `clear-${named[1]}`, why: 'gone' } };
+    if ((line.op !== '!' && line.op !== '-') || dmOwn(labels, 'kind') || !FOES_CLEARED.test(String(line.text ?? '').trim())) return line;
+    const keys = Object.keys(labels);
+    if (keys.length && !(keys.length === 1 && keys[0] === 'why')) return line;
     const have = prefix.domains?.dataModules?.instances?.[module]?.chat?.fields;
     const standing = have ? [1, 2, 3, 4, 5, 6].filter(n => have[`count${n}`] > 0 && definition.kinds[`clear-${n}`]?.op === '-') : [];
-    return standing.length === 1 ? { ...line, op: '-', labels: { kind: `clear-${standing[0]}`, why: 'gone' } } : line;
+    return standing.length === 1 ? { ...line, op: '-', labels: { kind: `clear-${standing[0]}`, why: keys.length ? labels.why : 'gone' } } : line;
 }
 
 export function createAct(deps) {
