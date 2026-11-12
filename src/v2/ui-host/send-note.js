@@ -125,7 +125,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
     // Typing clears the note. SillyTavern's own emptying of the box when it takes a Send also fires "input": that must not end "Sent".
     const onInput = () => { if (sp.state().state !== 'sent') sp.typed(); };
     // The bubble phase: reached only when nothing earlier stopped or cancelled the press.
-    const onBubble = event => { if (!event.defaultPrevented) reached = true; };
+    const onBubble = event => { if (!event.defaultPrevented && (event.type === 'keydown' ? event.key === 'Enter' && doc.activeElement === box() : event.target?.closest?.('#send_but'))) reached = true; };
     const target = view ?? doc;
     target.addEventListener?.('click', onClick, true);
     target.addEventListener?.('keydown', onKey, true);

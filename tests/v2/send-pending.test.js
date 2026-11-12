@@ -367,6 +367,14 @@ test('send note: a press another handler swallowed (a hold, a fight pause) is ne
     r.clock.advance(10000);
     assert.equal(r.page.clicks, 0);
     assert.equal(r.pill(), null);
+    // Another click on the page (the hold's own buttons) between the press and the check must not count as the press arriving.
+    const o = pageRig();
+    o.doc.addEventListener('click', event => { if (event.target === o.send) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
+    o.press();
+    const other = o.doc.createElement('button'); o.doc.body.append(other);
+    o.doc.fire('click', {}, other);
+    o.clock.advance(10000);
+    assert.equal(o.page.clicks, 0, 'an unrelated click is not the press');
     const k = pageRig();
     k.doc.addEventListener('click', event => event.preventDefault(), true);
     k.press();
