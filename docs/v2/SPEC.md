@@ -170,6 +170,7 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   `/time/minutes`) before it returns: that write keeps no `was`, so replay applies it as a set, exact
   whatever an earlier deleted reply did, and later moves (with `was`) add on top of it. It is written even
   when the count already holds that number, so a replay that finds another number there sets it too.
+  A counted change of a count that an earlier op of the same block already changed starts from the number that op left (not from the state before the block).
 * **Replayed blocks are checked.** After each replayed block the validators of the domains it touches run
   (§2.5); a block that brings a problem the state did not have before it (a stack whose definition a
   deleted reply made, a route to a deleted place) is skipped and reported like one that does not apply.
