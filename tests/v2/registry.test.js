@@ -244,3 +244,31 @@ test('internal commands: capture.*, module.init.* and commands marked internal (
     ]);
     assert.deepEqual(definitionWarnings({ id: 'bad', commands: { 'bad.c': { handler: () => {}, extra: 1 } } }), ['"extra" on command "bad.c" is not a command field this Story Block knows; it is ignored']);
 });
+
+test('a restore barrier (a part busy) keeps a module\'s tabs and screens listed; a module switched off still removes them', () => {
+    const registry = createRegistry();
+    registry.register({
+        id: 'story-block', name: 'Story Block', version: '2.0.0-alpha.1',
+        domains: { scene: { initial: () => ({}) } },
+    });
+    const world = { id: 'dir/world', title: 'World', mounts: ['tab', 'screen'], template: '<p>x</p>' };
+    world.feature = 'dir.world';
+    registry.register({
+        id: 'dir', name: 'Dir', version: '2.0.0-alpha.1',
+        domains: { d: { initial: () => ({}) } },
+        features: [{ id: 'dir.world', label: 'World', default: true }],
+        screens: [world],
+        tabs: [{ id: 'old', title: 'Old', icon: 'fa-x', render: () => {}, feature: 'dir.world' }],
+    });
+    const shown = () => [registry.screens().map(s => s.id), registry.tabs().map(t => t.id), registry.screenOff('dir/world')];
+    assert.deepEqual(shown(), [['dir/world'], ['old'], false]);
+    registry.setRestore('pending', 'A native change is finishing');
+    assert.equal(registry.featureOn('dir.world'), false, 'features stay off for hooks and queries while the barrier holds');
+    assert.deepEqual(shown(), [['dir/world'], ['old'], false], 'the tab and the screen stay while a part is busy');
+    registry.setRestore('idle');
+    assert.deepEqual(shown(), [['dir/world'], ['old'], false]);
+    registry.setEnabled('dir', false);
+    assert.deepEqual(shown(), [[], [], true], 'a module switched off still takes them away');
+    registry.setEnabled('dir', true);
+    assert.deepEqual(shown(), [['dir/world'], ['old'], false]);
+});
