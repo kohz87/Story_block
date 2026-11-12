@@ -18,6 +18,7 @@ import { clearStart, holdStart, pendingStart } from '../turn/fight-start.js';
 import { isStandard, packRulesOf, rulesFromSettings } from './rules.js';
 import { FOES_FRESH_REPLIES } from './board/offers.js';
 import { FOES_TOUCH_QUERY } from './names.js';
+import { isNamedIn } from './open.js';
 import { openingPayload, runPrecheck, wantsPrecheck } from './board/precheck-run.js';
 
 // Whether the fight board is on (one literal id, read once per call).
@@ -36,20 +37,26 @@ const readSettings = (view, moduleId) => {
 export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === true;
 
 /**
- * The sheet with stale foes put down (hurt 0, so no fight stands): in a chat under the `foesFresh` mark, Foes the narrator last touched more than FOES_FRESH_REPLIES
- * replies ago belong to a scene that has moved on, and a typed attack must not start a fight against them. A fight starts when the narrator sets (or updates) the Foes line,
- * so any touch keeps the foes current. No receipt (foes set by hand) leaves them as they are. An old chat (no mark) keeps every foe as it was.
+ * The sheet as the fight-start gate sees it (stale-foes rule, under the `foesFresh` mark; an old chat keeps every foe as it was). A group is fresh when the narrator
+ * touched the Foes block (a `set-slot-N` line or a board fight's result, `rpg.foesTouched`) within FOES_FRESH_REPLIES replies before the reader's message; the replies are
+ * counted only up to that message (index), so a swipe counts what the first try did. No receipt (foes set by hand) leaves the foes fresh. A stale group the reader's message
+ * NAMES (isNamedIn, the pre-check's name rule) still counts, whatever its age: a parley then "I attack the Highmark Deserters" is an attack on them. Only a generic
+ * target ("them", "it") needs fresh foes. Any other stale group is put down (hurt 0) so no fight stands, and its slot is listed in `stale` (a pre-check that opens a new
+ * fight carries it, so those groups never join the fight). → { sheet, stale: [slot] }.
  */
-function currentFoes(view, messages, sheet) {
-    if (!sheet.foes.some(foe => foe.filled && foe.hurt > 0)) return sheet;
+function currentFoes(view, messages, sheet, text, index) {
+    const standing = sheet.foes.filter(foe => foe.filled && foe.hurt > 0);
+    if (!standing.length) return { sheet, stale: [] };
     let touched = -1;
     try {
-        if (view.rule?.('foesFresh') !== true) return sheet;
+        if (view.rule?.('foesFresh') !== true) return { sheet, stale: [] };
         touched = view.query?.(FOES_TOUCH_QUERY);
-    } catch { return sheet; }
-    if (!Number.isInteger(touched) || touched < 0) return sheet;
-    const since = messages.filter((message, at) => at > touched && !message?.is_user && !message?.is_system).length;
-    return since > FOES_FRESH_REPLIES ? { ...sheet, foes: sheet.foes.map(foe => ({ ...foe, hurt: 0 })) } : sheet;
+    } catch { return { sheet, stale: [] }; }
+    if (!Number.isInteger(touched) || touched < 0) return { sheet, stale: [] };
+    const since = messages.slice(0, index + 1).filter((message, at) => at > touched && !message?.is_user && !message?.is_system).length;
+    if (since <= FOES_FRESH_REPLIES) return { sheet, stale: [] };
+    const gone = standing.filter(foe => !isNamedIn(foe.name, [text])).map(foe => foe.slot);
+    return gone.length ? { sheet: { ...sheet, foes: sheet.foes.map(foe => (gone.includes(foe.slot) ? { ...foe, hurt: 0 } : foe)) }, stale: gone } : { sheet, stale: [] };
 }
 
 /** The text of the reply just before the reader's last message (the narration that introduced the foes), or ''. */
@@ -66,15 +73,15 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
     const checked = new WeakMap();
     // No foe is filled in and nothing was rolled: if a fight starts in this reply, the narrator sets the Foes line and stops at the first clash.
     // (a block of Down groups only is a won fight: no fight is on)
-    const noFight = (sheet, board = false) => (sheet.foes.length && !sheet.foes.some(foe => foe.filled && foe.hurt > 0)
-        ? { lines: [board ? { text: 'No foes are set. If a fight begins, set the Foes line and tell the approach only. The fight has not started: end at the moment of engagement.', keep: true } : OPEN_FIGHT_LINE] } : null);
+    const noFight = (sheet, board = false, stale = []) => (sheet.foes.length && !sheet.foes.some(foe => foe.filled && foe.hurt > 0)
+        ? { lines: [board ? { text: `${stale.length ? 'The Foes listed are from an earlier scene and are not in this fight.' : 'No foes are set.'} If a fight begins, set the Foes line and tell the approach only. The fight has not started: end at the moment of engagement.`, keep: true } : OPEN_FIGHT_LINE] } : null);
 
     // A running pre-check also holds another send; stale working states are ignored by pendingStart after a reload.
     const waiting = held => (held && held.choice !== 'plain' ? held : null);
 
     // The foe pre-check (board/precheck-run.js): a typed attack with no foe standing is read once for its groups; the opening is recorded as the old
     // planner's was and the send is held (turn/prompt-build.js records it). → { fightStart } or null (the send goes on as it does without the pre-check).
-    async function precheck(view, sheet, messages, key, text, startAnchor) {
+    async function precheck(view, sheet, messages, key, text, startAnchor, stale) {
         let meta;
         try { meta = metadata(); } catch { return null; }
         const values = readSettings(view, moduleId), held = pendingStart(meta, messages);
@@ -91,7 +98,7 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
             try { onPlanning(false); } catch { /* the screen redraws on the next event */ }
         }
         if (!groups.length) return null;
-        return { opening: openingPayload({ groups, key, rules, anchor: startAnchor, values }), anchor: startAnchor, message: hashText(text) };
+        return { opening: openingPayload({ groups, key, rules, anchor: startAnchor, values, stale }), anchor: startAnchor, message: hashText(text) };
     }
 
     function canGenerate(view, info = {}) {
@@ -122,7 +129,7 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         if (!board) {
             if (info.commit !== true || !['normal', 'regenerate'].includes(normalizeType(info.type)) || !last?.is_user || !on) return null;
             if (!pending && normalizeType(info.type) !== 'normal') return null;
-            const sheet = currentFoes(view, messages, readSheet(view.state));
+            const sheet = currentFoes(view, messages, readSheet(view.state), String(last.mes ?? ''), messages.length - 1).sheet;
             if (pending || (sheet.characters.length && sheet.foes.some(foe => foe.filled && foe.hurt > 0) && knownFoeAction(last.mes, sheet))) {
                 if (!pending && !holdStart(meta, messages, { mode: 'known' })) return null;
                 return { ok: false, reason: 'Choose how to play the waiting fight.', action: false, fightStart: true };
@@ -140,13 +147,13 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         if (!['normal', 'regenerate', 'swipe'].includes(normalizeType(info?.type))) return null;
         // The reader's message: the last one for a send or a regenerate, the one before the reply for a swipe.
         const messages = chat() ?? [];
-        const sheet = currentFoes(view, messages, readSheet(view.state));
         if (!messages.some(message => message && !message.is_user)) return null;
         const index = normalizeType(info?.type) === 'swipe' ? messages.length - 2 : messages.length - 1;
         const last = messages[index];
         if (!last?.is_user) return null;
         const text = String(last.mes ?? '').trim();
         if (!text) return null;
+        const { sheet, stale } = currentFoes(view, messages, readSheet(view.state), text, index);
         const key = `${index}-${hashText(text)}`;
         const startAnchor = readRecord(messages[index - 1])?.sid;
         const on = boardOn(view);
@@ -179,8 +186,8 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         }
         if (claimed(view.state, key)) return null;
         if (on && normalizeType(info?.type) === 'normal' && info.commit !== false && !(info.again && checked.get(last) === key) && !waiting(pendingStart(meta, messages))) {
-            const fightStart = await precheck(view, sheet, messages, key, text, startAnchor);
-            if (fightStart) return { fightStart, ...(readSettings(view, moduleId)[ROLLS_SETTING] !== 'off' ? noFight(sheet, on) ?? {} : {}) };
+            const fightStart = await precheck(view, sheet, messages, key, text, startAnchor, stale);
+            if (fightStart) return { fightStart, ...(readSettings(view, moduleId)[ROLLS_SETTING] !== 'off' ? noFight(sheet, on, stale) ?? {} : {}) };
         }
         if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
         if (!sheet.characters.length) return null;
@@ -196,7 +203,7 @@ export function createPrecall({ chat, metadata = () => null, moduleId = 'story-b
         }
         if (values[ROLLS_SETTING] === 'off') return dice ? { commands: [dice] } : null;
         // No model is asked for a plan: with no fight to carry the reply goes out as one the planner once answered "none" to.
-        const first = noFight(sheet, on);
+        const first = noFight(sheet, on, stale);
         return dice ? { ...(first ?? {}), commands: [dice] } : first;
     }
 

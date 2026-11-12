@@ -30,7 +30,7 @@ function receiptsOf(store, index) {
 }
 
 /**
- * The chat index of the latest reply that touched the Foes block: a set-slot line (a group set, hurt or cleared) or a board fight's result.
+ * The chat index of the latest reply that touched the Foes block: a `set-slot-N` line (a group set or replaced) or a board fight's result (hurt and clear lines are not offered under the board grammar, so they are not read).
  * -1 when no receipt says (foes set by hand). Foes untouched for FOES_FRESH_REPLIES replies no longer start a fight (stale-foes rule, `foesFresh` mark).
  */
 export function lastFoeTouch(entries) {
