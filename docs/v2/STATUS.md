@@ -1,6 +1,6 @@
 # Story Suite v2: implementation status
 
-State on 11 November 2026: **Story Block 2.32.0** (host), with **Story Director 2.15.0** and **NPC State Delta 1.17.0** as its modules
+State on 12 November 2026: **Story Block 2.32.0** (host), with **Story Director 2.15.0** and **NPC State Delta 1.17.0** as its modules
 (each repo's own CHANGELOG has the exact releases) and **Story Studio 0.12.0** as the page for writing packs. The example pack is
 **Ersveil 2.9.6**; it needs Story Block 2.31.1 or newer. Version numbers below the "Unreleased" heading of CHANGELOG.md are in the next release.
 
