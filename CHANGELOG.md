@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Deleting, editing or Re-reading a middle reply restores NPC dossiers to before that reply.** With NPC State Delta updated too, the dossiers go back to the state saved just before the changed reply, are rebuilt from the later replies, and a note says so; if no safe point exists the current dossiers are kept with a note. Deleting the last reply and swiping are unchanged. Story Block's own head selection already picked that state (now pinned by a test); no prompt change, replies already written replay as before.
+
 ## 2.32.1
 
 Update Story Block. After a board fight ends its foes are cleared, so the next attack starts a new fight; the narrator keeps your character sheet and the Foes line when the prompt is tight, so a lost fight is remembered. New replies only; old replies replay unchanged.
