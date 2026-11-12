@@ -232,3 +232,15 @@ test('a roll made before practice by code has no mark and gives nothing, byte fo
     assert.equal(rollOf([{ type: 'rpg.resolve', data: { v2: { result } } }]), null);
     assert.ok(record.receipts.some(receipt => receipt.type === 'rpg.practice'), 'the new roll has its step');
 });
+
+test('the practice step goes with its roll: planned again on a reply that no longer holds the roll it was made for, it is taken back, not paid', { skip }, async t => {
+    const { host } = await world(t, { perUse: 3 });
+    await host.send('I strike.', reply());
+    const at = host.ctx.chat.length - 1;
+    const step = host.ctx.chat[at].extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.practice');
+    assert.ok(step, 'the reply has its practice step');
+    const uses = usesOf(rollReceipt(host, at).data.v2.result);
+    const again = (receiptsBefore) => host.bus.run('rpg.practice', { uses, perUse: 3 }, { cause: 'system', state: host.head(), reply: { index: at, sid: host.store.carrierSid(at) }, receiptsBefore });
+    assert.equal(again(host.store.receipts().filter(entry => entry.receipt.type !== 'rpg.resolve')).code, 'NO_LONGER_DONE', 'no roll on the reply: the step is taken back');
+    assert.notEqual(again(host.store.receipts()).code, 'NO_LONGER_DONE', 'the roll there: the step runs');
+});
