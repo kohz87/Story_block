@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **A "Send pending" note above the message box.** When a Send cannot go yet (the story is still finishing the last reply, or a fight start is holding it), a small note says so instead of leaving you guessing: "Sends when the story is ready" (✕ cancels), "Not sent yet: the story is still busy" after 6 seconds (Send again, ✕), "Your fight hasn't been sent yet" with Open fight board, and "Sent" for 2 seconds after the one automatic re-send. It never changes your text, the prompt or the chat. Settings → Look → Send pending note (on by default).
+
 ## 2.31.1
 
 Update Story Block, Story Director and NPC State Delta together. Replies already written replay and Re-read exactly as before. For the harder foes, start a new chat (or re-add the Foes block).

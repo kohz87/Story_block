@@ -9,7 +9,7 @@ import { hostImports } from '../helpers/css-parts.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
 const css = read('view/controls.css');
-const ROOTS = ['.story-suite-overlay', '.story-suite-sheet', '.ss-gameview', '.ss-dialog', '.ss-cards', '.ss-card', '.ss-hud', '[data-ss-screen]', '.story-suite-bar', '.story-suite-extras', '.story-suite-reply-note', '.rpg-fight-offer', '.rpg-fight-pause'];
+const ROOTS = ['.story-suite-overlay', '.story-suite-sheet', '.ss-gameview', '.ss-dialog', '.ss-cards', '.ss-card', '.ss-hud', '[data-ss-screen]', '.story-suite-bar', '.story-suite-extras', '.story-suite-reply-note', '.ss-send-note', '.rpg-fight-offer', '.rpg-fight-pause'];
 const PREFIX = `:where(${ROOTS.join(', ')})`;
 
 // Top-level commas only (the :where() lists have their own).

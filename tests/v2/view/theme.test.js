@@ -262,7 +262,7 @@ test('Glass strength: 30–90%, the concept\'s alphas at 50%; the tint gives the
     assert.equal(HOST_SETTINGS_DEFAULTS.glassStrength, 50);
     const field = HOST_SETTINGS_SCHEMA.glassStrength;
     assert.deepEqual([field.type, field.min, field.max, field.form], ['int', 30, 90, 'slider']);
-    assert.deepEqual(Object.keys(HOST_SETTINGS_SCHEMA).slice(-4), ['panelStyle', 'glassStrength', 'font', 'textSize'], 'under Panel style');
+    assert.deepEqual(Object.keys(HOST_SETTINGS_SCHEMA).slice(-5), ['panelStyle', 'glassStrength', 'font', 'textSize', 'sendPending'], 'under Panel style');
 });
 
 test('Text size: Normal adds nothing (the same bytes as before the setting); 110% and 120% set the zoom every root follows, in the sheet only', () => {

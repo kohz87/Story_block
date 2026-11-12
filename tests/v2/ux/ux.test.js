@@ -243,7 +243,7 @@ test('Alt+G opens and closes the game view; the bar button stays and names the k
     const before = doc.listeners.filter(entry => entry.type === 'keydown').length;
     ui.destroy();
     // Alt+G, and the game view's own key tracker (the mount is destroyed with the page now)
-    assert.equal(doc.listeners.filter(entry => entry.type === 'keydown').length, before - 2, 'Alt+G and the mount\'s tracker are unhooked');
+    assert.equal(doc.listeners.filter(entry => entry.type === 'keydown').length, before - 4, 'Alt+G, the mount\'s tracker and the Send note\'s two key listeners are unhooked');
     press();
     assert.equal(ui.mounts.screen.isOpen(), false);
 });
@@ -291,7 +291,7 @@ test('host.css: subtle transitions, and none under prefers-reduced-motion', () =
     assert.match(css, /\.ss-l-meter-fill \{ transition: width/);
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
     assert.ok(reduced.length > 30, 'a reduced-motion block');
-    for (const selector of ['.ss-card', '.ss-hud', '.ss-gameview', '[data-ss-screen] *', '.story-suite-reply-note', '.rpg-fight-offer', '.rpg-fight-pause']) assert.ok(reduced.includes(selector), selector);
+    for (const selector of ['.ss-card', '.ss-hud', '.ss-gameview', '[data-ss-screen] *', '.story-suite-reply-note', '.ss-send-note', '.rpg-fight-offer', '.rpg-fight-pause']) assert.ok(reduced.includes(selector), selector);
     assert.match(reduced, /transition: none !important;/);
     assert.match(reduced, /animation: none !important;/);
 });

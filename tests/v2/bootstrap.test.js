@@ -102,7 +102,7 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Blocks', 'Modules', 'Diagnostics']);
     // Look and Features are the form engine's: no folds. The Story Suite fold has the budgets, not the look.
     assert.deepEqual(foldsOf('look'), []);
-    assert.deepEqual(texts(page('look'), '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font', 'Text size']);
+    assert.deepEqual(texts(page('look'), '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font', 'Text size', 'Send pending note']);
     assert.deepEqual(foldsOf('features'), []);
     assert.ok(page('features').querySelector('.ss-features-group[data-fold="story-suite-features::story-block"]'), 'Story Block\'s group of tiles');
     assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));
