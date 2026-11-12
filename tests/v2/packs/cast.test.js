@@ -160,13 +160,13 @@ test('portrait names: a file name beside the pack; at most 32 different files', 
     ok(withCast(shared));
 });
 
-test('packs.content({ kind: cast }): the enabled packs\' people in pack order, each with pack and packVersion; a copy', () => {
+test('packs.content({ kind: cast }): the enabled packs\' people in pack order, each with pack and packVersion; frozen', () => {
     const a = ok(withCast([person()]));
     const b = ok({ ...withCast([person({ id: 'sera', name: 'Sera' })]), id: 'other', version: '2.1.0' });
     const list = contentOf([a, b], 'cast');
     assert.deepEqual(list.map(entry => [entry.pack, entry.packVersion, entry.id]), [['mini', '1.0.0', 'fenna'], ['other', '2.1.0', 'sera']]);
     assert.deepEqual(contentOf([a, b], 'cast', { pack: 'other' }).map(entry => entry.id), ['sera']);
-    list[0].name = 'changed';
+    assert.throws(() => { list[0].name = 'changed'; }, TypeError, 'frozen: the pack\'s own records');
     assert.equal(contentOf([a, b], 'cast')[0].name, 'Fenna');
     assert.deepEqual(contentOf([ok(pack())], 'cast'), []);
 });
