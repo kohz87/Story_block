@@ -46,9 +46,9 @@ const RUNS = process.env.QA_FUZZ_SEED || process.env.QA_FUZZ_SEEDS || process.en
 // 2024:38, 7:37, 424242:35, 90210:27, 42:20). Each long seed has its own shard. Their union is RUNS.
 const SHARD_RUNS = [
     [[16, LONG_STEPS], [90210, STEPS], [74, STEPS]],
-    [[25, LONG_STEPS], [7, STEPS], [27, STEPS]],
+    [[25, LONG_STEPS], [7, STEPS], [27, STEPS], [37, STEPS]],
     [[36, LONG_STEPS], [1, STEPS], [131, STEPS]],
-    [[1337, STEPS], [31337, STEPS], [2024, STEPS], [424242, STEPS], [42, STEPS], [37, STEPS]],
+    [[1337, STEPS], [31337, STEPS], [2024, STEPS], [424242, STEPS], [42, STEPS]],
 ];
 const OVERRIDDEN = Boolean(process.env.QA_FUZZ_SEED || process.env.QA_FUZZ_SEEDS || process.env.QA_FUZZ_STEPS);
 // Shard n (1..4) of the runs. A local override runs its whole list once, in shard 1; the others skip.
