@@ -5,6 +5,8 @@
     container-type: inline-size;
     box-sizing: border-box; width: 100%; padding: 0 8px 6px;
     font-family: var(--ss-font, inherit); color: var(--ss-text, inherit);
+    /* SillyTavern sets `white-space: nowrap` on #form_sheld; the note's words wrap inside the pill. */
+    white-space: normal;
 }
 .ss-send-note-pill {
     --note: var(--ss-accent, #7b6cf0); --note-text: var(--ss-accent-text, inherit);
