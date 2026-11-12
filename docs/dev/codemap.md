@@ -121,6 +121,7 @@ Last checked: 2026-11-07.
 - `src/v2/view/glass-pages-modules.css`: the Modules and Diagnostics pages, Versions, finger-sized folds and the UI sample. Part of the split of glass.css, loaded by host.css in the original order.
 - `src/v2/view/host-furniture.css`: the host furniture: tokens, bar, card offer, Story panel, tab host, settings folds and rows. Part of the split of host.css, loaded by host.css in the original order.
 - `src/v2/view/host-notes-blocks.css`: notes and Choices under a reply, motion, the Data modules card, block records and the block editor. Part of the split of host.css, loaded by host.css in the original order.
+- `src/v2/view/send-note.css`: the "Send pending" note: a pill above the message box, right-aligned when its container is wide and full width when narrow (container query), in the Story Suite tokens, light and dark.
 - `src/v2/view/inv-sheet.css`: styles the Inventory Grid's item sheet dialog contents (`.ss-dialog.inv-sheet`), split out of the mounts sheets.
 - `src/v2/view/mounts-game.css`: the game view: bottom bar, header, window. Part of the split of mounts.css, loaded by host.css in the original order.
 - `src/v2/view/mounts-cards-hud.css`: inline cards under replies and the HUD strip. Part of the split of mounts.css, loaded by host.css in the original order.
@@ -164,6 +165,8 @@ Last checked: 2026-11-07.
 - `src/v2/ui-host/panel.js`: panel creation, opening, closing and live tab-host access.
 - `src/v2/ui-host/settings.js`: settings overlay, diagnostics and theme inputs.
 - `src/v2/ui-host/events.js`: runtime and chat listeners with their teardown callbacks.
+- `src/v2/ui-host/send-pending.js`: the "Send pending" note's state machine (idle, pending, stalled, fightHeld, sent): one re-send when SillyTavern is free, never a changed or empty text, pure logic with injected page and timers.
+- `src/v2/ui-host/send-note.js`: the "Send pending" note above SillyTavern's message box: sees a Send SillyTavern ignored, draws the five states (role=status), re-sends once through #send_but; UI only, never touches the text, prompt or chat.
 - `src/v2/commands/shared.js`: limits, error helpers, reply and ID helpers; `commands.js` re-exports the public names.
 - `src/v2/commands/state.js`: drafts, frozen reads, queries, Source, cursor and proof.
 - `src/v2/commands/guards.js`: replay guards and their mark.
