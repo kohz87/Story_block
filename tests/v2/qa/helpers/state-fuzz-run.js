@@ -32,7 +32,7 @@ import { changeLine, replyText, uiCommand, bonusPaidOnLine } from './state-fuzz-
 
 
 // QA_FUZZ_SEEDS=200 QA_FUZZ_STEPS=200 runs a longer hunt locally (QA_FUZZ_SEED=n one seed); CI runs the fixed list.
-const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : process.env.QA_FUZZ_SEEDS ? Array.from({ length: Number(process.env.QA_FUZZ_SEEDS) }, (_, i) => i + 1) : [1, 7, 42, 1337, 2024, 31337, 90210, 424242];
+const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : process.env.QA_FUZZ_SEEDS ? Array.from({ length: Number(process.env.QA_FUZZ_SEEDS) }, (_, i) => i + 1) : [1, 7, 42, 1337, 2024, 31337, 90210, 424242, 74, 27, 131, 37];   // (74: a receipt on no carrier after a chat reopened, 27: a save checked against a swipe that was deleted, 131: a check and a name decision in the oracle's guards, 37: a count changed twice in one block)
 const STEPS = Number(process.env.QA_FUZZ_STEPS) || 90;
 // CI also runs a few seeds as long chats (LONG_STEPS): some states only come after many steps (someone
 // present, gone, back again, then the middle reply deleted), and 90 steps did not reach them (fix-fuzz150).
@@ -45,10 +45,10 @@ const RUNS = process.env.QA_FUZZ_SEED || process.env.QA_FUZZ_SEEDS || process.en
 // The balanced shards (CI seconds measured: long 16:149, 25:138, 36:127; short 1:50, 1337:47, 31337:43,
 // 2024:38, 7:37, 424242:35, 90210:27, 42:20). Each long seed has its own shard. Their union is RUNS.
 const SHARD_RUNS = [
-    [[16, LONG_STEPS], [90210, STEPS]],
-    [[25, LONG_STEPS], [7, STEPS]],
-    [[36, LONG_STEPS], [1, STEPS]],
-    [[1337, STEPS], [31337, STEPS], [2024, STEPS], [424242, STEPS], [42, STEPS]],
+    [[16, LONG_STEPS], [90210, STEPS], [74, STEPS]],
+    [[25, LONG_STEPS], [7, STEPS], [27, STEPS]],
+    [[36, LONG_STEPS], [1, STEPS], [131, STEPS]],
+    [[1337, STEPS], [31337, STEPS], [2024, STEPS], [424242, STEPS], [42, STEPS], [37, STEPS]],
 ];
 const OVERRIDDEN = Boolean(process.env.QA_FUZZ_SEED || process.env.QA_FUZZ_SEEDS || process.env.QA_FUZZ_STEPS);
 // Shard n (1..4) of the runs. A local override runs its whole list once, in shard 1; the others skip.
