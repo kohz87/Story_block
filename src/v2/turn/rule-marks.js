@@ -43,6 +43,8 @@ export const RULE_LINES = Object.freeze({
     foesClear: () => false,
     // `~ time` with a month name the calendar does not have ("Redfall 1") is refused with a Problem and the clock stays (Story Director tracker/time.js timeAfter). Static per chat: only a reply's first live capture is marked, so an older reply keeps reading such a line as it did.
     clockMonth: () => false,
+    // `~ you rank:` that contradicts the pack's rank data module (Ersveil guild-membership: registered, letter) is left out with a Problem (domains/scene/you.js changeYou). Static per chat: only a reply's first live capture is marked, so an older reply keeps its rank line on Re-read.
+    youRank: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
