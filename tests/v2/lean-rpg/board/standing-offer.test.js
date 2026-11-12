@@ -35,6 +35,7 @@ async function fought(t, seed, pick, spy = null) {
         await settle();
     }
     assert.ok(boardSession(host.ctx.chatMetadata));
+    delete boardSession(host.ctx.chatMetadata).setup.foesClear;   // (a chat from before the foe-clear mark: its ended fight leaves the foes standing)
     host.ctx.generate = type => host.st.generate(type, { reply: 'You broke away.' });
     doc.querySelector('.rpg-board-send').click();
     await settle();

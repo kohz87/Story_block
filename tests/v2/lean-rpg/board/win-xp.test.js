@@ -12,32 +12,34 @@ import { discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-
 import { seedCrypto } from '../../qa/helpers/seeded.js';
 import { character, levelFoeBlock, recordOf, sheetDomain } from '../helpers.js';
 
-async function world({ old = false, level = 1, health = 5 } = {}) {
+async function world({ old = false, level = 1, health = 5, foeLevel = level } = {}) {
     const host = await createHost({ callModel: async () => 'none', settings: { modules: { 'story-block': { rpgFormula: 'standard' } } } });
     host.features.set(CORE_FEATURE.leanRpg, true);
     host.features.set(CORE_FEATURE.fightBoard, true);
     await host.send('Begin.', 'Opening.');
     for (const { definition } of STANDARD_TEMPLATES) assert.equal((await host.sdk.command('dm.define', { definition: structuredClone(old && definition.role === 'character' ? characterV1For() : definition) })).ok, true);
     assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level, str: 20, agi: 20, vit: 20, health } })).ok, true);
-    await host.send('Rats.', `Rats.\n<Changes>\n+ dm foes — rats | kind: set-slot-1 | name: Tunnel Rat | count: 1 | level: ${level}\n</Changes>`);
+    await host.send('Rats.', `Rats.\n<Changes>\n+ dm foes — rats | kind: set-slot-1 | name: Tunnel Rat | count: 1 | level: ${foeLevel}\n</Changes>`);
     return host;
 }
 const hero = host => host.head().domains.dataModules.instances['pack.chat/character'].chat.fields;
 const fights = host => recordOf(host, host.store.headIndex()).receipts.filter(receipt => receipt.type === 'rpg.fight');
 // stage attacks until the fight is won (another seed by discarding), then send them with the reply
-async function winWith(host, story) {
+async function winWith(host, story, { marked = false, how = 'won' } = {}) {
     const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex()), rules = { ...STANDARD_FORMULA, levelDivisor: 5 };
     for (let attempt = 0; attempt < 100; attempt += 1) {
-        assert.equal(openBoard(meta, host.head(), { sid, rules }).error, undefined);
+        const opened = openBoard(meta, host.head(), { sid, rules });
+        assert.equal(opened.error, undefined);
+        if (!marked) delete opened.session.setup.foesClear;   // (these tests are about a fight that leaves its block as it was: a chat from before the foe-clear mark)
         let preview;
         for (let n = 0; n < 12; n += 1) {
             const target = readSheet(preview?.state ?? host.head()).foes.find(foe => foe.filled && foe.hurt > 0)?.slot;
-            const staged = stageExchange(meta, host.head(), [{ who: 'Astra', kind: 'attack', target }]);
+            const staged = stageExchange(meta, host.head(), [{ who: 'Astra', ...(how === 'fled' ? { kind: 'flee' } : { kind: 'attack', target }) }]);
             if (staged.error) break;
             preview = staged.preview;
             if (preview.result.stop !== 'open') break;
         }
-        if (preview?.result.stop === 'won') return host.send('I strike.', story);
+        if (preview?.result.stop === how) return host.send('I strike.', story);
         discardBoard(meta);
     }
     throw new Error('no win found');
@@ -214,3 +216,69 @@ test('an old marked fight ({was, bars: 2}, no xp) keeps its old sum through rebu
         } finally { fresh.close(); }
     } finally { restore(); }
 });
+
+// The foe-clear mark (a new chat): the won fight leaves the Foes block, and the XP step names its own board resolve.
+const promptOf = sent => (sent?.request?.chat ?? []).map(message => message.content).join('\n');
+const SAME = 'Done.\n<Changes>\n+ dm foes — raider | kind: set-slot-1 | name: Tunnel Rat | count: 1 | level: 1\n</Changes>';
+
+test('a marked board win with the stock hero pays, clears the block, names its resolve, and replay == live == Re-read', async () => {
+    const restore = seedCrypto(33), host = await world();
+    try {
+        const sent = await winWith(host, 'Done.', { marked: true });
+        assert.equal(hero(host).xp, 15, 'the stock hero (made by define and set) is paid');
+        assert.equal(readSheet(host.head()).foes.filter(foe => foe.filled).length, 0, 'the won fight left the block');
+        const payload = fights(host)[0].replan.payload;
+        assert.equal(payload.gone, 1);
+        assert.match(payload.claim, /^rpg:resolve:b:/u);
+        assert.deepEqual(host.turn.problems(), []);
+        const prompt = promptOf(sent);
+        assert.ok(prompt.includes('[COMBAT SYSTEM]'), 'the reply that tells the end keeps the combat rules');
+        assert.ok(prompt.includes('If a new group arrives after this fight'));
+        assert.equal(prompt.includes('tell no blows yourself'), false);
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live);
+        assert.equal((await host.turn.reread(host.store.headIndex())).ok, true);
+        assert.equal(hero(host).xp, 15);
+        assert.equal(JSON.stringify(host.head()), live);
+    } finally { host.close(); restore(); }
+});
+
+test('a marked board win still pays when the same reply sets a group with the same name in the cleared slot', async () => {
+    const restore = seedCrypto(33), host = await world();
+    try {
+        await winWith(host, SAME, { marked: true });
+        assert.equal(hero(host).xp, 15, 'a real win is paid, whatever the narrator sets after it');
+        assert.equal(host.turn.problems().some(problem => problem.message.includes('standing again')), false);
+        assert.equal(readSheet(host.head()).foes.filter(foe => foe.filled).length, 1, 'the new group stands');
+        const live = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live);
+    } finally { host.close(); restore(); }
+});
+
+test('deleting the reply that set the foes takes a marked win\'s XP back, and rebuild agrees', async () => {
+    const restore = seedCrypto(33), host = await world();
+    try {
+        await winWith(host, 'Done.', { marked: true });
+        assert.equal(hero(host).xp, 15);
+        await host.st.deleteMessage(4);
+        assert.equal(hero(host).xp, 0, 'the fight was taken back, so its XP is');
+        const after = JSON.stringify(host.head());
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), after);
+    } finally { host.close(); restore(); }
+});
+
+for (const how of ['lost', 'fled']) {
+    test(`the reply that tells a ${how} marked board fight keeps its fight tail (rules, the new-group line, no no-fight line)`, async () => {
+        const restore = seedCrypto(33), host = await world({ foeLevel: 40, health: 1 });
+        try {
+            const prompt = promptOf(await winWith(host, 'Done.', { marked: true, how }));
+            assert.ok(prompt.includes('[COMBAT SYSTEM]'));
+            assert.ok(prompt.includes('If a new group arrives after this fight'));
+            assert.equal(prompt.includes('tell no blows yourself'), false);
+            assert.equal(readSheet(host.head()).foes.filter(foe => foe.filled).length, 0);
+        } finally { host.close(); restore(); }
+    });
+}

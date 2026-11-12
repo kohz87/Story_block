@@ -215,12 +215,14 @@ for (const seed of SEEDS) {
             } else if (step === 7) {
                 const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
                 if (boardSession(meta)) discardBoard(meta);
+                // (an earlier ended fight cleared its foes: the swarm arrives again)
+                assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/delete-fuzz-foes', fields: { foe1: 'Fuzz Rats', count1: 12, level1: 1, hurt1: 1 } })).ok, true, `seed ${seed}: the swarm is set again`);
                 staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Sweep', area: true }], 'later pack exchange');
                 stagedKind = 'pack'; stagedCount = 12; stagedSkill = 'Sweep';
             } else if (step === 8) {
                 const meta = host.ctx.chatMetadata, sid = host.store.carrierSid(host.store.headIndex());
                 if (boardSession(meta)) discardBoard(meta);
-                assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/delete-fuzz-foes', fields: { count1: 1, hurt1: 1 } })).ok, true,
+                assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/delete-fuzz-foes', fields: { foe1: 'Fuzz Rats', count1: 1, level1: 1, hurt1: 1 } })).ok, true,
                     `seed ${seed}: the count-one fight's Foes block is set`);
                 staged = stageWon(meta, sid, [{ who: 'Astra', kind: 'skill', skill: 'Cut', target: 1 }], 'count-one exchange');
                 stagedKind = 'member'; stagedCount = 1; stagedSkill = 'Cut';

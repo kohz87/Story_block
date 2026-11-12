@@ -425,3 +425,18 @@ test('a block with no cards, no reply-end functions and no hidden fields stores 
     assert.deepEqual(blockCards(host.head()), []);
     await reload(host);
 });
+
+test('the tail lists a character sheet before the pack blocks (a tight tail is cut from its end, so Health outlasts the counters)', async () => {
+    const { tailLines } = await import('../../../src/v2/data-modules/part/prompt.js');
+    const [sheet] = check(hero()).definitions;
+    const [ledger] = check({ slug: 'ledger', name: 'Ledger', schema: 1, stateVersion: 1, scope: 'chat', state: { gold: int(0, 99, 0, { label: 'Gold' }) }, kinds: { 'set-gold': setKind('gold', int(0, 99, 0)) } }).definitions;
+    const slot = definition => ({ hash: `h-${definition.slug}`, generation: 1, subjects: ['chat'] });
+    const state = { domains: { dataModules: {
+        pins: { [`h-${ledger.slug}`]: { interpreter: 1, definition: ledger }, [`h-${sheet.slug}`]: { interpreter: 1, definition: sheet } },
+        active: { [ledger.id]: slot(ledger), [sheet.id]: slot(sheet) },
+        instances: { [ledger.id]: { chat: { fields: { gold: 7 }, timers: {}, offers: {}, settled: {} } }, [sheet.id]: { chat: { fields: { health: 0 }, timers: {}, offers: {}, settled: {} } } } } } };
+    const on = tailLines(state, true), off = tailLines(state, false);
+    assert.match(on[0], /^Hero — .*health Down/);
+    assert.match(on[1], /^Ledger — /);
+    assert.match(off[0], /^Ledger — /, 'with the RPG off the pin order stands');
+});

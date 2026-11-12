@@ -214,6 +214,9 @@ for (const outcome of ['success', 'fail', 'soaked']) test(`the log labels a defe
     const log = doc.querySelector('.rpg-board-log').textContent;
     assert.match(log, new RegExp(`Rats 1 attacks Wessel.*Wessel's defence: ${outcome === 'soaked' ? 'GLANCED OFF' : outcome.toUpperCase()}`));
     assert.match(log, /d20 \d+ [+-]\d+ = \d+ vs \d+/);
+    // (the foe's own roll first, then the defender's, so "FAIL" reads as the foe's hit: the totals are the recorded ones)
+    const attack = new RegExp(`${defence.foe.name} attacks Wessel: ${defence.foe.name} d20 ${defence.foe.die} [+-]\\d+ = ${defence.foe.total} vs Wessel's defence d20 ${defence.pc.die} [+-]\\d+ = ${defence.pc.total} — `);
+    assert.match(log, attack);
     assert.doesNotMatch(log, /(?:health|mana|stamina)\s+\d+\s*→\s*\d+/i);
     if (defence.damage) assert.ok(log.includes(`Wessel health ${stageWord(STAGES.health, defence.damage.from, defence.damage.size)} → ${stageWord(STAGES.health, defence.damage.to, defence.damage.size)}`));
     assert.doesNotMatch(doc.querySelector('.rpg-board-status').textContent, /\d+ of \d+/);
