@@ -311,7 +311,7 @@ function pageRig(opts = {}) {
     send.click = () => { realClick(); };
     send.addEventListener('click', () => { page.clicks++; if (!page.ignore) { box.value = ''; doc.fire('input', {}, box); } });
     const clock = fakeClock();
-    const ctx = { eventTypes: { GENERATION_STARTED: 'gs' }, eventSource: { on: (n, f) => page.handlers.push(f), removeListener: () => {} } };
+    const ctx = { eventTypes: { GENERATION_STARTED: 'gs', GENERATION_AFTER_COMMANDS: 'gac' }, eventSource: { on: (n, f) => page.handlers.push(f), removeListener: () => {} } };
     const note = createSendNote({ doc, ctx, enabled: () => page.on, busy: () => page.busy, held: () => page.held, openBoard: () => { page.boards++; return true; }, timers: clock.timers, ...opts });
     const press = () => doc.fire('click', {}, send);
     const pill = () => doc.body.querySelector('.ss-send-note-pill');
@@ -356,7 +356,8 @@ test('send note: a free press that SillyTavern ignored is sent again once; one i
     g.press();
     g.page.handlers.forEach(fn => fn());
     g.clock.advance(5000);
-    assert.equal(g.page.clicks, 1, 'a generation began: not ignored');
+    assert.equal(g.page.clicks, 1, 'Generate was entered (a hold or interceptor may have kept the text): not ignored');
+    assert.equal(g.page.handlers.length, 2, 'both events are listened to');
 });
 
 test('send note: a press another handler swallowed (a hold, a fight pause) is never re-sent', () => {

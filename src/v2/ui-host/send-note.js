@@ -3,7 +3,7 @@
 // taking it over: SillyTavern always handles the press itself. Three things start a round (send-pending.js):
 //   * the story is busy at the press (SillyTavern's Stop button is showing, or the story's own reply is still being finished);
 //   * a fight start holds the Send (the Fight board's pause swallows it; the note offers "Open fight board");
-//   * the press was free and reached SillyTavern, but it took no notice: the text is still in the box after `verifyMs` and no generation began.
+//   * the press was free and reached SillyTavern, but it took no notice: the text is still in the box after `verifyMs` and Generate was never entered (no GENERATION_AFTER_COMMANDS / STARTED).
 //     (A press another handler swallowed first, such as the "Make your character first" hold or a fight start's pause, never reaches the page's
 //     bubble phase, so it is not re-sent: that handler owns it.)
 // The one re-send is a click on #send_but when the story is free. UI only: no payload, no prompt, no chat data. Text is set with
@@ -134,7 +134,9 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
     doc.addEventListener?.('keydown', onBubble, false);
     const types = ctx?.eventTypes ?? ctx?.event_types ?? {};
     const onStart = () => { started = true; };
-    if (types.GENERATION_STARTED) ctx?.eventSource?.on?.(types.GENERATION_STARTED, onStart);
+    // Generate was entered (AFTER_COMMANDS comes first, before any interceptor can hold the reply back; STARTED follows).
+    const starts = [types.GENERATION_AFTER_COMMANDS, types.GENERATION_STARTED].filter(Boolean);
+    for (const name of starts) ctx?.eventSource?.on?.(name, onStart);
     return {
         state: () => sp.state(),
         destroy() {
@@ -144,7 +146,7 @@ export function createSendNote({ doc, ctx = null, enabled = () => true, busy = (
             doc.removeEventListener?.('input', onInput, true);
             doc.removeEventListener?.('click', onBubble, false);
             doc.removeEventListener?.('keydown', onBubble, false);
-            if (types.GENERATION_STARTED) ctx?.eventSource?.removeListener?.(types.GENERATION_STARTED, onStart);
+            for (const name of starts) ctx?.eventSource?.removeListener?.(name, onStart);
         },
     };
 }
