@@ -47,6 +47,8 @@ export const RULE_LINES = Object.freeze({
     youRank: () => false,
     // Practice lines can explicitly name a skill and must not credit an arbitrary slot when their reason names several skills.
     skillPractice: line => line?.kind === 'dm' && line.op === '+' && (!line.labels?.kind || /^practice-(?:[1-9]|1[01])$/u.test(String(line.labels.kind))),
+    // Only new replies change how the safety net's place lines affect presence or reject conflicting places.
+    assistPlace: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */

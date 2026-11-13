@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseChanges } from '../../../src/v2/capture.js';
 import { EXTRACTOR_FOOT, MAX_NEAR, SETTING, WHERE_HEAD, createAssistPart, extractorPrompt, hasClockTime, knownPlace, mapPlaces, parseExtractorAnswer, whereLines, whereNow, whereWhy } from '../../../src/v2/assist/index.js';
+import { assistPlaceConflict } from '../../../src/v2/assist/where.js';
 import { refusedFrom } from '../../../src/v2/reply-notes.js';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { fakeModel, on } from './helpers/fakes.js';
@@ -93,6 +94,32 @@ test('the extractor prompt: where and when come after the instruction and before
     assert.match(EXTRACTOR_FOOT, /clock time/);
     assert.match(EXTRACTOR_FOOT, /"midday" and "mid-morning" are not times/);
     assert.match(EXTRACTOR_FOOT, /is refused/);
+    assert.match(EXTRACTOR_FOOT, /only when the reply moves the scene/);
+    assert.match(EXTRACTOR_FOOT, /where the reply ENDS.*never a stop on the way/);
+    assert.match(EXTRACTOR_FOOT, /place it is at now, write no place line/);
+});
+
+test('safety-net places are refused only on evidence: an arrival the reply explicitly locates elsewhere; siblings differ, parents and aliases agree', () => {
+    const reply = parseChanges('+ present Dries | at: Bluewatch Village / Guild Office\n~ chatter Sieke: The desk is busy.').lines;
+    assert.match(assistPlaceConflict(one('~ place Bluewatch Outskirts | with: Sister Temiwa'), reply), /places Dries at/);
+    // The correct destination is accepted whether or not its companion list names the people already there.
+    for (const raw of ['~ place Bluewatch Village / Guild Office | with: Sister Temiwa', '~ place Guild Office | with: Dries, Sieke', '~ place Guild Office', '~ place Bluewatch Village | with: Sister Temiwa']) assert.equal(assistPlaceConflict(one(raw), reply), '', raw);
+    // A bare + present or chatter names no place: no refusal, whatever `with:` says.
+    const bare = parseChanges('+ present Dries\n~ chatter Sieke: Hello.').lines;
+    for (const raw of ['~ place Bluewatch Outskirts | with: Sister Temiwa', '~ place Guild Office | with: Sister Temiwa']) assert.equal(assistPlaceConflict(one(raw), bare), '', raw);
+    assert.equal(assistPlaceConflict(one('~ weather rain'), reply), '');
+    const gone = parseChanges('+ present Dries | at: Market\n- present Dries').lines;
+    assert.equal(assistPlaceConflict(one('~ place Guild Office | with: Sister Temiwa'), gone), '');
+    // Siblings under one parent are different destinations; the shared parent proves nothing.
+    const market = parseChanges('+ present Dries | at: Bluewatch Village / Market').lines;
+    assert.match(assistPlaceConflict(one('~ place Bluewatch Village / Guild Office'), market), /places Dries at/);
+    assert.match(assistPlaceConflict(one('~ place Bluewatch Village / Guild Office'), parseChanges('+ present Dries | at: Bluewatch Village / Market').lines), /places Dries at/);
+    assert.equal(assistPlaceConflict(one('~ place Bluewatch Village / Market'), market), '');
+    // Aliases resolve through the map: "Bluewatch Guild Office" is the Guild Office; "Market" under the same village is not.
+    const alias = parseChanges('+ present Dries | at: Bluewatch Guild Office').lines;
+    assert.equal(assistPlaceConflict(one('~ place Bluewatch Village / Guild Office'), alias, MAP), '');
+    assert.equal(assistPlaceConflict(one('~ place Guild Office'), alias, MAP), '');
+    assert.match(assistPlaceConflict(one('~ place Bluewatch Village / Market'), alias, MAP), /places Dries at/);
 });
 
 test('the answer: lines with an invented name or a vague time are refused as problems (the reader is told); the rest are kept', () => {

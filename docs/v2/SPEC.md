@@ -881,7 +881,8 @@ Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `pres
 stored kind, and a move to another place takes the kind a pack gives a place of that name or alias
 (`packs.content({ kind: 'places' })`), else none: never the old place's. The region is kept unless the line
 gives one. Only an explicit empty value (`kind:` with nothing after it) clears one. After a move only those
-named in `with:` are present. Queries `scene.place`, `scene.present` and `scene.moved` (true while the head
+named in `with:` are present. Exception: an Assist place on a reply with the `assistPlace` mark keeps the
+people present, and explicit departures take precedence over its `with:` names (MODULES §F123). Queries `scene.place`, `scene.present` and `scene.moved` (true while the head
 reply's receipts moved the place; MODULES §F119).
 Capture kind `weather` (`~ weather cold drizzle, low fog`, feature `story-block.weather`, on; MODULES §F120):
 the text flattened, without markup, cut at 60 code points; `rev` the `meta.rev` of the receipt that wrote it;
