@@ -299,7 +299,8 @@ export function createCaptureFlow(s, deps) {
         const marks = ruleMarksOf(readRecord(message)?.rules), fresh = base === null ? (blocked.first ? allRuleNames() : ruleMarksFor(lines)).filter(name => !marks.includes(name) && !blocked.rules.includes(name)) : [];
         if (fresh.length && typeof store.setRuleMarks === 'function') { try { store.setRuleMarks(index, fresh); marks.push(...fresh); } catch { /* an unmarked reply keeps the old rule */ } }
         if (marks.length) carrier.rules = marks;
-        if (assist && marks.includes('assistPlace')) { carrier.assist = assist; carrier.assistLeft = assistDepartures(base === null && assist === NOW ? (readRecord(message)?.receipts ?? receipts) : receipts); }
+        if (assist && marks.includes('assistPlace')) { carrier.assist = assist; carrier.assistLeft = []; }
+        const prior = carrier.assist && base === null && assist === NOW ? (readRecord(message)?.receipts ?? []) : [];
         const own = carrier.assist ? readBlock(index, extractBlock(String(message?.mes ?? ''), 'Changes', null, { heads: changeHeads() }) ?? '').lines : [];
         // The message right before the reply (system messages aside), and only when it is the reader's: a reply that
         // follows another reply has no message of the reader's to quote (proof, EVIDENCE.md).
@@ -313,8 +314,6 @@ export function createCaptureFlow(s, deps) {
         const standingReceipts = base ? (readRecord(message)?.receipts ?? null) : null;
         // `shown`: how many lines of each display kind this reply has shown so far (their cap per reply).
         for (const line of lines) {
-            const conflict = carrier.assist ? assistPlaceConflict(line, own) : '';
-            if (conflict) { found.push(problem({ index, line: line.raw, code: 'REFUSED', message: `"${line.raw}" was not used: ${conflict}.` })); continue; }
             const entry = registry.capture(line.kind);
             if (!entry) {
                 found.push(problem({ index, line: line.raw, code: 'UNKNOWN_KIND', message: `No module keeps "${line.kind}", so "${line.raw}" was not used.` }));
@@ -322,6 +321,7 @@ export function createCaptureFlow(s, deps) {
             }
             const mark = lineMark(line.raw);
             const seed = seeds?.(entry.kind, mark), kept = plan && seed !== undefined ? plan.reuse.receipt(`${CAPTURE_PREFIX}${entry.kind}`, mark) : undefined;
+            if (carrier.assist) { carrier.assistLeft = assistDepartures([...prior, ...receipts]); carrier.assistCheck = seed === undefined ? (item, places) => assistPlaceConflict(item, own, places) : null; }
             // C3-4: a Re-read runs a line that made a change before (its receipt gives the seed) even
             // while its feature is off, so turning a feature off never takes away what it already did.
             const again = base !== null && seed !== undefined;

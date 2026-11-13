@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Assist keeps the people in a scene when it supplies a missing place.** It is asked for where the reply ends, never a stop on the way; a conflicting companion list is refused. Its place moves retain everyone present and respect explicit departures. New replies use the `assistPlace` rule mark; older replies replay as before.
+- **Assist keeps the people in a scene when it supplies a missing place.** It is asked for where the reply ends, never a stop on the way; a place the reply's own `+ present ... | at:` lines contradict is refused (a sibling place or a different one; a parent or alias agrees), but a `with:` list that omits people already at the destination is not, and a kept move is not judged again on Re-read. Its place moves retain everyone present and respect explicit departures, including one inside the same Assist answer. New replies use the `assistPlace` rule mark; older replies replay as before.
 
 - **Deleting, editing or Re-reading a middle reply restores NPC dossiers to before that reply.** With NPC State Delta updated too, the dossiers go back to the state saved just before the changed reply, are rebuilt from the later replies, and a note says so; if no safe point exists the current dossiers are kept with a note. Deleting the last reply and swiping are unchanged. Story Block's own head selection already picked that state (now pinned by a test); no prompt change, replies already written replay as before.
 

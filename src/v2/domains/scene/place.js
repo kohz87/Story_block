@@ -26,6 +26,12 @@ function packPlaceKind(ctx, name) {
     return typeof place?.kind === 'string' && place.kind.trim() ? place.kind : null;
 }
 
+// The map's places (the atlas's, else none; then the packs'), for resolving names and aliases.
+function knownPlaces(ctx) {
+    const ask = (name, args) => { try { const rows = ctx.query(name, args); return Array.isArray(rows) ? rows : []; } catch { return []; } };
+    return [...ask('atlas.places', {}), ...ask('packs.content', { kind: 'places' })];
+}
+
 // A place's kind: what the line says (an explicit empty `kind:` clears it); without `kind:`, the
 // same place keeps its stored kind (a model often leaves it out), and a move to another place takes
 // the kind a pack gives a place of that name, else none (B4r2-5: never the old place's kind). The
@@ -67,6 +73,9 @@ export function capturePlace(ctx, line) {
         ctx.fail('INVALID', `"${line?.op} place" is not a change the scene understands; use ~ place Name.`);
     }
     const keepPresent = ['now', 'late'].includes(ctx.carrier?.assist) && ctx.carrier?.rules?.includes('assistPlace');
+    // A safety-net place the reply's own lines contradict is refused (the carrier's check; absent on Re-read of a line already kept).
+    const why = keepPresent && typeof ctx.carrier.assistCheck === 'function' ? ctx.carrier.assistCheck(line, knownPlaces(ctx)) : '';
+    if (why) ctx.fail('REFUSED', why);
     return setPlace(ctx, {
         name: cleanName(line.name),
         kind: labelOf(line, 'kind', 'type'),

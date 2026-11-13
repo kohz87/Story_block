@@ -129,34 +129,29 @@ export function whereWhy(line, { places = [], here = '' } = {}) {
     return '';
 }
 
-// A safety-net move is uncertain when its companion list omits someone the block added or showed thinking,
-// or the block explicitly locates an arrival elsewhere. A bare + present does not by itself name a place.
-export function assistPlaceConflict(line, own = []) {
+// A safety-net move is refused only on evidence against the proposed place: the reply's own `+ present ... | at: Place` locates an
+// arrival somewhere else. A bare `+ present` or chatter names no place (and `with:` need not list people already at the destination),
+// so neither refuses a move. Two places agree when they are the same, one holds the other ("Village" and "Village / Office"),
+// or they end in the same spot; siblings ("Village / Market", "Village / Office") do not. Map aliases resolve through `places`.
+export function assistPlaceConflict(line, own = [], places = []) {
     if (line?.kind !== 'place' || !['~', '+'].includes(line.op)) return '';
     const arrivals = new Map();
-    const gone = new Set();
     for (const item of own) {
         if (item.kind !== 'present' || !['+', '-'].includes(item.op)) continue;
         for (const name of String(item.name ?? '').split(',').map(name => name.trim()).filter(Boolean)) {
-            const key = fold(name);
-            if (item.op === '-') { arrivals.delete(key); gone.add(key); }
-            else { gone.delete(key); arrivals.set(key, { name, place: item.labels?.place ?? item.labels?.at ?? item.labels?.where ?? '' }); }
+            if (item.op === '-') arrivals.delete(fold(name));
+            else arrivals.set(fold(name), { name, place: item.labels?.place ?? item.labels?.at ?? item.labels?.where ?? '' });
         }
     }
-    for (const item of own.filter(item => item.kind === 'chatter')) {
-        const name = readChatter(item).value?.name, key = fold(name);
-        if (key && !gone.has(key) && !arrivals.has(key)) arrivals.set(key, { name, place: '' });
-    }
-    const parts = text => new Set([text, ...String(text).split(/\s[\/|]\s|\s—\s/)].map(fold).filter(Boolean));
-    const destination = parts(line.name);
+    const map = mapPlaces(places);
+    const path = text => String(knownPlace(map, text)?.name ?? text).split(/\s[\/|]\s|\s—\s/).map(fold).filter(Boolean);
+    const agree = (a, b) => {
+        const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+        return short.length > 0 && (short.every((part, at) => part === long[at]) || a.at(-1) === b.at(-1));
+    };
+    const destination = path(line.name);
     for (const { name, place } of arrivals.values()) {
-        if (place && ![...parts(place)].some(part => destination.has(part))) return `the reply places ${name} at ${place}`;
-    }
-    const along = line.labels?.with ?? line.labels?.present;
-    if (typeof along === 'string' && along.trim()) {
-        const names = new Set(along.split(',').map(fold));
-        const missing = [...arrivals].find(([name]) => !names.has(name));
-        if (missing) return `the reply shows ${missing[1].name}, who is not in this companion list`;
+        if (place && !agree(path(place), destination)) return `the reply places ${name} at ${place}`;
     }
     return '';
 }
