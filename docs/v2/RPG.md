@@ -136,9 +136,11 @@ anything about the story. Both buttons exist only while the RPG is on.
 { "storySuiteCharacter": 1, "level": 14, "points": 3,
   "stats": { "str": 14, "vit": 12, "agi": 11, "dex": 10, "int": 8, "luk": 9, "cha": 10 },
   "skills": [{ "name": "Iron Breath", "about": "Steadies the lungs.", "stat": "vit", "uses": "stamina", "rank": 2 }],
-  "items": [{ "name": "Oilskin Coat", "qty": 1, "note": "waxed", "kind": "equipment", "rarity": "uncommon" }],
+  "items": [{ "name": "Oilskin Coat", "qty": 1, "note": "waxed", "kind": "equipment", "rarity": "uncommon", "slot": "body", "stats": { "VIT": 1 } }],
   "money": 50 }
 ```
+
+An item may also carry `slot` and `stats` (a piece set up by hand, kept exactly) and `carry`: the carry capacity you set on it, a whole number from 1 to 500, left out when none (a file without it loads as before; on import it is set as your own carry setting for that item).
 
 `items` and `money` are there only when left on. `level` is 1 to 99. A file saved before Levels has only `soul` (Soul Class 1 to 9), which stands for the level 10n − 5; a file saved now also carries `soul` for older builds to read. A file is checked when it is read, with the RPG's own limits (level 1 to 99, or a Soul Class 1 to 9 in a file without a level,
 points 0 to 60, stats 1 to 20, at most five skills with a rank from 0 to 3, names and text cut to the fields' lengths, at most 60

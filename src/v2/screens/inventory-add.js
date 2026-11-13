@@ -252,6 +252,8 @@ export function createInventoryGridWidget({ chatKey = () => '', storage = undefi
                 };
                 const beginEdit = (item, row) => {
                     if (!sheet) return;
+                    // One form only: Edit while it is open closes it again (the sheet keeps the button, and each press used to add another form below).
+                    if (editing) { editing.destroy?.(); editing = null; sheet.slot.replaceChildren?.(); return; }
                     const gear = row ? { kind: item.kind, stack: item.stack, owner: item.owner, by: row.byId, place: row.place, slot: row.slotKey, bound: row.bound?.who ?? '', def: item.def, rarity: item.rarity, row, kit: props.kit === true, owners: props.owners ?? [] } : undefined;
                     const form = { value: item.name, itemCount: props.counts?.[item.stack] ?? item.qty, itemNote: item.note ?? '', displayValue: false, kind: 'item', label: S.editItem, command: 'inventory.edit',
                         payload: { stack: item.stack, group: true }, open: true, bare: true, onClose: () => sheet?.close(), ...(gear ? { gear } : {}) };

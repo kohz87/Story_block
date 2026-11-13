@@ -580,6 +580,47 @@ test('the things and the money are the same reply\'s changes as the blocks: a sw
     assert.deepEqual([names(ctx.host).includes('pack.chat/ren'), carried(ctx.host).length, purseOf(ctx.host)], [false, 0, 0], 'all of it was on the head reply');
 });
 
+// The owner's play bug (13 Nov): an imported piece lost its file stats (a Cane Sword with AGI 1 showed DEX; a cloak-slot robe, VIT) because the import kept them only with Gear on.
+const GEAR_FILE = JSON.stringify({ [CHAR_FILE]: 1, level: 1, soul: 1, points: 0, stats: { str: 5, vit: 10, agi: 10, dex: 5, int: 5, luk: 5, cha: 5 },
+    skills: [{ name: 'Iaijutsu', about: 'x', stat: 'agi', uses: 'stamina', rank: 0 }],
+    items: [{ name: 'Cane Sword', qty: 1, note: 'Hidden blade inside a walking cane', kind: 'equipment', rarity: 'common', slot: 'weapon', stats: { AGI: 1 } },
+        { name: 'Linen Clothes', qty: 1, kind: 'equipment', rarity: 'common', slot: 'body', stats: { VIT: 1 } },
+        { name: 'Linen Shoes', qty: 1, kind: 'equipment', rarity: 'common', slot: 'feet', stats: { AGI: 1 } },
+        { name: 'Traveling Robe', qty: 1, kind: 'equipment', rarity: 'common', slot: 'cloak', stats: { AGI: 1 } },
+        { name: 'Traveler\'s Slingbag', qty: 1, carry: 12 }], money: 50 });
+const defsOf = host => Object.values(host.head().domains.inventory.defs);
+
+test('Create keeps every imported piece\'s slot and stats exactly, with Gear off (the default) and the carry the file kept', async t => {
+    // The start of a new chat: nothing from the reader yet (the starting kit is open).
+    const ctx = await page(t, { persona: 'Wessel' });
+    const dialog = await wizardWith(ctx, { empty: true });
+    await importInto(dialog, GEAR_FILE);
+    type(wizardOf(dialog).querySelector('[data-wiz="about"]'), 'A ferry hand from Low Quay.');
+    (await goTo(dialog, 'review')).querySelector('.rpg-wiz-create').click();
+    await settle();
+    const def = name => defsOf(ctx.host).find(item => item.name === name);
+    assert.deepEqual([def('Cane Sword').slot, def('Cane Sword').stats], ['weapon', { AGI: 1 }], 'AGI, not the name\'s DEX');
+    assert.deepEqual([def('Traveling Robe').slot, def('Traveling Robe').stats], ['cloak', { AGI: 1 }], 'the cloak slot and AGI, not the name\'s body and VIT');
+    assert.deepEqual([def('Linen Shoes').stats, def('Linen Clothes').stats], [{ AGI: 1 }, { VIT: 1 }]);
+    assert.equal(def('Traveler\'s Slingbag').carry, 12, 'the carry the file kept is set as the reader\'s');
+    assert.equal(def('Cane Sword').carry, undefined);
+    // Written out again, the file carries the same things (stats, slots and the carry).
+    const { itemsForFile } = await import('../../../../src/v2/lean-rpg/charfile.js');
+    const out = itemsForFile(ctx.host.sdk.query('inventory.items', {}));
+    assert.deepEqual(out.find(item => item.name === 'Cane Sword'), { name: 'Cane Sword', qty: 1, note: 'Hidden blade inside a walking cane', kind: 'equipment', rarity: 'common', slot: 'weapon', stats: { AGI: 1 } });
+    assert.equal(out.find(item => item.name === 'Traveler\'s Slingbag').carry, 12);
+    await reload(ctx.host);
+    assert.deepEqual(defsOf(ctx.host).find(item => item.name === 'Cane Sword').stats, { AGI: 1 }, 'reload = live');
+});
+
+test('a file with no carry still loads and an item\'s carry is a whole number from 1 to 500', () => {
+    assert.equal(parseCharacterFile(SAVED).ok, true);
+    assert.equal(parseCharacterFile(SAVED).file.items.some(item => 'carry' in item), false, 'older files are unchanged');
+    const one = carry => parseCharacterFile(JSON.stringify({ ...JSON.parse(SAVED), items: [{ name: 'Sack', qty: 1, carry }] })).file.items[0];
+    assert.equal(one(500).carry, 500);
+    for (const bad of [0, 501, 2.5, '9']) assert.equal('carry' in one(bad), false, `carry ${bad} is left out`);
+});
+
 test('a You takes the things to the bag, a companion with a party actor to that actor', async t => {
     const ctx = await page(t, { persona: 'Wessel', modules: [PARTY_STUB([REN])] });
     await begin(ctx.host);

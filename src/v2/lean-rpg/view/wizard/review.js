@@ -78,6 +78,9 @@ export function createReviewStep(ctx) {
             const added = await call('inventory.add', { name: item.name, qty: item.qty, owner, starting: true, ...(item.note ? { note: item.note } : {}),
                 ...(item.kind ? { kind: item.kind } : {}), ...(item.rarity ? { rarity: item.rarity } : {}),
                 ...(item.slot ? { slot: item.slot } : {}), ...(item.stats ? { stats: item.stats } : {}) });
+            // The carry capacity the file kept for it: set by the reader's own command on the stack just added (a bag keeps what it added).
+            const stack = added.data?.stacks?.[0] ?? added.receipt?.data?.stacks?.[0];
+            if (added.ok && item.carry && stack) await call('inventory.carry', { stack, carry: item.carry });
             if (!added.ok) failed.push(fill(W.notAdded, { what: `${item.name}${item.qty === 1 ? '' : ` ×${item.qty}`}`, why: refusalText(added, W.generic) }));
         }
         if (file.money > 0) {
