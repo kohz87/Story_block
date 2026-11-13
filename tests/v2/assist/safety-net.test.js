@@ -316,3 +316,51 @@ test('a line of a kind whose module is dormant is a MODULE_HELD Problem (with a 
         assert.deepEqual(refusedFrom(found, index).map(item => item.reason), ['held-probe is held back right now (dormant, or a restore is in progress).', 'no module keeps "nope"']);
     } finally { host.close(); }
 });
+
+// The lead for the owner's UNKNOWN_KIND (13 Nov): the main block ran, then Story Director was held back (a restore barrier after an edit, Re-read
+// or delete; or dormant) when the safety net's answer arrived. Its world/faction lines wait and run once the module is released; never dropped.
+const WORLD_PROBE = { id: 'world-probe', version: '1.0.0', domains: { worldProbe: { initial: () => ({ said: [] }) } },
+    capture: { kinds: { world: { grammar: '+ world Name — news | state: ongoing | place | factions' }, faction: { grammar: '+ faction Name — what it is | area | stance' } },
+        apply(ctx, line) { ctx.draft('worldProbe').said.push(line.raw); return { narrate: false }; } },
+    queries: { 'chronicle.events': () => [], 'chronicle.factions': () => [] } };
+const OWNER = ['+ faction Red Cords — pier crew locking down the salt barges | Bluewatch Village | stance: neutral',
+    '+ world Shornmarch Wolf-Push — Shornmarch skirmishers pushing wolves onto the timber track | state: ongoing | timber track | factions: Shornmarch'];
+
+test('a restore barrier up when the safety net answers: its world/faction lines wait (no UNKNOWN_KIND, no MODULE_HELD) and run once released', { skip }, async () => {
+    const { announceModules } = await import('../../../src/v2/sdk/lifecycle.js');
+    const { model, release } = heldModel(OWNER.join('\n'));
+    const host = await createHost({ modules: [WORLD_PROBE], callModel: model, settings: { modules: { 'story-block': { [SETTING.extractor]: true, [SETTING.extractorKinds]: '~ time, + world, ~ world, + faction, ~ faction' } } } });
+    host.features?.set?.('story-block.extractor', true);
+    try {
+        const sent = await host.send('I look around.', 'Red Cords lock the pier. Wolves are pushed onto the timber track.\n<Changes>\n~ weather mist\n</Changes>');
+        host.registry.setRestore('pending', 'Restoring a save point.');
+        announceModules(host.registry, host.events);
+        assert.equal(host.registry.heldModules().includes('world-probe'), true);
+        release();
+        await wait(80);
+        const record = () => host.ctx.chat[sent.index].extra.storySuite;
+        assert.deepEqual(host.turn.problems().filter(item => item.index === sent.index && /UNKNOWN_KIND|MODULE_HELD/.test(item.code)), [], 'not refused as unknown, not dropped');
+        assert.equal(record().receipts.some(receipt => /world|faction/.test(receipt.type)), false, 'nothing ran while it was held');
+        assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes).now, [], 'and nothing is stored as run');
+        host.registry.setRestore('idle');
+        announceModules(host.registry, host.events);
+        await wait(120);
+        assert.deepEqual(record().receipts.filter(receipt => /^capture\.(world|faction)$/.test(receipt.type)).map(receipt => receipt.assist), ['now', 'now'], JSON.stringify(record().receipts.map(r => [r.type, r.assist])));
+        assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes).now, OWNER);
+        assert.equal(host.turn.problems().some(item => item.index === sent.index && item.code === 'UNKNOWN_KIND'), false);
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, OWNER);
+    } finally { host.close(); }
+});
+
+test('the same lines with no barrier apply at once, marked as the safety net\'s', { skip }, async () => {
+    const { model, release } = heldModel(OWNER.join('\n'));
+    const host = await createHost({ modules: [WORLD_PROBE], callModel: model, settings: { modules: { 'story-block': { [SETTING.extractor]: true, [SETTING.extractorKinds]: '~ time, + world, + faction' } } } });
+    host.features?.set?.('story-block.extractor', true);
+    try {
+        const sent = await host.send('I look around.', 'Red Cords lock the pier.');
+        release();
+        await wait(80);
+        assert.equal(host.turn.problems().some(item => item.index === sent.index), false);
+        assert.deepEqual(host.ctx.chat[sent.index].extra.storySuite.receipts.filter(receipt => /^capture\.(world|faction)$/.test(receipt.type)).map(receipt => receipt.assist), ['now', 'now']);
+    } finally { host.close(); }
+});

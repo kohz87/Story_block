@@ -549,7 +549,7 @@ These settle questions agents raised; the host changes they need are made at int
     its footer asks for the exact known name with `~`, no invented stance, no faction made from a place, and parts after
     the first `|` written `label: value`. A safety-net `+`/`~ faction` on a known faction never sets its stance (Story
     Director reads `ctx.carrier.assist` and `ctx.carrier.rules`); a new faction is written whole. A refused line's card
-    reason is always shown (reply-notes `problemReason`); a kind whose module is held back is a `MODULE_HELD` Problem.
+    reason is always shown (reply-notes `problemReason`); a kind whose module is held back is a `MODULE_HELD` Problem. Safety-net lines of a module held back when the answer arrives (restore barrier, dormant) are parked (`s.assistHeld`, events.js `releaseAssist`) and run when the `modules` event says it is ready; a chat change drops them.
     *Place and presence (rule mark `assistPlace`, new replies):* Assist is asked for a place only when the scene moves,
     naming where the reply ends, not a stop on the way. A now or late Assist place keeps everyone present and adds its
     `with:` names, except people explicitly removed so far in that reply or in the same Assist answer. It is refused with a

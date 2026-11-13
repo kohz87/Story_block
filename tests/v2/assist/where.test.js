@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseChanges } from '../../../src/v2/capture.js';
-import { EXTRACTOR_FOOT, MAX_NEAR, SETTING, WHERE_HEAD, createAssistPart, extractorPrompt, hasClockTime, knownPlace, mapPlaces, parseExtractorAnswer, whereLines, whereNow, whereWhy } from '../../../src/v2/assist/index.js';
+import { EXTRACTOR_FOOT, MAX_NEAR, SETTING, WHERE_HEAD, WORLD_FOOT, footFor, createAssistPart, extractorPrompt, hasClockTime, knownPlace, mapPlaces, parseExtractorAnswer, whereLines, whereNow, whereWhy } from '../../../src/v2/assist/index.js';
 import { assistPlaceConflict, worldKnown } from '../../../src/v2/assist/where.js';
 import { refusedFrom } from '../../../src/v2/reply-notes.js';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
@@ -248,9 +248,28 @@ test('worldKnown caps the open event names and the faction names with their stan
     const lines = whereLines({ ...known, events: ['Wolf-Push', 'Retaliation'] });
     assert.ok(lines.includes('Open world events the story already keeps (to update one, write ~ world with its exact name): Wolf-Push; Retaliation'));
     assert.ok(lines.includes('Factions the story already keeps, with stance (never write a stance for one): Red Cords (neutral); Shackles'));
-    assert.match(EXTRACTOR_FOOT, /always written label: value \(place: /);
-    assert.match(EXTRACTOR_FOOT, /reuse its exact name with ~ to update it/);
-    assert.match(EXTRACTOR_FOOT, /Never change a stance the reply does not show changing, and never make a faction out of a place or a city name/);
+    assert.match(WORLD_FOOT.join('\n'), /always written label: value \(place: /);
+    assert.match(WORLD_FOOT.join('\n'), /reuse its exact name with ~ to update it/);
+    assert.match(WORLD_FOOT.join('\n'), /Never change a stance the reply does not show changing, and never make a faction out of a place or a city name/);
+});
+
+// The footer as it was before the world lines existed: any reader without a world or faction kind gets exactly this.
+const OLD_FOOT = ['Write a line only for what the reply clearly tells and its own lines (below) do not already say, with numbers only where it gives them. If nothing is missing, answer: none',
+    'Write a place line only when the reply moves the scene. Name where the reply ENDS, the last place the story is at, never a stop on the way. If the scene ends at the place it is at now, write no place line.',
+    'A place line uses the exact name of a known place whenever the reply is at one the map has (known places are listed below). A time line needs a clock time like the story date and time below (~ time <date>, 9:30 am sets it; ! time +2h moves it on): "midday" and "mid-morning" are not times, so write no time line unless the reply gives a clock time or a stretch. A line with an unknown name for a known place, or a time without a clock time, is refused.',
+    'Answer with the lines only, between <Changes> and </Changes>.'].join('\n');
+
+test('the world and label lines are in the prompt only when a world or faction kind is allowed; other readers get the footer as it was, in the same order', () => {
+    assert.equal(EXTRACTOR_FOOT, OLD_FOOT);
+    for (const grammar of [['~ time <date>'], ['~ place Name', '+ wound Name']]) assert.equal(footFor(grammar), OLD_FOOT);
+    for (const grammar of [['+ world Name — news'], ['~ faction Name'], ['~ time', '+ faction Name | area | stance']]) {
+        const foot = footFor(grammar);
+        assert.ok(foot.startsWith(OLD_FOOT.split('\nAnswer with')[0]) && foot.endsWith('Answer with the lines only, between <Changes> and </Changes>.'));
+        for (const line of WORLD_FOOT) assert.ok(foot.includes(line));
+    }
+    assert.ok(extractorPrompt('r', ['~ time']).includes(`\n${OLD_FOOT}\n\n`));
+    assert.ok(extractorPrompt('r', ['~ time', '+ world Name']).includes(WORLD_FOOT[0]));
+    assert.ok(!extractorPrompt('r', ['~ time']).includes(WORLD_FOOT[0]) && !/faction/.test(extractorPrompt('r', ['~ time'])));
 });
 
 const CHRONICLE = { id: 'chronicle-probe', version: '1.0.0', domains: { chronicleProbe: { initial: () => ({ said: [] }) } },
@@ -270,6 +289,9 @@ test('on the real host: with a world or faction kind allowed the prompt names th
             assert.equal(prompts.length, 1);
             assert.equal(prompts[0].includes('Open world events the story already keeps (to update one, write ~ world with its exact name): Shornmarch Wolf-Push'), told);
             assert.equal(prompts[0].includes('Red Cords (neutral)'), told);
+            // The footer: the world and label lines only with a world or faction kind; without one, the footer as it was.
+            assert.equal(prompts[0].includes(WORLD_FOOT[0]) && prompts[0].includes(WORLD_FOOT[1]), told);
+            if (!told) assert.ok(prompts[0].includes(`\n${OLD_FOOT}\n\n`) && !/faction|always written/.test(prompts[0].split('The reply\'s own lines:')[0].split('Where and when')[0]));
         } finally { host.close(); }
     }
 });
