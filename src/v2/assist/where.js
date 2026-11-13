@@ -6,6 +6,8 @@
 // one but plainly means a place the map has, and a `time` line that sets a time without a clock time. A refusal is reported
 // as a Problems line on the reply (turn.js captureAssist), never applied. Pure: no DOM, no state.
 
+import { readChatter } from '../extras.js';
+
 // How many known place names the extractor is told (the nearest first), and the longest name told.
 export const MAX_NEAR = 20;
 export const NAME_CHARS = 80;
@@ -125,4 +127,43 @@ export function whereWhy(line, { places = [], here = '' } = {}) {
         }
     }
     return '';
+}
+
+// A safety-net move is refused only on evidence against the proposed place: the reply's own `+ present ... | at: Place` locates an
+// arrival somewhere else. A bare `+ present` or chatter names no place (and `with:` need not list people already at the destination),
+// so neither refuses a move. Two places agree when they are the same, one holds the other ("Village" and "Village / Office"),
+// or they end in the same spot; siblings ("Village / Market", "Village / Office") do not. Map aliases resolve through `places`.
+export function assistPlaceConflict(line, own = [], places = []) {
+    if (line?.kind !== 'place' || !['~', '+'].includes(line.op)) return '';
+    const arrivals = new Map();
+    for (const item of own) {
+        if (item.kind !== 'present' || !['+', '-'].includes(item.op)) continue;
+        for (const name of String(item.name ?? '').split(',').map(name => name.trim()).filter(Boolean)) {
+            if (item.op === '-') arrivals.delete(fold(name));
+            else arrivals.set(fold(name), { name, place: item.labels?.place ?? item.labels?.at ?? item.labels?.where ?? '' });
+        }
+    }
+    const map = mapPlaces(places);
+    const path = text => String(knownPlace(map, text)?.name ?? text).split(/\s[\/|]\s|\s—\s/).map(fold).filter(Boolean);
+    const agree = (a, b) => {
+        const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+        return short.length > 0 && (short.every((part, at) => part === long[at]) || a.at(-1) === b.at(-1));
+    };
+    const destination = path(line.name);
+    for (const { name, place } of arrivals.values()) {
+        if (place && !agree(path(place), destination)) return `the reply places ${name} at ${place}`;
+    }
+    return '';
+}
+
+// Explicit departures already read for this reply win over an Assist place's companion list, including
+// people who were already absent. A later explicit arrival cancels the departure.
+export function assistDepartures(receipts = []) {
+    const left = new Set();
+    for (const receipt of receipts) {
+        if (receipt?.type !== 'capture.present') continue;
+        for (const name of [...(receipt.data?.removed ?? []), ...(receipt.data?.missing ?? [])]) left.add(name.toLowerCase());
+        for (const name of receipt.data?.added ?? []) left.delete(name.toLowerCase());
+    }
+    return [...left];
 }

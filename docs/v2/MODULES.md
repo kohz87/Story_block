@@ -544,6 +544,13 @@ These settle questions agents raised; the host changes they need are made at int
     was captured, or for a reply swiped or deleted meanwhile, is not used. (We used the existing assist path,
     story lines through the turn's capture, rather than an `afterCapture` system step, so the lines keep the
     story caps and claims and a turn-in step of F121 sees them.)
+    *Place and presence (rule mark `assistPlace`, new replies):* Assist is asked for a place only when the scene moves,
+    naming where the reply ends, not a stop on the way. A now or late Assist place keeps everyone present and adds its
+    `with:` names, except people explicitly removed so far in that reply or in the same Assist answer. It is refused with a
+    Problem only when an arrival line explicitly names a different place (siblings under one parent differ; a parent,
+    the same place, or a map alias agrees); a companion list that omits people already at the destination is fine. The
+    decision is made at capture and kept: a Re-read does not judge a line it already kept again. Ordinary place lines and
+    replies without the mark keep their earlier behavior; Re-read uses the receiving reply's mark and lines.
     *Where and when (stage 40, SB 2.16.4):* the prompt also tells it the scene's place, the map's place names near
     it (nearest first by the map's coordinates, else the same region; the atlas's names when Story Director is on, else
     the packs'; at most `MAX_NEAR` = 20) and the story's date and time (`director.time`), and says to use a known name
