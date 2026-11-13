@@ -291,7 +291,16 @@ test('on the real host: with a world or faction kind allowed the prompt names th
             assert.equal(prompts[0].includes('Red Cords (neutral)'), told);
             // The footer: the world and label lines only with a world or faction kind; without one, the footer as it was.
             assert.equal(prompts[0].includes(WORLD_FOOT[0]) && prompts[0].includes(WORLD_FOOT[1]), told);
-            if (!told) assert.ok(prompts[0].includes(`\n${OLD_FOOT}\n\n`) && !/faction|always written/.test(prompts[0].split('The reply\'s own lines:')[0].split('Where and when')[0]));
+            if (!told) {
+                // Complete pre-change prompt, including grammar, context and reply: a golden comparison through the host.
+                const golden = ['You read one reply from an interactive story and list what changed in it that its own change lines missed, as change lines, one per line:',
+                    'op kind Name[ — text][ | label: value]',
+                    'op: + new or gained, - gone or lost, ~ changed, ! happened, ? asks code to decide (a check the reply stopped at).',
+                    'Use only these kinds:', '- ~ time <date, clock time> · ! time +2h', OLD_FOOT, '',
+                    'Where and when the scene is:', 'Story date and time now: Goldwane 12, 611, 06:40 am', '',
+                    "The reply's own lines:", 'none', '', 'The reply:', '"""', 'The pier is busy.', '"""'].join('\n');
+                assert.equal(prompts[0], golden);
+            }
         } finally { host.close(); }
     }
 });

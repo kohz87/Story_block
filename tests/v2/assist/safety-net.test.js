@@ -318,7 +318,7 @@ test('a line of a kind whose module is dormant is a MODULE_HELD Problem (with a 
 });
 
 // The lead for the owner's UNKNOWN_KIND (13 Nov): the main block ran, then Story Director was held back (a restore barrier after an edit, Re-read
-// or delete; or dormant) when the safety net's answer arrived. Its world/faction lines wait and run once the module is released; never dropped.
+// or delete; or dormant) when the safety net's answer arrived. Its world/faction lines are refused visibly, never applied later.
 const WORLD_PROBE = { id: 'world-probe', version: '1.0.0', domains: { worldProbe: { initial: () => ({ said: [] }) } },
     capture: { kinds: { world: { grammar: '+ world Name — news | state: ongoing | place | factions' }, faction: { grammar: '+ faction Name — what it is | area | stance' } },
         apply(ctx, line) { ctx.draft('worldProbe').said.push(line.raw); return { narrate: false }; } },
@@ -326,7 +326,7 @@ const WORLD_PROBE = { id: 'world-probe', version: '1.0.0', domains: { worldProbe
 const OWNER = ['+ faction Red Cords — pier crew locking down the salt barges | Bluewatch Village | stance: neutral',
     '+ world Shornmarch Wolf-Push — Shornmarch skirmishers pushing wolves onto the timber track | state: ongoing | timber track | factions: Shornmarch'];
 
-test('a restore barrier up when the safety net answers: its world/faction lines wait (no UNKNOWN_KIND, no MODULE_HELD) and run once released', { skip }, async () => {
+test('a restore barrier when the safety net answers refuses each held line and releasing it never applies them', { skip }, async () => {
     const { announceModules } = await import('../../../src/v2/sdk/lifecycle.js');
     const { model, release, calls: asked } = heldModel(OWNER.join('\n'));
     const calls = () => asked.length;
@@ -340,23 +340,49 @@ test('a restore barrier up when the safety net answers: its world/faction lines 
         release();
         await wait(80);
         const record = () => host.ctx.chat[sent.index].extra.storySuite;
-        assert.deepEqual(host.turn.problems().filter(item => item.index === sent.index && /UNKNOWN_KIND|MODULE_HELD/.test(item.code)), [], 'not refused as unknown, not dropped');
+        const found = host.turn.problems().filter(item => item.index === sent.index && item.code === 'MODULE_HELD');
+        assert.deepEqual(found.map(item => item.line), OWNER);
+        assert.ok(found.every(item => /world-probe was held back \(Restoring a save point\.\); this line was not used\./.test(item.message)));
+        assert.equal(host.turn.problems().some(item => item.index === sent.index && item.code === 'UNKNOWN_KIND'), false);
         assert.equal(record().receipts.some(receipt => /world|faction/.test(receipt.type)), false, 'nothing ran while it was held');
         assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes).now, [], 'and nothing is stored as run');
         host.registry.setRestore('idle');
         announceModules(host.registry, host.events);
         await wait(120);
-        assert.deepEqual(record().receipts.filter(receipt => /^capture\.(world|faction)$/.test(receipt.type)).map(receipt => receipt.assist), ['now', 'now'], JSON.stringify(record().receipts.map(r => [r.type, r.assist])));
-        assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes).now, OWNER);
-        assert.equal(host.turn.problems().some(item => item.index === sent.index && item.code === 'UNKNOWN_KIND'), false);
-        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, OWNER);
-        // Replay == live: both stored sections (weather's run, then the parked lines' run) are read again by Re-read, same receipts in the same order, no new model call.
+        assert.equal(record().receipts.some(receipt => /^capture\.(world|faction)$/.test(receipt.type)), false);
+        assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes).now, []);
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, []);
+        // Re-read cannot apply a refused line and never makes another model call.
         const types = () => record().receipts.map(receipt => [receipt.type, receipt.assist]);
         const before = JSON.stringify(types()), callsBefore = calls();
         assert.equal((await host.sdk.reread(sent.index)).ok, true);
         assert.equal(JSON.stringify(types()), before);
         assert.equal(calls(), callsBefore);
-        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, OWNER);
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, []);
+    } finally { host.close(); }
+});
+
+test('a dormant module held when an answer arrives during the next send reports even + lines and never applies them', { skip }, async () => {
+    const { model, release } = heldModel(OWNER.join('\n'));
+    const host = await createHost({ modules: [WORLD_PROBE], callModel: model, settings: { modules: { 'story-block': { [SETTING.extractor]: true, [SETTING.extractorKinds]: '+ world, + faction' } } } });
+    host.features?.set?.('story-block.extractor', true);
+    try {
+        const first = await host.send('I look around.', 'Red Cords lock the pier.');
+        host.registry.setEnabled('world-probe', false, 'Not ready.');
+        const intercept = host.st.interceptor;
+        host.st.interceptor = async (...args) => { await intercept(...args); release(); await wait(40); };
+        await host.send('Go on.', 'The quay is still busy.');
+        host.st.interceptor = intercept;
+        const problems = host.turn.problems().filter(item => item.index === first.index && item.code === 'MODULE_HELD');
+        assert.deepEqual(problems.map(item => item.line), OWNER);
+        assert.ok(problems.every(item => /world-probe was held back \(Not ready\.\)/.test(item.message)));
+        assert.deepEqual(assistSections(host.ctx.chat[first.index].mes), { now: [], next: [] });
+        host.registry.setEnabled('world-probe', true);
+        const { announceModules } = await import('../../../src/v2/sdk/lifecycle.js');
+        announceModules(host.registry, host.events);
+        await wait(80);
+        assert.deepEqual(host.head().domains.worldProbe.said, []);
+        assert.equal(host.sdk.receipts().some(({ receipt }) => /capture\.(world|faction)/.test(receipt.type)), false);
     } finally { host.close(); }
 });
 

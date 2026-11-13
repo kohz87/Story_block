@@ -179,7 +179,8 @@ test('problemReason gives a readable reason for every refused line: the safety n
     assert.equal(problemReason({ line, code: 'REFUSED', message: `(assist) "${line}" was not used: the chronicle is full.` }), 'the chronicle is full.');
     assert.equal(problemReason({ line, code: 'MODULE_HELD', message: `(assist, from the previous reply) "${line}" was not used: story-director is held back.` }), 'story-director is held back.');
     assert.equal(problemReason({ line, code: 'ODD', message: `Could not place "${line}" in the chronicle.` }), 'Could not place in the chronicle.');
-    assert.equal(problemReason({ line, code: 'ODD', message: `"${line}" was not used.` }), '', 'nothing left is an empty reason, never the line');
+    assert.equal(problemReason({ line, code: 'ODD', message: `"${line}" was not used.` }), 'This line was not used.');
+    assert.equal(problemReason({ line, code: 'ODD', message: '' }), 'This line was not used.');
     assert.equal(problemReason({ line, code: 'ODD', message: 'No line in it' }), 'No line in it');
 });
 
@@ -201,6 +202,33 @@ test('the changes card lists the lines the code refused, faintly, and its summar
     ui.mounts.card.refresh(0, { force: true });
     ui.mounts.card.toggle(0, true);
     assert.equal(doc.querySelector('.mes[mesid="0"] .refused'), null);
+});
+
+test('a held safety-net line is shown with its reason in Problems and the changes card even when no other line runs', async () => {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const probe = { id: 'story-director-probe', name: 'Story Director', version: '1.0.0',
+        capture: { kinds: { world: { grammar: '+ world Name' } }, apply() { return { narrate: false }; } } };
+    const line = '+ world Pier Lockdown — barges held';
+    const { doc, host, ui, draw } = await page({ modules: [probe], callModel: async () => { await gate; return line; },
+        settings: { modules: { 'story-block': { assistExtractor: true, assistExtractorKinds: '+ world' } } } });
+    try {
+        host.features.set(CORE_FEATURE.extractor, true);
+        const sent = await host.send('Look.', 'Barges are held.');
+        draw();
+        host.registry.setRestore('pending', 'Restoring a save point.');
+        release();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        const found = host.turn.problems().filter(item => item.index === sent.index && item.code === 'MODULE_HELD');
+        assert.equal(found.length, 1);
+        const reason = 'Story Director was held back (Restoring a save point.); this line was not used.';
+        assert.match(found[0].message, /Story Director was held back/);
+        assert.deepEqual(ui.notes.refusedAt(sent.index), [{ line, reason }]);
+        ui.mounts.card.refresh(sent.index, { force: true });
+        ui.mounts.card.toggle(sent.index, true);
+        const card = doc.querySelector(`.mes[mesid="${sent.index}"] [data-ss-card="${THIS_REPLY_ID}"]`);
+        assert.match(card.querySelector('.refused').textContent, /Story Director was held back \(Restoring a save point\.\); this line was not used\./);
+    } finally { host.close(); }
 });
 
 test('refused lines belong to the swipe that wrote them', async () => {
