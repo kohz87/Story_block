@@ -201,6 +201,25 @@ test('Inventory Grid: the sheet is a layer on the body, not inside the screen; E
     stackOf(doc).pop(stackOf(doc).top());
 });
 
+test('Inventory Grid: Edit opens one form; pressing it again closes it and never adds a second form', { skip }, async t => {
+    const { run } = await gridWorld(t);
+    const { el, doc } = run();
+    await settle2();
+    tiles(el)[0].click();
+    const edit = () => [...sheetOf(doc).querySelectorAll('.sheet-act > button')].find(node => text(node) === 'Edit');
+    const forms = () => sheetOf(doc).querySelectorAll('.ss-w-editable-form').length;
+    assert.equal(forms(), 0);
+    edit().click();
+    assert.equal(forms(), 1, 'Edit opens the one form');
+    edit().click();
+    assert.equal(forms(), 0, 'pressing it again closes it');
+    edit().click();
+    edit().click();
+    edit().click();
+    assert.equal(forms(), 1, 'three more presses: open, closed, open: never a second form');
+    stackOf(doc).pop(stackOf(doc).top());
+});
+
 test('Inventory Grid: closing the sheet after a redraw puts the focus on the redrawn tile; a redraw keeps the focus on its tile', { skip }, async t => {
     const { run } = await gridWorld(t);
     const { el, doc } = run();

@@ -3,7 +3,9 @@
 // (name, what it does, stat (left out for a skill whose block has none: a stat is never guessed), Stamina or Mana, rank), and, if left on, the things the character carries and the purse.
 //
 //   { "storySuiteCharacter": 1, "soul": 2, "points": 3, "stats": { "str": 14, … "cha": 10 },
-//     "skills": [{ "name", "about", "stat"?, "uses", "rank" }], "items"?: [{ "name", "qty", "note"?, "kind"?, "rarity"?, "slot"?, "stats"? }], "money"?: <base units> }
+//     "skills": [{ "name", "about", "stat"?, "uses", "rank" }], "items"?: [{ "name", "qty", "note"?, "kind"?, "rarity"?, "slot"?, "stats"?, "carry"? }], "money"?: <base units> }
+//
+// An item's `carry` (whole 1..500, left out when 0) is the carry capacity the reader set on it (a Traveler's Slingbag); files from before it still load.
 //
 // `parseCharacterFile` checks a file with the RPG's own limits (the Character and Skills fields, the inventory's name and note lengths)
 // and hands back a clean copy: unknown keys are dropped, text is one line, nothing is kept that was not asked for. A bad file is
@@ -26,7 +28,7 @@ export const CHAR_VERSION = 1;
 /** What the file may hold: the RPG's own limits where it has them (names.js CREATION, the Character block's fields), the inventory's elsewhere. */
 export const FILE_LIMITS = Object.freeze({
     bytes: 65536, level: Object.freeze([1, 99]), soul: Object.freeze([1, 9]), points: 60, stat: Object.freeze([1, 20]), rank: 3,
-    items: 60, itemName: 60, itemNote: 300, qty: 999, money: 1_000_000_000,
+    items: 60, itemName: 60, itemNote: 300, qty: 999, carry: 500, money: 1_000_000_000,
 });
 
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -50,7 +52,8 @@ export function buildCharacterFile({ level, soul, points, stats, skills = [], it
     if (Array.isArray(items)) {
         file.items = items.map(item => ({ name: item.name, qty: item.qty, ...(item.note ? { note: item.note } : {}),
             ...(item.kind ? { kind: item.kind } : {}), ...(item.rarity ? { rarity: item.rarity } : {}),
-            ...(item.slot ? { slot: item.slot } : {}), ...(item.stats ? { stats: item.stats } : {}) }));
+            ...(item.slot ? { slot: item.slot } : {}), ...(item.stats ? { stats: item.stats } : {}),
+            ...(whole(item.carry, 1, FILE_LIMITS.carry) ? { carry: item.carry } : {}) }));
     }
     if (Number.isSafeInteger(money)) file.money = money;
     return file;
@@ -85,8 +88,9 @@ function readItem(entry) {
     const slot = kind === 'equipment' && typeof entry.slot === 'string' ? slotWordOf(entry.slot) : null;
     const given = kind === 'equipment' && isRecord(entry.stats) ? Object.entries(entry.stats) : [];
     const stats = given.length && given.length <= GEAR.maxStats && given.every(([key, value]) => GEAR.stats.includes(key) && whole(value, 1, 6)) ? Object.fromEntries(given) : null;
+    // The carry the reader set on it: a whole 1..500, else left out (an older file has none).
     return { name, qty: entry.qty, ...(note ? { note } : {}), ...(kind ? { kind } : {}), ...(RARITIES.includes(entry.rarity) ? { rarity: entry.rarity } : {}),
-        ...(slot ? { slot } : {}), ...(stats ? { stats } : {}) };
+        ...(slot ? { slot } : {}), ...(stats ? { stats } : {}), ...(whole(entry.carry, 1, FILE_LIMITS.carry) ? { carry: entry.carry } : {}) };
 }
 
 /**
@@ -150,9 +154,9 @@ export function parseCharacterFile(text) {
 export function itemsForFile(rows) {
     const out = [], at = new Map();
     for (const row of Array.isArray(rows) ? rows : []) {
-        const item = readItem({ name: row?.name, qty: row?.qty, note: row?.note, kind: row?.kind, rarity: row?.rarity, ...(row?.hand === true ? { slot: row?.slot, stats: row?.stats } : {}) });
+        const item = readItem({ name: row?.name, qty: row?.qty, note: row?.note, kind: row?.kind, rarity: row?.rarity, ...(row?.hand === true ? { slot: row?.slot, stats: row?.stats } : {}), carry: row?.readerCarry });
         if (!item) continue;
-        const key = JSON.stringify([item.name.toLowerCase(), item.note ?? '', item.kind ?? '', item.rarity ?? '', item.slot ?? '', item.stats ?? null]);
+        const key = JSON.stringify([item.name.toLowerCase(), item.note ?? '', item.kind ?? '', item.rarity ?? '', item.slot ?? '', item.stats ?? null, item.carry ?? 0]);
         if (at.has(key)) {
             const had = out[at.get(key)];
             had.qty = Math.min(FILE_LIMITS.qty, had.qty + item.qty);
