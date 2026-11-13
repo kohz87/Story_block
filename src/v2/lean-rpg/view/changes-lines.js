@@ -91,10 +91,12 @@ export function fightLines(record, problems = []) {
     const out = [];
     for (const receipt of list(record?.receipts)) {
         if (receipt?.type !== FIGHT || skipped.has(receipt.id)) continue;
-        for (const award of list(receipt.data?.v2?.result?.fight?.awards)) {
+        const fight = receipt.data?.v2?.result?.fight;
+        const bonus = fight?.outnumbered === 1 && [1.5, 2].includes(fight.multiplier) ? ` · ${fill(C.fightXpBonus, { multiplier: fight.multiplier })}` : '';
+        for (const award of list(fight?.awards)) {
             const who = words(award?.who);
             if (!who || !Number.isSafeInteger(award.xp) || award.xp <= 0) continue;
-            out.push(line({ icon: 'fa-trophy', tone: 'good', text: fill(C.fightXp, { who, xp: award.xp }), summary: fill(C.fightXpSummary, { who, xp: award.xp }), note: C.fightXpNote }));
+            out.push(line({ icon: 'fa-trophy', tone: 'good', text: fill(C.fightXp, { who, xp: award.xp }) + bonus, summary: fill(C.fightXpSummary, { who, xp: award.xp }) + bonus, note: C.fightXpNote }));
         }
     }
     return out;
