@@ -552,7 +552,7 @@ These settle questions agents raised; the host changes they need are made at int
     mark lets a faction first created by another line of the same answer take its stated stance, using the carrier's
     `assistHas(domain, table, id)` to check the state at the start of that answer. Older replies keep their prior rule.
     A refused line's card reason is always shown (reply-notes `problemReason`); a safety-net line whose module is held
-    back (dormant, restore barrier) is refused with a `MODULE_HELD` Problem and is never applied later.
+    back (dormant, restore barrier) is refused with a `MODULE_HELD` Problem and is never applied later; so is every safety-net line while a module with an `afterCapture` hook is held (the hook would otherwise run on a later Re-read only). An answer is tied to its reply's record ID and dropped (a quiet Problem) when that reply was replaced; the late lines of the reply before count against the cap as on Re-read.
     *Place and presence (rule mark `assistPlace`, new replies):* Assist is asked for a place only when the scene moves,
     naming where the reply ends, not a stop on the way. A now or late Assist place keeps everyone present and adds its
     `with:` names, except people explicitly removed so far in that reply or in the same Assist answer. It is refused with a

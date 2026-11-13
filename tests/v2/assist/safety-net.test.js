@@ -398,3 +398,84 @@ test('the same lines with no barrier apply at once, marked as the safety net\'s'
         assert.deepEqual(host.ctx.chat[sent.index].extra.storySuite.receipts.filter(receipt => /^capture\.(world|faction)$/.test(receipt.type)).map(receipt => receipt.assist), ['now', 'now']);
     } finally { host.close(); }
 });
+
+// Round 4 (REV-assistworld3 points 1-3): an answer belongs to the reply it was asked for, the cap counts the same lines live and on Re-read,
+// and a held module's afterCapture hook refuses the safety net's lines before it could run.
+const assistTypes = (host, index) => host.ctx.chat[index].extra.storySuite.receipts.filter(receipt => receipt.assist).map(receipt => `${receipt.type}:${receipt.assist}`);
+
+test('a pending answer never attaches to a replacement reply at the same index and swipe (a quiet Problem, nothing stored or applied)', { skip }, async () => {
+    const { model, calls, release } = heldModel('~ place Old Mill | kind: settlement');
+    const host = await hostWith(model);
+    try {
+        const first = await host.send('I walk on.', 'You walk to the old mill.');
+        await wait(5);
+        assert.equal(calls.length, 1);
+        const sid = host.store.carrierSid(first.index);
+        const second = await host.regenerate('You turn back to the quay.');
+        assert.equal(second.index, first.index, 'the same index and swipe');
+        assert.notEqual(host.store.carrierSid(second.index), sid, 'a different reply');
+        const place = JSON.stringify(host.sdk.query('scene.place'));
+        release();
+        await wait(60);
+        assert.equal(JSON.stringify(host.sdk.query('scene.place')), place, 'the old answer changed nothing');
+        assert.deepEqual(assistSections(host.ctx.chat[second.index].mes), { now: [], next: [] });
+        assert.deepEqual(assistTypes(host, second.index), []);
+        const quiet = host.turn.problems().filter(item => item.code === 'REPLY_CHANGED');
+        assert.equal(quiet.length, 1);
+        assert.equal(quiet[0].quiet, true);
+        assert.equal(quiet[0].index, undefined, 'it names no reply, so it is never listed on the replacement');
+    } finally { host.close(); }
+});
+
+test('the cap counts the previous reply\'s late line and this reply\'s safety-net lines the same live and on Re-read (cap 10)', { skip }, async () => {
+    let release, calls = 0;
+    const held = new Promise(resolve => { release = resolve; });
+    const model = async () => { calls += 1; if (calls === 1) { await held; return '~ place Old Mill | kind: settlement'; } return calls === 2 ? '~ weather fog' : 'none'; };
+    const host = await hostWith(model);
+    host.settings.set(null, 'maxChangeLines', 10);
+    try {
+        const first = await host.send('I walk on.', 'You walk to the old mill.');
+        await wait(5);
+        const intercept = host.st.interceptor;
+        host.st.interceptor = async (...args) => { await intercept(...args); release(); await wait(20); };
+        const nine = Array.from({ length: 9 }, (_, n) => `+ present Guest${n}`);
+        const second = await host.send('Go on.', `A crowd gathers.\n<Changes>\n${nine.join('\n')}\n</Changes>`);
+        host.st.interceptor = intercept;
+        await wait(80);
+        assert.ok(assistSections(host.ctx.chat[first.index].mes).next.length, 'the late line was kept on the reply before');
+        const types = () => host.ctx.chat[second.index].extra.storySuite.receipts.map(receipt => `${receipt.type}:${receipt.assist ?? ''}`);
+        const live = JSON.stringify(types()), state = JSON.stringify(host.head().domains.scene);
+        assert.ok(live.includes(':late'), 'the previous reply\'s line ran (the tenth)');
+        assert.equal(host.turn.problems().some(item => item.index === second.index && item.code === 'TOO_MANY' && item.assist === 'now'), true, 'its own answer is told as over the cap');
+        assert.equal(live.includes('weather'), false);
+        assert.equal((await host.sdk.reread(second.index)).ok, true);
+        assert.equal(JSON.stringify(types()), live, 'Re-read keeps exactly what live kept');
+        assert.equal(JSON.stringify(host.head().domains.scene), state);
+    } finally { host.close(); }
+});
+
+test('a held module with an afterCapture hook refuses the safety net\'s lines before any hook runs, with a visible reason, and Re-read agrees', { skip }, async () => {
+    const { announceModules } = await import('../../../src/v2/sdk/lifecycle.js');
+    const probe = { id: 'hook-probe', version: '1.0.0', domains: { hookProbe: { initial: () => ({ n: 0 }) } }, hooks: { afterCapture: () => ({ commands: [] }) } };
+    const { model, release } = heldModel('~ weather rain');
+    const host = await createHost({ modules: [probe], callModel: model, settings: { modules: { 'story-block': { [SETTING.extractor]: true } } } });
+    host.features?.set?.('story-block.extractor', true);
+    try {
+        const sent = await host.send('I look around.', 'Rain begins to fall.');
+        host.registry.setRestore('pending', 'Restoring a save point.');
+        announceModules(host.registry, host.events);
+        release();
+        await wait(80);
+        const found = host.turn.problems().filter(item => item.index === sent.index && item.code === 'MODULE_HELD');
+        assert.deepEqual(found.map(item => item.line), ['~ weather rain']);
+        assert.match(found[0].message, /hook-probe was held back \(Restoring a save point\.\); this line was not used\./);
+        assert.deepEqual(assistTypes(host, sent.index), []);
+        assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes), { now: [], next: [] });
+        host.registry.setRestore('idle');
+        announceModules(host.registry, host.events);
+        const state = JSON.stringify(host.head().domains.scene);
+        assert.equal((await host.sdk.reread(sent.index)).ok, true);
+        assert.equal(JSON.stringify(host.head().domains.scene), state, 'Re-read after the release changes nothing');
+        assert.deepEqual(assistTypes(host, sent.index), []);
+    } finally { host.close(); }
+});
