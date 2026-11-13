@@ -9,7 +9,7 @@ import {
 import { cutAt } from '../../text.js';
 import { readRecord, swipeLoading } from '../persist.js';
 import { notWritten } from '../assist/extractor.js';
-import { heldWhy, refusedWhy } from '../assist/safety.js';
+import { heldWhy, refusedWhy, waitForBarrier } from '../assist/safety.js';
 import { assistPresentGuard } from '../assist/where.js';
 import { within } from './text.js';
 import { ensureModules } from '../sdk.js';
@@ -160,11 +160,9 @@ export function createEvents(s, deps) {
         }
     }
 
-    // afterReply (the assist extractor): a reply that came without change lines may get them from a
-    // module after all. Not awaited; a failure is logged. `capture(text, { index, swipe })` runs the
-    // lines as story captures on that reply when it is still the head on the same swipe.
-    // (The Assist safety net runs after every reply; `lines` are the change lines its capture read.) A send
-    // waits for these runs briefly (assistPending, ASSIST_WAIT_MS).
+    // afterReply (the assist extractor, run after every reply; `lines` are the change lines its capture read): not awaited, a failure is
+    // logged. `capture(text, { index, swipe })` runs lines as story captures on that reply while it is the head on the same swipe.
+    // A send waits for these runs briefly (assistPending, ASSIST_WAIT_MS).
     function afterReply(index, type, message, lines = []) {
         const swipe = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
         const sid = store.carrierSid?.(index) ?? null;   // the reply's identity for a late answer (captureAssist)
@@ -228,14 +226,16 @@ export function createEvents(s, deps) {
      */
     async function captureAssist({ index, swipe, sid, from }, text, message, refused = [], placeLines = []) {
         // The same reply the answer was asked for (its record ID, else the message itself): an index and swipe are reused by a replacement.
-        const same = isCarrier(message) && store.headIndex() === index && (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) === swipe
+        const same = () => isCarrier(message) && store.headIndex() === index && (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) === swipe
             && (sid ? store.carrierSid?.(index) === sid : !from || message === from);
-        if (!same) {
-            problem({ code: 'REPLY_CHANGED', quiet: true, message: `The safety net's answer for reply ${index} arrived after that reply was changed or replaced; its lines were not used.` });
-            return { receipts: [], problems: ['The reply changed before the safety net\'s lines arrived; they were not used.'], dropped: true };
-        }
+        const drop = () => (problem({ code: 'REPLY_CHANGED', quiet: true, message: `The safety net's answer for reply ${index} arrived after that reply was changed or replaced; its lines were not used.` }),
+            { receipts: [], problems: ['The reply changed before the safety net\'s lines arrived; they were not used.'], dropped: true });
+        if (!same()) return drop();
         const refusals = (Array.isArray(refused) ? refused : []).filter(item => typeof item?.line === 'string' && item.line)
             .map(item => problem({ index, line: item.line, code: 'REFUSED', message: `"${item.line}" was not used: ${String(item.why ?? '').slice(0, 240)}.` }));
+        // Held only by the timeline's momentary barrier (a native change finishing): waited for, briefly, then the reply is looked at again.
+        await waitForBarrier(registry, parseChanges(String(text ?? '')).lines, same);
+        if (!same()) return drop();
         const mes = String(message.mes ?? ''), record = readRecord(message), marks = ruleMarksOf(record?.rules);
         const block = extractBlock(mes, 'Changes', null, { heads: changeHeads() });
         // Read as the reply was captured (its caretWords mark): a preset's ^ block gives the same lines live and on Re-read.
