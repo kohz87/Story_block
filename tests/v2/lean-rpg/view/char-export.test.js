@@ -613,6 +613,24 @@ test('Create keeps every imported piece\'s slot and stats exactly, with Gear off
     assert.deepEqual(defsOf(ctx.host).find(item => item.name === 'Cane Sword').stats, { AGI: 1 }, 'reload = live');
 });
 
+// Gear on before Create (a): the pieces keep the file's stats and no "held" Problem says the starting kit was closed. Gear off at import and on after (b): the rows show the file's stats.
+for (const [label, before] of [['(a) Gear on before Create', true], ['(b) Gear off at import, on afterwards', false]]) {
+    test(`an imported character's pieces keep the file's stats: ${label}`, async t => {
+        const ctx = await page(t, { persona: 'Wessel' });
+        const gear = on => ctx.host.features.set('story-block.gear', on);
+        if (before) gear(true);
+        const dialog = await wizardWith(ctx, { empty: true });
+        await importInto(dialog, GEAR_FILE);
+        type(wizardOf(dialog).querySelector('[data-wiz="about"]'), 'A ferry hand from Low Quay.');
+        (await goTo(dialog, 'review')).querySelector('.rpg-wiz-create').click();
+        await settle();
+        gear(true);
+        assert.doesNotMatch(JSON.stringify(ctx.host.turn.problems()), /came in as a Common piece/, 'no piece was held back: the starting kit was open');
+        const row = name => ctx.host.sdk.query('inventory.items', {}).find(item => item.name === name);
+        assert.deepEqual([row('Cane Sword').stats, row('Traveling Robe').slot, row('Traveling Robe').stats], [{ AGI: 1 }, 'cloak', { AGI: 1 }]);
+    });
+}
+
 test('a file with no carry still loads and an item\'s carry is a whole number from 1 to 500', () => {
     assert.equal(parseCharacterFile(SAVED).ok, true);
     assert.equal(parseCharacterFile(SAVED).file.items.some(item => 'carry' in item), false, 'older files are unchanged');
