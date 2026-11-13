@@ -544,6 +544,12 @@ These settle questions agents raised; the host changes they need are made at int
     was captured, or for a reply swiped or deleted meanwhile, is not used. (We used the existing assist path,
     story lines through the turn's capture, rather than an `afterCapture` system step, so the lines keep the
     story caps and claims and a turn-in step of F121 sees them.)
+    *World news and factions (rule mark `assistFaction`, new replies):* with a world or faction chip on, the extractor's
+    "Where and when" part lists the open world events (names) and the factions (name and stance), each capped at 10, and
+    its footer asks for the exact known name with `~`, no invented stance, no faction made from a place, and parts after
+    the first `|` written `label: value`. A safety-net `+`/`~ faction` on a known faction never sets its stance (Story
+    Director reads `ctx.carrier.assist` and `ctx.carrier.rules`); a new faction is written whole. A refused line's card
+    reason is always shown (reply-notes `problemReason`); a kind whose module is held back is a `MODULE_HELD` Problem.
     *Place and presence (rule mark `assistPlace`, new replies):* Assist is asked for a place only when the scene moves,
     naming where the reply ends, not a stop on the way. A now or late Assist place keeps everyone present and adds its
     `with:` names, except people explicitly removed so far in that reply or in the same Assist answer. It is refused with a

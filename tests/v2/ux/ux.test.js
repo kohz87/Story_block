@@ -173,6 +173,16 @@ test('refusedFrom and problemReason read the turn\'s problems for one reply', ()
     assert.equal(problemReason({ line: 'x', message: 'odd text' }), 'odd text');
 });
 
+test('problemReason gives a readable reason for every refused line: the safety net\'s mark is dropped, the friendly unknown-kind text stays, any other message loses the quoted line', () => {
+    const line = '+ world Shornmarch Wolf-Push — skirmishers | state: ongoing';
+    assert.equal(problemReason({ line, code: 'UNKNOWN_KIND', message: `(assist) No module keeps "world", so "${line}" was not used.` }), 'no module keeps "world"');
+    assert.equal(problemReason({ line, code: 'REFUSED', message: `(assist) "${line}" was not used: the chronicle is full.` }), 'the chronicle is full.');
+    assert.equal(problemReason({ line, code: 'MODULE_HELD', message: `(assist, from the previous reply) "${line}" was not used: story-director is held back.` }), 'story-director is held back.');
+    assert.equal(problemReason({ line, code: 'ODD', message: `Could not place "${line}" in the chronicle.` }), 'Could not place in the chronicle.');
+    assert.equal(problemReason({ line, code: 'ODD', message: `"${line}" was not used.` }), '', 'nothing left is an empty reason, never the line');
+    assert.equal(problemReason({ line, code: 'ODD', message: 'No line in it' }), 'No line in it');
+});
+
 test('the changes card lists the lines the code refused, faintly, and its summary counts them', async () => {
     const { doc, host, ui, draw } = await page();
     await host.send('hi', WITH_LINES);

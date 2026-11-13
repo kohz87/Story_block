@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseChanges } from '../../../src/v2/capture.js';
 import { EXTRACTOR_FOOT, MAX_NEAR, SETTING, WHERE_HEAD, createAssistPart, extractorPrompt, hasClockTime, knownPlace, mapPlaces, parseExtractorAnswer, whereLines, whereNow, whereWhy } from '../../../src/v2/assist/index.js';
-import { assistPlaceConflict } from '../../../src/v2/assist/where.js';
+import { assistPlaceConflict, worldKnown } from '../../../src/v2/assist/where.js';
 import { refusedFrom } from '../../../src/v2/reply-notes.js';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { fakeModel, on } from './helpers/fakes.js';
@@ -235,4 +235,41 @@ test('on the real host: an invented place name and a vague time from the safety 
         assert.deepEqual(host.head().domains.clockProbe.said, ['~ time Goldwane 12, 9:30 am'], 'the clock time was applied, the vague one never');
         assert.equal(host.turn.problems().filter(item => item.index === second.index && item.code === 'REFUSED').length, 0);
     } finally { host.close(); }
+});
+
+// ---- what the Chronicle holds, told to the safety net -------------------------------------------------------------------------------
+
+test('worldKnown caps the open event names and the faction names with their stance; whereLines tells them, and the footer asks for reuse and labels', () => {
+    const events = Array.from({ length: 14 }, (_, at) => ({ name: `Event ${at}` })).concat([{ name: '  ' }, null]);
+    const known = worldKnown({ events, factions: [{ name: 'Red Cords', stance: 'neutral' }, { name: 'Shackles' }] });
+    assert.equal(known.events.length, 10);
+    assert.deepEqual(known.factions, [{ name: 'Red Cords', stance: 'neutral' }, { name: 'Shackles', stance: '' }]);
+    assert.deepEqual(worldKnown(null), { events: [], factions: [] });
+    const lines = whereLines({ ...known, events: ['Wolf-Push', 'Retaliation'] });
+    assert.ok(lines.includes('Open world events the story already keeps (to update one, write ~ world with its exact name): Wolf-Push; Retaliation'));
+    assert.ok(lines.includes('Factions the story already keeps, with stance (never write a stance for one): Red Cords (neutral); Shackles'));
+    assert.match(EXTRACTOR_FOOT, /always written label: value \(place: /);
+    assert.match(EXTRACTOR_FOOT, /reuse its exact name with ~ to update it/);
+    assert.match(EXTRACTOR_FOOT, /Never change a stance the reply does not show changing, and never make a faction out of a place or a city name/);
+});
+
+const CHRONICLE = { id: 'chronicle-probe', version: '1.0.0', domains: { chronicleProbe: { initial: () => ({ said: [] }) } },
+    capture: { kinds: { world: { grammar: '+ world Name — news | state: ongoing | place | factions' }, faction: { grammar: '+ faction Name — what it is | area | stance' } },
+        apply(ctx, line) { ctx.draft('chronicleProbe').said.push(line.raw); return { narrate: false }; } },
+    queries: { 'chronicle.events': () => [{ name: 'Shornmarch Wolf-Push' }], 'chronicle.factions': () => [{ name: 'Red Cords', stance: 'neutral' }] } };
+
+test('on the real host: with a world or faction kind allowed the prompt names the open events and the factions with their stance; without one it does not', { skip }, async () => {
+    for (const [kinds, told] of [['~ time, + world, ~ world, + faction, ~ faction', true], ['~ time', false]]) {
+        const prompts = [];
+        const host = await createHost({ modules: [CLOCK, CHRONICLE], callModel: async prompt => { prompts.push(prompt); return 'none'; },
+            settings: { modules: { 'story-block': { [SETTING.extractor]: true, [SETTING.extractorKinds]: kinds } } } });
+        try {
+            host.features?.set?.('story-block.extractor', true);
+            await host.send('I look around.', 'The pier is busy.');
+            await settleAssist();
+            assert.equal(prompts.length, 1);
+            assert.equal(prompts[0].includes('Open world events the story already keeps (to update one, write ~ world with its exact name): Shornmarch Wolf-Push'), told);
+            assert.equal(prompts[0].includes('Red Cords (neutral)'), told);
+        } finally { host.close(); }
+    }
 });

@@ -72,6 +72,23 @@ export function whereNow({ here = null, places = [], time = '' } = {}, { cap = M
     };
 }
 
+// How many open world events and factions the extractor is told, and the longest stance told.
+export const MAX_WORLD = 10;
+export const STANCE_CHARS = 40;
+
+/**
+ * The world the Chronicle already holds, for the safety net's world and faction lines: `{ events, factions }`; the names of
+ * the open world events (query rows `{ name }`) and the factions with their stance (`{ name, stance }`), each at most `cap`, names clipped.
+ */
+export function worldKnown(world, { cap = MAX_WORLD } = {}) {
+    const { events = [], factions = [] } = world ?? {};
+    const rows = (list, make) => (Array.isArray(list) ? list : []).filter(row => typeof row?.name === 'string' && row.name.trim()).slice(0, Math.max(0, cap)).map(make);
+    return {
+        events: rows(events, row => clip(row.name, NAME_CHARS)),
+        factions: rows(factions, row => ({ name: clip(row.name, NAME_CHARS), stance: clip(row.stance, STANCE_CHARS) })),
+    };
+}
+
 /** The lines that tell the extractor where and when the scene is (none when nothing is known). */
 export function whereLines(around) {
     if (!around) return [];
@@ -79,6 +96,8 @@ export function whereLines(around) {
     if (around.time) lines.push(`Story date and time now: ${around.time}`);
     if (around.here) lines.push(`Place now: ${around.here.name}${around.here.kind || around.here.region ? ` (${[around.here.kind, around.here.region].filter(Boolean).join(', ')})` : ''}`);
     if (around.near?.length) lines.push(`Known places near it (use these exact names): ${around.near.join('; ')}`);
+    if (around.events?.length) lines.push(`Open world events the story already keeps (to update one, write ~ world with its exact name): ${around.events.join('; ')}`);
+    if (around.factions?.length) lines.push(`Factions the story already keeps, with stance (never write a stance for one): ${around.factions.map(item => (item.stance ? `${item.name} (${item.stance})` : item.name)).join('; ')}`);
     return lines;
 }
 

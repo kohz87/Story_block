@@ -300,3 +300,19 @@ test('an old reply (carrying the earlier rule marks, not assistPlace) keeps the 
     assert.equal(JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]), live, 'whole scene byte-identical');
     host.close();
 });
+
+// A kind whose module is held back is told as held, not as an unknown kind; a truly unknown kind keeps its text.
+test('a line of a kind whose module is dormant is a MODULE_HELD Problem (with a readable card reason), an unknown kind stays UNKNOWN_KIND', { skip }, async () => {
+    const probe = { id: 'held-probe', version: '1.0.0', domains: { heldProbe: { initial: () => ({ said: [] }) } },
+        capture: { kinds: { zed: { grammar: '+ zed Name' } }, apply(ctx, line) { ctx.draft('heldProbe').said.push(line.raw); return { narrate: false }; } } };
+    const host = await createHost({ modules: [probe] });
+    try {
+        host.registry.setEnabled('held-probe', false, 'off for the test');
+        const { index } = await host.send('b', 'ok\n<Changes>\n+ zed One\n+ nope Two\n</Changes>');
+        const found = host.turn.problems().filter(item => item.index === index);
+        assert.deepEqual(found.map(item => item.code), ['MODULE_HELD', 'UNKNOWN_KIND']);
+        assert.match(found[0].message, /^"\+ zed One" was not used: held-probe is held back/);
+        const { refusedFrom } = await import('../../../src/v2/reply-notes.js');
+        assert.deepEqual(refusedFrom(found, index).map(item => item.reason), ['held-probe is held back right now (dormant, or a restore is in progress).', 'no module keeps "nope"']);
+    } finally { host.close(); }
+});

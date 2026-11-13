@@ -299,7 +299,7 @@ export function createCaptureFlow(s, deps) {
         const marks = ruleMarksOf(readRecord(message)?.rules), fresh = base === null ? (blocked.first ? allRuleNames() : ruleMarksFor(lines)).filter(name => !marks.includes(name) && !blocked.rules.includes(name)) : [];
         if (fresh.length && typeof store.setRuleMarks === 'function') { try { store.setRuleMarks(index, fresh); marks.push(...fresh); } catch { /* an unmarked reply keeps the old rule */ } }
         if (marks.length) carrier.rules = marks;
-        if (assist && marks.includes('assistPlace')) { carrier.assist = assist; carrier.assistLeft = []; }
+        if (assist && (marks.includes('assistPlace') || marks.includes('assistFaction'))) { carrier.assist = assist; carrier.assistLeft = []; }
         const prior = carrier.assist && base === null && assist === NOW ? (readRecord(message)?.receipts ?? []) : [];
         const own = carrier.assist ? readBlock(index, extractBlock(String(message?.mes ?? ''), 'Changes', null, { heads: changeHeads() }) ?? '').lines : [];
         // The message right before the reply (system messages aside), and only when it is the reader's: a reply that
@@ -316,7 +316,9 @@ export function createCaptureFlow(s, deps) {
         for (const line of lines) {
             const entry = registry.capture(line.kind);
             if (!entry) {
-                found.push(problem({ index, line: line.raw, code: 'UNKNOWN_KIND', message: `No module keeps "${line.kind}", so "${line.raw}" was not used.` }));
+                const held = registry.captureOwner?.(line.kind); // declared but held back (dormant, restore): not an unknown kind
+                found.push(problem(held ? { module: held, index, line: line.raw, code: 'MODULE_HELD', message: `"${line.raw}" was not used: ${held} is held back right now (dormant, or a restore is in progress).` }
+                    : { index, line: line.raw, code: 'UNKNOWN_KIND', message: `No module keeps "${line.kind}", so "${line.raw}" was not used.` }));
                 continue;
             }
             const mark = lineMark(line.raw);
@@ -378,9 +380,7 @@ export function createCaptureFlow(s, deps) {
             if (warned) found.push(problem({ module: entry.moduleId, index, line: line.raw, code: 'LIMITED', message: warned }));
             receipts.push(result.receipt);
             // Used, but not all of it (a clamp): the owner says why, and that goes to the Problems list.
-            if (typeof result.problem === 'string' && result.problem) {
-                found.push(problem({ module: entry.moduleId, index, line: line.raw, code: 'LIMITED', message: result.problem }));
-            }
+            if (typeof result.problem === 'string' && result.problem) found.push(problem({ module: entry.moduleId, index, line: line.raw, code: 'LIMITED', message: result.problem }));
             if (!base) events?.emit('committed', { receipt: result.receipt });
         }
         // What the safety net's lines met is marked as its in the Problems list.
