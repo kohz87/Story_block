@@ -148,7 +148,7 @@ test('Edit on a bound piece: name, count, slot and Equipped by are disabled, the
     sword.querySelector('.ss-w-editable-pencil').click();
     assert.equal(sword.querySelectorAll('input, select').filter(node => node.disabled === true).length, 0);
     // (a pack's item says where its kind, slot and rarity come from; there is no bound hint)
-    assert.deepEqual(sword.querySelectorAll('.ss-w-editable-item-hint').map(node => text(node)), ['Kind, slot and rarity come from the pack.']);
+    assert.deepEqual(sword.querySelectorAll('.ss-w-editable-item-hint').map(node => text(node)), ['Kind, slot and rarity come from the pack.', "Move this piece's 2 points between stats", '2 of 2 points placed']);
 });
 
 test('Edit on a bound piece: Save with nothing changed sends nothing (the locked choices do not unequip it)', async () => {

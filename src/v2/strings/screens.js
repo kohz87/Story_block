@@ -79,6 +79,8 @@ export const SCREEN_STRINGS = {
                 laterHint: 'Rarity and bonuses come from the story after the first message.',
                 carry: 'Adds carry capacity (0\u2013500)', carryHelp: 'Only you set this. The story never changes it.',
                 packHint: 'Kind, slot and rarity come from the pack.',
+                // Moving a piece's points (edit.js repoint): the hint and the live line under the stat boxes.
+                repointHint: "Move this piece's {n} {points} between stats", repointLine: '{n} of {max} {points} placed', repointTitle: 'Stat {at}',
                 laterTitle: 'Fixed after your first message',
                 points: '{n} of {max} points for {a} {rarity} piece', pointsNone: 'A common piece has no bonus',
                 kinds: { equipment: 'Equipment', consumable: 'Consumables', goods: 'Goods', quest: 'Quest items', material: 'Materials' },

@@ -55,6 +55,10 @@ export const RULE_LINES = Object.freeze({
     assistFactionFresh: () => false,
     // Judge the safety net's arrivals against the end of a reply only when it carries this mark.
     assistPresent: () => false,
+    // A story `+ item` line over its rarity's budget keeps the stats in the order the line wrote them (domains/inventory/story.js statWords). Static per chat: only a reply's first live capture is marked.
+    gearOrder: () => false,
+    // Quick weapons (cane, rapier, katana, sabre, whip, estoc, scimitar) raise AGI in an item the reply defines (domains/gear/stats.js defaultStat). Static per chat: only a reply's first live capture is marked.
+    gearFinesse: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */

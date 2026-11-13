@@ -13,6 +13,8 @@ export const MESSAGE_STRINGS = {
         kitNoSlot: 'Choose a slot for {name}: its name does not say where it is worn.',
         kitExisting: '{name} is already in your things as {kind}, from the story or a pack or with items of yours still held. Remove it first and add it again, or give this one another name.',
         importLate: '{name} came in as a Common piece: a saved character\'s gear is kept as written only before your first message.',
+        // Re-pointing a piece's stat points (edit.js repoint): the points move between stats, the total stays.
+        repointTotal: "Keep this piece's {max} {points} in total: these add up to {total}.", repointNone: 'This piece gives no points to move.',
         kitPack: 'Kind, slot and rarity come from the pack.', kitStory: 'Kind, slot and rarity come from the story.',
         kitMany: 'Equipment is one piece each; at most {max} pieces.',
         itemKind: 'The kind of an item is one of {kinds}.', itemRarity: 'The rarity of an item is one of {rarities}.',

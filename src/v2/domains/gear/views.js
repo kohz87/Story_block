@@ -5,7 +5,7 @@ import { isPlainObject } from '../common.js';
 import { STRINGS } from '../../strings.js';
 import { readSheet } from '../../lean-rpg/read.js';
 import { GEAR } from './stats.js';
-import { statsFor, handDef, slotWordOf, placeOf } from './stats.js';
+import { statsFor, handDef, slotWordOf, placeOf, gearBudget } from './stats.js';
 import { condWord } from './conditions.js';
 import { carryPicture, carryAnswer, travelsWith, kindCarry, capacityFor, atLimit, loadLevel } from './carry.js';
 
@@ -25,7 +25,7 @@ function wornBy(state, owner, condOf) {
         if (!stack) { out[place] = null; continue; }
         const def = defs[stack.def];
         const cond = condOf(stack, inventory);
-        out[place] = { name: def.name, stats: cond > 0 ? statsFor(def) : {}, cond, broken: cond <= 0 };
+        out[place] = { name: def.name, stats: cond > 0 ? statsFor(def, stack) : {}, cond, broken: cond <= 0 };
     }
     return out;
 }
@@ -87,7 +87,7 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
         const cond = condOf(stack, inventory);
         const worn = typeof stack.equipped === 'string';
         rows[stack.id] = {
-            bonus: def.kind === 'equipment' ? bonusText(statsFor(def)) : '', cond, word: condWord(cond), broken: cond <= 0,
+            bonus: def.kind === 'equipment' ? bonusText(statsFor(def, stack)) : '', cond, word: condWord(cond), broken: cond <= 0,
             place: worn ? stack.equipped : '', by: worn ? names(stack.owner) : '', byId: worn ? stack.owner : '',
             // The slot the Edit form offers: where it is worn, else the place its own slot names ('' for none: a bag).
             slotKey: worn ? stack.equipped : (def.kind === 'equipment' && slotWordOf(def.slot) ? placeOf(slotWordOf(def.slot)) : ''),
@@ -96,7 +96,9 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
             carry: Number.isSafeInteger(def.carry) && !def.id.startsWith('pack.') ? def.carry : 0,
             carryEdit: !def.id.startsWith('pack.') && def.kind !== 'money' && !handDef(inventory, def),
             // A piece the reader added by hand (its Edit offers Kind, Slot, Rarity and Bonus): its own slot and stat points.
-            ...(handDef(inventory, def) ? { hand: true, defSlot: def.kind === 'equipment' ? placeOf(slotWordOf(def.slot) ?? '') : '', stats: statsFor(def) } : {}),
+            ...(handDef(inventory, def) ? { hand: true, defSlot: def.kind === 'equipment' ? placeOf(slotWordOf(def.slot) ?? '') : '', stats: statsFor(def, stack) } : {}),
+            // Any unbound equipment piece with points to give: its Edit lets the reader move them between stats (edit.js repoint); `budget` is the total that stays.
+            ...(def.kind === 'equipment' && def.slot && gearBudget(def) > 0 && typeof stack.bound !== 'string' ? { repoint: { budget: gearBudget(def), stats: statsFor(def, stack) } } : {}),
             // A cast member's signature piece: whose it is, for the chip ("Bound to Mara").
             ...(typeof stack.bound === 'string' && stack.bound ? { bound: { who: names(stack.bound) || stack.bound } } : {}),
         };
@@ -106,12 +108,12 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
         if (stack.owner !== owner || typeof stack.equipped !== 'string' || !Object.hasOwn(slots, stack.equipped) || slots[stack.equipped]) continue;
         const def = defs[stack.def];
         const cond = condOf(stack, inventory);
-        slots[stack.equipped] = { stack: stack.id, name: def.name, rarity: def.rarity, bonus: bonusText(statsFor(def)), cond, word: condWord(cond), broken: cond <= 0,
+        slots[stack.equipped] = { stack: stack.id, name: def.name, rarity: def.rarity, bonus: bonusText(statsFor(def, stack)), cond, word: condWord(cond), broken: cond <= 0,
             ...(typeof stack.bound === 'string' && stack.bound ? { bound: { who: names(stack.bound) || stack.bound } } : {}) };
     }
     // The bag (the slot card's "Equip from bag"): equipment nobody wears and that is not a cast member's signature piece, with the slot word it fits.
     const bag = stacks.filter(stack => typeof stack.equipped !== 'string' && !(typeof stack.bound === 'string' && stack.bound) && defs[stack.def].kind === 'equipment' && slotWordOf(defs[stack.def].slot))
-        .map(stack => ({ stack: stack.id, name: defs[stack.def].name, rarity: defs[stack.def].rarity, bonus: bonusText(statsFor(defs[stack.def])), fits: slotWordOf(defs[stack.def].slot) }));
+        .map(stack => ({ stack: stack.id, name: defs[stack.def].name, rarity: defs[stack.def].rarity, bonus: bonusText(statsFor(defs[stack.def], stack)), fits: slotWordOf(defs[stack.def].slot) }));
     // Who wears something, for the Inventory's Worn list: the main character first, then by name (a member who left still counts: their pieces are listed).
     const wearers = [...new Set(stacks.filter(stack => typeof stack.equipped === 'string').map(stack => stack.owner))].map(value => ({ value, label: names(value) || value }))
         .sort((a, b) => (a.value === 'party' ? -1 : b.value === 'party' ? 1 : a.label.localeCompare(b.label, 'en')));

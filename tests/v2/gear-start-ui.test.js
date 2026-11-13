@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../testkit/index.js';
 import { inventoryScreen } from '../../src/v2/screens/index.js';
-import { addFields, addPlan, editFields, editPlan } from '../../src/v2/view/gear-form.js';
+import { addFields, addPlan, editFields, editPlan, repointControls } from '../../src/v2/view/gear-form.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
 import { pack } from './packs/helpers/fixtures.js';
 import { show, settle, text } from './screens/helpers.js';
@@ -220,7 +220,7 @@ test('Edit of a piece the reader added, starting kit: the same groups with its v
     assert.deepEqual([def.rarity, def.stats], ['rare', { LUK: 2 }]);
 });
 
-test('Edit after the first message: Rarity and Bonus are disabled with the hint; Kind, Slot and Equipped by still save', { skip }, async t => {
+test('Edit after the first message: Rarity is disabled, the Bonus stats can be moved (hint and live points); Kind, Slot and Equipped by still save', { skip }, async t => {
     const host = await world(t);
     await host.sdk.command('inventory.add', { name: 'Wolfskin Cap', qty: 1, kind: 'equipment', slot: 'head', rarity: 'rare', stats: { VIT: 1, AGI: 1 } });
     await host.send('Hello.', 'The road.');
@@ -228,11 +228,11 @@ test('Edit after the first message: Rarity and Bonus are disabled with the hint;
     const row = rowOf(el, 'Wolfskin Cap');
     row.querySelector('.ss-w-editable-pencil').click();
     assert.equal(row.querySelector('.ss-w-editable-intro'), null);
-    assert.equal(text([...row.querySelectorAll('.ss-w-editable-note')].at(-1)), 'Rarity and bonuses come from the story after the first message.');
+    assert.equal(text([...row.querySelectorAll('.ss-w-editable-note')].at(-1)), "Move this piece's 3 points between stats");
     assert.deepEqual([labelled(row, 'Rarity').disabled, labelled(row, 'Rarity').value], [true, 'rare']);
     const selects = row.querySelectorAll('select').filter(node => ['Bonus', 'Stat'].includes(node.getAttribute('aria-label')));
-    assert.deepEqual(selects.map(node => [node.value, node.disabled]), [['VIT', true], ['AGI', true]]);
-    assert.equal(row.querySelector('.ss-w-editable-points'), null);
+    assert.deepEqual(selects.map(node => [node.value, node.disabled === true]), [['VIT', false], ['AGI', false]]);
+    assert.match(text(row.querySelector('.ss-w-editable-points')), /^2 of 3 points/);
     change(labelled(row, 'Equipped by'), 'ac_astra001');
     row.querySelector('.ss-w-editable-save').click();
     await settle();
@@ -262,7 +262,7 @@ test('Edit of a pack item keeps today\'s form (Slot, Equipped by) with one hint;
     const { el } = draw(host);
     const hood = rowOf(el, 'Rain-Veil Hood');
     hood.querySelector('.ss-w-editable-pencil').click();
-    assert.deepEqual(hood.querySelectorAll('select').map(node => node.getAttribute('aria-label')), ['Slot', 'Equipped by']);
+    assert.deepEqual(hood.querySelectorAll('select').map(node => node.getAttribute('aria-label')), ['Slot', 'Equipped by', 'Stat 1', 'Stat 2'], 'today\'s form plus the stat boxes to move the points');
     assert.equal(hood.querySelectorAll('fieldset').length, 0, 'today\'s form');
     assert.deepEqual(hood.querySelectorAll('.ss-w-editable-pack-hint').map(node => text(node)), ['Kind, slot and rarity come from the pack.']);
     const sword = rowOf(el, 'Cane Sword');
@@ -358,4 +358,38 @@ test('an empty chat (no greeting): the kit reads closed and "+ Add item" says in
     el.querySelector('.ss-w-inventory-add button').click();
     assert.equal(el.querySelector('.ss-w-editable-form'), null);
     assert.equal(text(el.querySelector('.ss-w-inventory-add .inv-add-error')), 'This chat has no greeting yet, so there is nothing to add items to. Start the chat first.');
+});
+
+test('Edit of a story piece and a pack piece (kit closed): stat boxes enabled with the hint "Move this piece\'s N points between stats"; Save moves the points', { skip }, async t => {
+    const host = await world(t, { packs: true });
+    await host.send('Hello.', '+ item Steel Sword | kind: weapon | rarity: rare\n+ item Rain-Veil Hood');
+    const { el, calls } = draw(host);
+    const sword = rowOf(el, 'Steel Sword');
+    sword.querySelector('.ss-w-editable-pencil').click();
+    assert.equal(sword.querySelectorAll('fieldset').length, 0, 'the story\'s piece keeps today\'s form');
+    assert.equal(text(sword.querySelector('.ss-w-editable-repoint-hint')), "Move this piece's 3 points between stats");
+    assert.match(text(sword.querySelector('.ss-w-editable-repoint-line')), /^3 of 3 points placed$/);
+    const boxes = sword.querySelectorAll('select').filter(node => /^Stat \d$/.test(node.getAttribute('aria-label')));
+    const points = sword.querySelectorAll('input').filter(node => /^Points \d$/.test(node.getAttribute('aria-label')));
+    assert.deepEqual(boxes.map(node => [node.value, node.disabled === true]), [['DEX', false], ['', false]]);
+    // a total that is not the piece's 3 is refused in the form, with nothing sent
+    change(boxes[1], 'AGI'); change(points[0], '1'); change(points[1], '1');
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.equal(calls.length, 0);
+    assert.match(text(sword.querySelector('.ss-w-editable-error')), /Keep this piece's 3 points in total: these add up to 2\./);
+    change(points[1], '2');
+    sword.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls.map(([type, payload]) => [type, payload.stats]), [['inventory.edit', { DEX: 1, AGI: 2 }]]);
+    assert.deepEqual(host.sdk.query('gear.view').rows[host.sdk.query('inventory.items').find(item => item.name === 'Steel Sword').stack].repoint.stats, { DEX: 1, AGI: 2 });
+    const hood = draw(host).el, hoodRow = rowOf(hood, 'Rain-Veil Hood');
+    hoodRow.querySelector('.ss-w-editable-pencil').click();
+    assert.equal(text(hoodRow.querySelector('.ss-w-editable-repoint-hint')), "Move this piece's 3 points between stats");
+});
+
+test('Edit of a bound piece or a piece with no points to give has no stat boxes', () => {
+    const none = { gear: { row: {}, bound: '' } };
+    assert.equal(repointControls({}, none, () => ({})), null);
+    assert.equal(repointControls({}, { gear: { bound: 'Mara', row: { repoint: { budget: 3, stats: { DEX: 3 } } } } }, () => ({})), null);
 });

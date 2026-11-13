@@ -60,12 +60,17 @@ function useInStory(ctx, line, def, qty) {
     };
 }
 
+// A rule mark of the reply being read (turn/rule-marks.js): a reply captured before it has none and keeps the old rule.
+const marked = (ctx, name) => Array.isArray(ctx?.carrier?.rules) && ctx.carrier.rules.includes(name);
+
 // The stats a line names (`| DEX: +2 | STR: 1`): { DEX: 2, STR: 1 } for the whole numbers above 0; gearDefine holds them to the rarity's budget.
-function statWords(line) {
+function statWords(line, written = false) {
     const out = {};
-    for (const stat of GEAR.stats) {
-        const written = labelOf(line, stat.toLowerCase());
-        const n = written === null ? NaN : Number(/^\s*\+?(\d{1,3})\s*$/.exec(written)?.[1]);
+    // `written` (the `gearOrder` rule mark, new replies): the order the line wrote them in, so a line over the budget keeps its first-written stats.
+    const order = written ? Object.keys(line?.labels ?? {}).map(key => key.toUpperCase()).filter(stat => GEAR.stats.includes(stat)) : GEAR.stats;
+    for (const stat of order) {
+        const said = labelOf(line, stat.toLowerCase());
+        const n = said === null ? NaN : Number(/^\s*\+?(\d{1,3})\s*$/.exec(said)?.[1]);
         if (Number.isSafeInteger(n) && n > 0) out[stat] = n;
     }
     return out;
@@ -107,7 +112,7 @@ export function captureItem(ctx, line, env) {
         const qty = lineQty(ctx, line, 1);
         if (qty < 1) ctx.fail('INVALID', 'A gained item needs a quantity of at least 1.');
         const note = trimText(labelOf(line, 'note') ?? text, MAX_NOTE);
-        const { def, created } = defineByName(ctx, inv, name, env, { note, owner: 'party', words: { kind: labelOf(line, 'kind'), slot: labelOf(line, 'slot') ?? labelOf(line, 'equipped', 'equip', 'worn'), rarity: labelOf(line, 'rarity', 'quality'), stats: statWords(line) } });
+        const { def, created } = defineByName(ctx, inv, name, env, { note, owner: 'party', words: { kind: labelOf(line, 'kind'), slot: labelOf(line, 'slot') ?? labelOf(line, 'equipped', 'equip', 'worn'), rarity: labelOf(line, 'rarity', 'quality'), stats: statWords(line, marked(ctx, 'gearOrder')), ordered: marked(ctx, 'gearOrder'), finesse: marked(ctx, 'gearFinesse') } });
         const held = storyItems(def, qty);
         // Asked before the stacks change: `add` is weight on top of what is carried now.
         const heavy = storyCarry(ctx, def, held.qty, 'party');

@@ -601,10 +601,10 @@ test('repair in the story: mend is one condition word up, restore is back to Goo
     const condNow = () => host.sdk.query('inventory.condition', { stack: sword() }).cond;
     const next = async text => { await host.send('Go.', reply('On.', [text])); await host.send('Go.', reply('On.', ['+ coin 1'])); };
     await host.send('Hit.', reply('Blows.', ['~ hit weapon 3']));
-    assert.deepEqual([condNow(), gear().statBonus.DEX], [0, 0], 'broken: no stats');
+    assert.deepEqual([condNow(), gear().statBonus.AGI], [0, 0], 'broken: no stats');
     await next('~ item Cane Sword — the smith reground it | repair: mend');
     assert.equal(host.sdk.receipts().at(-2).receipt.summary, 'Cane Sword is mended (0 → 39/100).');
-    assert.deepEqual([condNow(), gear().statBonus.DEX], [39, 3], 'torn: its stats are back');
+    assert.deepEqual([condNow(), gear().statBonus.AGI], [39, 3], 'torn: its stats are back');
     assert.match(tail(host), /^Equipped: Cane Sword \(torn\) \[weapon\]$/m);
     await next('~ item Cane Sword | repair: patched');
     assert.match(tail(host), /^Equipped: Cane Sword \(worn\) \[weapon\]$/m);

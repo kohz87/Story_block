@@ -26,6 +26,12 @@ hammer, club, spear → STR; staff, wand, tome → INT; mail, leather, plate, cu
 VIT; boot, shoe, sandal, cloak, cape, mantle → AGI; ring, amulet, pendant → LUK. Slot defaults: weapon STR, body/off-hand/head VIT,
 cloak/feet AGI, accessory LUK. The whole budget goes on the one stat.
 
+*Quick weapons (rule mark `gearFinesse`, items a new reply defines):* cane, rapier, katana, sabre, saber, whip, estoc, scimitar → AGI, and such a word wins over the other
+weapon nouns of the same name ("Cane Sword", "Estoc Dagger" → AGI), not over armour ("Rapier Shield" → VIT). Items defined by a reply captured before the mark keep the pick above.
+
+*Order (rule mark `gearOrder`, new `+ item` lines):* when a line lists more stats than its rarity's budget or `GEAR.maxStats` (2) allows, the first written keep their points
+(`| LUK: 1 | STR: 1 | DEX: 1` on an uncommon piece gives LUK and STR). A reply without the mark keeps the order of the seven stats (STR first).
+
 ## What a story item gets
 
 While the feature is on, a `+ item` line that makes a new item gets (before any module's `item.define` hook):
@@ -199,6 +205,12 @@ is as before; the new words are refused ("Gear in fights is not switched on.") a
 * **`inventory.edit { stack, kind?, slot?, rarity?, stats? }`** changes a def marked `hand: true` that has no story-given stack (and is not bound or a pack's: "Kind, slot and rarity come from the pack." /
   "... the story."). Kind may change at any time: Equipment later means Common (or the words asked, while the kit is open) and a Count above 1 becomes separate pieces; leaving Equipment
   drops slot and bonus and takes the piece off. A slot that no longer fits takes the piece off. Words as they stand are no change.
+* **Re-pointing the points (any unbound piece, any time).** `inventory.edit { stack, group: true, stats }` with no `kind` / `slot` / `rarity` on a piece that is the story's, a pack's, a card's, or the
+  reader's own after the kit closes (`wantsRepoint`; while the kit is open a hand-made piece still edits its def) moves the piece's points between stats: the new total must equal the piece's budget exactly
+  (rarity's, or a pack's `bonus`) on at most 2 stats, else it is refused ("Keep this piece's 3 points in total: these add up to 2."). Rarity and total never change. The choice is kept on each unbound piece of that item
+  the reader holds as `stack.stats` (the def, a pack's included, is untouched), read by `statsFor(def, stack)`, so it is part of the reader-edit receipt and survives Re-read, rebuild and reload. A **bound** piece
+  (a cast member's) is not re-pointed: it stays as the member has it ("Bound to Mara: ..."). `gear.view` rows carry `repoint: { budget, stats }` for such a piece; the Edit (plain form, `repointControls`, and the
+  grouped form of a hand-made piece) shows the stat boxes enabled with "Move this piece's N points between stats" and a live "N of M points placed" line.
 * **Screens:** `gear.view` rows carry `hand`, `defSlot` and `stats` for such a piece; the item Edit takes `gear.row`, `gear.kit` and `gear.def`.
   The form is `view/gear-form.js` over `ss.editable` kind `fields` (field `showWhen`, `disabled`, and the entries `note` and `points`).
 

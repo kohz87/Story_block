@@ -7,7 +7,7 @@ import { props, cut } from './editable/props.js';
 import { createFields } from './editable/fields.js';
 import { meterRatio } from './meter.js';
 import { focusNode } from '../scroll.js';
-import { editFields, editPlan } from '../gear-form.js';
+import { editFields, editPlan, repointControls } from '../gear-form.js';
 
 const E = STRINGS.editable;
 
@@ -37,15 +37,9 @@ function render(el, input, api) {
         root.append(shown, pencil);
         let p = resolveProps(props, input);
         let field = null;
-        let itemCount = null;
-        let itemCarry = null;
-        let itemNote = null;
-        let slotSelect = null;
-        let bySelect = null;
+        let itemCount = null, itemCarry = null, itemNote = null, slotSelect = null, bySelect = null, repointer = null;
         let entries = [];
-        let editing = false;
-        let busy = false;
-        let alive = true;
+        let editing = false, busy = false, alive = true;
         // The redraw hold of the plan running now: released when the plan ends (success or refusal) or the form goes, never kept longer.
         let releasePlan = null;
         // The grouped form being edited: its fields and plan (the props' own, or, for a piece the reader added by hand with Gear in fights on, the gear form's).
@@ -182,6 +176,9 @@ function render(el, input, api) {
                     itemCarry.value = String(Number.isSafeInteger(p.gear.row.carry) ? p.gear.row.carry : 0);
                     rows.push(label(GF.carry, itemCarry), h(doc, 'p', 'ss-w-editable-item-hint', GF.carryHelp));
                 }
+                // Any unbound piece with points to give: its stat points can be moved between stats (the total stays).
+                repointer = repointControls(doc, p, h);
+                if (repointer) rows.push(...repointer.nodes);
                 fieldSlot.replaceChildren(...rows);
                 chips.hidden = true;
                 add.hidden = true;
@@ -368,6 +365,9 @@ function render(el, input, api) {
                     if (!/^\d+$/.test(raw) || !Number.isSafeInteger(carry) || carry > 500) { error.textContent = E.carryRange.replace('{max}', '500'); return; }
                     if (carry !== was) steps.push({ command: 'inventory.carry', payload: { stack: p.payload?.stack, carry } });
                 }
+                const moved = repointer?.read();
+                if (moved?.error) { error.textContent = moved.error; return; }
+                if (moved) steps.push({ command: p.command, payload: { stack: p.payload?.stack, group: true, stats: moved.stats } });
                 if (!edited && !worn.length && !steps.length) {
                     // (an equipment piece's Save that changes nothing says so, in the form's own line, instead of closing as if it had done something)
                     if (p.gear?.kind === 'equipment') { error.textContent = p.gear.place ? STRINGS.editMessages.nothingChanged : STRINGS.editMessages.nothingWorn; return; }

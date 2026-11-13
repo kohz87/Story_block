@@ -66,7 +66,7 @@ test('Inventory rows, gear on: rarity colour and word, slot chip, Equipped · ow
     assert.equal(text(cane.querySelector('.rarity')), 'rare');
     assert.equal(text(cane.querySelector('.chip.slot')), 'weapon');
     assert.equal(text(cane.querySelector('.chip.worn-by')), 'Equipped · You');
-    assert.equal(text(cane.querySelector('.gear-line .bonus')), '+3 DEX');
+    assert.equal(text(cane.querySelector('.gear-line .bonus')), '+3 AGI');
     assert.equal(text(cane.querySelector('.cword')), 'Worn', 'one step down: worn');
     assert.ok(cane.querySelector('.cbar.w-worn'));
     const cap = rowOf(el, 'Iron Cap');
@@ -111,7 +111,7 @@ test('Edit, gear on: Slot (the eight places or none) and Equipped by (a member o
     const cane = rowOf(first.el, 'Cane Sword');
     cane.querySelector('.ss-w-editable-pencil').click();
     const selects = cane.querySelectorAll('select');
-    assert.deepEqual(selects.map(node => node.getAttribute('aria-label')), ['Slot', 'Equipped by']);
+    assert.deepEqual(selects.map(node => node.getAttribute('aria-label')), ['Slot', 'Equipped by', 'Stat 1', 'Stat 2']);
     assert.deepEqual(selects[0].querySelectorAll('option').map(node => node.textContent), ['None', 'Head', 'Body', 'Cloak', 'Feet', 'Weapon', 'Off-hand', 'Accessory 1', 'Accessory 2']);
     assert.deepEqual(selects[1].querySelectorAll('option').map(node => node.textContent), ['None', 'You']);
     assert.deepEqual([selects[0].value, selects[1].value], ['weapon', 'party'], 'the form opens on what is true now');
@@ -125,7 +125,7 @@ test('Edit, gear on: Slot (the eight places or none) and Equipped by (a member o
     await settle();
     const swordRow = () => host.sdk.query('inventory.items').find(item => item.name === 'Cane Sword');
     assert.equal(swordRow().equipped, null);
-    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.DEX, 0);
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.AGI, 0);
     // Put it on again, through item.equip.
     const second = draw(host);
     const again = rowOf(second.el, 'Cane Sword');
@@ -136,7 +136,7 @@ test('Edit, gear on: Slot (the eight places or none) and Equipped by (a member o
     again.querySelector('.ss-w-editable-save').click();
     await settle();
     assert.deepEqual([swordRow().equipped, swordRow().equippedBy], ['weapon', 'party']);
-    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.DEX, 3);
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.AGI, 3);
     const calls = second.calls.map(([type, payload]) => [type, payload.slot ?? null]);
     assert.deepEqual(calls, [['item.equip', 'weapon']]);
     assert.deepEqual(first.calls.map(([type]) => type), ['inventory.unequip']);
@@ -541,7 +541,7 @@ test('Inventory, gear on: the Worn (N) row is folded by default with "wearer cou
     assert.deepEqual(groups.map(group => text(group.querySelector('h4'))), ['You']);
     const worn = groups[0].querySelectorAll('li.item');
     assert.deepEqual(names(worn).sort(), ['Boiled Leather Jerkin', 'Cane Sword', 'Iron Cap', 'Moss-Agate Ring', 'Oak Buckler']);
-    assert.equal(text(rowOf(first.el, 'Cane Sword').querySelector('.gear-line .bonus')), '+3 DEX');
+    assert.equal(text(rowOf(first.el, 'Cane Sword').querySelector('.gear-line .bonus')), '+3 AGI');
     assert.ok(rowOf(first.el, 'Cane Sword').classList.contains('r-rare'));
     assert.equal(buttonsOf(rowOf(first.el, 'Cane Sword'), 'Unequip').length, 1);
     assert.ok(rowOf(first.el, 'Cane Sword').querySelector('.ss-w-editable-pencil'), 'Edit stays on a worn row');
