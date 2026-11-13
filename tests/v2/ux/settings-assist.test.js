@@ -123,7 +123,7 @@ test('allowed kinds are chips: one per kind the wall lets through; the stored te
     host.features.set(CORE_FEATURE.extractor, true);
     win.refresh();
     assert.deepEqual(chips(page).map(chip => chip.textContent), KIND_CHOICES.map(choice => choice.label));
-    assert.equal(chips(page).length, 14);
+    assert.equal(chips(page).length, 15);
     // The stored list is read: two chips on, an unknown entry kept.
     assert.deepEqual(pressed(page), ['Time moves on', 'Place']);
     chips(page)[5].click();
@@ -166,7 +166,7 @@ test('no chip is on the wrong side of the value wall, and the things without a c
         const [op, kind] = choice.value.split(' ');
         assert.equal(refusedWhy(line(op, kind), allowedKinds(choice.value)), '', `${choice.value} passes the wall`);
     }
-    assert.deepEqual(KIND_CHOICES.map(choice => choice.value), [...allowedKinds(DEFAULT_KINDS), '+ world', '~ world', '+ faction', '~ faction'], 'the optional chips follow the unchanged defaults');
+    assert.deepEqual(KIND_CHOICES.map(choice => choice.value), [...allowedKinds(DEFAULT_KINDS), '+ world', '~ world', '+ faction', '~ faction', '- hook'], 'the optional chips follow the unchanged defaults');
     const stuffed = allowedKinds('+ coin, + coins, + gold, + item, + loot, + xp, ~ xp, + reward, ~ heal, ? roll');
     for (const [op, kind, labels] of [['+', 'coin'], ['+', 'gold'], ['+', 'item'], ['+', 'loot'], ['+', 'xp'], ['~', 'xp'], ['+', 'reward'], ['~', 'wound', { heal: '5' }], ['?', 'roll']]) {
         assert.notEqual(refusedWhy(line(op, kind, labels), stuffed), '', `${op} ${kind} is refused`);
