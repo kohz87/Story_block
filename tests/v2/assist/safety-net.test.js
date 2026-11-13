@@ -664,3 +664,79 @@ test('a reply without assistPresent keeps its earlier safety-net arrival through
         assert.equal(JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]), scene);
     } finally { host.close(); }
 });
+
+// The owner's play bug (14 Nov 02:30): the safety net's answer arrives right after the reply, when the timeline's momentary barrier ("a native
+// change is finishing") is up, and its world/faction lines were refused almost every time. A momentary hold is waited for (bounded), then the
+// same checks apply; a real restore or a dormant module is still refused at once.
+const NATIVE = 'A native change is finishing; every part must agree before the story goes on.';
+async function barrierHost(answer, { waitMs = 2000 } = {}) {
+    const { BARRIER } = await import('../../../src/v2/assist/safety.js');
+    const old = { ...BARRIER };
+    Object.assign(BARRIER, { waitMs, pollMs: 10 });
+    const { announceModules } = await import('../../../src/v2/sdk/lifecycle.js');
+    const { model, release } = heldModel(answer);
+    const host = await createHost({ modules: [WORLD_PROBE], callModel: model, settings: { modules: { 'story-block': { [SETTING.extractor]: true, [SETTING.extractorKinds]: '+ world, + faction' } } } });
+    host.features?.set?.('story-block.extractor', true);
+    const close = host.close.bind(host);
+    host.close = () => { Object.assign(BARRIER, old); close(); };
+    const setBarrier = on => { host.registry.setRestore(on ? 'pending' : 'idle', on ? NATIVE : ''); announceModules(host.registry, host.events); };
+    return { host, release, setBarrier };
+}
+const heldProblems = (host, index) => host.turn.problems().filter(item => item.index === index && item.code === 'MODULE_HELD');
+
+test('a momentary barrier that clears within the bound: the safety net\'s world lines are applied, and Re-read gives the same', { skip }, async () => {
+    const { host, release, setBarrier } = await barrierHost(OWNER.join('\n'));
+    try {
+        const sent = await host.send('I look around.', 'Red Cords lock the pier. Wolves are pushed onto the timber track.\n<Changes>\n~ weather mist\n</Changes>');
+        setBarrier(true);
+        release();
+        await wait(60);
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, [], 'still waiting while the barrier is up');
+        setBarrier(false);
+        await wait(150);
+        assert.deepEqual(heldProblems(host, sent.index), []);
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, OWNER);
+        const stored = assistSections(host.ctx.chat[sent.index].mes);
+        assert.deepEqual(stored.now, OWNER);
+        const types = () => assistTypes(host, sent.index);
+        const before = JSON.stringify(types());
+        assert.equal((await host.sdk.reread(sent.index)).ok, true);
+        assert.equal(JSON.stringify(types()), before, 'Re-read applies the same lines');
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, OWNER);
+    } finally { host.close(); }
+});
+
+test('a momentary barrier that never clears: refused with its reason after the bound, and releasing it later applies nothing', { skip }, async () => {
+    const { host, release, setBarrier } = await barrierHost(OWNER.join('\n'), { waitMs: 150 });
+    try {
+        const sent = await host.send('I look around.', 'Red Cords lock the pier.');
+        setBarrier(true);
+        release();
+        await wait(400);
+        const found = heldProblems(host, sent.index);
+        assert.deepEqual(found.map(item => item.line), OWNER);
+        assert.ok(found.every(item => /world-probe was held back \(A native change is finishing/.test(item.message)));
+        setBarrier(false);
+        await wait(120);
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, []);
+        assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes), { now: [], next: [] });
+    } finally { host.close(); }
+});
+
+test('a reply swiped while the safety net waits for the barrier: its lines are dropped (a quiet Problem), never parked', { skip }, async () => {
+    const { host, release, setBarrier } = await barrierHost(OWNER.join('\n'));
+    try {
+        const first = await host.send('I look around.', 'Red Cords lock the pier.');
+        setBarrier(true);
+        release();
+        await wait(40);
+        const second = { index: first.index };
+        host.ctx.chat[first.index].swipe_id = 1;   // swiped to another version while the lines wait
+        setBarrier(false);
+        await wait(150);
+        assert.deepEqual(host.store.at(second.index).domains.worldProbe.said, []);
+        assert.deepEqual(assistSections(host.ctx.chat[second.index].mes), { now: [], next: [] });
+        assert.equal(host.turn.problems().filter(item => item.code === 'REPLY_CHANGED').length, 1);
+        assert.deepEqual(heldProblems(host, second.index), []);
+    } finally { host.close(); }
+});
