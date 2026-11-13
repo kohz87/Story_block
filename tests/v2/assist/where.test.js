@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseChanges } from '../../../src/v2/capture.js';
 import { EXTRACTOR_FOOT, MAX_NEAR, SETTING, WHERE_HEAD, createAssistPart, extractorPrompt, hasClockTime, knownPlace, mapPlaces, parseExtractorAnswer, whereLines, whereNow, whereWhy } from '../../../src/v2/assist/index.js';
+import { assistPlaceConflict } from '../../../src/v2/assist/where.js';
 import { refusedFrom } from '../../../src/v2/reply-notes.js';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { fakeModel, on } from './helpers/fakes.js';
@@ -93,6 +94,20 @@ test('the extractor prompt: where and when come after the instruction and before
     assert.match(EXTRACTOR_FOOT, /clock time/);
     assert.match(EXTRACTOR_FOOT, /"midday" and "mid-morning" are not times/);
     assert.match(EXTRACTOR_FOOT, /is refused/);
+    assert.match(EXTRACTOR_FOOT, /only when the reply moves the scene/);
+    assert.match(EXTRACTOR_FOOT, /where the reply ENDS.*never a stop on the way/);
+    assert.match(EXTRACTOR_FOOT, /place it is at now, write no place line/);
+});
+
+test('safety-net places refuse conflicting arrivals and chatter, including explicit arrival locations', () => {
+    const reply = parseChanges('+ present Dries | at: Bluewatch Village / Guild Office\n~ chatter Sieke: The desk is busy.').lines;
+    assert.match(assistPlaceConflict(one('~ place Bluewatch Outskirts | with: Sister Temiwa'), reply), /places Dries at/);
+    assert.match(assistPlaceConflict(one('~ place Guild Office | with: Dries'), reply), /shows Sieke/);
+    assert.equal(assistPlaceConflict(one('~ place Guild Office | with: Dries, Sieke'), reply), '');
+    assert.equal(assistPlaceConflict(one('~ place Guild Office'), reply), '');
+    assert.equal(assistPlaceConflict(one('~ weather rain'), reply), '');
+    const gone = parseChanges('+ present Dries\n- present Dries\n~ chatter Dries: I am leaving.').lines;
+    assert.equal(assistPlaceConflict(one('~ place Guild Office | with: Sister Temiwa'), gone), '');
 });
 
 test('the answer: lines with an invented name or a vague time are refused as problems (the reader is told); the rest are kept', () => {
