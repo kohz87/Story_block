@@ -106,6 +106,32 @@ test('the value wall: never coin, new items, XP, loot or heals, whatever the all
     assert.equal(refusedWhy({ op: '-', kind: 'quest', name: 'Pelts', labels: {} }, allowedKinds(DEFAULT_KINDS)), '');
 });
 
+test('opted-in world news and factions reach capture with their own grammar and normal value wall', async () => {
+    const grammar = [
+        '+ world Name — news | state: ongoing | place | factions (~ world Name — what changed)',
+        '+ faction Name — who they are | area | stance',
+    ];
+    const cases = [
+        ['+ world', '+ world Border raids — escorts cost double | state: ongoing | place: Shornmarch | factions: Grey Ledger', grammar[0]],
+        ['~ world', '~ world Border raids — salt prices double | state: ongoing | place: Shornmarch | factions: Grey Ledger', grammar[0]],
+        ['+ faction', '+ faction Grey Ledger — hunting a debtor | area: Auvoth | stance: wary', grammar[1]],
+        ['~ faction', '~ faction Grey Ledger — hunting a debtor | area: Auvoth | stance: hostile', grammar[1]],
+    ];
+    for (const [kind, answer, expectedGrammar] of cases) {
+        const settings = { ...on({ extractor: true }), [SETTING.extractorKinds]: kind };
+        const run = setup({ grammar, answers: [answer], settings });
+        await run.after({ mes: 'The trader reports news from the border.' });
+        assert.equal(run.captured[0]?.text, answer, `${kind} reaches capture`);
+        assert.ok(run.callModel.calls[0].prompt.includes(expectedGrammar), `${kind} uses its owning grammar`);
+        assert.ok(!run.callModel.calls[0].prompt.includes(grammar.find(line => line !== expectedGrammar)), 'unselected kind omitted');
+        assert.equal(allowedKinds(DEFAULT_KINDS).has(kind), false, `${kind} is off by default`);
+    }
+    assert.match(refusedWhy({ op: '+', kind: 'world', labels: { reward: '50 gold' } }, allowedKinds('+ world')), /never heals or pays/);
+    assert.equal(refusedWhy({ op: '~', kind: 'faction', labels: { area: 'Auvoth', stance: 'hostile' } }, allowedKinds('~ faction'), { late: true }), '');
+    assert.match(refusedWhy({ op: '+', kind: 'faction', labels: {} }, allowedKinds('+ faction'), { late: true }), /never adds/);
+    assert.equal(refusedWhy({ op: '~', kind: 'world', labels: { state: 'ongoing', place: 'Auvoth', factions: 'Grey Ledger' } }, allowedKinds('~ world'), { late: true }), '');
+});
+
 test('once per carrier and swipe; another swipe or chat is read', async () => {
     const { after, callModel, state } = setup({ answers: ['none'] });
     assert.equal(await after(), null);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Optional safety net for world news and factions.** Assist settings offer separate World news, World news update, Faction and Faction update chips, all off by default. The value wall still applies; replies already written replay as before.
+
 - **Deleting, editing or Re-reading a middle reply restores NPC dossiers to before that reply.** With NPC State Delta updated too, the dossiers go back to the state saved just before the changed reply, are rebuilt from the later replies, and a note says so; if no safe point exists the current dossiers are kept with a note. Deleting the last reply and swiping are unchanged. Story Block's own head selection already picked that state (now pinned by a test); no prompt change, replies already written replay as before.
 
 ## 2.32.1
