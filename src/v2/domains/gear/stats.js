@@ -71,6 +71,10 @@ const STAT_BY_NAME = Object.freeze({
     boot: 'AGI', shoe: 'AGI', sandal: 'AGI', cloak: 'AGI', cape: 'AGI', mantle: 'AGI',
     ring: 'LUK', amulet: 'LUK', pendant: 'LUK',
 });
+// Quick, finesse weapons raise AGI (the `gearFinesse` rule mark: only items a reply defines after it; an older def keeps its stats). A finesse noun wins over
+// the other weapon nouns of the same name ("Cane Sword", "Sword Cane"), not over armour ("Rapier Shield" is still a shield).
+const FINESSE = Object.freeze(new Set(['cane', 'rapier', 'katana', 'sabre', 'saber', 'whip', 'estoc', 'scimitar']));
+const WEAPON_NOUN = Object.freeze(new Set(['blade', 'sword', 'dagger', 'bow', 'axe', 'hammer', 'club', 'spear', 'staff', 'wand', 'tome']));
 
 /**
  * The slot a `kind:` / `slot:` / `equipped:` word names: weapon, body (armour), off-hand (shield), head, cloak, feet or accessory
@@ -121,11 +125,11 @@ export function statsOf(record) {
     return out;
 }
 
-/** The stats held to `budget` total points and to GEAR.maxStats different stats, in the order of GEAR.stats. */
-export function withinBudget(stats, budget) {
+/** The stats held to `budget` total points and to GEAR.maxStats different stats, in the order of GEAR.stats (`written`: in the order they were given, first one first). */
+export function withinBudget(stats, budget, written = false) {
     const out = {};
     let left = Math.max(0, budget);
-    for (const stat of GEAR.stats) {
+    for (const stat of written ? Object.keys(stats ?? {}).filter(key => GEAR.stats.includes(key)) : GEAR.stats) {
         if (Object.keys(out).length >= GEAR.maxStats) break;
         const n = Math.min(stats?.[stat] ?? 0, left);
         if (n > 0) { out[stat] = n; left -= n; }
@@ -133,9 +137,14 @@ export function withinBudget(stats, budget) {
     return out;
 }
 
-/** The stat a piece raises when nothing says: its name's last matching noun, else its slot's default (null: no slot). */
-export function defaultStat(name, slot) {
-    const nouns = words(name).map(singular).filter(word => Object.hasOwn(STAT_BY_NAME, word));
+/** The stat a piece raises when nothing says: its name's last matching noun, else its slot's default (null: no slot). `finesse`: the quick weapons above count (new items only). */
+export function defaultStat(name, slot, finesse = false) {
+    const all = words(name).map(singular);
+    if (finesse) {
+        const last = all.filter(word => FINESSE.has(word) || Object.hasOwn(STAT_BY_NAME, word)).at(-1);
+        if (all.some(word => FINESSE.has(word)) && (FINESSE.has(last) || WEAPON_NOUN.has(last))) return 'AGI';
+    }
+    const nouns = all.filter(word => Object.hasOwn(STAT_BY_NAME, word));
     if (nouns.length) return STAT_BY_NAME[nouns[nouns.length - 1]];
     return GEAR.slotStat[baseOf(slot)] ?? null;
 }
@@ -164,8 +173,8 @@ export function gearDefine(def, said = {}, { allowLegendary = false, ceiling = n
         if (def.rarity !== rarity) onHeld?.(rarity, def.rarity);
     }
     if (def.slot && (!isPlainObject(def.stats) || !Object.keys(def.stats).length)) {
-        const named = withinBudget(statsOf(said.stats), gearBudget(def));
-        def.stats = Object.keys(named).length ? named : (statsFor(def));
+        const named = withinBudget(statsOf(said.stats), gearBudget(def), said.ordered === true);
+        def.stats = Object.keys(named).length ? named : (statsFor(def, null, said.finesse === true));
     }
     return def;
 }
@@ -185,15 +194,18 @@ export function gearBudget(def) {
 }
 
 /**
- * The stats a def gives while worn and whole: the ones it lists (`stats: { DEX: 2 }`) held to its budget, else the budget on the stat
+ * The stats a def (or one piece of it, `stack`) gives while worn and whole: the ones it lists (`stats: { DEX: 2 }`) held to its budget, else the budget on the stat
  * its name or slot suggests. Nothing without a slot, or with a budget of 0.
  */
-export function statsFor(def) {
+export function statsFor(def, stack = null, finesse = false) {
     const budget = gearBudget(def);
     if (!def?.slot || budget <= 0) return {};
+    // The reader's re-pointing of this one piece (`stack.stats`, inventory/edit.js repoint): kept to the budget; never on a def, so a pack's stays as it is.
+    const own = isPlainObject(stack?.stats) ? withinBudget(statsOf(stack.stats), budget, true) : {};
+    if (Object.keys(own).length) return own;
     const listed = withinBudget(statsOf(def.stats), budget);
     if (Object.keys(listed).length) return listed;
-    const stat = defaultStat(def.name, def.slot);
+    const stat = defaultStat(def.name, def.slot, finesse);
     return stat ? { [stat]: budget } : {};
 }
 

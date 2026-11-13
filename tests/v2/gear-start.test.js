@@ -191,7 +191,8 @@ test('Edit after the first message: Rarity and Bonus are read-only on a hand-add
     await host.send('Hello.', 'The road.');
     const stack = rowOf(host, 'Wolfskin Cap').stack;
     await refused(host.sdk.command('inventory.edit', { stack, group: true, rarity: 'epic' }), /after the first message/);
-    await refused(host.sdk.command('inventory.edit', { stack, group: true, stats: { VIT: 2 } }), /after the first message/);
+    // (a different total is refused too; moving the same points between stats is the re-pointing below)
+    await refused(host.sdk.command('inventory.edit', { stack, group: true, stats: { VIT: 2 } }), /Keep this piece's 2 points in total: these add up to 2|these add up to 2/);
     await refused(host.sdk.command('inventory.edit', { stack, group: true, rarity: 'common' }), /after the first message/);
     assert.deepEqual([defOf(host, 'Wolfskin Cap').rarity, defOf(host, 'Wolfskin Cap').stats], ['rare', { VIT: 1, AGI: 1 }]);
     // (the same words as they stand are no change)
@@ -409,4 +410,103 @@ test('swiping a reply after deleting your message keeps the kit closed; swiping 
     const greet = await world(t);
     await greet.swipe('Another greeting.');
     assert.deepEqual(kit(greet), { open: true });
+});
+
+// ---- Re-pointing: the reader moves the points of any unbound piece (story, pack, own after the kit); the total and the rarity never change.
+const REPOINT = reply('+ item Steel Sword | kind: weapon | rarity: rare');
+const statsOfRow = (host, name) => host.sdk.query('gear.view').rows[rowOf(host, name).stack].repoint;
+const edit = (host, name, payload) => host.sdk.command('inventory.edit', { stack: rowOf(host, name).stack, group: true, ...payload });
+
+test('re-point: the story\'s piece (kit closed) moves its 3 points between stats, keeping the total, and the def is untouched', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', REPOINT);
+    assert.deepEqual(statsOfRow(host, 'Steel Sword'), { budget: 3, stats: { DEX: 3 } });
+    const before = JSON.stringify(defOf(host, 'Steel Sword'));
+    const out = await edit(host, 'Steel Sword', { stats: { AGI: 2, DEX: 1 } });
+    assert.equal(out.ok, true, out.message);
+    assert.deepEqual(statsOfRow(host, 'Steel Sword'), { budget: 3, stats: { AGI: 2, DEX: 1 } });
+    assert.equal(JSON.stringify(defOf(host, 'Steel Sword')), before, 'the def keeps its own stats and rarity');
+    assert.equal(defOf(host, 'Steel Sword').rarity, 'rare');
+    assert.equal(host.sdk.query('inventory.gear', { owner: 'party' }).statBonus.AGI, 0, 'not worn: no bonus yet');
+});
+
+test('re-point: worn, the new stats are what the bonus counts; it survives Re-read, rebuild and reload', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', reply('+ item Steel Sword | kind: weapon | rarity: rare | equipped: weapon'));
+    const moved = await edit(host, 'Steel Sword', { stats: { AGI: 3 } });
+    assert.equal(moved.ok, true, moved.message ?? JSON.stringify(moved));
+    const bonus = () => host.sdk.query('inventory.gear', { owner: 'party' }).statBonus;
+    assert.deepEqual([bonus().AGI, bonus().DEX], [3, 0]);
+    const at = host.ctx.chat.length - 1;
+    const live = JSON.stringify(host.head());
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.deepEqual([bonus().AGI, bonus().DEX], [3, 0], 'a Re-read keeps the reader\'s choice');
+    assert.equal(JSON.stringify(host.head()), live);
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    assert.deepEqual([bonus().AGI, bonus().DEX], [3, 0], 'and a reload');
+});
+
+test('re-point: a total that differs, a third stat, no points or a non-piece are refused with a sentence', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', REPOINT);
+    await refused(edit(host, 'Steel Sword', { stats: { AGI: 1, DEX: 1 } }), /^Keep this piece's 3 points in total: these add up to 2\.$/);
+    await refused(edit(host, 'Steel Sword', { stats: { AGI: 2, DEX: 2 } }), /in total: these add up to 4\./);
+    await refused(edit(host, 'Steel Sword', { stats: { AGI: 1, DEX: 1, LUK: 1 } }), /at most 2 different stats/);
+    await refused(edit(host, 'Steel Sword', { stats: {} }), /add up to 0/);
+    await refused(edit(host, 'Steel Sword', { stats: { AGI: 2, DEX: 1 }, rarity: 'epic' }), /Rarity and bonuses come from the story|come from the story/);
+    assert.deepEqual(statsOfRow(host, 'Steel Sword').stats, { DEX: 3 });
+});
+
+test('re-point: a pack piece keeps its pack def untouched, and its bonus is the total', { skip }, async t => {
+    const host = await world(t, { packs: true, items: [{ name: 'Bonus Blade', kind: 'equipment', slot: 'weapon', rarity: 'rare', bonus: 2, stats: { STR: 2 } }] });
+    await host.send('Hello.', 'The road.');
+    await host.send('Onward.', reply('+ item Bonus Blade'));
+    const row = rowOf(host, 'Bonus Blade');
+    assert.ok(row, 'the pack piece is held');
+    const def = JSON.stringify(Object.values(host.head().domains.inventory.defs).find(item => item.name === 'Bonus Blade'));
+    await refused(edit(host, 'Bonus Blade', { stats: { STR: 1, DEX: 2 } }), /Keep this piece's 2 points in total: these add up to 3\./);
+    assert.equal((await edit(host, 'Bonus Blade', { stats: { STR: 1, DEX: 1 } })).ok, true);
+    assert.deepEqual(statsOfRow(host, 'Bonus Blade'), { budget: 2, stats: { STR: 1, DEX: 1 } });
+    assert.equal(JSON.stringify(Object.values(host.head().domains.inventory.defs).find(item => item.name === 'Bonus Blade')), def);
+});
+
+test('re-point: the reader\'s own piece after the kit closes moves its points too (it was refused before)', { skip }, async t => {
+    const host = await world(t);
+    await add(host, { name: 'Wolfskin Cap', kind: 'equipment', slot: 'head', rarity: 'rare', stats: { VIT: 3 } });
+    await host.send('Hello.', 'The road.');
+    assert.equal((await edit(host, 'Wolfskin Cap', { stats: { VIT: 1, AGI: 2 } })).ok, true);
+    assert.deepEqual(statsOfRow(host, 'Wolfskin Cap').stats, { VIT: 1, AGI: 2 });
+    await refused(edit(host, 'Wolfskin Cap', { rarity: 'epic' }), /after the first message/);
+});
+
+test('re-point: while the kit is open the reader\'s own piece still edits the def\'s stats (and drops a piece override)', { skip }, async t => {
+    const host = await world(t);
+    await add(host, { name: 'Wolfskin Cap', kind: 'equipment', slot: 'head', rarity: 'rare', stats: { VIT: 3 } });
+    assert.equal((await edit(host, 'Wolfskin Cap', { stats: { VIT: 2 } })).ok, true, 'a smaller total is the kit\'s to choose');
+    assert.deepEqual(defOf(host, 'Wolfskin Cap').stats, { VIT: 2 });
+});
+
+test('name guess: quick weapons raise AGI in items a new reply defines ("Cane Sword" included); an unmarked reply keeps DEX', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', reply('+ item Cane Sword | kind: weapon | rarity: common', '+ item Estoc Dagger | kind: weapon | rarity: common', '+ item Moon Rapier | kind: weapon | rarity: common',
+        '+ item Silver Katana | kind: weapon | rarity: common', '+ item Rapier Shield | kind: shield | rarity: common', '+ item Iron Sword | kind: weapon | rarity: common'));
+    const stat = name => Object.keys(defOf(host, name)?.stats ?? { missing: 1 })[0];
+    assert.deepEqual(['Cane Sword', 'Estoc Dagger', 'Moon Rapier', 'Silver Katana', 'Iron Sword'].map(stat), ['AGI', 'AGI', 'AGI', 'AGI', 'DEX']);
+    assert.equal(stat('Rapier Shield'), 'VIT', 'a finesse word does not win over armour');
+    const old = await world(t), setter = old.store.setRuleMarks;
+    old.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await old.send('Hello.', reply('+ item Cane Sword | kind: weapon | rarity: common'));
+    old.store.setRuleMarks = setter;
+    assert.equal(Object.keys(defOf(old, 'Cane Sword').stats)[0], 'DEX', 'a reply captured before the rule keeps the old guess');
+});
+
+test('order: a line over its rarity budget keeps the stats in the order it wrote them (new replies); an unmarked reply keeps the old order', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Hello.', reply('+ item Odd Blade | kind: weapon | rarity: uncommon | LUK: 1 | STR: 1 | DEX: 1'));
+    assert.deepEqual(defOf(host, 'Odd Blade').stats, { LUK: 1, STR: 1 });
+    const old = await world(t), setter = old.store.setRuleMarks;
+    old.store.setRuleMarks = () => { throw new Error('old reply'); };
+    await old.send('Hello.', reply('+ item Odd Blade | kind: weapon | rarity: uncommon | LUK: 1 | STR: 1 | DEX: 1'));
+    old.store.setRuleMarks = setter;
+    assert.deepEqual(defOf(old, 'Odd Blade').stats, { STR: 1, DEX: 1 });
 });

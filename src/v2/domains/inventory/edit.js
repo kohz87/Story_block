@@ -3,11 +3,11 @@
 
 import { isPlainObject } from '../common.js';
 import { cleanName, trimText, resolveDef, slugify } from '../names.js';
-import { GEAR, slotWordOf, placeOf, gearSlotOf, handDef, statsFor, statsOf } from '../gear.js';
+import { GEAR, slotWordOf, placeOf, gearSlotOf, handDef, statsFor, statsOf, gearBudget } from '../gear.js';
 import { fill } from '../../strings.js';
 import { gearOn, KINDS, RARITIES, MAX_UNSTACKED, condOf, MAX_NOTE, READER_CARRY_MAX } from './state.js';
 import { baseSlot } from './validate.js';
-import { E, refuseBound, addStack, looseMatch, stacksOf, freeId } from './stacks.js';
+import { E, refuseBound, boundId, addStack, looseMatch, stacksOf, freeId } from './stacks.js';
 
 // ---------- hand-set gear: the starting kit (docs/v2/GEAR.md "Your own gear") ----------
 //
@@ -82,6 +82,34 @@ export function handPlace(inv, owner, stackId, slot) {
     return [named, ...['accessory-1', 'accessory-2'].filter(key => key !== named)].find(free) ?? named;
 }
 
+/**
+ * Does this `inventory.edit` only move the stat points of a piece that is no longer the reader's to remake (the story's, a pack's, or their own after the
+ * starting kit)? Then `repoint` does it; a hand-made piece while the kit is open goes through `handEdit` (its def's stats).
+ */
+export const wantsRepoint = (env, inv, stack, payload) => payload.stats !== undefined && payload.kind === undefined && payload.slot === undefined && payload.rarity === undefined
+    && (!handDef(inv, inv.defs[stack.def]) || !kitOpen(env));
+
+/**
+ * The reader moves the points of any gear piece they hold (`stats`: { AGI: 1, DEX: 1 }): the same total (its rarity's budget or a pack's bonus) on at most
+ * GEAR.maxStats stats. Rarity and the total never change. The choice is kept on each piece of that item the reader owns (`stack.stats`), not on the def, so a
+ * pack's definition stays as it is and a replay lands the same. A bound piece stays as the cast member has it (refused).
+ */
+export function repoint(ctx, inv, stack, payload) {
+    if (!gearOn(ctx)) ctx.fail('REFUSED', E.gearOff);
+    const def = inv.defs[stack.def];
+    refuseBound(ctx, inv, stack);
+    if (def.kind !== 'equipment' || !def.slot) ctx.fail('INVALID', E.gearNeedsEquipment);
+    const budget = gearBudget(def);
+    if (budget <= 0) ctx.fail('REFUSED', E.repointNone);
+    const stats = handStats(ctx, payload.stats);
+    const total = Object.values(stats).reduce((sum, n) => sum + n, 0);
+    if (total !== budget) ctx.fail('REFUSED', fill(E.repointTotal, { max: budget, points: budget === 1 ? 'point' : 'points', total }));
+    for (const piece of Object.values(inv.stacks)) {
+        if (piece.def !== def.id || piece.owner !== stack.owner || boundId(ctx, piece)) continue;
+        piece.stats = { ...stats };
+    }
+}
+
 // The reader's Edit of a piece they added by hand (gear on): `kind`, `slot` (a place, or '' for none), `rarity` and `stats`. Only a def with `hand: true` and no
 // story-given stack; a pack's or the story's keeps its words. Rarity and Bonus are the starting kit's: changing them is refused once the reader has sent a message.
 // A piece made Equipment later is Common; one made something else gives up its slot (and is taken off).
@@ -124,6 +152,8 @@ export function handEdit(ctx, env, inv, stack, payload) {
     def.slot = slot ? baseSlot(slot) : null;
     def.stats = nextStats;
     def.stack = kind !== 'equipment';
+    // (the def's own stats now speak for every piece: a re-pointing made before is dropped)
+    for (const item of pieces) delete item.stats;
 }
 
 // A reader edit is never a story line or a nested module call.

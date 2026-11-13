@@ -54,7 +54,7 @@ export function listItems(inventory, owner = null, carry = null, gear = false, n
                 ...(stack.key === true ? { key: true } : {}),
                 ...(stack.story === true ? { story: true } : {}),
                 // (gear on, a piece the reader made by hand: marked, with its own bonus, so a saved character keeps it exactly)
-                ...(gear && handDef(inventory, def) ? { hand: true, ...(def.kind === 'equipment' ? { stats: statsFor(def) } : {}) } : {}),
+                ...(gear && handDef(inventory, def) ? { hand: true, ...(def.kind === 'equipment' ? { stats: statsFor(def, stack) } : {}) } : {}),
                 // (a cast member's signature piece, with gear on: whose it is, for the screens' chip)
                 ...(gear && typeof stack.bound === 'string' && stack.bound ? { bound: { who: nameOf?.(stack.bound) ?? stack.bound } } : {}),
                 ...(carryOfStack(stack, def, carry) ? { carry: carryOfStack(stack, def, carry) } : {}),
