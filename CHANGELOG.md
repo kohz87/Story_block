@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Assist keeps people met on the way out of the final scene.** The safety net is asked for presence at the end of the reply; when its place line is refused, suppressed or still the current place, it refuses an arrival whose name is absent from the last story paragraph and explains why. New replies carry the `assistPresent` rule mark; older replies replay as before.
 - **Outnumbered fight XP.** New wins give ×1.5 XP when foes outnumber the party by one, or ×2 when they outnumber it by two or more, before the fight cap. Foe members count across all groups, and the receipt shows the bonus; older wins keep their original XP.
 - **Optional safety-net chip: Hook closed.** Assist settings offer a `- hook` chip (off by default) so the safety net can close a lead the story finished; closing adds nothing and passes the value wall, also after send. Existing settings are unchanged.
 - **Optional safety net for world news and factions.** Assist settings offer separate World news, World news update, Faction and Faction update chips, all off by default. The value wall still applies; replies already written replay as before.

@@ -97,6 +97,7 @@ test('the extractor prompt: where and when come after the instruction and before
     assert.match(EXTRACTOR_FOOT, /only when the reply moves the scene/);
     assert.match(EXTRACTOR_FOOT, /where the reply ENDS.*never a stop on the way/);
     assert.match(EXTRACTOR_FOOT, /place it is at now, write no place line/);
+    assert.match(EXTRACTOR_FOOT, /Presence is the scene at the END: \+ present only for someone there when the reply ends, never someone met at a stop on the way; - present for someone present before who is gone at the end/);
 });
 
 test('safety-net places are refused only on evidence: an arrival the reply explicitly locates elsewhere; siblings differ, parents and aliases agree', () => {
@@ -234,5 +235,21 @@ test('on the real host: an invented place name and a vague time from the safety 
         assert.equal(host.sdk.query('scene.place').name, 'Guild Office');
         assert.deepEqual(host.head().domains.clockProbe.said, ['~ time Goldwane 12, 9:30 am'], 'the clock time was applied, the vague one never');
         assert.equal(host.turn.problems().filter(item => item.index === second.index && item.code === 'REFUSED').length, 0);
+    } finally { host.close(); }
+});
+
+test('a map-refused safety-net place also refuses a person mentioned only before the last paragraph', { skip }, async () => {
+    let calls = 0;
+    const host = await withMap(async () => (++calls === 2 ? '~ place Bluewatch Guild Branch\n+ present Gerrit' : 'none'));
+    try {
+        await host.send('At the guild.', 'Sieke is here.\n<Changes>\n~ place Bluewatch Village | with: Sieke\n</Changes>');
+        const reply = await host.send('Run errands.', 'Gerrit serves stew at the Stray Oar.\n\nBack at the Guild office, Sieke waits.');
+        await settleAssist();
+        const refused = host.turn.problems().filter(item => item.index === reply.index && item.code === 'REFUSED');
+        assert.ok(refused.some(item => item.line === '~ place Bluewatch Guild Branch' && /map calls this place/.test(item.message)));
+        assert.ok(refused.some(item => item.line === '+ present Gerrit' && /not named in the reply's last paragraph/.test(item.message)));
+        assert.deepEqual(host.sdk.query('scene.present'), ['Sieke']);
+        assert.equal((await host.sdk.reread(reply.index)).ok, true);
+        assert.deepEqual(host.sdk.query('scene.present'), ['Sieke']);
     } finally { host.close(); }
 });
