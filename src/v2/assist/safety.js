@@ -30,6 +30,8 @@ export const KIND_CHOICES = Object.freeze([
     Object.freeze({ value: '~ world', label: 'World news update' }),
     Object.freeze({ value: '+ faction', label: 'Faction' }),
     Object.freeze({ value: '~ faction', label: 'Faction update' }),
+    // Closing a lead adds nothing (it pays no reward): off by default like the other optional chips, and allowed after send.
+    Object.freeze({ value: '- hook', label: 'Hook closed' }),
 ]);
 
 // Kinds whose `+` line adds value or something only the reader decides, under any setting.
