@@ -328,7 +328,8 @@ const OWNER = ['+ faction Red Cords — pier crew locking down the salt barges |
 
 test('a restore barrier up when the safety net answers: its world/faction lines wait (no UNKNOWN_KIND, no MODULE_HELD) and run once released', { skip }, async () => {
     const { announceModules } = await import('../../../src/v2/sdk/lifecycle.js');
-    const { model, release } = heldModel(OWNER.join('\n'));
+    const { model, release, calls: asked } = heldModel(OWNER.join('\n'));
+    const calls = () => asked.length;
     const host = await createHost({ modules: [WORLD_PROBE], callModel: model, settings: { modules: { 'story-block': { [SETTING.extractor]: true, [SETTING.extractorKinds]: '~ time, + world, ~ world, + faction, ~ faction' } } } });
     host.features?.set?.('story-block.extractor', true);
     try {
@@ -348,6 +349,13 @@ test('a restore barrier up when the safety net answers: its world/faction lines 
         assert.deepEqual(record().receipts.filter(receipt => /^capture\.(world|faction)$/.test(receipt.type)).map(receipt => receipt.assist), ['now', 'now'], JSON.stringify(record().receipts.map(r => [r.type, r.assist])));
         assert.deepEqual(assistSections(host.ctx.chat[sent.index].mes).now, OWNER);
         assert.equal(host.turn.problems().some(item => item.index === sent.index && item.code === 'UNKNOWN_KIND'), false);
+        assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, OWNER);
+        // Replay == live: both stored sections (weather's run, then the parked lines' run) are read again by Re-read, same receipts in the same order, no new model call.
+        const types = () => record().receipts.map(receipt => [receipt.type, receipt.assist]);
+        const before = JSON.stringify(types()), callsBefore = calls();
+        assert.equal((await host.sdk.reread(sent.index)).ok, true);
+        assert.equal(JSON.stringify(types()), before);
+        assert.equal(calls(), callsBefore);
         assert.deepEqual(host.store.at(sent.index).domains.worldProbe.said, OWNER);
     } finally { host.close(); }
 });
