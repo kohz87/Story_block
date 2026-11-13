@@ -123,7 +123,7 @@ test('allowed kinds are chips: one per kind the wall lets through; the stored te
     host.features.set(CORE_FEATURE.extractor, true);
     win.refresh();
     assert.deepEqual(chips(page).map(chip => chip.textContent), KIND_CHOICES.map(choice => choice.label));
-    assert.equal(chips(page).length, 10);
+    assert.equal(chips(page).length, 14);
     // The stored list is read: two chips on, an unknown entry kept.
     assert.deepEqual(pressed(page), ['Time moves on', 'Place']);
     chips(page)[5].click();
@@ -137,10 +137,17 @@ test('allowed kinds are chips: one per kind the wall lets through; the stored te
     host.close();
 });
 
-test('the default list is every chip on, and the page states the wall plainly', async () => {
-    const { page, host } = await open();
+test('world and faction chips are off by default, can be selected, and the page states the wall plainly', async () => {
+    const { page, host, win } = await open();
+    assert.equal(DEFAULT_KINDS, '! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item');
     assert.equal(stored(host).assistExtractorKinds, DEFAULT_KINDS);
-    assert.deepEqual(pressed(page), KIND_CHOICES.map(choice => choice.label));
+    assert.deepEqual(pressed(page), KIND_CHOICES.filter(choice => allowedKinds(DEFAULT_KINDS).has(choice.value)).map(choice => choice.label));
+    const optional = chips(page).filter(chip => ['World news', 'World news update', 'Faction', 'Faction update'].includes(chip.textContent));
+    assert.deepEqual(optional.map(chip => chip.getAttribute('aria-pressed')), ['false', 'false', 'false', 'false']);
+    host.features.set(CORE_FEATURE.extractor, true);
+    win.refresh();
+    for (const chip of chips(page).filter(chip => ['World news', 'World news update', 'Faction', 'Faction update'].includes(chip.textContent))) chip.click();
+    assert.deepEqual([...allowedKinds(stored(host).assistExtractorKinds)].slice(-4), ['+ world', '~ world', '+ faction', '~ faction']);
     const wall = page.querySelectorAll('.ss-assist-wall').map(node => node.textContent);
     assert.equal(wall.length, 2);
     assert.equal(wall[0], ASSIST_TEXT.wall);
@@ -159,7 +166,7 @@ test('no chip is on the wrong side of the value wall, and the things without a c
         const [op, kind] = choice.value.split(' ');
         assert.equal(refusedWhy(line(op, kind), allowedKinds(choice.value)), '', `${choice.value} passes the wall`);
     }
-    assert.deepEqual(KIND_CHOICES.map(choice => choice.value), [...allowedKinds(DEFAULT_KINDS)], 'the chips are the default list, in its order');
+    assert.deepEqual(KIND_CHOICES.map(choice => choice.value), [...allowedKinds(DEFAULT_KINDS), '+ world', '~ world', '+ faction', '~ faction'], 'the optional chips follow the unchanged defaults');
     const stuffed = allowedKinds('+ coin, + coins, + gold, + item, + loot, + xp, ~ xp, + reward, ~ heal, ? roll');
     for (const [op, kind, labels] of [['+', 'coin'], ['+', 'gold'], ['+', 'item'], ['+', 'loot'], ['+', 'xp'], ['~', 'xp'], ['+', 'reward'], ['~', 'wound', { heal: '5' }], ['?', 'roll']]) {
         assert.notEqual(refusedWhy(line(op, kind, labels), stuffed), '', `${op} ${kind} is refused`);
