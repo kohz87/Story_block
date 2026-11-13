@@ -174,7 +174,8 @@ export function assistDepartures(receipts = []) {
 // Preview the actual place handler: this catches a conflict, invalid place or no-op without changing state.
 // A name must be a whole name in the last story paragraph, not a substring or a name in a hidden block.
 export function assistPresentGuard({ lines, places, text, heads, own, state, marks, registry, bus, index, sid, receipts }) {
-    const arrivals = lines.filter(line => line.kind === 'present' && line.op === '+');
+    const withLine = line => line.kind === 'place' && /\|\s*(?:with|present)\s*:/iu.test(line.raw ?? '');
+    const arrivals = lines.filter(line => (line.kind === 'present' && line.op === '+') || withLine(line));
     if (!arrivals.length || !places.length) return { lines, refused: [] };
     const kept = new Set(lines.map(line => line.raw));
     const entry = registry.capture('place');
@@ -193,12 +194,30 @@ export function assistPresentGuard({ lines, places, text, heads, own, state, mar
         return literal && new RegExp(`(?<![\\p{L}\\p{N}\\p{M}])${literal}(?![\\p{L}\\p{N}\\p{M}])`, 'u').test(last);
     };
     const refused = [];
-    const accepted = lines.filter(line => {
-        if (line.kind !== 'present' || line.op !== '+') return true;
-        const missing = String(line.name ?? '').split(',').map(cleanName).filter(name => name && !named(name));
-        if (!missing.length) return true;
-        refused.push({ line: line.raw, why: `the safety net's place was refused or is the current place, and ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not named in the reply's last paragraph` });
-        return false;
-    });
+    const why = missing => `the safety net's place was refused or is the current place, and ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not named in the reply's last paragraph`;
+    // A comma line is split: the names in the final scene stay (the line is rewritten without the others), the rest are refused.
+    // The same rule covers a place line's `with:` companions, which add people even when the place does not change.
+    const split = names => ({ keep: names.filter(name => !name || named(name)), missing: names.filter(name => name && !named(name)) });
+    const accepted = [];
+    for (const line of lines) {
+        if (line.kind === 'present' && line.op === '+') {
+            const { keep, missing } = split(String(line.name ?? '').split(',').map(cleanName));
+            if (!missing.length) { accepted.push(line); continue; }
+            refused.push({ line: line.raw, why: why(missing) });
+            const rest = String(line.raw ?? '').split(/\s\|\s/u).slice(1);
+            const names = keep.filter(Boolean);
+            if (names.length) accepted.push({ ...line, name: names.join(', '), raw: [`+ present ${names.join(', ')}`, ...rest].join(' | ') });
+        } else if (withLine(line)) {
+            const parts = String(line.raw).split(/\s\|\s/u);
+            const at = parts.findIndex(part => /^(?:with|present)\s*:/iu.test(part));
+            const key = /^present/iu.test(parts[at]) ? 'present' : 'with';
+            const { keep, missing } = split(parts[at].replace(/^(?:with|present)\s*:/iu, '').split(',').map(cleanName));
+            if (!missing.length) { accepted.push(line); continue; }
+            refused.push({ line: line.raw, why: why(missing) });
+            const names = keep.filter(Boolean);
+            if (names.length) parts[at] = `${key}: ${names.join(', ')}`; else parts.splice(at, 1);
+            accepted.push({ ...line, raw: parts.join(' | '), labels: { ...line.labels, [key]: names.join(', ') } });
+        } else accepted.push(line);
+    }
     return { lines: accepted, refused };
 }

@@ -351,17 +351,63 @@ test('the guard keeps final-paragraph arrivals, departures, new moves and answer
     }
 });
 
-test('whole names are checked in the last story paragraph, and a mixed arrival is refused as one line', { skip }, async () => {
+test('whole names are checked in the last story paragraph, and a mixed arrival keeps the names in the final scene', { skip }, async () => {
     let calls = 0;
     const host = await hostWith(async () => (++calls === 2 ? `+ present Gerrit, Sister Temiwa\n${SAME_VILLAGE}` : 'none'));
     try {
-        await host.send('At the guild.', AT_VILLAGE);
+        await host.send('At the guild.', 'Sieke waits.\n<Changes>\n~ place Bluewatch Village | kind: settlement | region: Bluewatch | with: Sieke\n</Changes>');
         const settled = settleTurn(host);
         const reply = await host.send('Return.', `${ERRAND_REPLY} Gerritson waits.\n<think>Gerrit is here.</think>\n<Changes>\n~ weather clear\n</Changes>`);
         const result = await settled;
-        assert.ok(result.problems.some(item => item.line === '+ present Gerrit, Sister Temiwa' && /Gerrit is not named/.test(item.message)));
+        assert.ok(result.problems.some(item => item.line === '+ present Gerrit, Sister Temiwa' && /Gerrit is not named/.test(item.message) && !/Temiwa is not/.test(item.message)));
         assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
-        assert.ok(!assistSections(host.ctx.chat[reply.index].mes).now.some(line => line.startsWith('+ present')));
+        assert.ok(assistSections(host.ctx.chat[reply.index].mes).now.includes('+ present Sister Temiwa'));
+        assert.ok(!assistSections(host.ctx.chat[reply.index].mes).now.some(line => /Gerrit/.test(line)));
+        assert.equal((await host.sdk.reread(reply.index)).ok, true);
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+        await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+    } finally { host.close(); }
+});
+
+test('a refused person does not come back through the place line\'s with: list; valid companions stay', { skip }, async () => {
+    for (const answer of [`~ place Bluewatch Village | kind: settlement | with: Gerrit\n+ present Gerrit`, '~ place Bluewatch Village | kind: settlement | with: Gerrit, Sister Temiwa']) {
+        let calls = 0;
+        const host = await hostWith(async () => (++calls === 2 ? answer : 'none'));
+        try {
+            await host.send('At the guild.', 'Sieke waits.\n<Changes>\n~ place Bluewatch Village | kind: settlement | region: Bluewatch | with: Sieke\n</Changes>');
+            const settled = settleTurn(host);
+            const reply = await host.send('Return.', ERRAND_REPLY);
+            const result = await settled;
+            assert.ok(result.problems.some(item => item.code === 'REFUSED' && /Gerrit is not named/.test(item.message)), answer);
+            const present = answer.includes('Temiwa') ? ['Sieke', 'Sister Temiwa'] : ['Sieke'];
+            assert.deepEqual(host.sdk.query('scene.present').sort(), present, answer);
+            assert.ok(!assistSections(host.ctx.chat[reply.index].mes).now.some(line => /Gerrit/.test(line)));
+            assert.equal((await host.sdk.reread(reply.index)).ok, true);
+            assert.deepEqual(host.sdk.query('scene.present').sort(), present);
+            await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+            assert.deepEqual(host.sdk.query('scene.present').sort(), present);
+        } finally { host.close(); }
+    }
+});
+
+test('a deferred answer with a with: list is judged the same way', { skip }, async () => {
+    const held = heldModel('~ place Bluewatch Village | kind: settlement | with: Gerrit, Sister Temiwa');
+    let calls = 0;
+    const host = await hostWith(async prompt => (++calls === 2 ? held.model(prompt) : 'none'));
+    try {
+        await host.send('At the guild.', 'Sieke waits.\n<Changes>\n~ place Bluewatch Village | kind: settlement | region: Bluewatch | with: Sieke\n</Changes>');
+        const source = await host.send('Run the errands.', ERRAND_REPLY);
+        await wait(5);
+        const intercept = host.st.interceptor;
+        host.st.interceptor = async (...args) => { await intercept(...args); held.release(); await wait(20); };
+        const next = await host.send('Enter.', 'Nothing else happens.');
+        host.st.interceptor = intercept;
+        assert.deepEqual(assistSections(host.ctx.chat[source.index].mes).next, ['~ place Bluewatch Village | kind: settlement | with: Sister Temiwa']);
+        assert.ok(host.turn.problems().some(item => item.index === source.index && item.code === 'REFUSED' && /Gerrit is not named/.test(item.message)));
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+        assert.equal((await host.sdk.reread(next.index)).ok, true);
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
     } finally { host.close(); }
 });
 
