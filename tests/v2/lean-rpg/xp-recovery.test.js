@@ -6,7 +6,7 @@ import { createHost } from '../../../testkit/index.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../src/v2/lean-rpg/templates.js';
 import { scaleXp } from '../../../src/v2/lean-rpg/levels.js';
-import { memberXp, fightGuard } from '../../../src/v2/lean-rpg/fight.js';
+import { memberXp, fightGuard, outnumberedMultiplier } from '../../../src/v2/lean-rpg/fight.js';
 import { hasRestButtons, isMarkedCharacter, fullRestTooSoon, recoveryNote } from '../../../src/v2/data-modules/recovery.js';
 import { directorStub, reload } from '../data-modules/helpers.js';
 import { cueOfResult } from '../../../src/v2/lean-rpg/cue.js';
@@ -49,6 +49,23 @@ test('flat fight XP (xp: 2): 15 a same-level foe, 60 for four, 19 for a foe 3 ab
     assert.deepEqual([4, 7].map(own => flat([{ count: 2, level: 7 }], own)), [39, 30], 'each member at their own level');
     assert.equal(scaleXp(flat([{ count: 12, level: 4 }]), 200), 200, 'the XP rate applies after the cap');
     assert.equal(flat([{ count: 1, level: 30 }], 1), 15 * 390 / 100 | 0, 'no upper limit per foe');
+});
+
+test('outnumbered XP counts foe members and party sizes, combines level gaps before rounding, and keeps each cap', () => {
+    const group = (count, level = 4) => ({ count, level });
+    const flat = (groups, party, level = 4) => memberXp(groups, level, true, true, outnumberedMultiplier(groups, party));
+    assert.deepEqual([1, 2, 3, 4].map(count => flat([group(count)], 1)), [15, 45, 90, 100]);
+    assert.deepEqual([1, 2, 3, 4, 5].map(party => flat([group(3)], party)), [90, 67, 45, 45, 45]);
+    assert.equal(flat([group(2), group(1)], 2), 67, 'groups and a three-foe pack count the same members');
+    assert.equal(flat([group(1, 5), group(1, 4)], 1), 47, '(16.5 + 15) × 1.5 rounds down after the bonus');
+    assert.equal(flat([group(2, 7)], 1), 58, 'each level-gap percentage applies before the multiplier');
+    assert.equal(flat([group(2, 4)], 1, 14), 0, 'a zero level-gap award stays zero');
+    assert.equal(scaleXp(flat([group(4)], 1), 200), 200, 'the setting scales the capped award');
+    assert.equal(memberXp([group(2)], 4, false, false, 1.5), 6, 'the old-pin rule gains the bonus on new wins');
+    assert.equal(memberXp([group(2)], 4, true, false, 1.5), 25, 'the previous marked rule gains the bonus before rounding');
+    assert.equal(memberXp([group(16)], 4, false, false, 2), 60, 'the old-pin cap stays 60');
+    assert.equal(memberXp([group(10)], 4, true, false, 2), 60, 'the marked-rule cap stays 60');
+    assert.equal(outnumberedMultiplier([group(99)], 1), 2, 'the multiplier stays at ×2');
 });
 
 test('the unmarked fight sum is what it was (count x bands x 2)', () => {

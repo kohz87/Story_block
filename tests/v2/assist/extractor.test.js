@@ -104,6 +104,10 @@ test('the value wall: never coin, new items, XP, loot or heals, whatever the all
     assert.match(refusedWhy({ op: '-', kind: 'quest', name: 'Pelts', labels: {} }, null, { late: true }), /turn-in/);
     assert.equal(refusedWhy({ op: '-', kind: 'item', name: 'Wolf Pelt', labels: { to: 'Elula' } }, null, { late: true }), '');
     assert.equal(refusedWhy({ op: '-', kind: 'quest', name: 'Pelts', labels: {} }, allowedKinds(DEFAULT_KINDS)), '');
+    // `- hook` closes a lead (no pay): a chip, off by default, and a late close is not refused.
+    assert.equal(allowedKinds(DEFAULT_KINDS).has('- hook'), false);
+    assert.equal(refusedWhy({ op: '-', kind: 'hook', name: 'Boar Cull', labels: {} }, allowedKinds('- hook'), { late: true }), '');
+    assert.match(refusedWhy({ op: '-', kind: 'hook', name: 'Boar Cull', labels: {} }, allowedKinds(DEFAULT_KINDS)), /not in the safety net/);
 });
 
 test('opted-in world news and factions reach capture with their own grammar and normal value wall', async () => {

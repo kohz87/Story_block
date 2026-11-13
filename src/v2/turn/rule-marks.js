@@ -53,6 +53,8 @@ export const RULE_LINES = Object.freeze({
     assistFaction: () => false,
     // A faction first made during this assist answer may take its stated stance; older replies retain the earlier guard.
     assistFactionFresh: () => false,
+    // Judge the safety net's arrivals against the end of a reply only when it carries this mark.
+    assistPresent: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
@@ -70,7 +72,7 @@ export function foeLine(line, state = null) {
     } catch { return false; }
 }
 
-export const MAX_RULE_MARKS = 24;
+export const MAX_RULE_MARKS = 32;
 const NAME = /^[A-Za-z][A-Za-z0-9]{0,31}$/u;
 
 /** The marks a record keeps: known names only, sorted, no repeats, at most MAX_RULE_MARKS. Anything else in the field is ignored. */

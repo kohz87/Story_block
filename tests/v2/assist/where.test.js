@@ -97,6 +97,7 @@ test('the extractor prompt: where and when come after the instruction and before
     assert.match(EXTRACTOR_FOOT, /only when the reply moves the scene/);
     assert.match(EXTRACTOR_FOOT, /where the reply ENDS.*never a stop on the way/);
     assert.match(EXTRACTOR_FOOT, /place it is at now, write no place line/);
+    assert.match(EXTRACTOR_FOOT, /Presence is the scene at the END: \+ present only for someone there when the reply ends, never someone met at a stop on the way; - present for someone present before who is gone at the end/);
 });
 
 test('safety-net places are refused only on evidence: an arrival the reply explicitly locates elsewhere; siblings differ, parents and aliases agree', () => {
@@ -253,9 +254,10 @@ test('worldKnown caps the open event names and the faction names with their stan
     assert.match(WORLD_FOOT.join('\n'), /Never change a stance the reply does not show changing, and never make a faction out of a place or a city name/);
 });
 
-// The footer as it was before the world lines existed: any reader without a world or faction kind gets exactly this.
+// The footer as it was before the world lines existed (with the presence line): any reader without a world or faction kind gets exactly this.
 const OLD_FOOT = ['Write a line only for what the reply clearly tells and its own lines (below) do not already say, with numbers only where it gives them. If nothing is missing, answer: none',
     'Write a place line only when the reply moves the scene. Name where the reply ENDS, the last place the story is at, never a stop on the way. If the scene ends at the place it is at now, write no place line.',
+    'Presence is the scene at the END: + present only for someone there when the reply ends, never someone met at a stop on the way; - present for someone present before who is gone at the end.',
     'A place line uses the exact name of a known place whenever the reply is at one the map has (known places are listed below). A time line needs a clock time like the story date and time below (~ time <date>, 9:30 am sets it; ! time +2h moves it on): "midday" and "mid-morning" are not times, so write no time line unless the reply gives a clock time or a stretch. A line with an unknown name for a known place, or a time without a clock time, is refused.',
     'Answer with the lines only, between <Changes> and </Changes>.'].join('\n');
 
@@ -303,4 +305,20 @@ test('on the real host: with a world or faction kind allowed the prompt names th
             }
         } finally { host.close(); }
     }
+});
+
+test('a map-refused safety-net place also refuses a person mentioned only before the last paragraph', { skip }, async () => {
+    let calls = 0;
+    const host = await withMap(async () => (++calls === 2 ? '~ place Bluewatch Guild Branch\n+ present Gerrit' : 'none'));
+    try {
+        await host.send('At the guild.', 'Sieke is here.\n<Changes>\n~ place Bluewatch Village | with: Sieke\n</Changes>');
+        const reply = await host.send('Run errands.', 'Gerrit serves stew at the Stray Oar.\n\nBack at the Guild office, Sieke waits.');
+        await settleAssist();
+        const refused = host.turn.problems().filter(item => item.index === reply.index && item.code === 'REFUSED');
+        assert.ok(refused.some(item => item.line === '~ place Bluewatch Guild Branch' && /map calls this place/.test(item.message)));
+        assert.ok(refused.some(item => item.line === '+ present Gerrit' && /not named in the reply's last paragraph/.test(item.message)));
+        assert.deepEqual(host.sdk.query('scene.present'), ['Sieke']);
+        assert.equal((await host.sdk.reread(reply.index)).ok, true);
+        assert.deepEqual(host.sdk.query('scene.present'), ['Sieke']);
+    } finally { host.close(); }
 });

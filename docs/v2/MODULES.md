@@ -560,6 +560,12 @@ These settle questions agents raised; the host changes they need are made at int
     the same place, or a map alias agrees); a companion list that omits people already at the destination is fine. The
     decision is made at capture and kept: a Re-read does not judge a line it already kept again. Ordinary place lines and
     replies without the mark keep their earlier behavior; Re-read uses the receiving reply's mark and lines.
+    *End-of-reply presence (rule mark `assistPresent`, new replies):* Assist is asked to add only people there at the end,
+    never someone met on the way, and to remove people who were present before but have gone. When its answer also proposes
+    a place that is refused, suppressed by the reply's own lines, or the current place, code refuses an Assist `+ present`
+    if any named person is absent from the last story paragraph. This is a narrow check, not proof that a named person is
+    present; other arrivals and departures keep their usual rules. The decision is made for the source reply before storing
+    either an immediate or a late answer. Re-read uses the stored lines; older replies without the mark are unchanged.
     *Where and when (stage 40, SB 2.16.4):* the prompt also tells it the scene's place, the map's place names near
     it (nearest first by the map's coordinates, else the same region; the atlas's names when Story Director is on, else
     the packs'; at most `MAX_NEAR` = 20) and the story's date and time (`director.time`), and says to use a known name

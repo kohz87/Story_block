@@ -7,6 +7,7 @@ import { CORE_FEATURE } from '../../../../src/v2/features.js';
 import { STANDARD_TEMPLATES, characterV1For } from '../../../../src/v2/lean-rpg/templates.js';
 import { STANDARD_FORMULA } from '../../../../src/v2/lean-rpg/rules.js';
 import { fightHook, fightGuard, fightXp, groupsOf, memberXp, openedSlots } from '../../../../src/v2/lean-rpg/fight.js';
+import { fightLines } from '../../../../src/v2/lean-rpg/view/changes-lines.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
 import { discardBoard, openBoard, stageExchange } from '../../../../src/v2/lean-rpg/board/session.js';
 import { seedCrypto } from '../../qa/helpers/seeded.js';
@@ -75,7 +76,7 @@ test('a board win that leaves the block as it was carries no groups (the record 
         assert.equal(hero(host).xp, memberXp([{ count: 1, level: 1 }], 1, true, true));
         const step = fights(host)[0];
         assert.equal(step.replan.payload.groups, undefined);
-        assert.deepEqual(Object.keys(step.replan.payload), ['was', 'bars', 'xp'], 'a marked fight records its marks beside the slots');
+        assert.deepEqual(Object.keys(step.replan.payload), ['was', 'bars', 'xp', 'outnumbered'], 'a marked fight records its marks beside the slots');
     } finally { host.close(); restore(); }
 });
 
@@ -120,6 +121,8 @@ test('fightHook: groups of a won board fight come from the sheet before the repl
     const replaced = { ...party, foes: { role: 'foes', fields: mother } };
     const out = fightHook(viewOf(replaced, standing), { type: 'normal', receipts: [wonReceipt([1])] });
     assert.deepEqual(out.commands[0].payload.groups, [{ slot: 1, name: 'Rats', count: 3, level: 5 }]);
+    assert.equal(out.commands[0].payload.outnumbered, 1, 'new wins carry the rule');
+    assert.equal(fightHook(viewOf(replaced, standing), { type: 'reread', receipts: [wonReceipt([1])], previous: [] }).commands[0].payload.outnumbered, undefined, 'an older reply without a previous fight step is not a new win');
     // a fight opened and won in this reply, then replaced: the roll's opened foes name it
     const none = { ...party, foes: { role: 'foes', fields: levelFoeBlock([]) } };
     const opened = fightHook(viewOf(replaced, none), { type: 'normal', receipts: [wonReceipt([1], [{ slot: 1, name: 'Wolves', count: 2, level: 3 }])] });
@@ -143,6 +146,53 @@ test('rpg.fight with groups: pays from them, refuses damaged ones, and the guard
     const state = { domains: { dataModules: domain } };
     const guard = { version: 2, rulesHash: null, predicate: { kind: 'rpg.fight' }, inputHash: null };
     assert.equal(fightGuard({ state, hash: ctx.hash }, { guard, source: {}, recorded: { was: [1], groups: [{ ...groups[0], count: 0 }] } }).ok, false);
+});
+
+test('outnumbered fight records the multiplier, counts Down and dead but not Left, and guards that count', () => {
+    const groups = [{ slot: 1, name: 'Rats', count: 2, level: 1 }, { slot: 2, name: 'Bats', count: 2, level: 1 }];
+    const domain = sheetDomain({
+        astra: { role: 'character', fields: character('Astra', { level: 1 }) },
+        ren: { role: 'character', fields: character('Ren', { level: 2, health: 0 }) },
+        dead: { role: 'character', fields: character('Dead', { alive: false }) },
+        left: { role: 'character', fields: character('Left', { left: true }) },
+        foes: { role: 'foes', fields: levelFoeBlock([]) },
+    });
+    const before = structuredClone(domain);
+    let saved;
+    const ctx = { cause: 'system', caller: null, source: {}, epoch: 1, module: 'm', read: () => domain, draft: () => domain,
+        hash: value => JSON.stringify(value), replayGuard: (guard, recorded) => { saved = { guard, recorded }; },
+        fail: (code, message) => { throw new Error(`${code} ${message}`); } };
+    const result = fightXp(ctx, { was: [1, 2], groups, bars: 2, xp: 2, outnumbered: 1 });
+    const fight = result.data.v2.result.fight;
+    assert.equal(fight.outnumbered, 1);
+    assert.equal(fight.multiplier, 1.5);
+    assert.deepEqual(fight.awards.map(({ who, xp }) => [who, xp]), [['Astra', 90], ['Ren', 81]]);
+    assert.equal(result.summary, 'Fight won: Astra +90 XP, Ren +81 XP (outnumbered ×1.5).');
+    assert.deepEqual(fightLines({ receipts: [{ type: 'rpg.fight', data: result.data }] }).map(line => line.text),
+        ['Astra +90 XP (fight won) · outnumbered ×1.5', 'Ren +81 XP (fight won) · outnumbered ×1.5']);
+    const state = { domains: { dataModules: before } };
+    assert.equal(fightGuard({ state, hash: ctx.hash }, { ...saved, source: {} }).ok, true);
+    state.domains.dataModules.instances['pack.chat/dead'].chat.fields.left = true;
+    assert.equal(fightGuard({ state, hash: ctx.hash }, { ...saved, source: {} }).ok, false, 'a non-paid member leaving changes the multiplier');
+    assert.throws(() => fightXp(ctx, { was: [1], groups: [groups[0]], outnumbered: 2 }), /INVALID/);
+    assert.equal(fightGuard({ state, hash: ctx.hash }, { ...saved, recorded: { ...saved.recorded, outnumbered: 2 }, source: {} }).ok, false);
+});
+
+test('old fight steps without the bonus mark retain their exact result and guard shape for every XP formula', () => {
+    const groups = [{ slot: 1, name: 'Rats', count: 4, level: 1 }];
+    for (const [marks, xp] of [[{}, 8], [{ bars: 2 }, 21], [{ bars: 2, xp: 2 }, 60]]) {
+        const domain = sheetDomain({ ...party, foes: { role: 'foes', fields: levelFoeBlock([]) } });
+        let recorded, guard;
+        const ctx = { cause: 'system', caller: null, source: {}, epoch: 1, module: 'm', read: () => domain, draft: () => domain,
+            hash: value => JSON.stringify(value), replayGuard: (g, r) => { guard = g; recorded = r; },
+            fail: (code, message) => { throw new Error(`${code} ${message}`); } };
+        const result = fightXp(ctx, { was: [1], groups, ...marks });
+        assert.equal(JSON.stringify(result.data.v2.result.fight), JSON.stringify({ lv: 1, ...marks, groups, awards: [{ who: 'Astra', module: 'pack.chat/hero', xp }] }));
+        assert.deepEqual(recorded, { was: [1], groups, ...marks });
+        assert.deepEqual(guard.predicate, { kind: 'rpg.fight', ...marks });
+        assert.equal(result.summary, `Fight won: Astra +${xp} XP.`);
+        assert.deepEqual(fightLines({ receipts: [{ type: 'rpg.fight', data: result.data }] }).map(line => line.text), [`Astra +${xp} XP (fight won)`]);
+    }
 });
 
 // the owner's reply: the foe pre-check receipt opens the group, the board receipt wins with groups [1] and no opened, the narrator clears the slot
@@ -169,7 +219,7 @@ const asOld = host => {
     const original = host.registry.hookEntries;
     host.registry.hookEntries = name => original(name).map(entry => ({ ...entry, fn: (view, info) => {
         const out = entry.fn(view, info);
-        for (const command of out?.commands ?? []) if (command.type === 'rpg.fight') delete command.payload.xp;
+        for (const command of out?.commands ?? []) if (command.type === 'rpg.fight') { delete command.payload.xp; delete command.payload.outnumbered; }
         return out;
     } }));
     return () => { host.registry.hookEntries = original; };
@@ -212,7 +262,7 @@ test('an old marked fight ({was, bars: 2}, no xp) keeps its old sum through rebu
             assert.equal(hero(fresh).xp, flatSum);
             assert.equal((await fresh.turn.reread(fresh.store.headIndex())).ok, true);
             assert.equal(hero(fresh).xp, flatSum, 'a Re-read of a new fight keeps the flat sum');
-            assert.deepEqual(fightPayload(fresh), [{ was: [1], bars: 2, xp: 2 }]);
+            assert.deepEqual(fightPayload(fresh), [{ was: [1], bars: 2, xp: 2, outnumbered: 1 }]);
         } finally { fresh.close(); }
     } finally { restore(); }
 });

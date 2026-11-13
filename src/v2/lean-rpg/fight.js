@@ -23,6 +23,8 @@
 // A board win (the reply's `rpg.resolve` receipt says `won`) is paid whatever the story did to the Foes block after it: a new group the narrator opened in the same
 // reply (the reinforcements a finished fight allows), or the Down groups it cleared, no longer hide the win. When the block still shows the fight's groups Down, the step is
 // asked for as ever; when it does not, the step carries `groups` (the fight's groups as the reply began, or as its roll opened them), and pays from those.
+// New fight steps carry `outnumbered: 1`: each foe above the party's non-Left members adds 0.5 to the XP multiplier, up to 2. The multiplier applies after the level gap,
+// before rounding and the rule's cap; a step without the mark keeps its original XP, guard and receipt on replay and Re-read.
 //
 // The record (the step's receipt `data.v2.result.fight`): { lv: 1, groups: [{ slot, name, count, level }], awards: [{ who, module, xp, held? }] } (xp is the member's own). A record without `lv` is an
 // older one (groups carry `class`); it is read as it is and replays as recorded.
@@ -92,34 +94,40 @@ function boardGroups(sheet, earlier, was, receipts) {
     });
 }
 
-/** The XP a member of level `level` gets for the fight's `groups` (see FIGHT_XP): the groups' bases scaled by the level gap, added, rounded down; 0, or 1..60. */
-export function memberXp(groups, level, bars = false, flat = false) {
+/** Foes are members, not groups; Down and dead party members still count unless they Left. */
+export function outnumberedMultiplier(groups, partyCount) {
+    const foes = groups.reduce((sum, group) => sum + group.count, 0);
+    return Math.min(2, 1 + 0.5 * Math.max(0, foes - partyCount));
+}
+
+/** XP after the level-gap percentages and multiplier, rounded down before the applicable cap. */
+export function memberXp(groups, level, bars = false, flat = false, multiplier = 1) {
     // A flat fight (`xp: 2` in its step): 15 for every foe, the level gap 10 % a level (no upper limit), at most 100.
-    if (flat) return flatXp(groups, level);
+    if (flat) return flatXp(groups, level, multiplier);
     // A marked fight (`bars: 2`): each group pays (15 + 2 per foe after the first) x max(1, ceil(level / 10)) x the level-gap percent, the same sum, cap and floor.
-    if (bars) return markedXp(groups, level);
+    if (bars) return markedXp(groups, level, multiplier);
     const percent = groups.reduce((total, group) => {
         const scale = Math.max(0, Math.min(FIGHT_XP.maxPercent, 100 + FIGHT_XP.gapPercent * (group.level - level)));
         return total + group.count * Math.max(1, Math.ceil(group.level / FIGHT_XP.perLevels)) * FIGHT_XP.perBand * scale;
     }, 0);
-    const xp = Math.floor(percent / 100);
+    const xp = Math.floor(percent * multiplier / 100);
     return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.max, xp)) : 0;
 }
 
 /** The XP of a flat fight (see memberXp): every foe pays 15 × (100 + 10 per level of gap) per cent, never below 0; the sum rounded down, then 0, or 1..100. */
-function flatXp(groups, level) {
+function flatXp(groups, level, multiplier) {
     const percent = groups.reduce((total, group) => total + group.count * FIGHT_XP.flatBase * Math.max(0, 100 + FIGHT_XP.gapPercent * (group.level - level)), 0);
-    const xp = Math.floor(percent / 100);
+    const xp = Math.floor(percent * multiplier / 100);
     return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.flatMax, xp)) : 0;
 }
 
 /** The XP of a marked fight with no `xp` in its step (see memberXp): 0, or 1..60. */
-function markedXp(groups, level) {
+function markedXp(groups, level, multiplier) {
     const percent = groups.reduce((total, group) => {
         const scale = Math.max(0, Math.min(FIGHT_XP.maxPercent, 100 + FIGHT_XP.gapPercent * (group.level - level)));
         return total + (FIGHT_XP.markedFirst + FIGHT_XP.markedMore * (group.count - 1)) * Math.max(1, Math.ceil(group.level / FIGHT_XP.perLevels)) * scale;
     }, 0);
-    const xp = Math.floor(percent / 100);
+    const xp = Math.floor(percent * multiplier / 100);
     return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.max, xp)) : 0;
 }
 
@@ -146,7 +154,7 @@ export function fightWitness(sheet, domain, source, decision) {
     const given = Array.isArray(decision?.groups) ? decision.groups : null;
     // (`level` joins an entry only when the sheet has one of its own (a Foes block of the Levels rules), so the witness of an older Foes block, and the guard hash of its receipt, are what they were)
     const foes = sheet.foes.filter(foe => foe.filled).map(({ slot, name, count, class: soul, hurt, level, levelled }) => ({ slot, name, count, class: soul, hurt, ...(levelled && whole(level) ? { level } : {}) }));
-    return { foes, was: slotsOf(decision?.was), ...(given ? { groups: given } : {}), from: fromOf(domain, source),
+    return { foes, was: slotsOf(decision?.was), ...(given ? { groups: given } : {}), ...(decision?.outnumbered === 1 ? { partyCount: sheet.characters.length } : {}), from: fromOf(domain, source),
         members: paidOf(sheet).map(character => ({ module: character.module, who: character.who, xp: character.xp, soul: character.soul, ...(character.levelled ? { level: character.level } : {}), points: character.points })) };
 }
 
@@ -191,11 +199,12 @@ export function fightHook(view, info) {
     // a fight with no earlier step (first captured now) takes the formula and the setting in force.
     const old = info?.type === 'reread' ? (info.previous ?? []).filter(receipt => receipt?.type === FIGHT).map(receipt => receipt.replan?.payload).find(isObject) : undefined;
     let flat = true;
+    const outnumbered = info?.type !== 'reread' || old?.outnumbered === 1;
     if (old) {
         flat = old.xp === 2;
         rate = old.rate === undefined ? XP_RATE.default : (xpRateOf(old.rate) ?? rate);
     }
-    return { commands: [{ type: FIGHT, payload: { was, ...(groups ? { groups } : {}), ...(board?.bars ? { bars: 2, ...(flat ? { xp: 2 } : {}) } : {}), ...(board?.cleared && board.claim ? { gone: 1, claim: board.claim } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) } }] };
+    return { commands: [{ type: FIGHT, payload: { was, ...(groups ? { groups } : {}), ...(board?.bars ? { bars: 2, ...(flat ? { xp: 2 } : {}) } : {}), ...(outnumbered ? { outnumbered: 1 } : {}), ...(board?.cleared && board.claim ? { gone: 1, claim: board.claim } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) } }] };
 }
 
 /**
@@ -209,6 +218,8 @@ export function fightXp(ctx, payload = {}) {
     const bars = payload?.bars === 2;
     if (payload?.xp !== undefined && (payload.xp !== 2 || !bars)) ctx.fail('INVALID', 'The fight\'s XP mark was damaged.');
     const flat = payload?.xp === 2;
+    if (payload?.outnumbered !== undefined && payload.outnumbered !== 1) ctx.fail('INVALID', 'The fight\'s outnumbered mark was damaged.');
+    const outnumbered = payload?.outnumbered === 1;
     if (payload?.gone !== undefined && payload.gone !== 1) ctx.fail('INVALID', 'The fight\'s clear mark was damaged.');
     const gone = payload?.gone === 1;
     // (a cleared fight carries its own board resolve's claim: the clear emptied the block, so the win stands only while that resolve does)
@@ -226,9 +237,10 @@ export function fightXp(ctx, payload = {}) {
     const fight = given ? { won: true, groups: given } : fightOf(sheet, was);
     if (!fight.won) ctx.fail('NO_LONGER_DONE', 'No won fight is left to give XP for on this story.');
     const from = fromOf(domain, ctx.source);
-    const witness = fightWitness(sheet, domain, ctx.source, { was, groups: given });
-    const predicate = { kind: FIGHT, ...(bars ? { bars: 2 } : {}), ...(flat ? { xp: 2 } : {}), ...(gone ? { gone: 1 } : {}) };
-    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness }) }, { was, ...(given ? { groups: given } : {}), ...(bars ? { bars: 2 } : {}), ...(flat ? { xp: 2 } : {}), ...(gone ? { gone: 1, claim: payload.claim } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) });
+    const multiplier = outnumbered ? outnumberedMultiplier(fight.groups, sheet.characters.length) : 1;
+    const witness = fightWitness(sheet, domain, ctx.source, { was, groups: given, ...(outnumbered ? { outnumbered: 1 } : {}) });
+    const predicate = { kind: FIGHT, ...(bars ? { bars: 2 } : {}), ...(flat ? { xp: 2 } : {}), ...(outnumbered ? { outnumbered: 1 } : {}), ...(gone ? { gone: 1 } : {}) };
+    ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate, inputHash: ctx.hash({ source: ctx.source, predicate, witness }) }, { was, ...(given ? { groups: given } : {}), ...(bars ? { bars: 2 } : {}), ...(flat ? { xp: 2 } : {}), ...(outnumbered ? { outnumbered: 1 } : {}), ...(gone ? { gone: 1, claim: payload.claim } : {}), ...(rate !== XP_RATE.default ? { rate } : {}) });
     const draft = ctx.draft('dataModules');
     const awards = [];
     for (const character of paidOf(sheet)) {
@@ -243,7 +255,7 @@ export function fightXp(ctx, payload = {}) {
         const instance = draft.instances[character.module].chat;
         // The fight pays at the level the member had before this reply's own (held back) XP line raised it.
         const before = held ? (whole(kept.level) ? clampLevel(kept.level) : whole(kept.soul) ? levelOfClass(kept.soul) : null) : null;
-        const xp = scaleXp(memberXp(fight.groups, before ?? memberLevel(character), bars, flat), rate);
+        const xp = scaleXp(memberXp(fight.groups, before ?? memberLevel(character), bars, flat, multiplier), rate);
         if (isObject(definition?.state) && Array.isArray(definition.rules)) {
             const evaluation = createEvaluation(definition, instance, { inputs: {}, source: {}, cursor: null, subject: 'chat' });
             if (held) evaluation.effects(keys.map(key => ({ op: 'set', path: [key], value: kept[key] })));
@@ -259,8 +271,8 @@ export function fightXp(ctx, payload = {}) {
     }
     const held = awards.some(award => award.held);
     return {
-        summary: `Fight won: ${awards.filter(award => award.xp > 0).map(award => `${award.who} +${award.xp} XP`).join(', ') || 'no XP to give'}.`, narrate: false, replan: true,
-        data: { v2: { result: { fight: { lv: 1, ...(bars ? { bars: 2 } : {}), ...(flat ? { xp: 2 } : {}), ...(rate !== XP_RATE.default ? { rate } : {}), groups: fight.groups, awards } } } },
+        summary: `Fight won: ${awards.filter(award => award.xp > 0).map(award => `${award.who} +${award.xp} XP`).join(', ') || 'no XP to give'}${multiplier > 1 ? ` (outnumbered ×${multiplier})` : ''}.`, narrate: false, replan: true,
+        data: { v2: { result: { fight: { lv: 1, ...(bars ? { bars: 2 } : {}), ...(flat ? { xp: 2 } : {}), ...(outnumbered ? { outnumbered: 1, multiplier } : {}), ...(rate !== XP_RATE.default ? { rate } : {}), groups: fight.groups, awards } } } },
         ...(held ? { problem: FIGHT_XP_HELD } : {}),
     };
 }
@@ -278,9 +290,10 @@ export function fightGuard({ state, hash }, { guard, source, recorded }) {
         if (recorded.groups !== undefined && !groups) return bad('The fight\'s groups were damaged.');
         if ((recorded.bars !== undefined && recorded.bars !== 2) || (predicate.bars === 2) !== (recorded.bars === 2)) return bad('The fight\'s mark was damaged.');
         if ((recorded.xp !== undefined && (recorded.xp !== 2 || recorded.bars !== 2)) || (predicate.xp === 2) !== (recorded.xp === 2)) return bad('The fight\'s XP mark was damaged.');
+        if ((recorded.outnumbered !== undefined && recorded.outnumbered !== 1) || (predicate.outnumbered !== undefined && predicate.outnumbered !== 1) || (predicate.outnumbered === 1) !== (recorded.outnumbered === 1)) return bad('The fight\'s outnumbered mark was damaged.');
         if ((recorded.gone !== undefined && recorded.gone !== 1) || (predicate.gone === 1) !== (recorded.gone === 1) || (recorded.gone === 1) !== (recorded.claim !== undefined)) return bad('The fight\'s clear mark was damaged.');
         if (recorded.gone === 1 && (!CLAIM.test(recorded.claim) || state.meta?.claims?.[recorded.claim] !== true)) return bad('The fight on the board this XP was for was taken back.');
-        const witness = fightWitness(readSheet(state), state.domains?.dataModules, source, { was, groups });
+        const witness = fightWitness(readSheet(state), state.domains?.dataModules, source, { was, groups, ...(recorded.outnumbered === 1 ? { outnumbered: 1 } : {}) });
         if (hash({ source, predicate, witness }) !== guard.inputHash) return bad('The sheet before this step changed; Re-read this reply.');
         return { ok: true };
     } catch { return bad('Damaged fight record.'); }

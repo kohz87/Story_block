@@ -672,9 +672,12 @@ test('pending awards use opening groups, settings and the per-reply practice cap
     }) } };
     const result = { stop: 'won', rounds: Array.from({ length: 8 }, (_, n) => ({ n: n + 2, lines: [{ pc: { who: 'Astra' }, skill: 'Cut' }] })) };
     const awards = pendingAwards(state, { groups: [1, 2], setup: { offset: 1 } }, result, { rpgXpRate: 200, rpgPracticePerUse: 5 });
-    assert.deepEqual(awards.xp, [{ who: 'Astra', amount: 20 }]);
+    assert.deepEqual(awards.xp, [{ who: 'Astra', amount: 40 }]);
     assert.deepEqual(awards.practice, [{ who: 'Astra', skill: 'Cut', amount: 20 }]);
     assert.deepEqual(pendingAwards(state, { groups: [1, 2] }, { ...result, stop: 'fled' }).xp, []);
+    Object.assign(state.domains.dataModules.instances['pack.chat/foes'].chat.fields, { count1: 2, count2: 0 });
+    assert.deepEqual(pendingAwards(state, { groups: [1], setup: { bars: 2 } }, result).xp, [{ who: 'Astra', amount: 45 }], 'the current flat-rule preview includes the bonus');
+    state.domains.dataModules.instances['pack.chat/foes'].chat.fields.count2 = 3;
     Object.assign(state.domains.dataModules.instances['pack.chat/foes'].chat.fields, { count1: 50, level1: 99 });
     assert.deepEqual(pendingAwards(state, { groups: [1, 2] }, result, { rpgXpRate: 300 }).xp, [{ who: 'Astra', amount: 180 }], 'the raw fight XP is capped before scaling');
 });
