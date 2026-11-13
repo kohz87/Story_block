@@ -49,6 +49,10 @@ export const RULE_LINES = Object.freeze({
     skillPractice: line => line?.kind === 'dm' && line.op === '+' && (!line.labels?.kind || /^practice-(?:[1-9]|1[01])$/u.test(String(line.labels.kind))),
     // Only new replies change how the safety net's place lines affect presence or reject conflicting places.
     assistPlace: () => false,
+    // A safety-net `+/~ faction` line never sets the stance of a faction the Chronicle already keeps (Story Director chronicle/capture/faction.js, read from `ctx.carrier.assist`). Only new replies; an older reply keeps what its Re-read did.
+    assistFaction: () => false,
+    // A faction first made during this assist answer may take its stated stance; older replies retain the earlier guard.
+    assistFactionFresh: () => false,
     // Judge the safety net's arrivals against the end of a reply only when it carries this mark.
     assistPresent: () => false,
 });

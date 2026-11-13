@@ -173,7 +173,9 @@ export function createRuntime({
                     const ask = (name, args) => { try { return sdk?.query(name, args); } catch { return null; } };
                     const clock = ask('director.time', {});
                     return { here: ask('scene.place', {}), places: [...(ask('atlas.places', {}) ?? []), ...(ask('packs.content', { kind: 'places' }) ?? [])],
-                        time: typeof clock?.text === 'string' ? clock.text : '' };
+                        time: typeof clock?.text === 'string' ? clock.text : '',
+                        // The Chronicle's open world events and factions (Story Director), so the safety net reuses a name.
+                        world: { events: ask('chronicle.events', { open: true }) ?? [], factions: ask('chronicle.factions', {}) ?? [] } };
                 },
                 chat: () => ctx.chat,
                 chatId: () => ctx.getCurrentChatId?.() ?? ctx.chatId ?? '',

@@ -260,3 +260,12 @@ test('notWritten: a place, time or weather the block set is not set again; a lat
     // Late lines on the next reply: a place or a set time it set again is older and dropped; time that passed still adds.
     assert.deepEqual(notWritten(['~ place Market', '~ time CY611, Goldwane 12, 1:00 pm', '! time +1h'], ['~ place Tavern', '! time +20m'], { late: true }), ['! time +1h']);
 });
+
+test('a reply that reuses an index and swipe but has another record ID is read in its own right; the same reply is read once', async () => {
+    const { after, callModel } = setup({ answers: [ANSWER, ANSWER, ANSWER] });
+    await after({ sid: 'sw_one' });
+    await after({ sid: 'sw_one' });
+    assert.equal(callModel.calls.length, 1, 'the same reply is read once');
+    await after({ sid: 'sw_two' });
+    assert.equal(callModel.calls.length, 2, 'a replacement at the same index and swipe is read too');
+});
