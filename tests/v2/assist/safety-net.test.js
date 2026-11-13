@@ -105,7 +105,7 @@ test('a line the block already has is never applied twice (C-1 matching, and the
 
 // The USER's reply (4 Nov): the block set the place and who is present; the safety net wrote the same place in
 // other words. Applied after the block, it read as a move and left everyone behind (present emptied).
-const BLUEWATCH = 'Osken pays out at the desk; Nelje takes the pork.\n<Changes>\n~ place Bluewatch — Guild Office | kind: settlement\n- present Osken\n+ present Nelje\n~ time CY611, Goldwane 12, 5:30 pm\n! time +2h 30m\n</Changes>';
+const BLUEWATCH = 'Osken pays out at the desk; Nelje takes the pork. Kettle-Maw Tam joins them.\n<Changes>\n~ place Bluewatch — Guild Office | kind: settlement\n- present Osken\n+ present Nelje\n~ time CY611, Goldwane 12, 5:30 pm\n! time +2h 30m\n</Changes>';
 
 test('a place or time the block set is never set again by the safety net (another wording of the place is not a move); a kind it left out still is', { skip }, async () => {
     let calls = 0;
@@ -299,4 +299,143 @@ test('an old reply (carrying the earlier rule marks, not assistPlace) keeps the 
     assert.deepEqual(state(), former);
     assert.equal(JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]), live, 'whole scene byte-identical');
     host.close();
+});
+
+// The 13 Nov reply: Gerrit serves stew on the way, but the story ends back at the Guild office.
+const ERRAND_REPLY = 'You leave the Guild office for the tailor, the well and the smithy, then knock at Widow Merne’s door. At the Stray Oar, innkeeper Gerrit serves you stew. You check the baker’s board by the well.\n\nBack inside the Guild office, Sieke and Sister Temiwa settle at the desk.';
+const SAME_VILLAGE = '~ place Bluewatch Village | kind: settlement | region: Bluewatch';
+const AT_VILLAGE = 'Sieke and Sister Temiwa wait.\n<Changes>\n~ place Bluewatch Village | kind: settlement | region: Bluewatch | with: Sieke, Sister Temiwa\n</Changes>';
+const settleTurn = host => new Promise(resolve => host.sdk.on('turn', item => { if (item.type === 'late') resolve(item); }));
+
+test('a same-place safety-net answer cannot add someone met on the way; the final scene survives Re-read and reload', { skip }, async () => {
+    let calls = 0;
+    const host = await hostWith(async () => (++calls === 2 ? `${SAME_VILLAGE}\n+ present Gerrit` : 'none'));
+    try {
+        await host.send('At the guild.', AT_VILLAGE);
+        const settled = settleTurn(host);
+        const reply = await host.send('Run the errands.', ERRAND_REPLY);
+        const result = await settled;
+        assert.equal(host.sdk.query('scene.place').name, 'Bluewatch Village');
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+        assert.ok(host.ctx.chat[reply.index].extra.storySuite.rules.includes('assistPresent'));
+        assert.deepEqual(assistSections(host.ctx.chat[reply.index].mes).now, [SAME_VILLAGE]);
+        assert.ok(result.problems.some(item => item.line === '+ present Gerrit' && item.code === 'REFUSED' && /Gerrit.*not named in the reply's last paragraph/.test(item.message)));
+        const scene = JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]);
+        assert.equal((await host.sdk.reread(reply.index)).ok, true);
+        assert.equal(JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]), scene);
+        await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+        assert.equal(JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]), scene);
+    } finally { host.close(); }
+});
+
+test('the guard keeps final-paragraph arrivals, departures, new moves and answers with no place line', { skip }, async () => {
+    const cases = [
+        { answer: `+ present Gerrit\n- present Sieke\n${SAME_VILLAGE}`, story: `${ERRAND_REPLY} GERRIT's bowl is on the desk.`, present: ['Gerrit', 'Sister Temiwa'], place: 'Bluewatch Village' },
+        { answer: '+ present Gerrit\n~ place Guild Office', story: ERRAND_REPLY, present: ['Gerrit', 'Sieke', 'Sister Temiwa'], place: 'Guild Office' },
+        { answer: '+ present Gerrit', story: ERRAND_REPLY, present: ['Gerrit', 'Sieke', 'Sister Temiwa'], place: 'Bluewatch Village' },
+    ];
+    for (const sample of cases) {
+        let calls = 0;
+        const host = await hostWith(async () => (++calls === 2 ? sample.answer : 'none'));
+        try {
+            await host.send('At the guild.', AT_VILLAGE);
+            const settled = settleTurn(host);
+            const reply = await host.send('Go.', sample.story);
+            const result = await settled;
+            assert.deepEqual(host.sdk.query('scene.present').sort(), sample.present, sample.answer);
+            assert.equal(host.sdk.query('scene.place').name, sample.place);
+            assert.ok(!result.problems.some(item => item.line === '+ present Gerrit' && item.code === 'REFUSED'));
+            assert.equal((await host.sdk.reread(reply.index)).ok, true);
+            assert.deepEqual(host.sdk.query('scene.present').sort(), sample.present);
+        } finally { host.close(); }
+    }
+});
+
+test('whole names are checked in the last story paragraph, and a mixed arrival is refused as one line', { skip }, async () => {
+    let calls = 0;
+    const host = await hostWith(async () => (++calls === 2 ? `+ present Gerrit, Sister Temiwa\n${SAME_VILLAGE}` : 'none'));
+    try {
+        await host.send('At the guild.', AT_VILLAGE);
+        const settled = settleTurn(host);
+        const reply = await host.send('Return.', `${ERRAND_REPLY} Gerritson waits.\n<think>Gerrit is here.</think>\n<Changes>\n~ weather clear\n</Changes>`);
+        const result = await settled;
+        assert.ok(result.problems.some(item => item.line === '+ present Gerrit, Sister Temiwa' && /Gerrit is not named/.test(item.message)));
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+        assert.ok(!assistSections(host.ctx.chat[reply.index].mes).now.some(line => line.startsWith('+ present')));
+    } finally { host.close(); }
+});
+
+test('a duplicate safety-net place removed before capture still guards an arrival', { skip }, async () => {
+    let calls = 0;
+    const host = await hostWith(async () => (++calls === 2 ? `${SAME_VILLAGE}\n+ present Gerrit\n~ weather rain` : 'none'));
+    try {
+        await host.send('At the guild.', AT_VILLAGE);
+        const settled = settleTurn(host);
+        const reply = await host.send('Return.', `${ERRAND_REPLY}\n<Changes>\n${SAME_VILLAGE}\n</Changes>`);
+        const result = await settled;
+        assert.ok(result.problems.some(item => item.line === '+ present Gerrit' && item.code === 'REFUSED'));
+        assert.deepEqual(assistSections(host.ctx.chat[reply.index].mes).now, ['~ weather rain']);
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+    } finally { host.close(); }
+});
+
+test('an arrival is refused when the safety-net place conflicts with the reply or the place handler rejects it', { skip }, async () => {
+    for (const place of ['~ place Bluewatch Outskirts', `~ place Guild Office | kind: ${'x'.repeat(81)}`]) {
+        let calls = 0;
+        const host = await hostWith(async () => (++calls === 2 ? `+ present Gerrit\n${place}` : 'none'));
+        try {
+            await host.send('At the guild.', AT_VILLAGE);
+            const settled = settleTurn(host);
+            const reply = await host.send('Return.', `${ERRAND_REPLY}\n<Changes>\n+ present Dries | at: Guild Office\n</Changes>`);
+            const result = await settled;
+            assert.ok(result.problems.some(item => item.line === '+ present Gerrit' && item.code === 'REFUSED'), place);
+            assert.ok(result.problems.some(item => item.line === place), place);
+            assert.deepEqual(host.sdk.query('scene.present').sort(), ['Dries', 'Sieke', 'Sister Temiwa']);
+            assert.ok(!assistSections(host.ctx.chat[reply.index].mes).now.includes('+ present Gerrit'));
+            assert.equal((await host.sdk.reread(reply.index)).ok, true);
+            assert.deepEqual(host.sdk.query('scene.present').sort(), ['Dries', 'Sieke', 'Sister Temiwa']);
+        } finally { host.close(); }
+    }
+});
+
+test('a deferred same-place answer checks the source reply before storing lines for the next reply', { skip }, async () => {
+    const held = heldModel(`+ present Gerrit\n${SAME_VILLAGE}`);
+    let calls = 0;
+    const host = await hostWith(async prompt => (++calls === 2 ? held.model(prompt) : 'none'));
+    try {
+        await host.send('At the guild.', AT_VILLAGE);
+        const source = await host.send('Run the errands.', ERRAND_REPLY);
+        await wait(5);
+        const intercept = host.st.interceptor;
+        host.st.interceptor = async (...args) => { await intercept(...args); held.release(); await wait(20); };
+        const next = await host.send('Enter.', 'Gerrit is only mentioned in this later reply.');
+        host.st.interceptor = intercept;
+        assert.deepEqual(assistSections(host.ctx.chat[source.index].mes).next, [SAME_VILLAGE]);
+        assert.ok(host.turn.problems().some(item => item.index === source.index && item.line === '+ present Gerrit' && item.code === 'REFUSED'));
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+        assert.equal((await host.sdk.reread(next.index)).ok, true);
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Sieke', 'Sister Temiwa']);
+    } finally { host.close(); }
+});
+
+test('a reply without assistPresent keeps its earlier safety-net arrival through Re-read and reload', { skip }, async () => {
+    let calls = 0;
+    const host = await hostWith(async () => (++calls === 2 ? `${SAME_VILLAGE}\n+ present Gerrit` : 'none'));
+    try {
+        await host.send('At the guild.', AT_VILLAGE);
+        const setter = host.store.setRuleMarks;
+        host.store.setRuleMarks = (index, names) => setter(index, names.filter(name => name !== 'assistPresent'));
+        const settled = settleTurn(host);
+        const reply = await host.send('Run the errands.', ERRAND_REPLY);
+        await settled;
+        host.store.setRuleMarks = setter;
+        assert.ok(!host.ctx.chat[reply.index].extra.storySuite.rules.includes('assistPresent'));
+        assert.deepEqual(host.sdk.query('scene.present').sort(), ['Gerrit', 'Sieke', 'Sister Temiwa']);
+        assert.ok(assistSections(host.ctx.chat[reply.index].mes).now.includes('+ present Gerrit'));
+        const scene = JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]);
+        assert.equal((await host.sdk.reread(reply.index)).ok, true);
+        assert.equal(JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]), scene);
+        await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+        assert.equal(JSON.stringify([host.sdk.query('scene.place'), host.sdk.query('scene.present')]), scene);
+    } finally { host.close(); }
 });

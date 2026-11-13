@@ -10,6 +10,7 @@ import { cutAt } from '../../text.js';
 import { readRecord, swipeLoading } from '../persist.js';
 import { notWritten } from '../assist/extractor.js';
 import { refusedWhy } from '../assist/safety.js';
+import { assistPresentGuard } from '../assist/where.js';
 import { within } from './text.js';
 import { ensureModules } from '../sdk.js';
 import { boardStep, heldForMessage, rememberHeld, pruneMissingBoard } from './held-board.js';
@@ -192,9 +193,9 @@ export function createEvents(s, deps) {
     }
 
     /** Change lines found after the reply (afterReply): captured on it and kept in its hidden block. */
-    async function captureLate({ index, swipe } = {}, text = '', { assist = false, refused = [] } = {}) {
+    async function captureLate({ index, swipe } = {}, text = '', { assist = false, refused = [], placeLines = [] } = {}) {
         const message = ctx?.chat?.[index];
-        if (assist) return captureAssist({ index, swipe }, text, message, refused);
+        if (assist) return captureAssist({ index, swipe }, text, message, refused, placeLines);
         if (!isCarrier(message) || store.headIndex() !== index || (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) !== swipe || s.session) {
             return { receipts: [], problems: ['The reply changed before its late change lines arrived; they were not used.'] };
         }
@@ -227,7 +228,7 @@ export function createEvents(s, deps) {
      * <Changes-assist-next>, through the stricter wall, for the next reply to apply after its own lines;
      * nothing changes now. Anything else (swiped, deleted, the next reply already in): not used.
      */
-    async function captureAssist({ index, swipe }, text, message, refused = []) {
+    async function captureAssist({ index, swipe }, text, message, refused = [], placeLines = []) {
         const same = isCarrier(message) && store.headIndex() === index && (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) === swipe;
         if (!same) return { receipts: [], problems: ['The reply changed before the safety net\'s lines arrived; they were not used.'], dropped: true };
         // Lines the safety net wrote that code refused (an unknown name for a place the map has, a time with no clock time): a
@@ -242,7 +243,14 @@ export function createEvents(s, deps) {
         const own = [...blockLines, ...lateLines(index, []).map(line => line.raw)];
         const parsed = parseChanges(String(text ?? '')).lines;
         const fresh = new Set(notWritten(parsed.map(line => line.raw), own, { scene: blockLines }));
-        const kept = parsed.filter(line => fresh.has(line.raw) && !refusedWhy(line, null, { late: Boolean(s.session || s.replyBusy) }));
+        let kept = parsed.filter(line => fresh.has(line.raw) && !refusedWhy(line, null, { late: Boolean(s.session || s.replyBusy) }));
+        const record = readRecord(message), marks = ruleMarksOf(record?.rules);
+        if (marks.includes('assistPresent')) {
+            const places = parseChanges((placeLines.length ? placeLines : parsed.filter(line => line.kind === 'place').map(line => line.raw)).join('\n')).lines;
+            const guarded = assistPresentGuard({ lines: kept, places, text: mes, heads, own: parseChanges(blockLines.join('\n')).lines, state: store.head(), marks, registry, bus, index, sid: record?.sid, receipts: record?.receipts ?? [] });
+            kept = guarded.lines;
+            refusals.push(...guarded.refused.map(item => problem({ index, line: item.line, code: 'REFUSED', message: `"${item.line}" was not used: ${item.why}.` })));
+        }
         const store1 = mes2 => {
             message.mes = mes2;
             if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = mes2;

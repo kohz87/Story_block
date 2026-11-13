@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Assist keeps people met on the way out of the final scene.** The safety net is asked for presence at the end of the reply; when its place line is refused, suppressed or still the current place, it refuses an arrival whose name is absent from the last story paragraph and explains why. New replies carry the `assistPresent` rule mark; older replies replay as before.
 - **Optional safety-net chip: Hook closed.** Assist settings offer a `- hook` chip (off by default) so the safety net can close a lead the story finished; closing adds nothing and passes the value wall, also after send. Existing settings are unchanged.
 - **Optional safety net for world news and factions.** Assist settings offer separate World news, World news update, Faction and Faction update chips, all off by default. The value wall still applies; replies already written replay as before.
 - **Assist keeps the people in a scene when it supplies a missing place.** It is asked for where the reply ends, never a stop on the way; a place the reply's own `+ present ... | at:` lines contradict is refused (a sibling place or a different one; a parent or alias agrees), but a `with:` list that omits people already at the destination is not, and a kept move is not judged again on Re-read. Its place moves retain everyone present and respect explicit departures, including one inside the same Assist answer. New replies use the `assistPlace` rule mark; older replies replay as before.

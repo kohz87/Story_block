@@ -6,6 +6,8 @@
 // one but plainly means a place the map has, and a `time` line that sets a time without a clock time. A refusal is reported
 // as a Problems line on the reply (turn.js captureAssist), never applied. Pure: no DOM, no state.
 
+import { stripBlock, withoutReasoning } from '../capture.js';
+import { cleanName } from '../domains/names.js';
 import { readChatter } from '../extras.js';
 
 // How many known place names the extractor is told (the nearest first), and the longest name told.
@@ -166,4 +168,37 @@ export function assistDepartures(receipts = []) {
         for (const name of receipt.data?.added ?? []) left.delete(name.toLowerCase());
     }
     return [...left];
+}
+
+// Decide before saving either a now or a late answer, so a Re-read never re-judges a kept line.
+// Preview the actual place handler: this catches a conflict, invalid place or no-op without changing state.
+// A name must be a whole name in the last story paragraph, not a substring or a name in a hidden block.
+export function assistPresentGuard({ lines, places, text, heads, own, state, marks, registry, bus, index, sid, receipts }) {
+    const arrivals = lines.filter(line => line.kind === 'present' && line.op === '+');
+    if (!arrivals.length || !places.length) return { lines, refused: [] };
+    const kept = new Set(lines.map(line => line.raw));
+    const entry = registry.capture('place');
+    const badPlace = places.some(line => {
+        if (!kept.has(line.raw) || !entry) return true;
+        const carrier = { index, sid, rules: marks, assist: 'now', assistLeft: assistDepartures(receipts), assistCheck: (item, map) => assistPlaceConflict(item, own, map) };
+        const result = bus.run('capture.place', { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, seed: 0, capture: entry, carrier });
+        return !result?.ok || result.receipt?.data?.moved === false;
+    });
+    if (!badPlace) return { lines, refused: [] };
+    const paragraph = stripBlock(withoutReasoning(text), 'Changes', { heads }).trim().split(/\r?\n\s*\r?\n/u).at(-1) ?? '';
+    const normalize = value => String(value ?? '').normalize('NFKC').replace(/[‘’`]/gu, "'").replace(/\s+/gu, ' ').toLowerCase();
+    const last = normalize(paragraph);
+    const named = name => {
+        const literal = normalize(cleanName(name)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return literal && new RegExp(`(?<![\\p{L}\\p{N}\\p{M}])${literal}(?![\\p{L}\\p{N}\\p{M}])`, 'u').test(last);
+    };
+    const refused = [];
+    const accepted = lines.filter(line => {
+        if (line.kind !== 'present' || line.op !== '+') return true;
+        const missing = String(line.name ?? '').split(',').map(cleanName).filter(name => name && !named(name));
+        if (!missing.length) return true;
+        refused.push({ line: line.raw, why: `the safety net's place was refused or is the current place, and ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not named in the reply's last paragraph` });
+        return false;
+    });
+    return { lines: accepted, refused };
 }
