@@ -187,14 +187,14 @@ test('a fight won by the dice pays every party member who has not Left, once; th
     assert.equal(result.stop, 'won');
     assert.equal(fieldsOf(host, 'foes').hurt1, 0);
     assert.equal(FIGHT_XP.min, 1);
-    assert.deepEqual([xpOf(host, 'wessel'), xpOf(host, 'ren'), xpOf(host, 'left')], [10, 10, 0], 'level 2 against six level 1: 12 × 90 %, rounded down; Wessel and the Down Ren are paid, Orsolya who Left is not');
+    assert.deepEqual([xpOf(host, 'wessel'), xpOf(host, 'ren'), xpOf(host, 'left')], [21, 21, 0], 'level 2 against six level 1: 12 × 90 % × 2, rounded down; Wessel and the Down Ren are paid, Orsolya who Left is not');
     const [step, ...others] = fightReceipts(host, 2);
     assert.equal(others.length, 0, 'one step');
-    assert.deepEqual(step.data.v2.result.fight.awards.map(award => [award.who, award.xp]), [['Ren', 10], ['Wessel', 10]]);
+    assert.deepEqual(step.data.v2.result.fight.awards.map(award => [award.who, award.xp]), [['Ren', 21], ['Wessel', 21]]);
     assert.equal(step.data.v2.result.fight.lv, 1, 'the record carries the level version');
     assert.deepEqual(step.data.v2.result.fight.groups.map(group => [group.name, group.count, group.level]), [['Sluice Rats', 6, 1]]);
     assert.ok(step.replan && step.afterCapture === true);
-    assert.deepEqual(fightLines(host.ctx.chat[2].extra.storySuite).map(line => line.text), ['Ren +10 XP (fight won)', 'Wessel +10 XP (fight won)']);
+    assert.deepEqual(fightLines(host.ctx.chat[2].extra.storySuite).map(line => line.text), ['Ren +21 XP (fight won) · outnumbered ×2', 'Wessel +21 XP (fight won) · outnumbered ×2']);
     assert.match(cueOf(rollReceipt(host, 2)), /Code gives the party its XP for it: write no XP line for this fight/);
     assert.ok(JSON.stringify(request.chat).includes('write no XP line for this fight'), 'the cue told is the cue stored');
     same(host);
@@ -204,10 +204,10 @@ test('a fight won by the dice pays every party member who has not Left, once; th
     assert.equal((await host.turn.reread(2)).ok, true);
     assert.equal(JSON.stringify(host.head()), head);
     await host.send('I look around.', 'Quiet.');
-    assert.deepEqual([xpOf(host, 'wessel'), xpOf(host, 'ren')], [10, 10], 'a fight is rewarded once');
+    assert.deepEqual([xpOf(host, 'wessel'), xpOf(host, 'ren')], [21, 21], 'a fight is rewarded once');
     // A swipe of the winning reply rolls anew and pays again from nothing; a delete takes the XP with the reply.
     await host.swipe('Another telling of the lull.');
-    assert.deepEqual([xpOf(host, 'wessel'), xpOf(host, 'ren')], [10, 10]);
+    assert.deepEqual([xpOf(host, 'wessel'), xpOf(host, 'ren')], [21, 21]);
     same(host);
     await host.st.deleteMessage(2);
     assert.deepEqual([xpOf(host, 'wessel'), xpOf(host, 'ren')], [0, 0], 'deleting the reply takes the XP with it');
@@ -294,23 +294,23 @@ const DOWN = '~ dm foes — why | kind: hurt-1 | to: 0';
 const XP = amount => `+ dm character — why | kind: add-xp | amount: ${amount}`;
 const fields = (host, who) => host.head().domains.dataModules.instances[`pack.chat/${slugOf(who)}`].chat.fields;
 
-test('a fight won by the narrator\'s own foe lines pays the party once; Astra (level 2) against six level 1 crawlers gets 10', { skip }, async t => {
+test('a fight won by the narrator\'s own foe lines pays the party once; Astra (level 2) against six level 1 crawlers gets 21', { skip }, async t => {
     const { host } = await world(t, { party: ['Astra', 'Ren'] });
     await host.send('A swarm.', reply(SLOT));
     assert.equal(fields(host, 'Astra').xp, 0, 'a fight that is only begun pays nothing');
     await host.send('I strike.', reply('~ dm foes — why | kind: hurt-1 | to: 2'));
     assert.equal(fields(host, 'Astra').xp, 0, 'hurt, not Down');
     await host.send('I finish them.', reply(DOWN));
-    assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [10, 10]);
-    assert.deepEqual(fightLines(host.ctx.chat[8].extra.storySuite).map(line => line.text), ['Astra +10 XP (fight won)', 'Ren +10 XP (fight won)']);
+    assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [21, 21]);
+    assert.deepEqual(fightLines(host.ctx.chat[8].extra.storySuite).map(line => line.text), ['Astra +21 XP (fight won) · outnumbered ×2', 'Ren +21 XP (fight won) · outnumbered ×2']);
     // The beaten group stays on the block: the next reply pays nothing.
     await host.send('We rest.', reply('+ dm character — why | kind: add-xp | amount: 0'));
-    assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [10, 10]);
+    assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [21, 21]);
     // A new group in another slot is a new fight, paid for its own groups only.
     await host.send('A hound.', reply('+ dm foes — why | kind: set-slot-2 | name: Silt Hound | count: 1 | level: 2'));
-    assert.equal(fields(host, 'Astra').xp, 10);
+    assert.equal(fields(host, 'Astra').xp, 21);
     await host.send('I kill it.', reply('~ dm foes — why | kind: hurt-2 | to: 0'));
-    assert.equal(fields(host, 'Astra').xp, 12);
+    assert.equal(fields(host, 'Astra').xp, 23);
     assert.deepEqual(host.store.problems(), []);
     same(host);
     await reloads(host);
@@ -321,24 +321,24 @@ test('the narrator\'s XP line in the reply that won the fight is not used, in ei
         const { host } = await world(t);
         await host.send('A swarm.', reply(SLOT));
         await host.send('I finish them.', reply(...lines));
-        assert.equal(fields(host, 'Astra').xp, 10, `${lines[0]} first: the code's 10, not 60`);
+        assert.equal(fields(host, 'Astra').xp, 21, `${lines[0]} first: the code's 21, with the story's XP held`);
         assert.equal(fields(host, 'Astra').level, 2);
         assert.deepEqual(host.turn.problems().filter(problem => problem.message === FIGHT_XP_HELD).map(problem => problem.code), ['LIMITED'], 'one Problems line');
         // In another reply the narrator's XP line is the narrator's.
         await host.send('A kindness.', reply(XP(30)));
-        assert.equal(fields(host, 'Astra').xp, 40);
+        assert.equal(fields(host, 'Astra').xp, 51);
         same(host);
         await reloads(host);
         host.close();
     }
 });
 
-test('XP reaching 100 raises the level by the block\'s own rule and carries the rest (95 + 10: level 3, 5 XP, 1 point)', { skip }, async t => {
+test('XP reaching 100 raises the level by the block\'s own rule and carries the rest (95 + 21: level 3, 16 XP, 1 point)', { skip }, async t => {
     const { host } = await world(t, { xp: 95 });
     await host.send('A swarm.', reply(SLOT));
     await host.send('I finish them.', reply(DOWN));
     const astra = fields(host, 'Astra');
-    assert.deepEqual([astra.level, astra.xp, astra.points], [3, 5, 1]);
+    assert.deepEqual([astra.level, astra.xp, astra.points], [3, 16, 1]);
     same(host);
     // A swipe takes the XP and the rise with it.
     await host.swipe(reply('~ dm foes — why | kind: hurt-1 | to: 3'));
@@ -352,7 +352,7 @@ test('Re-read, middle delete, rebuild and reload agree for a fight won over seve
     await host.send('A swarm.', reply(SLOT));
     await host.send('I strike.', reply('~ dm foes — why | kind: hurt-1 | to: 2'));
     await host.send('I finish them.', reply(DOWN));
-    assert.equal(fields(host, 'Astra').xp, 10);
+    assert.equal(fields(host, 'Astra').xp, 21);
     const head = JSON.stringify(host.head());
     assert.equal((await host.turn.reread(8)).ok, true);
     assert.equal(JSON.stringify(host.head()), head, 'a Re-read gives the same story');
@@ -369,17 +369,41 @@ test('Re-read, middle delete, rebuild and reload agree for a fight won over seve
     assert.equal(JSON.stringify(host.head()), after, 'a reload gives the live story');
 });
 
+test('an outnumbered fight recorded before the rule keeps its exact XP receipt through Re-read, rebuild and reload', { skip }, async t => {
+    const { host } = await world(t);
+    await host.send('A swarm.', reply(SLOT));
+    const original = host.registry.hookEntries;
+    host.registry.hookEntries = name => original(name).map(entry => ({ ...entry, fn: (view, info) => {
+        const out = entry.fn(view, info);
+        for (const command of out?.commands ?? []) if (command.type === FIGHT) delete command.payload.outnumbered;
+        return out;
+    } }));
+    await host.send('I finish them.', reply(DOWN));
+    host.registry.hookEntries = original;
+    const receipt = () => fightReceipts(host, 6)[0];
+    const kept = () => JSON.stringify({ summary: receipt().summary, fight: receipt().data.v2.result.fight, payload: receipt().replan.payload });
+    const old = kept();
+    assert.equal(fields(host, 'Astra').xp, 10, 'the earlier formula floors 10.8 without a bonus');
+    assert.equal(receipt().replan.payload.outnumbered, undefined);
+    assert.equal((await host.turn.reread(6)).ok, true);
+    assert.equal(kept(), old, 'the old fight result and text stay byte-identical');
+    same(host);
+    await reloads(host);
+    assert.equal(kept(), old);
+    assert.equal(fields(host, 'Astra').xp, 10);
+});
+
 test('the step is not tied to the feature: a reply that has it keeps it when the RPG is switched off, and no new fight is paid while it is off', { skip }, async t => {
     const { host } = await world(t);
     await host.send('A swarm.', reply(SLOT));
     await host.send('I finish them.', reply(DOWN));
-    assert.equal(fields(host, 'Astra').xp, 10);
+    assert.equal(fields(host, 'Astra').xp, 21);
     host.features.set(LEAN_RPG_FEATURE, false);
     assert.equal((await host.turn.reread(4)).ok, true);
-    assert.equal(fields(host, 'Astra').xp, 10, 'the step kept on the reply stands');
+    assert.equal(fields(host, 'Astra').xp, 21, 'the step kept on the reply stands');
     await host.send('A second swarm.', reply('+ dm foes — why | kind: set-slot-2 | name: Others | count: 2 | level: 5'));
     await host.send('Done.', reply('~ dm foes — why | kind: hurt-2 | to: 0'));
-    assert.equal(fields(host, 'Astra').xp, 10, 'off means off: nothing new is paid');
+    assert.equal(fields(host, 'Astra').xp, 21, 'off means off: nothing new is paid');
 });
 
 test('deleting an earlier reply that gave XP plans the fight\'s step again on the new numbers; swipe of the winning reply takes the XP back', { skip }, async t => {
@@ -387,9 +411,9 @@ test('deleting an earlier reply that gave XP plans the fight\'s step again on th
     await host.send('A kindness.', reply(XP(30)));
     await host.send('A swarm.', reply(SLOT));
     await host.send('I finish them.', reply(DOWN));
-    assert.equal(fields(host, 'Astra').xp, 40);
+    assert.equal(fields(host, 'Astra').xp, 51);
     await host.st.deleteMessage(4);
-    assert.equal(fields(host, 'Astra').xp, 10, 'the kindness is gone; the fight still pays its 10');
+    assert.equal(fields(host, 'Astra').xp, 21, 'the kindness is gone; the fight still pays its 21');
     assert.deepEqual(host.turn.problems().filter(problem => problem.code === 'FAILED'), []);
     same(host);
     const after = JSON.stringify(host.head());
@@ -416,10 +440,10 @@ test('a member whose XP comes to 0 gets none and no receipt line; another member
 test('a fight the narrator opens with its own set-slot line and wins in the same reply is paid once', { skip }, async t => {
     const { host } = await world(t);
     await host.send('A swarm, dead at once.', reply(SLOT, DOWN));
-    assert.equal(fields(host, 'Astra').xp, 10);
+    assert.equal(fields(host, 'Astra').xp, 21);
     same(host);
     await host.send('We rest.', reply(XP(0)));
-    assert.equal(fields(host, 'Astra').xp, 10, 'the beaten group does not pay again');
+    assert.equal(fields(host, 'Astra').xp, 21, 'the beaten group does not pay again');
 });
 
 // ---- the XP rate (rpgXpRate) ----------------------------------------------------------------------------------------------------
@@ -442,8 +466,8 @@ for (const rate of [50, 100, 300]) {
         const { host } = await world(t, { rate });
         await host.send('A swarm.', reply(SLOT));
         await host.send('I finish them.', reply(DOWN));
-        const fight = Math.max(1, Math.floor(10 * rate / 100));
-        assert.equal(fields(host, 'Astra').xp, fight, `the fight's 10 at ${rate} %`);
+        const fight = Math.max(1, Math.floor(21 * rate / 100));
+        assert.equal(fields(host, 'Astra').xp, fight, `the fight's 21 at ${rate} %`);
         const step = host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).find(receipt => receipt.type === FIGHT);
         assert.equal(step.data.v2.result.fight.rate, rate === 100 ? undefined : rate, 'the rate is recorded unless it is 100');
         await host.send('A kindness.', reply(XP(10)));
