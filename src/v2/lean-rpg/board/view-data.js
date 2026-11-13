@@ -5,7 +5,7 @@
 import { PRACTICE, PRACTICE_SETTING, STAGES, practiceOf, stageWord } from '../names.js';
 import { fold, readSheet } from '../read.js';
 import { applyGear } from '../gear.js';
-import { fightOf, memberLevel, memberXp } from '../fight.js';
+import { fightOf, memberLevel, memberXp, outnumberedMultiplier } from '../fight.js';
 import { scaleXp, xpRateFrom } from '../levels.js';
 import { usesOf } from '../practice.js';
 import { actionSkills } from './plan.js';
@@ -106,7 +106,7 @@ export function pendingAwards(state, session, result, settings = {}) {
     const sheet = readSheet(state), fight = fightOf(sheet, session.groups ?? []);
     const rate = xpRateFrom(settings), perUse = practiceOf(session.setup?.opening?.payload?.practice) ?? practiceOf(settings[PRACTICE_SETTING]) ?? PRACTICE.perUse;
     const xp = result.stop === 'won' && fight.won ? sheet.characters.filter(actor => actor.alive !== false && Number.isSafeInteger(actor.xp))
-        .map(actor => ({ who: actor.who, amount: scaleXp(memberXp(fight.groups, memberLevel(actor), session.setup?.bars === 2, session.setup?.bars === 2), rate) })) : [];
+        .map(actor => ({ who: actor.who, amount: scaleXp(memberXp(fight.groups, memberLevel(actor), session.setup?.bars === 2, session.setup?.bars === 2, outnumberedMultiplier(fight.groups, sheet.characters.length)), rate) })) : [];
     const practice = usesOf(result).filter(use => {
         const actor = sheet.characters.find(entry => entry.key === fold(use.who));
         return actor?.skills.some(skill => fold(skill.name) === fold(use.skill));

@@ -40,11 +40,11 @@ const same = async host => {
         await host.send('I finish them.', reply(XP(80), DOWN));
         const a = f(host);
 
-        // code XP for level 2 vs 6 lvl-1 crawlers: 6*1*2*(100-10)% = 10.8 -> 10: 90+10 = 100 -> level 3, xp 0, +1 point
-        assert.deepEqual([a.level, a.xp, a.points], [3, 0, 1]);
+        // 6*1*2*90%*2 = 21.6 -> 21: 90+21 = 111 -> level 3, xp 11, +1 point.
+        assert.deepEqual([a.level, a.xp, a.points], [3, 11, 1]);
         await same(host);
         assert.equal((await host.turn.reread(4)).ok, true);
-        assert.deepEqual([f(host).level, f(host).xp, f(host).points], [3, 0, 1]);
+        assert.deepEqual([f(host).level, f(host).xp, f(host).points], [3, 11, 1]);
     });
 }
 

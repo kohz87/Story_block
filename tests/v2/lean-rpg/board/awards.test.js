@@ -123,14 +123,14 @@ test('a fight split over two replies pays both groups once and replays after a s
         const practice = () => host.head().domains.dataModules.instances['pack.chat/skills'].chat.fields.practice1;
         const xp = () => host.head().domains.dataModules.instances['pack.chat/hero'].chat.fields.xp;
         assert.equal(practice(), (usedOne + usedTwo) * 3);
-        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1));
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1, false, false, 1.5));
         assert.ok(xp() > 0, 'the won fight pays XP');
         await host.swipe('A different telling.');
         assert.equal(practice(), (usedOne + usedTwo) * 3);
-        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1));
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1, false, false, 1.5));
         assert.equal((await host.turn.reread(4)).ok, true);
         assert.equal(practice(), (usedOne + usedTwo) * 3);
-        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1));
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1, false, false, 1.5));
         assert.equal(callModel.calls.length, 0);
 
         const finalRounds = JSON.stringify(rollReceipt(host, 4).data.v2.result.rounds);
@@ -140,7 +140,7 @@ test('a fight split over two replies pays both groups once and replays after a s
         assert.equal(xp(), 0, 'a rewind takes back the win award');
         await host.regenerate('The fight ends again.');
         assert.equal(practice(), (usedOne + usedTwo) * 3, 'the replayed win gives practice once');
-        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1), 'the replayed win gives XP once');
+        assert.equal(xp(), memberXp([{ count: 1, level: 1 }, { count: 1, level: 1 }], 1, false, false, 1.5), 'the replayed win gives XP once');
         assert.equal(JSON.stringify(rollReceipt(host, 4).data.v2.result.rounds), finalRounds, 'the rewind replay keeps the rounds');
         assert.equal(callModel.calls.length, 0);
         assert.equal(recordOf(host, 4).receipts.filter(receipt => receipt.type === 'rpg.fight').length, 1);
@@ -207,8 +207,8 @@ test('A1: a count-three win across replies pays its original-count XP once, with
         assert.ok(partial.length >= 2, 'the win took several replies');
         assert.deepEqual(partial, partial.map(() => 0), 'no partial fight pays XP');
         const xp = () => host.head().domains.dataModules.instances['pack.chat/hero'].chat.fields.xp;
-        const expected = memberXp([{ count: 3, level: 1 }], 1);
-        assert.equal(expected, 6);
+        const expected = memberXp([{ count: 3, level: 1 }], 1, false, false, 2);
+        assert.equal(expected, 12);
         assert.equal(xp(), expected, 'the win pays for the original count');
         const index = host.store.headIndex(), rounds = JSON.stringify(latest.rounds);
         await host.swipe('Another telling.');
