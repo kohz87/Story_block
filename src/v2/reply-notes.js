@@ -44,6 +44,18 @@ export function problemReason(item) {
     return message.split(`"${line}"`).join('').replace(/\s+/g, ' ').replace(/^\s*(?:was not used\s*[:,.]?\s*)/i, '').replace(/^[\s,:;.—-]+/, '').trim() || 'This line was not used.';
 }
 
+/** A LIMITED problem that names a line: the line was applied (money-guard warning, or a clamp the owner explains). */
+const isWarning = item => item?.code === 'LIMITED' && typeof item.line === 'string' && item.line !== '';
+
+/** The warnings about lines of reply `index` that WERE applied: [{ line, reason }] (the card's "applied, check:"). */
+export function warnedFrom(problems, index) {
+    const out = [];
+    for (const item of Array.isArray(problems) ? problems : []) {
+        if (item && item.index === index && item.quiet !== true && isWarning(item)) out.push({ line: item.line, reason: problemReason(item) });
+    }
+    return out;
+}
+
 /**
  * The change lines of reply `index` the code did not apply, from turn problems
  * (`{ index, line?, code, message, quiet? }`): [{ line, reason }] in the order reported. A problem without a
@@ -52,8 +64,8 @@ export function problemReason(item) {
 export function refusedFrom(problems, index) {
     const out = [];
     for (const item of Array.isArray(problems) ? problems : []) {
-        // A quiet problem (a line of a feature the reader turned off) is not a refusal.
-        if (!item || item.index !== index || item.quiet === true) continue;
+        // A quiet problem (a line of a feature the reader turned off) is not a refusal; nor is a warning about a line that was applied.
+        if (!item || item.index !== index || item.quiet === true || isWarning(item)) continue;
         if (typeof item.line === 'string' && item.line) out.push({ line: item.line, reason: problemReason(item) });
         else if (item.code === 'UNREADABLE' && item.message) out.push({ line: String(item.message), reason: '' });
     }
@@ -69,7 +81,7 @@ const firstCarrier = chat => (Array.isArray(chat) ? chat.findIndex(isCarrier) : 
  * Long chats: a rebuild (`head`) redraws the notes of the last RECENT_MESSAGES drawn messages only; a chat
  * opened, a delete or more messages loaded go over every drawn message. Each pass finds the messages with one
  * query (not one document query per message).
- * → { refresh(index), refreshAll({ recent }), refusedAt(index), noteKind(index), markEdited(index), onTurn(turn),
+ * → { refresh(index), refreshAll({ recent }), refusedAt(index), warnedAt(index), noteKind(index), markEdited(index), onTurn(turn),
  *     reread(index), forget(), destroy() }
  */
 export function createReplyNotes({
@@ -81,6 +93,7 @@ export function createReplyNotes({
     const canReread = typeof reread === 'function';
     const edited = new Set();      // `${index}|${swipe}` edited since the chat was opened
     const refused = new Map();     // `${index}|${swipe}` → [{ line, reason }]
+    const warned = new Map();      // same key → [{ line, reason }]: applied lines the code warned about
     const busy = new Map();        // index → true while a Re-read runs
     const failed = new Map();      // `${index}|${swipe}` → message of the last failed Re-read
     let era = 0;                   // forget() starts a new one: what a Re-read answers after it is for indexes that no longer hold
@@ -201,7 +214,11 @@ export function createReplyNotes({
         busy.delete(index);
         if (result?.ok) {
             edited.delete(key);
-            if (Array.isArray(result.problems)) refused.set(key, refusedFrom(result.problems.map(item => ({ index, ...item })), index));
+            if (Array.isArray(result.problems)) {
+                const items = result.problems.map(item => ({ index, ...item }));
+                refused.set(key, refusedFrom(items, index));
+                warned.set(key, warnedFrom(items, index));
+            }
         } else {
             failed.set(key, result?.message ?? N.unknownError);
         }
@@ -219,6 +236,8 @@ export function createReplyNotes({
         const lines = refusedFrom(problems, index);
         // Late lines (the extractor's) add to what the reply already had; anything else starts afresh.
         refused.set(key, done.type === 'late' ? [...(refused.get(key) ?? []), ...lines] : lines);
+        const notes = warnedFrom(problems, index);
+        warned.set(key, done.type === 'late' ? [...(warned.get(key) ?? []), ...notes] : notes);
         failed.delete(key);
         refresh(index);
     }
@@ -226,6 +245,11 @@ export function createReplyNotes({
     /** The refused change lines of reply `index`, on its shown swipe: [{ line, reason }]. */
     function refusedAt(index) {
         return (refused.get(keyOf(index)) ?? []).map(item => ({ ...item }));
+    }
+
+    /** The applied lines of reply `index` the code warned about, on its shown swipe: [{ line, reason }]. */
+    function warnedAt(index) {
+        return (warned.get(keyOf(index)) ?? []).map(item => ({ ...item }));
     }
 
     function markEdited(index) {
@@ -240,6 +264,7 @@ export function createReplyNotes({
         era += 1;
         edited.clear();
         refused.clear();
+        warned.clear();
         failed.clear();
         busy.clear();
     }
@@ -272,6 +297,7 @@ export function createReplyNotes({
         refresh,
         refreshAll,
         refusedAt,
+        warnedAt,
         noteKind,
         markEdited,
         onTurn,

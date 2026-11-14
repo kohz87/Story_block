@@ -9,7 +9,7 @@ import { createHost } from '../../../testkit/index.js';
 import { makeMessage } from '../../ui-fake-dom.js';
 import { setupDom } from '../view/mounts/helpers.js';
 import { hudOn, isGameViewKey, mountUi } from '../../../src/v2/ui-host.js';
-import { problemReason, refusedFrom } from '../../../src/v2/reply-notes.js';
+import { problemReason, refusedFrom, warnedFrom } from '../../../src/v2/reply-notes.js';
 import { THIS_REPLY_ID } from '../../../src/v2/reply-cards.js';
 import { STRINGS } from '../../../src/v2/strings.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
@@ -171,6 +171,38 @@ test('refusedFrom and problemReason read the turn\'s problems for one reply', ()
     ]);
     assert.deepEqual(refusedFrom(null, 2), []);
     assert.equal(problemReason({ line: 'x', message: 'odd text' }), 'odd text');
+});
+
+test('a LIMITED problem about an applied line is a warning: warnedFrom lists it, refusedFrom does not', () => {
+    const repeat = 'Possible repeat: 70 from "fokke" was paid in a reply a moment ago and is paid again here. It was applied; undo it if the story paid the same find twice.';
+    const problems = [
+        { index: 2, line: '+ coin 7 silver | from: Fokke', code: 'LIMITED', message: repeat },
+        { index: 2, line: '- item Lantern | qty: 1', code: 'NOT_FOUND', message: '"- item Lantern | qty: 1" was not used: There is no Lantern in the inventory.' },
+        { index: 3, line: '+ coin 1 silver', code: 'LIMITED', message: 'other reply' },
+    ];
+    assert.deepEqual(refusedFrom(problems, 2), [{ line: '- item Lantern | qty: 1', reason: 'There is no Lantern in the inventory.' }]);
+    assert.deepEqual(warnedFrom(problems, 2), [{ line: '+ coin 7 silver | from: Fokke', reason: problemReason(problems[0]) }]);
+    assert.equal(warnedFrom(problems, 2)[0].reason.includes('Possible repeat'), true);
+    assert.deepEqual(warnedFrom(null, 2), []);
+});
+
+test('the changes card shows an applied-with-warning line as "applied, check:", not under "not applied", and does not count it', async () => {
+    const { doc, host, ui, draw } = await page();
+    await host.send('hi', WITH_LINES);
+    draw();
+    ui.notes.onTurn({ index: 2, type: 'turn', problems: [
+        { index: 2, line: '+ coin 7 silver | from: Fokke', code: 'LIMITED', message: 'Possible repeat: 7 from "fokke" was paid again. It was applied; undo it if wrong.' },
+    ] });
+    assert.deepEqual(ui.notes.refusedAt(2), []);
+    assert.equal(ui.notes.warnedAt(2).length, 1);
+    ui.mounts.card.refresh(2, { force: true });
+    const card = doc.querySelector(`.mes[mesid="2"] [data-ss-card="${THIS_REPLY_ID}"]`);
+    assert.ok(!/not applied/.test(card.querySelector('.ss-card-summary').textContent), 'no "not applied" count');
+    ui.mounts.card.toggle(2, true);
+    assert.equal(card.querySelector('.refused'), null);
+    const text = card.querySelector('.warned').textContent.replace(/\s+/g, ' ').trim();
+    assert.ok(text.startsWith('applied, check: + coin 7 silver | from: Fokke — Possible repeat'), text);
+    assert.ok(!text.includes('not applied'));
 });
 
 test('problemReason gives a readable reason for every refused line: the safety net\'s mark is dropped, the friendly unknown-kind text stays, any other message loses the quoted line', () => {
