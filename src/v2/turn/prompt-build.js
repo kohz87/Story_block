@@ -379,6 +379,8 @@ export function createPromptBuild(s, deps) {
                 staticText: defuseMacros(built.staticText),
                 tailText: defuseMacros(built.tailText),
                 parts: built.parts,
+                // The change lines are on: the static header names <Changes> (prompt.js), which the closing cue repeats (prompt-hooks.js).
+                changesOn: built.parts.some(part => part.module === 'story-suite' && part.text.includes('<Changes>')),
                 // A Continue's reply was captured before: only blocks the continuation adds to this
                 // text are read (capture.js continuation()).
                 base: kind === 'continue' ? String(chat[last]?.mes ?? '') : null,

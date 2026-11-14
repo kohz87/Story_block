@@ -6,8 +6,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable, sharedPrefix, EXTENSION_PROMPT_TYPES, MAIN_PROMPT } from '../../testkit/index.js';
 import { STATIC_KEY, TAIL_KEY, V1_KEYS, createTurn, restoreMissing } from '../../src/v2/turn.js';
+import { appendClosingCue, closingCue } from '../../src/v2/turn/text.js';
 import { HAPPENED, STATIC_MARKER } from '../../src/v2/prompt.js';
 import { createRegistry } from '../../src/v2/registry.js';
+// The closing cue (turn/text.js) is the last text of a reply's prompt; the tests that read the tail's own text look before it.
+const noCue = text => String(text).replace(/\n\nAfter the story, write the <Changes> block[^\n]*$/, '');
 
 // A small inventory module: items by name, a capture kind `item`, a command for the UI.
 function bag() {
@@ -243,12 +246,12 @@ test('what happened since the last reply is told once: [Happened] in the tail, t
     const { request } = await host.send('I look at my rope.', 'A fine rope.');
     const tail = request.chat.at(-1);
     assert.equal(tail.role, 'system');
-    assert.equal(tail.content, `${HAPPENED}\nRen picks up 2 Rope (now 2).\n[Bag] Rope x2`);
+    assert.equal(noCue(tail.content), `${HAPPENED}\nRen picks up 2 Rope (now 2).\n[Bag] Rope x2`);
     // The receipt sits on the reply it followed; the next reply recorded that it told it.
     assert.deepEqual(stored(host, 2).receipts.map(receipt => receipt.id), [picked.receipt.id]);
     assert.deepEqual(stored(host, 4).narrated, [picked.receipt.id]);
     const again = await host.send('And now?', 'Nothing new.');
-    assert.equal(again.request.chat.at(-1).content, '[Bag] Rope x2', 'not told twice');
+    assert.equal(noCue(again.request.chat.at(-1).content), '[Bag] Rope x2', 'not told twice');
     host.close();
 });
 
@@ -273,14 +276,14 @@ test('a preset without the Main Prompt: the static part goes at the start of thi
     assert.equal(request.chat.filter(message => message.content.includes(STATIC_MARKER)).length, 1);
     const tail = request.chat.at(-1);
     assert.ok(tail.content.startsWith(`${STATIC_MARKER}\n`));
-    assert.ok(tail.content.endsWith('Bag: the story never sets counts.\n\n[Bag] empty'));
+    assert.ok(noCue(tail.content).endsWith('Bag: the story never sets counts.\n\n[Bag] empty'));
     assert.equal(host.turn.session(), null);
     // With the Main Prompt it is where SillyTavern put it, once.
     const normal = await fakeHost();
     const sent = await normal.send('Hello.', 'Hi.');
     assert.equal(sent.request.chat.filter(message => message.content.includes(STATIC_MARKER)).length, 1);
     assert.ok(sent.request.chat[0].content.includes(STATIC_MARKER));
-    assert.equal(sent.request.chat.at(-1).content, '[Bag] empty');
+    assert.equal(noCue(sent.request.chat.at(-1).content), '[Bag] empty');
     host.close();
     normal.close();
 });
@@ -327,7 +330,7 @@ test('another extension\'s generateRaw prompt while the reply is pending gets no
     assert.ok(!JSON.stringify(raw.chat).includes('[Bag]'));
     assert.equal(raw.chat.length, 2);
     assert.ok(JSON.stringify(request.chat).includes(STATIC_MARKER), 'the reply\'s prompt has both');
-    assert.equal(request.chat.at(-1).content, '[Bag] empty');
+    assert.equal(noCue(request.chat.at(-1).content), '[Bag] empty');
     assert.deepEqual(items(host), { Rope: 1 }, 'the reply is captured');
     host.close();
 });
@@ -389,7 +392,7 @@ test('a quiet generation is told by its instruction: its prompt loses Story Bloc
     assert.ok(!has(nested.request, STATIC_MARKER) && !has(nested.request, '[Bag]'));
     assert.ok(has(nested.request, asked));
     assert.ok(has(request, STATIC_MARKER));
-    assert.equal(request.chat.at(-1).content, '[Bag] empty');
+    assert.equal(noCue(request.chat.at(-1).content), '[Bag] empty');
     assert.deepEqual(items(host), { Rope: 1 }, 'the reply is captured');
     host.close();
 });
@@ -488,7 +491,7 @@ test('beforeGenerate: tail lines join the module\'s part; commands are committed
     const { request } = await host.send('Wait.', 'Ok.');
     const tail = request.chat.at(-1).content;
     assert.ok(tail.startsWith(`${HAPPENED}\nThe bell rings at midnight.`));
-    assert.ok(tail.endsWith('Midnight comes.'));
+    assert.ok(noCue(tail).endsWith('Midnight comes.'));
     assert.deepEqual(host.turn.problems('clock').map(item => item.code), ['UNKNOWN_COMMAND']);
     const receipt = stored(host, 0).receipts.find(item => item.type === 'clock.ring');
     assert.equal(receipt.cause, 'system');
@@ -637,5 +640,33 @@ test('a redraw that fails at MESSAGE_RECEIVED (the reply is not drawn yet) does 
     assert.deepEqual(turns, [2]);
     assert.match(host.ctx.chat[2].mes, /<!-- STORY_SUITE_V2/);
     assert.deepEqual(host.turn.problems(), []);
+    host.close();
+});
+
+test('closing cue: the last text of a reply\'s prompt, fixed, one-pass wording only when NPC State Delta captures, never on quiet prompts', async () => {
+    const host = await fakeHost();
+    const cue = 'After the story, write the <Changes> block. Changes worked out only in thinking are lost.';
+    assert.equal(closingCue(false), cue);
+    assert.equal(closingCue(true), 'After the story, write the <Changes> block, then the hidden npc_state_delta block. Changes worked out only in thinking are lost.');
+    assert.ok(closingCue(true).length < 160, 'under 40 tokens');
+    const sent = await host.send('Hello.', 'Hi.');
+    assert.ok(sent.request.chat.at(-1).content.endsWith(`\n\n${cue}`), 'the very last text, after the tail');
+    assert.equal(sent.request.chat.filter(message => String(message.content).includes('lost.')).length, 1);
+    // After a preset's own depth-0 block and before a prefill.
+    const chat = [{ role: 'user', content: 'Hi\n<thinking_guide>plan</thinking_guide>' }, { role: 'assistant', content: 'Prefill' }];
+    assert.equal(appendClosingCue(chat, cue), true);
+    assert.deepEqual(chat.map(message => message.role), ['user', 'assistant']);
+    assert.ok(chat[0].content.endsWith(`</thinking_guide>\n\n${cue}`));
+    assert.equal(appendClosingCue(chat, cue), false, 'never twice');
+    // NPC State Delta's one-pass capture rules sit in its extension prompt: the cue then names its hidden block too.
+    host.ctx.extensionPrompts = { story_suite_static_npc_state_delta: { value: 'capture rules' } };   // SillyTavern's own map; the fake keeps its own
+    const onePass = await host.send('Again.', 'Ok.');
+    assert.ok(onePass.request.chat.at(-1).content.endsWith(`\n\n${closingCue(true)}`));
+    host.ctx.extensionPrompts = {};
+    // A quiet prompt and an impersonation carry no cue.
+    const quiet = await host.quiet('x');
+    assert.ok(!JSON.stringify(quiet.request).includes('lost.'));
+    const impersonated = await host.st.generate('impersonate', { reply: 'I say hi.' });
+    assert.ok(!JSON.stringify(impersonated.request).includes('lost.'));
     host.close();
 });

@@ -24,7 +24,7 @@ export async function fingerprint(createHost, prepare = null) {
         host = await createHost({ callModel: async prompt => { calls.push(prompt); return 'none'; } });
         await prepare?.(host);
         const prompts = [];
-        const note = async run => { const { request } = await run(); prompts.push(sha(request.chat.map(message => `${message.role}:${message.content}`).join('\n'))); };
+        const note = async run => { const { request } = await run(); prompts.push(sha(request.chat.map(message => `${message.role}:${String(message.content).replace(/\n\nAfter the story, write the <Changes> block[^\n]*$/, '')}`)  /* the closing cue (turn/text.js) is newer than these fixtures */.join('\n'))); };
         await note(() => host.send('I walk into the drain.', 'Dark. <Changes>\n~ place Drain | kind: ruin\n+ present Ren\n</Changes>'));
         await note(() => host.send('I hit the lead rat with Iron Breath.', 'The rats scatter.'));
         await note(() => host.swipe('Another telling.'));

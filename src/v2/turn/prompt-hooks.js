@@ -3,10 +3,10 @@
 // Story Block's text back where the preset dropped it. `createPromptHooks(s, deps)` is given the turn's state holder `s` and the
 // prompt-build parts it calls; it never imports turn.js.
 
-import { QUIET_KEEP, QUIET_WAIT_MS, contentText, firstLine, mapContent, quietMark, restoreMissing, stripBattleMarker, textPattern } from './text.js';
+import { QUIET_KEEP, appendClosingCue, closingCue, QUIET_WAIT_MS, contentText, firstLine, mapContent, quietMark, restoreMissing, stripBattleMarker, textPattern } from './text.js';
 
 export function createPromptHooks(s, deps) {
-    const { isOwn, battleOn, stripHistory, backgroundPrompt, foreignPrompt, HAS_LEGACY, LEGACY_IN_PROMPT, holdsIn, normalizeType } = deps;
+    const { ctx, isOwn, battleOn, stripHistory, backgroundPrompt, foreignPrompt, HAS_LEGACY, LEGACY_IN_PROMPT, holdsIn, normalizeType } = deps;
 
     /** GENERATION_STARTED: (type, { quiet_prompt, … }, dryRun). A quiet generation's instruction is remembered (claimQuiet). */
     function onGenerationStarted(type, params, dryRun) {
@@ -37,6 +37,13 @@ export function createPromptHooks(s, deps) {
     // Story Block's text as it is in the slots (and the pending reply's), each as a pattern: what a quiet prompt loses.
     const ownPatterns = () => [...new Set([s.slots.staticText, s.slots.tailText, s.session?.staticText, s.session?.tailText].filter(Boolean))].map(textPattern).filter(Boolean);
 
+    // NPC State Delta's one-pass capture is on while its capture rules sit in the extension prompts it sets.
+    const onePassOn = () => {
+        try { return String(ctx?.extensionPrompts?.story_suite_static_npc_state_delta?.value ?? '').trim() !== ''; } catch { return false; }
+    };
+    // The closing cue: only for a reply whose change lines are on (the static header names <Changes>), never a quiet or background prompt.
+    const cueOf = () => (s.session?.changesOn === true ? closingCue(onePassOn()) : '');
+
     /** CHAT_COMPLETION_PROMPT_READY: { chat, dryRun }. */
     function onPromptReady(eventData) {
         if (!eventData || eventData.dryRun === true || !Array.isArray(eventData.chat) || isOwn(eventData)) return;
@@ -56,6 +63,7 @@ export function createPromptHooks(s, deps) {
         if (backgroundPrompt() || !s.session || s.session.prompted) return;
         s.session.prompted = true;
         s.session.restored = restoreMissing(eventData.chat, s.session.staticText, s.session.tailText);
+        appendClosingCue(eventData.chat, cueOf());   // after everything else: SillyTavern's own post-processing runs later, on the way out
     }
 
     /** GENERATE_AFTER_COMBINE_PROMPTS (text completion): { prompt, dryRun }. */
@@ -79,6 +87,7 @@ export function createPromptHooks(s, deps) {
             if (missing.includes(s.session.staticText)) eventData.prompt = `${s.session.staticText}\n${eventData.prompt}`;
             if (missing.includes(s.session.tailText)) eventData.prompt = `${eventData.prompt}\n${s.session.tailText}`;
         }
+        // No closing cue here: a text-completion prompt ends with the reply header, so a cue after it would sit inside the model's own turn.
     }
 
     return { onGenerationStarted, claimQuiet, onPromptReady, onTextPromptReady };
