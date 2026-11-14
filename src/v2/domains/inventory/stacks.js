@@ -126,8 +126,21 @@ export function takeAcross(inv, stacks, qty) {
 // module that buys things back holds what it pays for it to its worth at the sell rate (the module's
 // trade). It stacks with the rest of that item; a stack it joins, or that joins it, is the story's too,
 // and the part of it that is given away or split off stays the story's.
+// A new stack's id. Under the `itemIds` rule mark (a reply's first live capture) it comes from the receipt's id stream, which no other
+// roll touches, so a Re-read that adds a line before this one (it may define the item, which skips this line's rolls) keeps the id the
+// reader's later edits point at. An older reply keeps drawing from the main stream (its stored ids replay as before).
+function newStackId(ctx, inv) {
+    const taken = id => Boolean(inv.stacks[id]);
+    if (!(Array.isArray(ctx.carrier?.rules) && ctx.carrier.rules.includes('itemIds') && typeof ctx.id === 'function')) return newId(ctx, 'it', taken);
+    for (let attempt = 0; attempt < 64; attempt += 1) {
+        const id = ctx.id('it');
+        if (!taken(id)) return id;
+    }
+    return ctx.fail('FAILED', 'No free ID could be found for a new record.');
+}
+
 export function addStack(ctx, inv, def, qty, owner, note, key = false, story = false) {
-    const id = newId(ctx, 'it', taken => Boolean(inv.stacks[taken]));
+    const id = newStackId(ctx, inv);
     inv.stacks[id] = { id, def, qty, owner, equipped: null, note, from: typeof ctx.receiptId === 'string' ? ctx.receiptId : '', ...(key ? { key: true } : {}), ...(story ? { story: true } : {}) };
     return id;
 }
