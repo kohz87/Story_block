@@ -799,3 +799,21 @@ test('carry table: every kind, plurals, vehicles named as items, unknown stays 2
     for (const [kind, value] of Object.entries(plurals)) assert.equal(kindCarry(kind), value, kind);
     assert.deepEqual(['Carriage', 'Old Coach', 'Stage Coaches', 'Carriages', 'Grain Barge', 'Barges', 'Wagons', 'Sledges', 'Coachman\'s Whip', 'Rope'].map(itemCarryOf), [80, 80, 80, 80, 150, 150, 150, 60, null, null]);
 });
+
+test('a Re-read that adds an earlier `+ item` line of the same item keeps the later stack ids, so the reader\'s equip stays (itemIds mark)', async t => {
+    const host = await fresh(t);
+    await host.send('Loot.', reply('A find.', ['+ item Oak Dagger | rarity: uncommon']));
+    await host.send('More.', reply('Another.', ['+ item Stone | qty: 3']));
+    const dagger = wear(host, 'Oak Dagger').stack;
+    await equip(host, 'Oak Dagger');
+    const at = host.ctx.chat.findIndex(message => /A find/.test(message.mes));
+    assert.ok(host.ctx.chat[at].mes.length > 0);
+    host.ctx.chat[at].mes = reply('A find.', ['+ item Oak Dagger | rarity: common', '+ item Oak Dagger | rarity: uncommon']);
+    const result = await host.turn.reread(at);
+    assert.equal(result.ok, true, result.message);
+    assert.equal(host.head().domains.inventory.stacks[dagger]?.equipped, 'weapon', 'the original stack keeps its id and stays worn');
+    assert.equal(Object.values(host.head().domains.inventory.stacks).filter(item => host.head().domains.inventory.defs[item.def].name === 'Oak Dagger').length, 2);
+    const again = await host.turn.reread(at);
+    assert.equal(again.ok, true, again.message);
+    assert.equal(host.head().domains.inventory.stacks[dagger]?.equipped, 'weapon');
+});
