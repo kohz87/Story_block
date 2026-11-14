@@ -123,6 +123,7 @@ export const PAGE_STRINGS = {
         nobodyNow: 'No one else is here now',
         nothing: 'Nothing changed in the inventory or the scene.',
         notApplied: 'not applied:',
+        appliedCheck: 'applied, check:',
         assist: '(assist)',
         assistLate: '(assist, from the previous reply)',
         assistTitle: 'Read by the Assist safety net: the story told it, the reply\'s change lines left it out.',

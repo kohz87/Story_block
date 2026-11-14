@@ -93,6 +93,12 @@ const TEMPLATE = `
       <span><span class="label">${html(C.notApplied)}</span> <span class="raw">{{ r.line }}</span><span class="why" data-if="r.reason"> — {{ r.reason }}</span></span>
     </li>
   </ul>
+  <ul class="warned" data-if="len(warned) > 0">
+    <li class="line" data-each="warned as w">
+      <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      <span><span class="label">${html(C.appliedCheck)}</span> <span class="raw">{{ w.line }}</span><span class="why" data-if="w.reason"> — {{ w.reason }}</span></span>
+    </li>
+  </ul>
   <ul class="assisted" data-if="len(assisted) > 0" title="${html(C.assistTitle)}">
     <li class="line" data-each="assisted as a">
       <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
@@ -150,13 +156,14 @@ const CSS = `${BASE_CSS}
 .loot .hint, .loot .taken { margin: 0; font-size: 0.9em; }
 .loot .take { justify-self: start; }
 /* The lines last: muted and small (the refused and the assist lines). */
-.refused, .assisted { display: grid; gap: 4px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--ss-border, var(--sb-border)); list-style: none;
+.refused, .warned, .assisted { display: grid; gap: 4px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--ss-border, var(--sb-border)); list-style: none;
                       color: var(--ss-muted, var(--sb-em)); font-size: 0.85em; }
-.refused .line, .assisted .line { display: flex; gap: 8px; align-items: flex-start; }
-.refused .line > i, .assisted .line > i { flex: none; width: 16px; text-align: center; padding-top: 2px; }
-.refused .line > span, .assisted .line > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+.refused .line, .warned .line, .assisted .line { display: flex; gap: 8px; align-items: flex-start; }
+.refused .line > i, .warned .line > i, .assisted .line > i { flex: none; width: 16px; text-align: center; padding-top: 2px; }
+.refused .line > span, .warned .line > span, .assisted .line > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
 .refused .line > i { color: var(--ss-bad-text, var(--ss-bad, var(--sb-em))); }
-.assisted .raw, .refused .raw { font-family: var(--monoFontFamily, monospace); font-size: 0.95em; overflow-wrap: anywhere; }
+.warned .line > i { color: var(--ss-warn-text, var(--ss-warn, inherit)); }
+.assisted .raw, .refused .raw, .warned .raw { font-family: var(--monoFontFamily, monospace); font-size: 0.95em; overflow-wrap: anywhere; }
 `;
 
 export const changesCardScreen = Object.freeze({

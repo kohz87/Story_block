@@ -28,7 +28,7 @@ export function createReplyCards({ runtime, ctx, doc, store, registry, events, q
         } catch { return []; }
     };
     renderer.render = (el, screen, scope) => drawScreen(el, screen, scope?.mount === 'card'
-        ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes, scope.before), edits: editsAt(scope.index), editableHead: scope.index === store.headIndex() } : {}) }
+        ? { ...scope, refused: notes.refusedAt(scope.index), warned: notes.warnedAt?.(scope.index) ?? [], assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes, scope.before), edits: editsAt(scope.index), editableHead: scope.index === store.headIndex() } : {}) }
         : scope);
     // The story head a dialog was opened on (mounts/dialog.js): the head's index and record. Which swipe is shown is not part of
     // it: a swipe that keeps the head record is not a move (the chat's id is checked on its own).
