@@ -681,3 +681,43 @@ test('pending awards use opening groups, settings and the per-reply practice cap
     Object.assign(state.domains.dataModules.instances['pack.chat/foes'].chat.fields, { count1: 50, level1: 99 });
     assert.deepEqual(pendingAwards(state, { groups: [1, 2] }, result, { rpgXpRate: 300 }).xp, [{ who: 'Astra', amount: 180 }], 'the raw fight XP is capped before scaling');
 });
+
+test('Use item: the board lists the bag\'s consumables, then who it is for, stages it as the member\'s action and tells it in the log', async t => {
+    const { doc, host, ui } = await page(t, { formula: 'standard' });
+    await begin(host);
+    await makeBlocks(host, { character: { health: 2, vit: 20 } });
+    await defineFoes(host, [['Rats', 1, 1, 12]]);
+    const fight = () => doc.querySelector('[data-ss-screen="story-block/fight"]');
+    const open = async () => { ui.mounts.screen.open('story-block/fight'); await settle(); fight().querySelector('.rpg-board-open').click(); };
+    await open();
+    const labels = () => [...fight().querySelectorAll('.rpg-board-choice')].map(node => node.textContent);
+    assert.equal(labels().some(text => /Use item/.test(text)), false, 'an empty bag: no Use item');
+    fight().querySelector('.rpg-board-discard').click();
+    fight().querySelector('.rpg-board-confirm').click();
+    for (const [name, rarity, qty] of [['Healing Draught', 'rare', 3], ['Mana Potion', 'common', 1]]) {
+        const granted = await host.bus.command('inventory.grant', { def: { name, kind: 'consumable', rarity }, qty }, { cause: 'system' });
+        assert.equal(granted.ok, true, granted.message);
+    }
+    await settle();
+    ui.mounts.screen.open('story-block/fight');
+    await settle();
+    if (fight().querySelector('.rpg-board-open')) fight().querySelector('.rpg-board-open').click();
+    const use = [...fight().querySelectorAll('.rpg-board-choice')].find(node => /Use item/.test(node.textContent));
+    assert.ok(use, 'Use item sits beside Attack, the skills and Flee');
+    assert.ok(labels().findIndex(text => /Use item/.test(text)) < labels().findIndex(text => /Flee/.test(text)), 'before Flee');
+    use.click();
+    assert.match(fight().textContent, /Choose an item/);
+    assert.deepEqual(labels(), ['Healing Draught ×3 — health +4', 'Mana Potion ×1 — mana +2'], 'name, count, what it restores and how much');
+    fight().querySelector('[data-choice="1"]').click();
+    assert.match(fight().textContent, /Choose who it is for/);
+    assert.match(labels()[0], /^Wessel — health 2 of 16$/);
+    fight().querySelector('[data-choice="1"]').click();
+    const session = boardSession(host.ctx.chatMetadata);
+    assert.equal(session.exchanges.length, 1, 'one member: the exchange is staged');
+    assert.deepEqual(session.exchanges[0].actions, [{ who: 'Wessel', kind: 'item', stack: session.exchanges[0].actions[0].stack, target: 'Wessel' }]);
+    assert.match(fight().querySelector('.rpg-board-log').textContent, /Wessel drinks the Healing Draught \(\+4 health\)/);
+    await new Promise(resolve => setTimeout(resolve, 450));   // (the board locks its choices for 400 ms after a roll)
+    const again = [...fight().querySelectorAll('.rpg-board-choice')].find(node => /Use item/.test(node.textContent));
+    again.click();
+    assert.deepEqual(labels(), ['Healing Draught ×2 — health +4', 'Mana Potion ×1 — mana +2'], 'the dose staged is already counted out');
+});

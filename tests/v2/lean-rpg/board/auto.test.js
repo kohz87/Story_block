@@ -106,3 +106,16 @@ test('autoStop reports the fight first, then a heavy hit, then the cap', () => {
     assert.equal(autoStop({ stop: 'open', ...round() }, { cap: 3, done: 2 }), null);
     assert.equal(autoStop({ stop: 'fled', ...round() }, { cap: 1, done: 1 }), 'cap');
 });
+
+test('Auto never uses a bag item, even for a hurt party that holds healing', () => {
+    const state = stateOf({
+        astra: { role: 'character', fields: character('Astra', { health: 1 }) },
+        ren: { role: 'character', fields: character('Ren', { health: 1 }) },
+        foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 4]]) },
+    });
+    state.domains.inventory = { defs: { 'story/draught': { id: 'story/draught', name: 'Healing Draught', kind: 'consumable', rarity: 'rare', tags: [] } },
+        stacks: { it_a: { id: 'it_a', def: 'story/draught', qty: 5, owner: 'party', equipped: null } }, wallets: {}, aliases: {} };
+    const picks = autoPicks(state, RULES);
+    assert.equal(picks.length, 2);
+    assert.ok(picks.every(pick => pick.kind !== 'item'), JSON.stringify(picks));
+});

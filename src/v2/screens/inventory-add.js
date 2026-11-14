@@ -240,7 +240,7 @@ export function createInventoryGridWidget({ chatKey = () => '', storage = undefi
                     const users = props.users?.[stack] ?? [];
                     if (item.kind === 'consumable' && users.length > 0) {
                         out.push({ label: S.useOn, icon: 'fa-flask', title: fill(S.useOnTitle, { name }),
-                            choices: users.map(who => ({ label: who.name, title: fill(S.useOnWho, { name }), run: () => run('item.use', { stack, target: who.id }) })) });
+                            choices: users.map(who => ({ label: who.name, title: fill(S.useOnWho, { name }), run: () => run(who.via ?? 'item.use', { stack, target: who.id }) })) });
                     }
                     if (!row || row.bound == null) {
                         const all = { label: item.qty != 1 ? fill(S.dropAll, { qty: item.qty }) : S.drop, danger: true, run: () => run('inventory.drop', { stack, qty: item.qty }) };

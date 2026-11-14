@@ -13,7 +13,7 @@
 // cards, queries, hooks, settings and guard as lean-rpg/index.js createLeanRpgPart, handed to the real part once the
 // library is there), the loader (`createRpgLoader`) and the check of a chat (`holdsRpg`). No DOM, no SillyTavern.
 import { CORE_FEATURE } from './features.js';
-import { AUTO_CAP, AUTO_CAP_SETTING, BOARD_SKILL, BOARD_SKILL_CARRY, CHECKS_SETTING, CHECK_STEP, DICE, FIGHT, FOES_TOUCH_QUERY, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, NOROLL, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, PRECHECK_LIMIT_MS, PRECHECK_SETTING, RESOLVE, ROLLS, ROLLS_SETTING } from './lean-rpg/names.js';
+import { AUTO_CAP, AUTO_CAP_SETTING, BOARD_SKILL, BOARD_SKILL_CARRY, CHECKS_SETTING, CHECK_STEP, DICE, FIGHT, FOES_TOUCH_QUERY, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, NOROLL, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, PRECHECK_LIMIT_MS, PRECHECK_SETTING, RESOLVE, ROLLS, ROLLS_SETTING, USE_ITEM } from './lean-rpg/names.js';
 import { noRoll } from './lean-rpg/noroll.js';
 import { RANK_QUERY, SETTINGS_SCHEMA, XP_RATE, XP_RATE_SETTING, rankQuery } from './lean-rpg/levels.js';
 import { levelsQuery, rosterQueries } from './lean-rpg/roster.js';
@@ -107,6 +107,8 @@ export function createLazyRpgPart(deps = {}) {
             [BOARD_SKILL]: Object.assign(run(BOARD_SKILL, ctx => waiting(ctx)), { feature: CORE_FEATURE.fightBoard }),
             // (no feature: a rename carries the reader's explicit flags even with the board off)
             [BOARD_SKILL_CARRY]: run(BOARD_SKILL_CARRY, ctx => waiting(ctx)),
+            // (a consumable's effect, owner 14 Nov: the inventory's Use on… and the story's used line; only while the RPG is on)
+            [USE_ITEM]: Object.assign(run(USE_ITEM, ctx => waiting(ctx)), { feature: LEAN_RPG_FEATURE }),
             [RESOLVE]: Object.assign(run(RESOLVE, ctx => waiting(ctx)), { prelude: true, internal: true }),
             // (a tiny record with no state, answered at once, the library or not: a stored note replays whatever is loaded)
             [NOROLL]: Object.assign((ctx, payload) => noRoll(ctx, payload), { prelude: true, internal: true }),
@@ -120,6 +122,8 @@ export function createLazyRpgPart(deps = {}) {
         },
         cards: { 'rpg-join': { feature: LEAN_RPG_FEATURE, for: (...args) => part()?.cards['rpg-join'].for(...args) ?? null } },
         queries: {
+            // (whom the inventory's Use on… offers for each consumable; none while the library is not loaded)
+            'items.useOn': Object.assign((...args) => part()?.queries['items.useOn'](...args) ?? {}, { feature: LEAN_RPG_FEATURE, fallback: true }),
             [JOINS_QUERY]: Object.assign((...args) => part()?.queries[JOINS_QUERY](...args) ?? [], { feature: LEAN_RPG_FEATURE }),
             [ROLLS_QUERY]: Object.assign((...args) => part()?.queries[ROLLS_QUERY](...args) ?? null, { feature: LEAN_RPG_FEATURE }),
             // (the latest reply that touched the Foes block; -1 while the library is not loaded: no foe was ever set by a reply)

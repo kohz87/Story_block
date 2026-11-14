@@ -4,6 +4,7 @@
 import { readRecord } from '../../../../src/v2/persist.js';
 import { carriers, rebuildAt } from './oracle.js';
 import { readSheet } from '../../../../src/v2/lean-rpg/read.js';
+import { actorIdOf } from '../../../../src/v2/lean-rpg/roster.js';
 
 const ITEMS = ['Rope', 'Lamp', 'Moonveil Trout', 'Iron Key', 'Apple', 'Torch'];
 const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
@@ -12,7 +13,7 @@ const WORDS = ['ember', 'frost', 'gale', 'stone', 'tide'];
 const MOUNTS = ['Grey Mare', 'Burr', 'Old Flea', 'Pia', 'Tansy', 'Rook', 'Dune', 'Wren'];
 
 export function changeLine(r) {
-    switch (r.int(0, 11)) {
+    switch (r.int(0, 12)) {
         case 0: case 1: return `+ item ${r.pick(ITEMS)} | qty: ${r.int(1, 3)}`;
         case 2: return `- item ${r.pick(ITEMS)} | qty: ${r.int(1, 2)}`;
         case 3: return `~ item ${r.pick(ITEMS)} | note: ${r.pick(WORDS)}-marked`;
@@ -24,6 +25,8 @@ export function changeLine(r) {
         case 9: return r.pick(['+ dragon Smaug', 'not a change line', '* - item', '~ wound Ren — a scratch']);
         // A story check line (`? roll`, checks/line.js): a die the reply was not offered, a name nobody has, a skill the sheet lacks, or a stat of Astra's: read, refused or worked, never skipped silently.
         case 10: { const line = `? roll ${r.pick(['Astra', 'Astra', 'Nobody', 'Fenna'])} | ${r.pick(['str', 'cha', 'Cut', 'juggling'])} | ${r.pick(['easy', 'normal', 'hard', 'very hard', 'bogus'])} | ${r.int(1, 20)}`; return process.env.QA_NO_CHECKLINE ? '! probe quiet' : line; }
+        // A consumable the story says was used (the RPG's `rpg.useItem` behind a used line): on the reader's hero, a stranger, or nobody named; a thing that is no consumable falls back to being lost.
+        case 11: return `- item ${r.pick(['Torch', 'Rope', 'Lucky Bone', ...ITEMS])} | used: yes${r.pick(['', ' | on: Astra', ' | on: Nobody'])}`;
         // Loot to pick from (story-block.loot): laid out by the reply, taken by a ui burst below.
         default: return r.chance(0.5) ? `+ item ${r.pick(ITEMS)}` : `? loot ${r.pick(ITEMS)}, ${r.pick(ITEMS)} x${r.int(1, 3)} — ${r.pick(PLACES)}`;
     }
@@ -83,6 +86,8 @@ export function uiCommand(r, host) {
         if (own) choices.push(['inventory.drop', { stack: own.id, qty: own.qty }]);
     }
     choices.push(['inventory.drop', { stack: 'it_00000000', qty: 1 }]);
+    // The Use on… button's command (the RPG's own, owner 14 Nov): any stack (a consumable restores, anything else is refused), the hero or a stranger.
+    choices.push(['rpg.useItem', { stack: stacks.length ? r.pick(stacks).id : 'it_00000000', target: r.pick([actorIdOf('pack.chat/fuzz-hero'), actorIdOf('pack.chat/fuzz-hero'), 'ac_nobody00']) }]);
     // A skill rename's flag carry (rpg.boardSkillCarry, no feature gate): a real skill of the sheet when there is one, else a name the sheet lacks (refused).
     const actor = readSheet(head ?? {}).characters?.find(entry => entry.skills?.length);
     const skill = actor && r.pick(actor.skills);

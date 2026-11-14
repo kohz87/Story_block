@@ -11,6 +11,7 @@ import { planGear } from '../gear.js';
 import { isStandard } from '../rules.js';
 import { boardFlags } from './overrides.js';
 import { resourceStrip, skillButton, statusChips, targetButton } from './view-chips.js';
+import { allyBars } from './rules.js';
 import { boardChoices, foeChips, groupTarget, memberGroups as groupsOfMembers, memberOrderLine, memberTargetLine, partyChips, stagedLine, pendingAwards, pendingAwardsLine, standingMembers, targetLabel } from './view-data.js';
 import { boardSession, discardBoard, openBoard, reconcileBoard, stageExchange } from './session.js';
 import { equipmentForBoard, playBoard } from './engine.js';
@@ -226,7 +227,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             if (autoLine) panel.appendChild(h(doc, 'p', 'rpg-board-auto-note', autoLine));
             const mode = targeting?.mode, mainTarget = mode === 'main' && session.setup.aoe === 1;
             const steps = h(doc, 'div', 'rpg-board-step-row');
-            steps.appendChild(h(doc, 'p', 'rpg-board-prompt', mainTarget ? `${data.actor?.who ?? 'Party'}: ${targeting.action.skill} (area)` : targeting ? (mode === 'group' || mode === 'main' ? 'Choose a group' : 'Choose a target') : `${data.actor?.who ?? 'Party'}: choose an action`));
+            steps.appendChild(h(doc, 'p', 'rpg-board-prompt', mode === 'item' ? 'Choose an item' : mode === 'ally' ? 'Choose who it is for' : mainTarget ? `${data.actor?.who ?? 'Party'}: ${targeting.action.skill} (area)` : targeting ? (mode === 'group' || mode === 'main' ? 'Choose a group' : 'Choose a target') : `${data.actor?.who ?? 'Party'}: choose an action`));
             if (data.actors.length > 1) steps.appendChild(h(doc, 'small', 'rpg-board-step', `${Math.min(chosen.length + 1, data.actors.length)} of ${data.actors.length}`));
             panel.appendChild(steps);
             for (const action of chosen) panel.appendChild(h(doc, 'p', 'rpg-board-staged', stagedLine(action, action.target === undefined ? '' : nameAt(action.target) || String(action.target))));
@@ -236,6 +237,8 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
             const list = h(doc, 'div', 'rpg-board-choices');
             const memberBar = member => ({ value: Number(member?.value ?? member?.hurt) || 0, max: Number(member?.size) || 1 });
             const options = !targeting ? data.choices
+                : mode === 'item' ? targeting.items.map(entry => ({ label: `${entry.name} ×${entry.qty} — ${entry.pool} +${entry.blocks}`, stack: entry.stack, pool: entry.pool, literal: true }))
+                    : mode === 'ally' ? allyBars(data.sheet, state.domains.dataModules, targeting.pool).map(bar => ({ label: `${bar.who} — ${targeting.pool} ${bar.value} of ${bar.size}`, ally: bar.who, literal: true }))
                 : mode === 'main' ? memberGroupList.map((group, at) => ({ label: session.setup.aoe === 1 ? `Main target: ${group.label}` : `${at + 1}. ${group.label}`, group: group.group, literal: true }))
                     : mode === 'group' ? targetGroups.map((group, at) => ({ ...groupTarget(group, at), picked: group, literal: true }))
                         : mode === 'members' ? targeting.picked.members.map((member, at) => ({ label: memberTargetLine(member, at + 1), target: member.slot, ...memberBar(member), tone: stageTone(memberBar(member).value, memberBar(member).max), literal: true }))
@@ -244,7 +247,9 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                 if (busy || thisGeneration !== generation || item.reason) return;
                 notice = '';
                 if (targeting) {
-                    if (mode === 'main') chosen.push({ ...targeting.action, group: item.group });
+                    if (mode === 'item') { targeting = { mode: 'ally', action: { ...targeting.action, stack: item.stack }, pool: item.pool }; redraw(); return; }
+                    if (mode === 'ally') chosen.push({ ...targeting.action, target: item.ally });
+                    else if (mode === 'main') chosen.push({ ...targeting.action, group: item.group });
                     else if (mode === 'group') {
                         if (item.picked.members.length > 1) { targeting = { mode: 'members', action: targeting.action, picked: item.picked }; redraw(); return; }   // a group of several opens its members
                         chosen.push({ ...targeting.action, target: item.picked.members[0].slot });
@@ -252,6 +257,7 @@ export function createBoardView({ doc, headState, meta, save, store, rules, quer
                     targeting = null;
                 }
                 else if (item.action.kind === 'flee') chosen = [item.action];
+                else if (item.action.kind === 'item') { targeting = { mode: 'item', action: item.action, items: item.items }; redraw(); return; }
                 else if (item.action.support) chosen.push(item.action);
                 else if (item.action.area && members && !areaAll) {
                     if (memberGroupList.length > 1) targeting = { mode: 'main', action: item.action };

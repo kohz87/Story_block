@@ -38,7 +38,8 @@ function lineNode(doc, line, { check = false } = {}) {
     if (check) text.append(fill(B.check, { who: line.who, what: line.what, total: line.total ?? '?', against: line.vs ?? '?', outcome }));
     else {
         // A heal or a help names the one helped ("Ren heals Wessel (Mend)"), never "attacks".
-        if (line.support) {
+        if (line.item) text.append(line.itemText);
+        else if (line.support) {
             text.append(`${line.who} ${line.heals ? B.verbHeals : B.verbHelps} ${line.target}`);
             if (line.skill) { text.append(' ('); text.appendChild(el(doc, 'span', 'rpg-skill', line.skill)); text.append(')'); }
         } else if (line.reduced) {

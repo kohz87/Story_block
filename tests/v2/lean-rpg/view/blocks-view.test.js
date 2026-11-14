@@ -166,3 +166,16 @@ test('the Fight tab shows the turn order row from the latest rolls and the quick
     assert.deepEqual(only.rounds.map(round => [round.n, round.skipped]), [[1, [{ who: 'Sluice Rat', why: 'beaten' }]]]);
     assert.deepEqual(readResolve({ v: 1, rounds: [{ n: 1, lines: [], skipped: ['Rat'] }] }).rounds[0].skipped, [{ who: 'Rat', why: 'beaten' }], 'plain names read as beaten before their turn');
 });
+
+test('the battle log tells a bag item used on the board as a sentence, with no dice, and a full pool as "already full"', () => {
+    const itemLine = (target, gained, damage) => ({ kind: 'check', type: 'item', support: true, skill: null, item: 'Healing Draught', pool: 'health', gained, target, outcome: 'success', pc: { who: 'Mara', stat: '', die: 0, total: 0 }, ...(damage ? { damage } : {}) });
+    const plain = record({ checks: [] });
+    plain.rounds[0].lines = [itemLine('Mara', 3, { id: 'c:mara', kind: 'char', name: 'Mara', blocks: -3, from: 2, to: 5, size: 6 }), itemLine('Wessel', 0)];
+    const read = readResolve(plain);
+    assert.deepEqual(read.rounds[0].lines.map(line => line.itemText), ['Mara drinks the Healing Draught (+3 health)', 'Mara gives Wessel the Healing Draught (already full)']);
+    const panel = buildPanel(setupDom(), panelModel({ resolve: read, state: state(), before: null, roleOf }));
+    const texts = panel.querySelectorAll('.rpg-bl-round:not(.rpg-bl-opening) .rpg-act-text').map(node => node.textContent);
+    assert.equal(texts[0], 'Mara drinks the Healing Draught (+3 health)');
+    assert.equal(texts[1], 'Mara gives Wessel the Healing Draught (already full)');
+    assert.equal(panel.querySelectorAll('.rpg-bl-round:not(.rpg-bl-opening) .rpg-why').length, 0, 'no roll behind it');
+});

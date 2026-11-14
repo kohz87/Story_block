@@ -34,6 +34,14 @@ const domainOf = state => state?.domains?.dataModules ?? null;
 const witnessOld = state => ({ dataModules: domainOf(state) });
 const witnessNew = state => { const domain = domainOf(state); return { dataModules: domain && typeof domain === 'object' && 'perReply' in domain ? { ...domain, perReply: {} } : domain }; };
 const witness = witnessNew;
+// A fight that used bag items (owner 14 Nov) also witnesses the stacks they came from (what each held, and what it restores), so taking an earlier reply
+// away that gave the item makes the fight roll again instead of replaying a drink nobody holds. A fight with no item action hashes exactly as before.
+const itemActions = board => (board.exchanges ?? []).flatMap(exchange => (Array.isArray(exchange?.actions) ? exchange.actions : []).filter(action => action?.kind === 'item'));
+const withItems = (state, board, base) => {
+    const ids = [...new Set(itemActions(board).map(action => String(action.stack)))].sort(), inv = state?.domains?.inventory;
+    if (!ids.length) return base;
+    return { ...base, items: ids.map(id => { const stack = inv?.stacks?.[id], def = stack ? inv.defs?.[stack.def] : null; return { id, def: stack?.def ?? null, qty: stack?.qty ?? 0, owner: stack?.owner ?? null, name: def?.name ?? null, rarity: def?.rarity ?? null, tags: def?.tags ?? null }; }) };
+};
 const startState = ctx => ({ domains: { dataModules: ctx.read('dataModules'), inventory: ctx.read('inventory'), scene: ctx.read('scene') } });
 
 /** Check a pending segment before generation, using the same rules as the resolver. */
@@ -70,9 +78,11 @@ export function resolveBoard(ctx, payload) {
         if (wear.length) result.wear = wear;
         if (earnedLegend(result, applyGear(readSheet(state), gear), hasLevels(rules))) result.legend = 1;
     }
-    const predicate = { kind: RESOLVE, board: 1, key, setup: ctx.hash(board), rules: ctx.hash(rules), practice, ...(board.setup.bars === 2 ? { bars: 2 } : {}), ...(board.setup.soak === 1 ? { soak: 1 } : {}) };
+    const predicate = { kind: RESOLVE, board: 1, key, setup: ctx.hash(board), rules: ctx.hash(rules), practice, ...(board.setup.bars === 2 ? { bars: 2 } : {}), ...(board.setup.soak === 1 ? { soak: 1 } : {}), ...(itemActions(board).length ? { items: 1 } : {}) };
     ctx.replayGuard({ owner: ctx.module, version: 2, epoch: ctx.epoch, rulesHash: null, predicate,
-        inputHash: ctx.hash({ source: ctx.source, predicate, witness: witness(state) }) }, { key, board, practice });
+        inputHash: ctx.hash({ source: ctx.source, predicate, witness: withItems(state, board, witness(state)) }) }, { key, board, practice });
+    // (each bag item used on the board goes out of the bag now, by the same command a story line's `- item` uses; the engine already checked it is there)
+    for (const used of result.items ?? []) ctx.call('inventory.consume', { stack: used.stack, qty: 1 });
     if (result.hurts.length) applyHurts(ctx.draft('dataModules'), result.hurts);
     // (a fight opened under the foe-clear mark: once it has ended its groups leave the Foes block, whatever the outcome; old records carry no mark and keep their foes)
     if (board.setup.foesClear === 1 && result.stop !== 'open') {
@@ -89,9 +99,9 @@ export function boardGuard({ state, hash }, { guard, source, recorded }) {
         const predicate = guard?.predicate, board = recorded?.board;
         if (guard?.version !== 2 || guard.rulesHash !== null || predicate?.kind !== RESOLVE || predicate?.board !== 1
             || !shape(board) || recorded.key !== predicate.key || hash(board) !== predicate.setup || hash(normalizeRules(board.setup.rules)) !== predicate.rules
-            || recorded.practice !== predicate.practice || (board.setup.bars === 2 ? 2 : undefined) !== predicate.bars || (board.setup.soak === 1 ? 1 : undefined) !== predicate.soak || practiceOf(recorded.practice) === null) return bad('The saved fight is damaged.');
+            || recorded.practice !== predicate.practice || (board.setup.bars === 2 ? 2 : undefined) !== predicate.bars || (board.setup.soak === 1 ? 1 : undefined) !== predicate.soak || (itemActions(board).length ? 1 : undefined) !== predicate.items || practiceOf(recorded.practice) === null) return bad('The saved fight is damaged.');
         if (board.setup.gear && (!gearValid(board.setup.gear) || !gearMatches(state, board.setup.gear, hash))) return bad('The gear before the fight changed.');
         if (board.setup.witness && board.setup.witness.hash !== boardWitness(state, board.setup)) return bad('The sheet or gear before the fight changed.');
-        return [witnessNew, witnessOld].some(make => hash({ source, predicate, witness: make(state) }) === guard.inputHash) ? { ok: true } : bad('The sheet before the fight changed.');
+        return [witnessNew, witnessOld].some(make => hash({ source, predicate, witness: withItems(state, board, make(state)) }) === guard.inputHash) ? { ok: true } : bad('The sheet before the fight changed.');
     } catch { return bad('The saved fight is damaged.'); }
 }

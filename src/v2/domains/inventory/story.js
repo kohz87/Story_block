@@ -41,17 +41,22 @@ export function usedByLine(line, replyText = '') {
 }
 
 // A used consumable goes to the module that answers `item.use` (its effect is that module's rules):
-// `item.use { name, on, qty, story: true }`. Null when no module answers it (the line then takes the
-// thing away, as before); a refusal there refuses the line, so the thing stays.
+// `item.use { name, on, qty, story: true }`; with none, to the RPG's own `rpg.useItem` (the pool a consumable restores, lean-rpg/board/overrides.js), which also
+// gets the item's def. Null when nothing answers (the line then takes the thing away, as before; the RPG off is that case); a refusal there refuses the line, so the thing stays.
 function useInStory(ctx, line, def, qty) {
     const on = labelOf(line, 'on', 'who', 'by');
-    let out;
-    try {
-        out = ctx.call('item.use', { name: def.name, ...(on ? { on } : {}), qty, story: true });
-    } catch (error) {
-        if (error?.code === 'UNKNOWN_COMMAND' && String(error.message).includes('"item.use"')) return null;
-        throw error;
+    const asks = [['item.use', { name: def.name, ...(on ? { on } : {}), qty, story: true }], ['rpg.useItem', { name: def.name, def: def.id, ...(on ? { on } : {}), qty, story: true }]];
+    let out = null;
+    for (const [type, payload] of asks) {
+        try {
+            out = ctx.call(type, payload);
+            break;
+        } catch (error) {
+            if (['UNKNOWN_COMMAND', 'FEATURE_OFF'].includes(error?.code) && String(error.message).includes(`"${type}"`)) continue;
+            throw error;
+        }
     }
+    if (out === null) return null;
     const data = isPlainObject(out?.data) ? out.data : {};
     return {
         summary: typeof out?.summary === 'string' && out.summary ? out.summary : `${itemText(def.name, qty)} used.`,

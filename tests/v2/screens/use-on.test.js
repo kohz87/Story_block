@@ -67,3 +67,26 @@ test('inventory: no Use on… without a module answering items.useOn', { skip: r
     assert.deepEqual(view.warnings, []);
     assert.equal(el.querySelectorAll('.use-on').length, 0);
 });
+
+test('inventory: an answer that names its command (`via`, the RPG\'s own) sends that command; one that names none sends item.use; a malformed one is ignored', { skip: renderSkip }, async () => {
+    const module = core();
+    const state = partyState(module);
+    const ask = extra => equipmentView(state, { query: queries(module, state, extra) });
+    const users = ask({ 'items.useOn': () => ({ it_pota0001: [{ id: MIRA, via: 'rpg.useItem' }, { id: REN, via: '<script>' }, { id: 'ac_gone0001', via: 'rpg.useItem' }] }) }).users;
+    assert.deepEqual(users, { it_pota0001: [{ id: MIRA, name: 'Mira', via: 'rpg.useItem' }, { id: REN, name: 'Ren' }] }, 'a bad `via` is dropped, the member stays');
+    const { el, calls } = show(inventoryScreen, {
+        state,
+        query: queries(module, state, { 'items.useOn': () => ({ it_pota0001: [{ id: MIRA, via: 'rpg.useItem' }, { id: REN, via: 'rpg.useItem' }], it_potb0001: [{ id: REN }] }) }),
+        draft: {},
+        command: async () => ({ ok: true, receipt: { summary: 'done' } }),
+    });
+    openFold(el, 'it_pota0001', 'use');
+    openFold(el, 'it_potb0001', 'use');
+    const named = stack => foldOf(el, stack).querySelectorAll('button:not(.fold-cancel)');
+    assert.deepEqual(named('it_pota0001').map(button => text(button)), ['Mira', 'Ren'], 'the RPG\'s answer keeps the members\' order');
+    named('it_pota0001')[0].click();
+    await settle();
+    named('it_potb0001')[0].click();
+    await settle();
+    assert.deepEqual(calls.map(([type, payload]) => [type, payload]), [['rpg.useItem', { stack: 'it_pota0001', target: MIRA }], ['item.use', { stack: 'it_potb0001', target: REN }]]);
+});
