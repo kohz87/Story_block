@@ -20,6 +20,7 @@ import { heldForMessage } from '../../../../src/v2/turn/held-board.js';
 import { boardGuard } from '../../../../src/v2/lean-rpg/board/commit.js';
 import { hashJson } from '../../../../src/v2/replay.js';
 import { actorIdOf } from '../../../../src/v2/lean-rpg/roster.js';
+import { createBoardPart } from '../../../../src/v2/lean-rpg/board/overrides.js';
 
 test('the reply resolver commits exactly the staged exchange and refuses a duplicate claim', async () => {
     const blocks = { hero: { role: 'character', fields: character('Astra') }, foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 5]]) } };
@@ -669,5 +670,47 @@ test('board: a fight that used an item holds its replay guard to that stack, and
             assert.equal('items' in span.guard.predicate, false, 'a fight with no item has the predicate it always had');
             assert.equal('items' in plain.ctx.chat.at(-1).extra.storySuite.receipts.find(item => item.type === 'rpg.resolve').data.v2.result, false);
         } finally { plain.close(); }
+    } finally { host.close(); restore(); }
+});
+
+test('story used line: a reply captured before the consumableRecovery mark only takes the unit away (also on Re-read); a marked one heals', async () => {
+    const restore = seedCrypto(5), host = await potionHost(), setter = host.store.setRuleMarks;
+    try {
+        host.store.setRuleMarks = () => { throw new Error('old reply'); };
+        await host.send('I drink.', 'She drinks.\n<Changes>\n- item Healing Draught | used: yes | on: Astra\n</Changes>');
+        host.store.setRuleMarks = setter;
+        assert.equal(fieldOf(host, 'health'), 2, 'an old-carrier line heals no one');
+        assert.equal(stackOf(host, 'Healing Draught').qty, 2, 'and takes one unit');
+        const live = JSON.stringify(host.head());
+        assert.equal((await host.sdk.reread(host.ctx.chat.length - 1)).ok, true);
+        assert.equal(JSON.stringify(host.head()), live, 'a Re-read keeps it byte-identical');
+        host.store.rebuild();
+        assert.equal(JSON.stringify(host.head()), live, 'a rebuild too');
+        await host.send('Again.', 'She drinks.\n<Changes>\n- item Healing Draught | used: yes | on: Astra\n</Changes>');
+        assert.equal(fieldOf(host, 'health'), 6, 'a new-carrier line heals');
+        assert.equal(stackOf(host, 'Healing Draught').qty, 1);
+    } finally { host.store.setRuleMarks = setter; host.close(); restore(); }
+});
+
+test('a used line for a unit the same reply\'s board already used is refused: one unit, one heal', async () => {
+    const restore = seedCrypto(11), host = await potionHost();
+    try {
+        const stack = stackOf(host, 'Healing Draught').id;
+        potionBoard(host, [DRAUGHT(host)]);
+        await host.send('I drink.', 'She drinks.\n<Changes>\n- item Healing Draught | used: yes | on: Astra\n</Changes>');
+        assert.equal(host.head().domains.inventory.stacks[stack].qty, 2, 'the board took one unit; the line took none');
+        assert.match(host.turn.problems().map(item => item.message).join(' | '), /already used on the fight board/, 'the line is refused with a problem');
+        assert.equal(itemRounds(host).rounds[0].lines[0].item, 'Healing Draught');
+    } finally { host.close(); restore(); }
+});
+
+test('Use on… leaves out a bound stack', async () => {
+    const restore = seedCrypto(5), host = await potionHost();
+    try {
+        const id = stackOf(host, 'Mana Potion').id, part = createBoardPart({ persona: () => '', metadata: () => null }), ask = state => part.queries['items.useOn'](state);
+        const domains = structuredClone(host.head().domains);
+        assert.ok(ask({ domains })[id]);
+        domains.inventory.stacks[id].bound = 'pc:astra';
+        assert.equal(ask({ domains })[id], undefined);
     } finally { host.close(); restore(); }
 });

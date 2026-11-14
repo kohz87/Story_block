@@ -61,6 +61,8 @@ export const RULE_LINES = Object.freeze({
     gearFinesse: () => false,
     // A new item stack's id comes from the receipt's id stream, not the roll stream (domains/inventory/stacks.js newStackId), so a Re-read that adds an earlier `+ item` line keeps the ids of later ones. Static per chat: only a reply's first live capture is marked; an older reply keeps its ids.
     itemIds: () => false,
+    // A story `- item X | used: yes` for a consumable restores a pool on the sheet (lean-rpg/board/overrides.js rpg.useItem, asked from domains/inventory/story.js). Static per chat: only a reply's first live capture is marked; an older reply keeps the plain take-away.
+    consumableRecovery: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */

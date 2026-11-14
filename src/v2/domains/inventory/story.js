@@ -45,7 +45,8 @@ export function usedByLine(line, replyText = '') {
 // gets the item's def. Null when nothing answers (the line then takes the thing away, as before; the RPG off is that case); a refusal there refuses the line, so the thing stays.
 function useInStory(ctx, line, def, qty) {
     const on = labelOf(line, 'on', 'who', 'by');
-    const asks = [['item.use', { name: def.name, ...(on ? { on } : {}), qty, story: true }], ['rpg.useItem', { name: def.name, def: def.id, ...(on ? { on } : {}), qty, story: true }]];
+    // (the RPG's own recovery is asked only of a reply captured under the `consumableRecovery` mark: an older reply keeps the plain take-away on Re-read)
+    const asks = [['item.use', { name: def.name, ...(on ? { on } : {}), qty, story: true }], ...(marked(ctx, 'consumableRecovery') ? [['rpg.useItem', { name: def.name, def: def.id, ...(on ? { on } : {}), qty, story: true }]] : [])];
     let out = null;
     for (const [type, payload] of asks) {
         try {

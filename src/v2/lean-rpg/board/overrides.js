@@ -7,7 +7,7 @@
 import { CORE_FEATURE } from '../../features.js';
 import { fold, matchCharacter, readSheet } from '../read.js';
 import { actorIdOf, rosterOf as partyRoster } from '../roster.js';
-import { BOARD_SKILL, BOARD_SKILL_CARRY, LEAN_RPG_FEATURE, USE_ITEM } from '../names.js';
+import { BOARD_SKILL, BOARD_SKILL_CARRY, LEAN_RPG_FEATURE, ROLLS_QUERY, USE_ITEM } from '../names.js';
 import { skillKey } from './flags.js';
 import { recoveryWords } from '../cue.js';
 import { recoverPool, recoveryOf } from './rules.js';
@@ -63,6 +63,8 @@ function useItem(ctx, payload, persona) {
     const inv = ctx.read('inventory'), stack = payload?.stack !== undefined ? inv?.stacks?.[payload.stack] : null;
     const def = stack ? inv.defs[stack.def] : inv?.defs?.[payload?.def];
     if (!def || def.kind !== 'consumable') ctx.fail(stack || payload?.def ? 'INVALID' : 'NOT_FOUND', 'Only a consumable can be used.');
+    // (a story line for a unit the same reply's fight board already used up: refused, so the unit is not taken twice)
+    if (payload?.story === true && Number.isInteger(ctx.reply?.index) && (ctx.query(ROLLS_QUERY, { index: ctx.reply.index })?.result?.items ?? []).some(used => used.def === def.id)) ctx.fail('REFUSED', `${def.name} was already used on the fight board in this reply.`);
     const qty = payload?.story === true && Number.isSafeInteger(payload.qty) && payload.qty >= 1 ? Math.min(payload.qty, 99) : 1;
     const state = { domains: { dataModules: ctx.read('dataModules'), party: ctx.read('party') } };
     const who = targetOf(sheetOf(state.domains.dataModules), state, payload ?? {}, persona);
@@ -82,13 +84,13 @@ function useItem(ctx, payload, persona) {
         data: { def: def.id, qty, left: used?.data?.left ?? 0, pool, ...(who.person ? { target: who.person.who } : {}), recovered: gained } };
 }
 
-/** `items.useOn`: { [stack]: [{ id }] }: the party's consumables, each with the members it may be used on; {} while a board fight is open (the sheet is held) or there is no one. */
+/** `items.useOn`: { [stack]: [{ id }] }: the party's unbound consumables, each with the members it may be used on; {} while a board fight is open (the sheet is held) or there is no one. */
 function usersFor(state, metadata) {
     if (boardSession(metadata?.())) return {};
     const people = alive(sheetOf(state?.domains?.dataModules)), inv = state?.domains?.inventory;
     if (!people.length || !inv) return {};
     const ids = people.map(person => ({ id: actorIdOf(person.module), via: USE_ITEM }));
-    return Object.fromEntries(Object.values(inv.stacks ?? {}).filter(stack => stack.qty >= 1 && inv.defs?.[stack.def]?.kind === 'consumable').map(stack => [stack.id, ids]));
+    return Object.fromEntries(Object.values(inv.stacks ?? {}).filter(stack => stack.qty >= 1 && !(typeof stack.bound === 'string' && stack.bound) && inv.defs?.[stack.def]?.kind === 'consumable').map(stack => [stack.id, ids]));
 }
 
 export function createBoardPart({ persona = () => '', metadata = () => null } = {}) {
