@@ -35,7 +35,7 @@ test('the money line with coins is the coin line; the currency\'s name is added 
     const coins = [{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }, { name: 'gold', value: 100 }];
     const ersveil = currencyOf({ currency: 'copper', currencyPlural: 'copper', coins });
     assert.equal(moneyLine(ersveil), coinLine(ersveil));
-    assert.equal(moneyLine(ersveil), 'Money is counted in copper: 1 silver = 10 copper, 1 gold = 100 copper. A coin line names one coin (+ coin 3 silver) or copper (+ coin 35); never two coins in one line.');
+    assert.equal(moneyLine(ersveil), 'Money is counted in copper: 1 silver = 10 copper, 1 gold = 100 copper. Sum in copper, then convert: 18 × 20 copper = 360 copper = 36 silver; 125 copper = 1 gold 2 silver 5 copper. A coin line names one coin (+ coin 3 silver) or copper (+ coin 35); never two coins in one line.');
     const named = currencyOf({ currency: 'mark', coins });
     assert.equal(moneyLine(named), `Money in this story is the mark (plural: marks). ${coinLine(named)}`);
 });
@@ -73,7 +73,7 @@ test('(c) a coins currency: Ersveil\'s copper, silver and gold are named with th
     const host = await start(t, { ersveil: true });
     const coinsLine = moneyOf(staticPart(host));
     assert.equal(coinsLine.length, 1);
-    assert.match(coinsLine[0], /^Money is counted in copper: 1 silver = 10 copper, 1 gold = \d+ copper\. A coin line names one coin \(\+ coin 3 silver\) or copper \(\+ coin 35\); never two coins in one line\.$/);
+    assert.match(coinsLine[0], /^Money is counted in copper: 1 silver = 10 copper, 1 gold = \d+ copper\. Sum in copper, then convert: .+ A coin line names one coin \(\+ coin 3 silver\) or copper \(\+ coin 35\); never two coins in one line\.$/);
 });
 
 test('(d) switching the setting updates the line, and it is byte-identical while the setting is', async t => {
@@ -131,4 +131,20 @@ test('oneCoin: a coin list of one coin worth 1 is told as a single-unit currency
     assert.equal(old.ctx.chat.at(-1).extra.storySuite.rules.includes('oneCoin'), true, 'a later reply carries every mark; the chat is still told by its first reply');
     await old.send('And again.', 'Quiet.');
     assert.deepEqual(moneyOf(staticPart(old)), [coinLine(currency)]);
+});
+
+test('the coin line shows one worked conversion built from the chat\'s own coins (default, custom ratios, two coins, single unit)', () => {
+    const line = coins => coinLine(currencyOf({ coins }));
+    const def = line([{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }, { name: 'gold', value: 100 }]);
+    assert.ok(def.includes(' Sum in copper, then convert: 18 × 20 copper = 360 copper = 36 silver; 125 copper = 1 gold 2 silver 5 copper. '), def);
+    const custom = line([{ name: 'copper', value: 1 }, { name: 'silver', value: 12 }, { name: 'gold', value: 240 }]);
+    assert.ok(custom.includes('18 × 24 copper = 432 copper = 36 silver; 269 copper = 1 gold 2 silver 5 copper. '), custom);
+    const tight = line([{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }, { name: 'gold', value: 20 }]);
+    assert.ok(tight.includes('360 copper = 36 silver; 35 copper = 1 gold 1 silver 5 copper. '), tight);
+    const two = line([{ name: 'penny/pennies', value: 1 }, { name: 'shilling', value: 12 }]);
+    assert.ok(two.includes('Sum in pennies, then convert: 18 × 24 pennies = 432 pennies = 36 shillings. A coin line'), two);
+    assert.ok(!two.includes(';  ') && !/ = 1 /.test(two.split('Sum')[1].split('A coin')[0]), 'two coins: no mixed part');
+    const single = line([{ name: 'mark', value: 1 }]);
+    assert.equal(single, 'Money is counted in marks. A coin line names one coin (+ coin 3 marks) or marks (+ coin 35); never two coins in one line.');
+    assert.ok(!def.includes('\n') && def.length < 400);
 });
