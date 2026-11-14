@@ -37,16 +37,24 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1, { members =
     const grouped = members;
     const fleeing = Array.isArray(actions) && actions.length === 1 && actions[0]?.kind === 'flee';
     if (!Array.isArray(actions) || !actions.length || actions.length > actors.length || (!fleeing && actions.length !== actors.length)) return { error: 'Choose an action for each standing member.' };
-    const seen = new Set(), acts = [];
+    const seen = new Set(), acts = [], items = [];
     let runner = null;
     for (const action of actions) {
-        if (!action || typeof action !== 'object' || !['attack', 'skill', 'flee'].includes(action.kind)) return { error: 'That action is not available.' };
+        if (!action || typeof action !== 'object' || !['attack', 'skill', 'flee', 'item'].includes(action.kind)) return { error: 'That action is not available.' };
         const actor = find(actors, action.who, 'who');
         if (!actor || seen.has(actor.key)) return { error: 'That member cannot act twice.' };
         seen.add(actor.key);
         if (action.kind === 'flee') {
             if (!fleeing) return { error: 'Flee is the whole exchange.' };
             runner = actor;
+            continue;
+        }
+        if (action.kind === 'item') {
+            // (a consumable from the bag: it takes this member's action, no attack; the engine checks the stack and restores the pool. Foes still attack and defences still apply)
+            const mate = find((sheet?.characters ?? []).filter(person => person.alive !== false), action.target, 'who');
+            if (typeof action.stack !== 'string' || !action.stack) return { error: 'Choose an item.' };
+            if (!mate) return { error: 'That party member is no longer here.' };
+            items.push({ who: actor.who, stack: action.stack, target: mate.who });
             continue;
         }
         const skill = action.kind === 'skill' ? find(actor.skills, action.skill, 'name') : null;
@@ -94,5 +102,5 @@ export function exchangePlan(sheet, actions, flags = {}, number = 1, { members =
         const skill = bestDefence(target, item => flagsFor(flags, target, item));
         return { slot: foe.slot, target: target.who, ...(skill ? { skill: skill.name } : {}), ...(members ? { once: true } : {}) };
     });
-    return { plan: { formula: 'standard', pace: 'careful', acts, foes: attacks, checks: [], ...(members ? { rotation: { number, targets: guards } } : {}) }, ...(runner ? { flee: runner } : {}) };
+    return { plan: { formula: 'standard', pace: 'careful', acts, foes: attacks, checks: [], ...(members ? { rotation: { number, targets: guards } } : {}) }, ...(runner ? { flee: runner } : {}), ...(items.length ? { items } : {}) };
 }

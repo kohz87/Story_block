@@ -71,7 +71,7 @@ export const JOINS_QUERY = 'rpg.joins';
  */
 export function createLeanRpgPart({ chat = stChat, metadata = () => null, moduleId = 'story-block', persona = () => '', rosterOn, callModel, onPlanning, timeoutMs, timer } = {}) {
     const precall = createPrecall({ chat, metadata, moduleId, skip: skipOf(metadata), callModel, onPlanning, timeoutMs, timer });
-    const board = createBoardPart();
+    const board = createBoardPart({ persona, metadata });
     // (the reader's own character is the one named like the persona: a full party's card never offers to bench them)
     const isMe = name => { let who = ''; try { who = String(persona() ?? '').replace(/\s+/g, ' ').trim(); } catch { who = ''; } return Boolean(who) && fold(name) === fold(who); };
     return {
@@ -101,6 +101,7 @@ export function createLeanRpgPart({ chat = stChat, metadata = () => null, module
         // The card under the head reply for a companion who may join (join.js): read from the reply's own receipts, so it goes with the reply.
         cards: { 'rpg-join': { feature: LEAN_RPG_FEATURE, for: (state, _message, ctx) => joinCard(ctx?.query?.(JOINS_QUERY, Number.isInteger(ctx?.index) ? { index: ctx.index } : {}) ?? [], state, isMe) } },
         queries: {
+            ...board.queries,
             [JOINS_QUERY]: Object.assign((state, args, tools) => joinOffers(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index, partyOf(state)), { feature: LEAN_RPG_FEATURE }),
             // The rank a level falls in, by the story's pack (levels.js): { level } → { name } | null.
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),

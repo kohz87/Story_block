@@ -115,7 +115,9 @@ function itemRow(kind, gear, test) {
         </div>
           ${gear ? foldPanel('equip', 'use-on', bagPiece, html(G.equipWho), equipWho) : ''}
           ${foldPanel('use', 'use-on', "it.kind == 'consumable' && len(q.gear.users[it.stack]) > 0", html(S.useOn), `
-            <button class="ss-button" data-each="q.gear.users[it.stack] as who" data-command="item.use"
+            <button class="ss-button" data-each="q.gear.users[it.stack] as who" data-if="who.via != 'rpg.useItem'" data-command="item.use"
+                    data-payload='{"stack":"{{ it.stack }}","target":"{{ who.id }}"}' title="${html(S.useOnWho, { name: '{{ it.name }}' })}">{{ who.name }}</button>
+            <button class="ss-button" data-each="q.gear.users[it.stack] as who" data-if="who.via == 'rpg.useItem'" data-command="rpg.useItem"
                     data-payload='{"stack":"{{ it.stack }}","target":"{{ who.id }}"}' title="${html(S.useOnWho, { name: '{{ it.name }}' })}">{{ who.name }}</button>`)}
           ${foldPanel('drop', 'drop', gear ? BOUND_FREE : '', html(S.dropAsk, { name: '{{ it.name }}' }), `
             <button class="ss-button ss-button-danger" data-if="it.qty != 1" data-command="inventory.drop"

@@ -6,7 +6,7 @@ import { LEVEL, CLASS_NAMES, RANK_NAMES, STAGES, LIMITS, stageWord } from '../..
 import { fold } from '../../read.js';
 import { soulShortOf } from '../../soul.js';
 import { RPG_STRINGS, fill } from '../../strings.js';
-import { wearLine, cueOfResult } from '../../cue.js';
+import { wearLine, cueOfResult, itemLineText } from '../../cue.js';
 import { memberOrderEntries } from '../../board/order.js';
 import { B, IDLE } from './constants.js';
 import { isRecord, list, words } from './util.js';
@@ -80,6 +80,11 @@ function lineOf(raw, soulOf = () => null, lv = false, divisor = null, members = 
     if (!isRecord(raw) || !isRecord(raw.pc) || !Number.isFinite(raw.pc.total)) return null;
     // The divisor the roll was made with is the result's own (rules.levelDivisor): both sides of the line tell it, not today's default.
     if (lv && divisor !== null) raw = { ...raw, pc: { ...raw.pc, divisor: raw.pc.divisor ?? divisor }, ...(isRecord(raw.foe) ? { foe: { ...raw.foe, divisor: raw.foe.divisor ?? divisor } } : {}) };
+    // A bag item used on the board: a sentence, no dice.
+    if (raw.kind === 'check' && raw.type === 'item' && words(raw.item, 60)) {
+        const who = words(raw.pc.who, 40), target = words(raw.target, 40), item = words(raw.item, 60), pool = words(raw.pool, 8), gained = Number.isFinite(raw.gained) ? raw.gained : 0;
+        return { outcome: '', total: null, vs: null, skill: '', breakdown: '', arrows: [], who, target, item, itemText: itemLineText({ who, target, item, pool, gained }), foe: false, support: true, heals: gained > 0 };
+    }
     const outcome = outcomeOf(raw.outcome);
     const foeSide = isRecord(raw.foe) && Number.isFinite(raw.foe.total) ? raw.foe : null;
     const skill = words(raw.skill, 40), why = words(raw.why, 120), told = words(raw.breakdown, 400);

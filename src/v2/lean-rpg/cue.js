@@ -30,6 +30,15 @@ const numbers = line => `(${line.pc.total} vs ${line.kind === 'check' ? line.dc 
 // Names are cut at this many characters only as the last way to fit the cue (shape 3 below).
 const NAME_CUT = 20;
 const TAIL_FROM = 4;
+/** The words of a recovery for the log and the note: "+3 health". */
+export const recoveryWords = (pool, gained) => `+${gained} ${pool}`;
+const EATEN = /\b(?:rations?|food|bread)\b/iu;
+/** One item use as a sentence: "Astra drinks the Healing Draught (+3 health)", "Astra gives Ren the Healing Draught (+3 health)", "(already full)" when nothing moved. */
+export function itemLineText({ who, target, item, pool, gained }) {
+    const act = target === who ? `${EATEN.test(item) ? 'eats' : 'drinks'} the ${item}` : `gives ${target} the ${item}`;
+    return `${who} ${act} (${gained > 0 ? recoveryWords(pool, gained) : 'already full'})`;
+}
+
 const cut = (text, max) => (max && text.length > max ? `${text.slice(0, max - 1)}…` : text);
 const headTail = (text, max, tail) => `${text.slice(0, max - 1 - tail)}…${tail ? text.slice(-tail) : ''}`;
 
@@ -61,6 +70,7 @@ export function shortNames(names, max = NAME_CUT) {
 export function lineText(line, { compact = false, names = 0, shown = name => name, plain = false, legacy = false } = {}) {
     const word = OUTCOME_WORD[line.outcome];
     const who = shown(line.pc.who);
+    if (line.item) return itemLineText({ who, target: shown(line.target), item: cut(line.item, names), pool: line.pool, gained: line.gained });
     if (line.type && line.kind !== 'check') return standardLine(line, { names, shown, word, who, legacy });
     if (line.type && line.support) return `${who} → ${shown(line.target)}${line.skill ? ` (${cut(line.skill, names)}, support)` : ' (support)'}: ${word} ${numbers(line)}${line.damage ? `, heals${line.decisive ? ' well' : ''}` : ''}`;
     if (line.kind === 'check') {

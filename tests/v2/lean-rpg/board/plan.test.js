@@ -91,3 +91,24 @@ test('R2: a mixed real and pack fight picks either group and plans every pack at
     assert.deepEqual(built.plan.foes.map(foe => foe.slot), [1, packSlot, packSlot]);
     assert.ok(built.plan.foes.every(foe => foe.once === true));
 });
+
+test('an item action takes the member\'s action: no attack, the ally is checked, and the foes still attack and defences still apply', () => {
+    const blocks = {
+        hero: { role: 'character', fields: character('Astra', { str: 20, agi: 20, health: 8 }) },
+        ally: { role: 'character', fields: character('Ren', { str: 8, agi: 8, health: 8 }) },
+        skills: { role: 'skills', fields: skillBlock('Ren', [['Shadow Step', 2, 'agi', 'stamina', 'evasion']]) },
+        foes: { role: 'foes', fields: foeBlock([['Rats', 1, 1, 5]]) },
+    };
+    const sheet = readSheet(stateOf(blocks));
+    const built = exchangePlan(sheet, [{ who: 'Ren', kind: 'item', stack: 'it_a', target: 'Astra' }, { who: 'Astra', kind: 'attack', target: 1 }]);
+    assert.equal(built.error, undefined, built.error);
+    assert.deepEqual(built.items, [{ who: 'Ren', stack: 'it_a', target: 'Astra' }]);
+    assert.deepEqual(built.plan.acts.map(act => act.who), ['Astra'], 'Ren makes no attack');
+    assert.deepEqual(built.plan.foes.map(foe => foe.target), ['Ren'], 'the foes still attack, the item\'s user included');
+    assert.equal(built.plan.foes[0].skill, 'Shadow Step', 'and Ren\'s defence still applies');
+    assert.equal('items' in exchangePlan(sheet, [{ who: 'Astra', kind: 'attack', target: 1 }, { who: 'Ren', kind: 'attack', target: 1 }]), false, 'a plan with no item has no items');
+    assert.match(exchangePlan(sheet, [{ who: 'Ren', kind: 'item', stack: 'it_a', target: 'Nobody' }, { who: 'Astra', kind: 'attack', target: 1 }]).error, /no longer here/);
+    assert.match(exchangePlan(sheet, [{ who: 'Ren', kind: 'item', target: 'Astra' }, { who: 'Astra', kind: 'attack', target: 1 }]).error, /Choose an item/);
+    assert.match(exchangePlan(sheet, [{ who: 'Ren', kind: 'item', stack: 'it_a', target: 'Astra' }, { who: 'Ren', kind: 'attack', target: 1 }]).error, /cannot act twice/, 'one action per member');
+    assert.match(exchangePlan(sheet, [{ who: 'Ren', kind: 'item', stack: 'it_a', target: 'Astra' }]).error, /Choose an action for each/, 'every member still chooses');
+});

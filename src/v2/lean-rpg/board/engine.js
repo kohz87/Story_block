@@ -18,7 +18,7 @@ import { memberRolls } from './member-rolls.js';
 import { boardFoes, collapseFoes, memberSize, splitFoes } from './members.js';
 import { areaGroupName } from './order.js';
 import { exchangePlan, standing } from './plan.js';
-import { attackStat } from './rules.js';
+import { attackStat, maxOf, recoverPool, recoveryOf } from './rules.js';
 
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const gearQuery = state => (_name, args) => gearAnswer(state, args, { condOf, carryOf: defCarry, penalty: ENCUMBERED_PENALTY, mounts: mountRows(state) });
@@ -67,10 +67,21 @@ function stagingWear(state, gear, options) {
     return wearGear(ctx, gear, { ...options, condWord });
 }
 
-const maxOf = domain => (module, field) => {
-    const max = domain?.pins?.[domain?.active?.[module]?.hash]?.definition?.state?.[field]?.max;
-    return Number.isSafeInteger(max) ? max : Infinity;
-};
+// One item used from the bag in a board exchange (owner 14 Nov): the stack must still hold one (the private copy has what the earlier staged exchanges
+// left), the target's pool is restored on the copy, one unit goes. → { line, used } for the round, or { error }. The commit takes the unit itself (commit.js).
+function useItem(copy, item, number) {
+    const inv = copy.domains.inventory, stack = inv?.stacks?.[item.stack], def = stack ? inv.defs?.[stack.def] : null;
+    if (!stack || stack.qty < 1 || def?.kind !== 'consumable') return { error: `${item.who}'s item is no longer in the bag.` };
+    if (typeof stack.bound === 'string' && stack.bound) return { error: `${def.name} is bound to its owner.` };
+    const domain = copy.domains.dataModules, sheet = readSheet(copy), person = sheet.characters.find(entry => entry.who === item.target && entry.alive !== false);
+    if (!person) return { error: 'That party member is no longer here.' };
+    const { pool, blocks } = recoveryOf(def), move = recoverPool(domain, sheet, person, pool, blocks);
+    stack.qty -= 1;
+    if (stack.qty < 1) delete inv.stacks[stack.id];
+    const { gained, pool: _pool, ...bar } = move;
+    const line = { kind: 'check', type: 'item', support: true, skill: null, item: def.name, pool, gained, target: person.who, outcome: 'success', pc: { who: item.who, stat: '', die: 0, total: 0 }, ...(gained ? { damage: bar } : {}) };
+    return { line, move: gained ? bar : null, used: { n: number, stack: stack.id, def: def.id, name: def.name, who: item.who, target: person.who, pool, gained } };
+}
 
 function weaponSides(prepared, sheet, weapons) {
     for (const entry of prepared.acts) {
@@ -156,20 +167,32 @@ export function playBoard(state, setup, exchanges) {
     const virtual = (boardFoeList ?? []).filter(foe => Number.isInteger(foe.group));
     const virtualSlots = new Set(virtual.map(foe => foe.slot)), virtualGroups = new Set(virtual.map(foe => foe.group));
     const values = members ? new Map(boardFoeList.map(foe => [foe.slot, foe.hurt])) : null;
-    const rounds = [], opening = [], quickStart = [], idle = [], moved = new Map(), refused = [], wear = [];
+    const rounds = [], opening = [], quickStart = [], idle = [], moved = new Map(), refused = [], wear = [], itemsUsed = [];
     let order = setup.order ?? null, stop = 'open';
     for (const [at, choices] of exchanges.entries()) {
         if (stop !== 'open') return { error: 'The fight has already ended.' };
         const equipment = setup.gear ? equipmentForBoard(copy, setup.gear) : { gear: setup.gear, weapons: setup.weapons };
-        const number = setup.offset + at + 1, sheet = applyGear(readSheet(copy), equipment.gear);
-        const fightSheet = members ? { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) } : sheet;
+        const number = setup.offset + at + 1;
+        let sheet = applyGear(readSheet(copy), equipment.gear);
+        const fightOf = base => (members ? { ...base, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) } : base);
+        let fightSheet = fightOf(sheet);
         const built = exchangePlan(fightSheet, choices?.actions, setup.flags, number, { members, aoe: setup.aoe === 1, areaAll: setup.areaAll === 1 && setup.aoe === 1, bars, hard });
         if (built.error) return { error: built.error };
+        // Items first: each restores on the copy, so the foes' attacks and defences that follow see the new bars.
+        const itemLines = [];
+        for (const item of built.items ?? []) {
+            const done = useItem(copy, item, number);
+            if (done.error) return { error: done.error };
+            itemLines.push(done.line);
+            itemsUsed.push(done.used);
+            if (done.move) moved.set(done.move.id, { ...done.move, from: moved.get(done.move.id)?.from ?? done.move.from });
+        }
+        if (itemLines.length) { sheet = applyGear(readSheet(copy), equipment.gear); fightSheet = fightOf(sheet); }
         const standingGroups = real => (boardFoeList ?? []).some(foe => (Number.isInteger(foe.group) ? foe.group : foe.slot) === real.slot && values.get(foe.slot) > 0);
         const fleeFoes = members ? realFoes.filter(standingGroups) : sheet.foes;
         const source = boardDice(setup.seed, number), flee = built.flee ? fleeRoll(built.flee, fleeFoes, rules, source('flee', 0), { hard }) : null;
         if (flee && flee.outcome !== 'fail') {
-            rounds.push({ n: number, decisive: false, lines: [flee] });
+            rounds.push({ n: number, decisive: false, lines: [...itemLines, flee] });
             stop = 'fled';
             continue;
         }
@@ -183,7 +206,7 @@ export function playBoard(state, setup, exchanges) {
             noteGear([...rolled.opening, ...lines], equipment.gear);
             wear.push(...stagingWear(copy, equipment.gear, { opening: rolled.opening, rounds: [{ n: number, lines }], rules }));
         }
-        rounds.push({ n: number, decisive: rolled.rounds[0]?.decisive === true, lines: flee ? [flee, ...lines] : lines, ...(rolled.rounds[0]?.idle?.length ? { idle: rolled.rounds[0].idle } : {}) });
+        rounds.push({ n: number, decisive: rolled.rounds[0]?.decisive === true, lines: [...itemLines, ...(flee ? [flee] : []), ...lines], ...(rolled.rounds[0]?.idle?.length ? { idle: rolled.rounds[0].idle } : {}) });
         opening.push(...rolled.opening);
         quickStart.push(...rolled.quickStart);
         idle.push(...rolled.idle);
@@ -220,7 +243,7 @@ export function playBoard(state, setup, exchanges) {
         const fightSheet = { ...sheet, foes: boardFoeList.map(foe => ({ ...foe, hurt: values.get(foe.slot) })) };
         order = openingOrder(copy, setup, fightSheet, rules);
     }
-    const result = { ...(bars ? { bars: 2 } : {}), ...(six ? { foesSix: 1 } : {}), ...(hard ? { foesHard: 1 } : {}), ...(soak ? { soak: 1 } : {}), rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}),
+    const result = { ...(bars ? { bars: 2 } : {}), ...(six ? { foesSix: 1 } : {}), ...(hard ? { foesHard: 1 } : {}), ...(soak ? { soak: 1 } : {}), rounds, opening, order: order ?? [], quickStart, idle, hurts, refused, stop, ...(setup.opening ? { fromApproach: true } : {}), ...(setup.approach ? { checks: structuredClone(setup.approach) } : {}), ...(wear.length ? { wear } : {}), ...(itemsUsed.length ? { items: itemsUsed } : {}),
         summary: summaryStd([], rounds, refused) };
     if (members) result.members = boardFoes(realFoes, values, { maxOf: limits, carried: setup.carriedMembers, six, ...(hard ? { hard, party: readSheet(copy).characters.filter(standing).length, round: setup.offset + exchanges.length + 1 } : {}) });
     return { state: copy, result };

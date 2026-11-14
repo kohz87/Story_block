@@ -142,6 +142,9 @@ export async function fuzz(t, seed, steps) {
         if (sid && boardSession(ctx.chatMetadata)?.anchor === sid) return;
         const opened = openBoard(ctx.chatMetadata, store.head(), { sid, rules: { ...STANDARD_FORMULA, levelDivisor: 5 } });
         if (opened.error) return;
+        // A board exchange that uses a consumable from the bag (Use item): staged now and then, so edits, swipes, deletes and rebuilds after it replay the drink and the unit used up; a stack that no longer fits is refused harmlessly.
+        const inventory = store.head().domains?.inventory, bag = Object.values(inventory?.stacks ?? {}).filter(stack => inventory.defs?.[stack.def]?.kind === 'consumable').sort((a, b) => (a.id < b.id ? -1 : 1));
+        if (bag.length && r.chance(0.5)) stageExchange(ctx.chatMetadata, store.head(), [{ who: 'Astra', kind: 'item', stack: r.pick(bag).id, target: 'Astra' }]);
     }
 
     await startBoardFight();

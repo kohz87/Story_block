@@ -10,7 +10,7 @@ import { scaleXp, xpRateFrom } from '../levels.js';
 import { usesOf } from '../practice.js';
 import { actionSkills } from './plan.js';
 import { areaGroupName, memberBaseName, memberOrderEntries, pluralName } from './order.js';
-import { attackStat, bestDefence } from './rules.js';
+import { attackStat, bestDefence, consumablesIn } from './rules.js';
 import { healingSkill, skillKey } from './flags.js';
 import { stageTone } from '../view/party-data.js';
 
@@ -33,6 +33,9 @@ export function boardChoices(state, setup, chosen = [], memberGroupList = null) 
         if (target) choices.push({ label: `${base}${area ? ' — one foe' : ''}`, reason, view: { name: `${skill.name}${area ? ' · one foe' : ''}`, stat: skill.stat, uses: skill.uses, cost: paid(false), about: skill.about }, action: { who: actor.who, kind: 'skill', skill: skill.name } });
         if (area) choices.push({ label: `${base}${areaLabel}`, reason: areaReason, view: { name: skill.name, stat: skill.stat, uses: skill.uses, cost: paid(true), area: true, about: skill.about }, action: { who: actor.who, kind: 'skill', skill: skill.name, area: true } });
     }
+    // Use item (owner 14 Nov): the party's consumables, one per member per exchange; hidden while the bag has none (the units already chosen this exchange are not offered twice).
+    const bag = consumablesIn(state?.domains?.inventory, chosen.filter(action => action.kind === 'item').map(action => action.stack));
+    if (bag.length) choices.push({ label: 'Use item', view: { name: 'Use item', about: 'Use a consumable on yourself or an ally; it takes your action.' }, items: bag, action: { who: actor.who, kind: 'item' } });
     choices.push({ label: 'Flee', view: { name: 'Flee' }, action: { who: actor.who, kind: 'flee' } });
     const defence = bestDefence(actor, skill => setup?.flags?.[skillKey(actor.module, skill)]);
     return { sheet, actors, foes, actor, choices, defence: defence?.name ?? null, resources: resourcesOf(actor) };
@@ -158,6 +161,6 @@ export function groupTarget(group, at) {
 
 /** The staged line for one chosen action: "Astra · Flash" for an area skill, "Astra · Cut → Bristle-boar 2" for one foe. */
 export function stagedLine(action, targetName = '') {
-    const what = action.kind === 'attack' ? 'Attack' : action.kind === 'flee' ? 'Flee' : action.skill ?? '';
+    const what = action.kind === 'attack' ? 'Attack' : action.kind === 'flee' ? 'Flee' : action.kind === 'item' ? 'Use item' : action.skill ?? '';
     return `${action.who} · ${what}${!action.area && targetName ? ` → ${targetName}` : ''}`;
 }

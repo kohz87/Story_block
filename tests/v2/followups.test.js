@@ -123,6 +123,8 @@ const user = () => {
         calls,
         def: {
             id: 'use-probe', name: 'Use probe', version: '0.0.0',
+            // (a module that answers the Use on… picker's query owns it: story-block's own answer is only a fallback and never clashes)
+            queries: { 'items.useOn': () => ({}) },
             commands: {
                 'item.use'(ctx, payload) {
                     calls.push(payload);

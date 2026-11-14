@@ -3,6 +3,7 @@
 // [Happened] cue and is never cut. Opening names come from the recorded setup for both preview and receipt.
 
 import { BATTLE_MARKER, STAGES, stageWord } from '../names.js';
+import { itemLineText } from '../cue.js';
 import { MEMBER_CAP, MEMBER_CAP_SIX, packLeft } from './members.js';
 
 const clean = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
@@ -26,6 +27,8 @@ export const barMovement = (damage, resource = false, foe = null) => {
 };
 
 function lineNote(line, members = null) {
+    // (a bag item: told as the act it was; the unit is already gone, so the narrator is not to write an item line for it)
+    if (line.item) return `${itemLineText({ who: clean(line.pc?.who), target: clean(line.target), item: clean(line.item), pool: line.pool, gained: line.gained })}; already used up, so no item line for it`;
     const who = clean(line.pc?.who), foe = clean(line.foe?.name), skill = line.skill ? ` (${clean(line.skill)})` : '';
     const area = line.aoe ? (line.reduced ? ' (area, reduced)' : ' (area)') : '';
     const action = line.flee ? `${who} flees from ${foe}` : line.support ? `${who} heals ${clean(line.target)}${skill}` : line.kind === 'foe' ? `${foe} attacks ${who}` : `${who} attacks ${foe}${skill}${area}`;
@@ -80,6 +83,7 @@ export function settledNote(result, setup = null) {
 // The board's log lines (the view reads them; a followup of an area skill under `areaAll` is a group hit alike, not reduced).
 const signed = n => n >= 0 ? `+${n}` : String(n);
 export const labelLine = line => {
+    if (line.item) return itemLineText({ who: line.pc?.who, target: line.target, item: line.item, pool: line.pool, gained: line.gained });
     const pc = line.pc ?? {}, foe = line.foe ?? {}, who = line.flee ? `${pc.who} flees` : line.support ? `${pc.who} heals ${line.target}` : line.reduced ? `… also hits ${foe.name} (reduced)` : line.kind === 'foe' ? `${foe.name} attacks ${pc.who}` : `${pc.who} → ${foe.name}`;
     const bonus = (pc.statBonus ?? 0) + (pc.classBonus ?? 0) + (pc.rank ?? 0) + (pc.edge ?? 0);
     const changes = [line.damage ? barMovement(line.damage) : '', line.cost ? barMovement(line.cost, true) : ''].filter(Boolean);

@@ -11,6 +11,8 @@ export const RESOLVE = 'rpg.resolve';
 /** The reader's saved target, area and defence choices for one skill (board/overrides.js). */
 export const BOARD_SKILL = 'rpg.boardSkill';
 export const BOARD_SKILL_CARRY = 'rpg.boardSkillCarry';
+/** The consumables' own effect (owner 14 Nov): a bag item's pool restored. The inventory's Use on… and the story's used line call it when no other module answers `item.use`. */
+export const USE_ITEM = 'rpg.useItem';
 /** The prelude that records, with the reply, that a live fight's roll planner (gone; old records only) gave nothing usable (noroll.js): the note under the reply is drawn from it. */
 export const NOROLL = 'rpg.noroll';
 

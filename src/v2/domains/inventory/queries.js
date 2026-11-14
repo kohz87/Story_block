@@ -127,7 +127,9 @@ function usersOf(query, inventory, items, members) {
     for (const item of items) {
         if (inventory.defs[item.def]?.kind !== 'consumable' || !Object.hasOwn(given, item.stack) || !Array.isArray(given[item.stack])) continue;
         const ids = [...new Set(given[item.stack].map(entry => (isPlainObject(entry) ? entry.id : entry)).filter(id => names.has(id)))];
-        if (ids.length) out[item.stack] = ids.map(id => ({ id, name: names.get(id) }));
+        // (`via`: the command a member's button runs when the answer names one, as the RPG's own does; else `item.use`)
+        const via = id => { const entry = given[item.stack].find(one => isPlainObject(one) && one.id === id); return typeof entry?.via === 'string' && /^[a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+$/.test(entry.via) ? { via: entry.via } : {}; };
+        if (ids.length) out[item.stack] = ids.map(id => ({ id, name: names.get(id), ...via(id) }));
     }
     return out;
 }

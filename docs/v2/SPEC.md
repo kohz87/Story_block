@@ -981,7 +981,7 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   always `null`; they stay in the answer for modules written when a limit could be set (Story Director's quest
   turn-ins read it with `tryQuery`, and treat a null budget as no limit).
 * **A used consumable** (`- item Draught | used: yes`, or a used-word such as drank or applied, and no
-  lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it.
+  lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it, else (RPG on) to the RPG's `rpg.useItem` (MODULES §F96), else it is taken away.
 * **Gear condition**: a whole number 0 (broken) … 100 (as new), **derived, never stored as the truth**.
   Each wear or repair is an event of its own, `condLog[<stack>]['<sid>#<n>'] = { d, n }` (`d` the change
   asked for, −100…100; `n` the rev it was written at; keyed by the carrier sid, or the receipt id outside a
