@@ -170,6 +170,31 @@ export function foreignCoin(text, currency = DEFAULT_CURRENCY) {
 }
 
 /**
+ * One short worked conversion (" Sum in copper, then convert: ...") built from the chat's own coins, or '' for a
+ * single-unit currency: a bare rate loses to the habit of dollars and cents, a sum shown once does not. It
+ * sums in the smallest unit to a whole number of the first larger coin (18 x 2 per-coin units = 36 coins),
+ * and, with a second larger coin, shows a mixed amount (one big coin, up to two small, a remainder under one
+ * small coin). Every number comes from the configured values and the arithmetic is exact.
+ */
+function workedExample(base, larger) {
+    const [small, big] = larger;
+    if (!small) return '';
+    const word = (count, unit) => `${count} ${count === 1 ? unit.name : unit.plural}`;
+    const rate = 2 * small.value;
+    let text = ` Sum in ${base.plural}, then convert: 18 × ${word(rate, base)} = ${word(18 * rate, base)} = ${word(36, small)}`;
+    if (big) {
+        const rest = small.value > 5 ? 5 : 1;
+        let each = 2;
+        while (each > 0 && (each * small.value + rest >= big.value)) each -= 1;
+        if (each * small.value + rest < big.value) {
+            const total = big.value + each * small.value + rest;
+            text += `; ${word(total, base)} = ${word(1, big)}${each ? ` ${word(each, small)}` : ''} ${word(rest, base)}`;
+        }
+    }
+    return `${text}.`;
+}
+
+/**
  * The static prompt's coin line (one short line), or '' for a currency without coins: the coins and
  * what each is worth in the smallest unit, and how a money line is written. It changes only when the
  * coins do.
@@ -181,7 +206,7 @@ export function coinLine(currency) {
     const larger = coins.filter(coin => coin.value > 1).slice(0, 6);
     const worth = larger.map(coin => `1 ${coin.name} = ${coin.value} ${base.plural}`).join(', ');
     const example = larger[0]?.name ?? base.plural;
-    return `Money is counted in ${base.plural}${worth ? `: ${worth}` : ''}. A coin line names one coin (+ coin 3 ${example}) or ${base.plural} (+ coin 35); never two coins in one line.`;
+    return `Money is counted in ${base.plural}${worth ? `: ${worth}` : ''}.${workedExample(base, larger)} A coin line names one coin (+ coin 3 ${example}) or ${base.plural} (+ coin 35); never two coins in one line.`;
 }
 
 /**

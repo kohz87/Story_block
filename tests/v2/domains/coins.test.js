@@ -125,7 +125,7 @@ test('the static prompt names the coins in one line, byte-identical reply to rep
     await host.send('Next.', 'Quiet.');
     const first = staticPart(host);
     assert.ok(first.includes(coinLine(PENNY)), first);
-    assert.match(coinLine(PENNY), /^Money is counted in pennies: 1 silver = 10 pennies, 1 gold = 100 pennies\. A coin line names one coin \(\+ coin 3 silver\) or pennies \(\+ coin 35\)/);
+    assert.match(coinLine(PENNY), /^Money is counted in pennies: 1 silver = 10 pennies, 1 gold = 100 pennies\. Sum in pennies, then convert: 18 × 20 pennies = 360 pennies = 36 silver; 125 pennies = 1 gold 2 silver 5 pennies\. A coin line names one coin \(\+ coin 3 silver\) or pennies \(\+ coin 35\)/);
     await host.send('Again.', 'Still quiet.\n<Changes>\n+ coin 3\n</Changes>');
     await host.send('Again.', 'Quiet.');
     assert.equal(staticPart(host), first, 'unchanged while the coins are');
