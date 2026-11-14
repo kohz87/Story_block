@@ -59,6 +59,8 @@ export const RULE_LINES = Object.freeze({
     gearOrder: () => false,
     // Quick weapons (cane, rapier, katana, sabre, whip, estoc, scimitar) raise AGI in an item the reply defines (domains/gear/stats.js defaultStat). Static per chat: only a reply's first live capture is marked.
     gearFinesse: () => false,
+    // A new item stack's id comes from the receipt's id stream, not the roll stream (domains/inventory/stacks.js newStackId), so a Re-read that adds an earlier `+ item` line keeps the ids of later ones. Static per chat: only a reply's first live capture is marked; an older reply keeps its ids.
+    itemIds: () => false,
 });
 
 /** A narrator's set-slot line, using normalized labels and the same omitted-kind inference as the handler. */
