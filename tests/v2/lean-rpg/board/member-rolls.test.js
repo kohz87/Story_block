@@ -127,3 +127,43 @@ test('the shared Standard roll engine stays split into small files', () => {
         assert.ok(count <= 300, `${name} has ${count} lines`);
     }
 });
+
+// Defence is charged once per exchange per defender, whatever the foes' shape (owner 14 Nov). Every attack is still rolled against the defence.
+const guardedBoard = (names, foes) => {
+    const blocks = { foes: { role: 'foes', fields: levelFoeBlock(foes, 6) } };
+    names.forEach((who, at) => {
+        blocks[`c${at}`] = { role: 'character', fields: character(who, { vit: 30, health: 8, mana: 4, stamina: 4 }) };
+        blocks[`s${at}`] = { role: 'skills', fields: skillBlock(who, [['Shadow Step', 3, 'agi', 'mana', 'evasion']]) };
+    });
+    return { domains: { dataModules: sheetDomain(blocks) } };
+};
+const charges = (names, foes, target, over = {}) => {
+    const setup = { seed: 5, offset: 0, rules: { ...STANDARD_FORMULA, levelDivisor: 5 }, members: 1, aoe: 1, areaAll: 1, foesSix: 1, foesClear: 1, ...over };
+    const played = playBoard(guardedBoard(names, foes), setup, [{ actions: names.map(who => ({ who, kind: 'attack', target })) }]);
+    assert.equal(played.error, undefined);
+    const lines = played.result.rounds[0].lines.filter(line => line.kind === 'foe');
+    return { lines, paid: lines.filter(line => line.cost).map(line => line.pc.who), played };
+};
+
+test('one defender pays its defence once against separate foes, a group or a pack, and every attack is rolled', () => {
+    const shapes = [[[['Boar', 1, 3, 4], ['Wolf', 1, 3, 4]], 1, 2], [[['Boar', 2, 3, 4]], 11, 2], [[['Boar', 12, 3, 4]], 11, 6], [[['Boar', 1, 3, 4], ['Wolf', 1, 3, 4], ['Bat', 1, 3, 4]], 1, 3]];
+    for (const [foes, target, attacks] of shapes) {
+        const { lines, paid } = charges(['Astra'], foes, target);
+        assert.equal(lines.length, attacks);
+        assert.deepEqual(paid, ['Astra']);
+        assert.ok(lines.every(line => line.skill === 'Shadow Step'), 'each attack is rolled against the defence');
+    }
+});
+
+test('two defenders against three foes pay one block each, never one per attack', () => {
+    const { lines, paid } = charges(['Astra', 'Ren'], [['Boar', 1, 3, 4], ['Wolf', 1, 3, 4], ['Bat', 1, 3, 4]], 1);
+    assert.equal(lines.length, 3);
+    assert.deepEqual(paid.sort(), ['Astra', 'Ren']);
+    assert.ok(lines.every(line => line.skill === 'Shadow Step'));
+});
+
+test('a fight started without the members mark keeps charging every defence roll, and replays byte-identical', () => {
+    const foes = [['Boar', 1, 3, 4], ['Wolf', 1, 3, 4]], old = charges(['Astra'], foes, 1, { members: undefined });
+    assert.deepEqual(old.paid, ['Astra', 'Astra']);
+    assert.deepEqual(charges(['Astra'], foes, 1, { members: undefined }).played, old.played);
+});
