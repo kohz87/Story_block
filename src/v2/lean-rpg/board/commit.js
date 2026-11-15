@@ -24,6 +24,7 @@ const shape = board => isObject(board) && isObject(board.setup) && Array.isArray
     && (board.setup.areaAll === undefined || (board.setup.areaAll === 1 && board.setup.aoe === 1))
     && (board.setup.soak === undefined || (board.setup.soak === 1 && board.setup.bars === 2))
     && (board.setup.foesClear === undefined || (board.setup.foesClear === 1 && board.setup.members === 1))
+    && (board.setup.fightLen === undefined || (board.setup.fightLen === 1 && board.setup.members === 1))
     && (board.setup.witness === undefined ? board.exchanges.length === 0
         : isObject(board.setup.witness) && board.setup.witness.offset === board.setup.offset && /^[0-9a-f]{64}$/u.test(board.setup.witness.hash));
 // The guard's input witness. Records made before this hashed the whole dataModules domain, other replies' `perReply` scratch included,
